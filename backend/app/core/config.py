@@ -1,6 +1,7 @@
+import os
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,11 +31,54 @@ class Settings(BaseSettings):
     auto_sync_channels_on_startup: bool = False
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(
+            None
+            if os.getenv("APP_ENV", "").strip().strip("\"'").lower() == "production"
+            else ".env"
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        env_ignore_empty=True,
     )
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def normalize_string_values(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        if (
+            len(normalized) >= 2
+            and normalized[0] == normalized[-1]
+            and normalized[0] in {'"', "'"}
+        ):
+            normalized = normalized[1:-1].strip()
+        return normalized
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        cleaned = value.strip()
+        if (
+            len(cleaned) >= 2
+            and cleaned[0] == cleaned[-1]
+            and cleaned[0] in {'"', "'"}
+        ):
+            cleaned = cleaned[1:-1].strip()
+        if not cleaned:
+            return None
+
+        # Render and other providers often expose postgres URLs without driver hints.
+        # Force psycopg3-compatible SQLAlchemy URL to avoid startup failures.
+        if cleaned.startswith("postgres://"):
+            cleaned = "postgresql+psycopg://" + cleaned[len("postgres://") :]
+        elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
+            cleaned = "postgresql+psycopg://" + cleaned[len("postgresql://") :]
+
+        return cleaned
 
     @property
     def resolved_database_url(self) -> str:

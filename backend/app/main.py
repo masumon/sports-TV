@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
@@ -11,6 +13,8 @@ from app.core.security import get_password_hash
 from app.db.session import Base, SessionLocal, engine
 from app.models import Channel, User
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
+
+logger = logging.getLogger("app.startup")
 
 app = FastAPI(
     title=settings.app_name,
@@ -45,6 +49,11 @@ def ensure_admin_seed(db: Session) -> None:
 
 @app.on_event("startup")
 def on_startup() -> None:
+    logger.info(
+        "Startup env validation | ADMIN_EMAIL=%s | ADMIN_PASSWORD_LENGTH=%d",
+        settings.admin_email,
+        len(settings.admin_password.encode("utf-8")),
+    )
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
