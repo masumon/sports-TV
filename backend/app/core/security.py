@@ -17,11 +17,24 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security_scheme = HTTPBearer(auto_error=False)
 
 
+def _truncate_for_bcrypt(password: str) -> str:
+    """
+    bcrypt accepts max 72 bytes. Truncate safely if needed.
+    """
+    if len(password.encode("utf-8")) > 72:
+        password = password[:72]
+        while len(password.encode("utf-8")) > 72:
+            password = password[:-1]
+    return password
+
+
 def get_password_hash(password: str) -> str:
+    password = _truncate_for_bcrypt(password)
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    plain_password = _truncate_for_bcrypt(plain_password)
     return pwd_context.verify(plain_password, hashed_password)
 
 
