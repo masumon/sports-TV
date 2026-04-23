@@ -28,6 +28,7 @@ export default function AdminLoginPage() {
         full_name: response.user.full_name,
         email: response.user.email,
         is_admin: response.user.is_admin,
+        subscription_tier: response.user.subscription_tier === "premium" ? "premium" : "free",
       });
       router.push("/admin/dashboard");
     } catch (err) {

@@ -17,7 +17,11 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       user: null,
-      setSession: (token, user) => set({ token, user }),
+      setSession: (token, user) =>
+        set({
+          token,
+          user: { ...user, subscription_tier: user.subscription_tier ?? "free" },
+        }),
       clearSession: () => set({ token: null, user: null }),
     }),
     {

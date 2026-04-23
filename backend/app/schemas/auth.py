@@ -19,6 +19,7 @@ class UserRead(BaseModel):
     full_name: str
     email: EmailStr
     is_admin: bool
+    subscription_tier: str = "free"
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 

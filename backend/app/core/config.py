@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     scraper_source_url: str = "https://iptv-org.github.io/iptv/categories/sports.m3u"
     auto_sync_channels_on_startup: bool = False
+    # Optional Redis for response caching (GET /channels, GET /live-scores). If unset, caching is disabled.
+    redis_url: str | None = None
+    cache_ttl_seconds: int = 300
+    # POST /admin/channels/sync — minimum seconds between successful syncs per process (in-memory).
+    sync_rate_limit_seconds: int = 60
+    # Background M3U sync interval (0 = disabled). Use one worker or expect duplicate work.
+    scheduled_sync_interval_minutes: int = 0
+    # Engine pool (PostgreSQL)
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
 
     model_config = SettingsConfigDict(
         env_file=(
@@ -87,6 +97,14 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def _reject_default_jwt_in_prod(self) -> "Settings":
+        v = (self.jwt_secret_key or "").strip()
+        if (self.app_env or "").lower() in {"production", "prod"} and v in {"", "replace-with-strong-secret", "change-me", "secret"}:
+            msg = "Set JWT_SECRET_KEY to a long random value in production (e.g. openssl rand -hex 32)."
+            raise ValueError(msg)
+        return self
 
 
 @lru_cache(maxsize=1)

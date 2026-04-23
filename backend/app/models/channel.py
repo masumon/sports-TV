@@ -16,7 +16,7 @@ class Channel(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     country: Mapped[str] = mapped_column(String(120), nullable=False, default="Global", index=True)
     category: Mapped[str] = mapped_column(String(120), nullable=False, default="Sports", index=True)
-    language: Mapped[str] = mapped_column(String(120), nullable=False, default="Unknown")
+    language: Mapped[str] = mapped_column(String(120), nullable=False, default="Unknown", index=True)
     logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     stream_url: Mapped[str] = mapped_column(Text, nullable=False)
     quality_tag: Mapped[str] = mapped_column(String(40), nullable=False, default="auto")

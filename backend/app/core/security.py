@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_db
@@ -18,9 +18,6 @@ security_scheme = HTTPBearer(auto_error=False)
 
 
 def _truncate_for_bcrypt(password: str) -> str:
-    """
-    bcrypt accepts max 72 bytes. Truncate safely if needed.
-    """
     if len(password.encode("utf-8")) > 72:
         password = password[:72]
         while len(password.encode("utf-8")) > 72:
@@ -58,13 +55,9 @@ def decode_access_token(token: str) -> dict[str, Any]:
         ) from exc
 
 
-def parse_bearer_token(token: str) -> dict[str, Any]:
-    return decode_access_token(token)
-
-
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing authorization token")
@@ -74,13 +67,13 @@ def get_current_user(
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
-    user = db.get(User, int(user_id))
+    user = await db.get(User, int(user_id))
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
     return user
 
 
-def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
+async def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user

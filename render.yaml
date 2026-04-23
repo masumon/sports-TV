@@ -27,6 +27,16 @@ services:
         value: https://iptv-org.github.io/iptv/categories/sports.m3u
       - key: AUTO_SYNC_CHANNELS_ON_STARTUP
         value: "false"
+      # Optional: Upstash/Redis — response cache for channel & live-score lists
+      - key: REDIS_URL
+        sync: false
+      - key: CACHE_TTL_SECONDS
+        value: "300"
+      - key: SYNC_RATE_LIMIT_SECONDS
+        value: "60"
+      # 0 = off; e.g. 30 for M3U sync every 30 minutes (single worker recommended)
+      - key: SCHEDULED_SYNC_INTERVAL_MINUTES
+        value: "0"
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET_KEY

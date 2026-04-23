@@ -23,10 +23,12 @@ Backend মূল অংশ:
 
 Frontend মূল অংশ:
 
-- `frontend/src/app/` → Public homepage + Admin pages
-- `frontend/src/components/` → `PremiumPlayer.tsx`, `LiveScoreOverlay.tsx`, `ChannelGrid.tsx`
-- `frontend/src/store/` → `authStore.ts`, `playerStore.ts`
-- `frontend/src/lib/` → `apiClient.ts`, `types.ts`
+- `frontend/src/app/` → `(viewer)/` হোম, `admin/`, `offline/`, `manifest`
+- `frontend/src/components/` → `home/`, `layout/`, `PremiumPlayer`, `AuthSessionSync`, ইত্যাদি
+- `frontend/src/store/` → `authStore`, `subscriptionStore`, `uiStore`, `playerStore`
+- `frontend/src/lib/` → `apiClient.ts`, `types.ts`, `i18n/`
+
+**নতুন env (বিস্তারিত `README.md` ও `.env.example` দেখুন):** `REDIS_URL`, `CACHE_TTL_SECONDS`, `SCHEDULED_SYNC_INTERVAL_MINUTES`, `SYNC_RATE_LIMIT_SECONDS`।
 
 ---
 

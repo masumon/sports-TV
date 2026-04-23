@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { AppProviders } from "@/components/providers/AppProviders";
 import { SiteFooter } from "@/components/SiteFooter";
 import "./globals.css";
 
@@ -38,17 +39,19 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: dark)", color: "#020617" },
     { color: "#0ea5e9" },
   ],
-  colorScheme: "dark",
+  colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="bn">
+    <html lang="bn" suppressHydrationWarning>
       <body className="flex min-h-screen flex-col antialiased">
-        <div className="flex flex-1 flex-col">{children}</div>
-        <SiteFooter />
+        <AppProviders>
+          <div className="flex flex-1 flex-col">{children}</div>
+          <SiteFooter />
+        </AppProviders>
       </body>
     </html>
   );

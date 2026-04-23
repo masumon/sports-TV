@@ -1,25 +1,48 @@
 # Global Sports Live TV
 
-Monorepo for a **global sports live TV** experience: **FastAPI** backend (channels, live scores, JWT admin, IPTV M3U sync) and **Next.js 15** frontend (HLS player, score overlay, **PWA**).  
-Live frontend example: [sports-tv-lovat.vercel.app](https://sports-tv-lovat.vercel.app/)
+**IPTV-style sports streaming platform** — monorepo with a **FastAPI** API (async SQLAlchemy, PostgreSQL/SQLite, optional Redis cache, JWT admin, M3U sync) and a **Next.js 15** viewer + admin UI (HLS.js, PWA, i18n EN/BN, Zustand).
 
 ---
 
-## Architecture
+## Highlights
 
-| Layer | Stack | Role |
-|--------|--------|------|
-| Frontend | Next.js 15 (App Router), Tailwind, Zustand, Framer Motion | Viewer UI, admin UI, PWA install |
-| Backend | FastAPI, SQLAlchemy, Neon/PostgreSQL or SQLite | REST API under `/api/v1`, CORS-aware |
-| Streams | Public M3U sources (e.g. iptv-org sports) | Ingested via admin **Sync IPTV M3U** |
+| Area | Details |
+|------|---------|
+| **Viewer** | Netflix-style shell, channel grid, live score overlay, HLS player (VLC / MX / new tab) |
+| **API** | `GET /api/v1/sports-tv/channels`, `GET /api/v1/live-scores`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, admin CRUD + M3U sync |
+| **Auth** | `Authorization: Bearer <token>`; `401` clears client session when a token was sent |
+| **Deploy** | Frontend → **Vercel** (`frontend/`). Backend → **Render** (or any host) with `backend/` root. **CORS** must list your Vercel URL. |
+| **Data** | Channels from iptv-org sports M3U (configurable URL); optional **Redis** for response cache |
 
-Data flow: browser → `NEXT_PUBLIC_API_BASE_URL` → `GET /api/v1/sports-tv/channels`, `GET /api/v1/live-scores`, admin routes with `Authorization: Bearer …`.
+> **Compliance:** Third-party streams are external; you are responsible for rights and local law.
 
 ---
 
-## Quick start (local)
+## Repository layout
 
-**Backend**
+```
+sports-TV/
+├── backend/          # FastAPI — uvicorn app.main:app
+├── frontend/         # Next.js 15 — App Router, PWA
+├── render.yaml       # Optional Render Blueprint (API)
+├── README.md
+└── DEPLOYMENT_GUIDE_BN.md   # বাংলায় ধাপে ধাপে ডিপ্লয়
+```
+
+---
+
+## Requirements
+
+- **Node.js** 20+ (LTS recommended)  
+- **Python** 3.11+  
+- **PostgreSQL** (production) or SQLite (local default)  
+- **Redis** (optional, for API response caching)
+
+---
+
+## Local development
+
+### 1) Backend
 
 ```bash
 cd backend
@@ -28,84 +51,117 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+# Edit .env — at minimum JWT_SECRET_KEY, CORS_ORIGINS, and admin credentials
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Frontend**
+- Health: [http://localhost:8000/health](http://localhost:8000/health)  
+- OpenAPI: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### 2) Frontend
 
 ```bash
 cd frontend
 npm install
 cp .env.local.example .env.local
+# Set NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 npm run dev
 ```
 
-- API docs: `http://localhost:8000/docs`  
-- App: `http://localhost:3000`  
-- Admin: `http://localhost:3000/admin/login`
+- App: [http://localhost:3000](http://localhost:3000)  
+- Admin: [http://localhost:3000/admin/login](http://localhost:3000/admin/login)
+
+### 3) First content
+
+1. Log in to **Admin** (credentials from `backend/.env`).  
+2. Run **Sync IPTV M3U** (or set `SCHEDULED_SYNC_INTERVAL_MINUTES` on the server).  
+3. Open the home page — channels should list (300+ after a successful sync, depending on source).
 
 ---
 
-## Production: Vercel (frontend) + Render (backend)
+## Environment variables (summary)
 
-1. **Render — Web Service**  
-   - Connect this repo, set **Root Directory** to `backend`.  
-   - **Build:** `pip install -r requirements.txt`  
-   - **Start:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`  
-   - Set env vars (see `backend/.env.example`). **Never commit real secrets.**  
-   - Optional: use repo `render.yaml` as a blueprint and fill `sync: false` secrets in the dashboard.
+| Location | Variable | Purpose |
+|----------|----------|---------|
+| **Backend** | `DATABASE_URL` | PostgreSQL (prod). Empty → SQLite file | 
+| | `JWT_SECRET_KEY` | **Required in production** — long random string | 
+| | `CORS_ORIGINS` | Comma-separated origins, **no** trailing slash (local + Vercel) | 
+| | `REDIS_URL` | Optional; enables shared cache for lists | 
+| | `SCHEDULED_SYNC_INTERVAL_MINUTES` | `0` = off; e.g. `30` for periodic M3U sync | 
+| **Frontend** | `NEXT_PUBLIC_API_BASE_URL` | API origin only (e.g. `https://api.example.com`) — app appends `/api/v1/...` | 
+| | `NEXT_PUBLIC_SITE_URL` | Public site URL for metadata / OG | 
 
-2. **Vercel — Next.js**  
-   - Import repo, **Root Directory** `frontend`.  
-   - **Environment variables:**
-     - `NEXT_PUBLIC_API_BASE_URL` = your Render service URL **without** trailing slash (no `/api/v1` suffix).
-     - `NEXT_PUBLIC_SITE_URL` = your Vercel production URL (for Open Graph / metadata), e.g. `https://sports-tv-lovat.vercel.app`.
+Full lists: [`backend/.env.example`](./backend/.env.example), [`frontend/.env.local.example`](./frontend/.env.local.example).
 
-3. **CORS (required for “live” data)**  
-   On Render, set `CORS_ORIGINS` to a **comma-separated** list of allowed origins, **no trailing slashes**, e.g.:
+**Never commit** real `.env` / `.env.local` or database passwords. Rotate any credential that was ever shared publicly.
 
-   `http://localhost:3000,https://sports-tv-lovat.vercel.app`
+---
 
-   After changing CORS or API URL, redeploy backend and clear the browser cache if needed.
+## Production: Vercel + Render (typical)
 
-4. **First content**  
-   Log in to **Admin** → run **Sync IPTV M3U** so channels appear on the home page.
+### Render (API)
 
-Full Bengali step-by-step: **[DEPLOYMENT_GUIDE_BN.md](./DEPLOYMENT_GUIDE_BN.md)**.
+1. New **Web Service** — connect repo, **Root Directory:** `backend`.  
+2. **Build:** `pip install -r requirements.txt`  
+3. **Start:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`  
+4. **Health check path:** `/health`  
+5. Set environment variables in the dashboard (see `render.yaml` for a starter list; use `sync: false` for secrets).  
+6. `APP_ENV=production` and a **strong** `JWT_SECRET_KEY` are required.
+
+### Vercel (frontend)
+
+1. Import repo, **Root Directory:** `frontend`.  
+2. **Environment variables** (Production + Preview as needed):  
+   - `NEXT_PUBLIC_API_BASE_URL` = your Render service URL, **no** trailing slash, **no** `/api/v1` suffix.  
+   - `NEXT_PUBLIC_SITE_URL` = your Vercel production URL.  
+3. Redeploy after any API or CORS change.
+
+### CORS (critical)
+
+On Render, set `CORS_ORIGINS` to include every frontend origin, e.g.:
+
+`http://localhost:3000,https://your-app.vercel.app`
+
+No trailing slashes. Redeploy the API after changes.
+
+**বিস্তারিত বাংলা নির্দেশনা:** [DEPLOYMENT_GUIDE_BN.md](./DEPLOYMENT_GUIDE_BN.md)
 
 ---
 
 ## PWA
 
-- Production builds register a service worker via `@ducanh2912/next-pwa` (disabled in `development`).  
-- Icons live under `frontend/public/icons/`.  
-- Install: browser menu → *Install app* / *Add to Home Screen*.
+- Production uses `@ducanh2912/next-pwa` (service worker disabled in `development`).  
+- Icons: `frontend/public/icons/`.  
+- Offline fallback: `/offline`.  
+- Generated `sw.js` / `workbox-*.js` are gitignored (rebuilt on deploy).
 
 ---
 
-## Security
+## Scripts
 
-- Use a **strong** `JWT_SECRET_KEY` and **unique** admin password in production.  
-- Restrict `CORS_ORIGINS` to your real frontend origins only.  
-- **If any database URL, JWT secret, or admin password was shared in chat, tickets, or screenshots, rotate them immediately** (Neon: reset password; generate new JWT secret; update Render env; redeploy).
+| Command | Where | Purpose |
+|---------|--------|---------|
+| `uvicorn app.main:app --reload` | `backend` | API dev server |
+| `npm run dev` | `frontend` | Next dev |
+| `npm run build` / `npm start` | `frontend` | Production build / start |
+
+---
+
+## Security checklist
+
+- [ ] `JWT_SECRET_KEY` unique and long (e.g. `openssl rand -hex 32`)  
+- [ ] `ADMIN_PASSWORD` changed from any sample value  
+- [ ] `CORS_ORIGINS` restricted to your frontends only  
+- [ ] HTTPS in production; no secrets in client bundles (only `NEXT_PUBLIC_*` is public)  
 
 ---
 
 ## Credits
 
-- **Development & architecture:** [Mumain Ahmed — AI Solution Architect](https://mumainsumon.netlify.app/)  
-- Portfolio, contact, and enterprise stack details: [mumainsumon.netlify.app](https://mumainsumon.netlify.app/)
+- **Lead / architecture:** [Mumain Ahmed](https://mumainsumon.netlify.app/)
 
 ---
 
-## Repository layout
-
-```
-backend/     FastAPI app (uvicorn app.main:app)
-frontend/    Next.js app (npm run build)
-render.yaml  Optional Render Blueprint for the API
-```
-
 ## License
 
-Private / use per your team policy. Third-party streams are provided by external sources; compliance with local law and rightsholders is your responsibility.
+Private / per your team policy. Third-party stream sources are not controlled by this repository.

@@ -34,15 +34,30 @@ export type LiveScore = {
   updated_at: string;
 };
 
+export type SubscriptionTier = "free" | "premium";
+
 export type AuthUser = {
   id: number;
   full_name: string;
   email: string;
   is_admin: boolean;
+  subscription_tier: SubscriptionTier;
 };
+
+export type UserRead = AuthUser & { created_at: string };
 
 export type TokenResponse = {
   access_token: string;
   token_type: string;
-  user: AuthUser & { created_at: string };
+  user: UserRead;
+};
+
+export type AdminStats = {
+  users: number;
+  channels: number;
+  live_scores: number;
+  active_channels: number;
+  cache_ttl_seconds: number;
+  scheduled_sync_minutes: number;
+  last_sync_at: string | null;
 };

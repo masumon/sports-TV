@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
+from starlette.responses import Response
 
+from app.core.cache import invalidate_list_caches
+from app.core.config import settings
 from app.core.security import get_current_admin_user
-from app.db.session import get_db
+from app.core.sync_rate_limit import check_sync_allowed, get_last_sync_iso, mark_sync_success
+from app.db.session import SessionLocal, get_db
 from app.models.channel import Channel
 from app.models.match_stats import MatchStats, MatchStatus, SportType
 from app.models.user import User
+from app.schemas.admin import AdminStatsResponse
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
 from app.schemas.match_stats import MatchStatsCreate, MatchStatsRead, MatchStatsUpdate
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
@@ -16,30 +22,68 @@ from app.services.iptv_scraper import scrape_and_sync_sports_channels
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
+def _sync_m3u_blocking() -> dict[str, int]:
+    sdb = SessionLocal()
+    try:
+        return scrape_and_sync_sports_channels(sdb)
+    finally:
+        sdb.close()
+
+
+@router.get("/stats", response_model=AdminStatsResponse)
+async def admin_stats(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> AdminStatsResponse:
+    u = (await db.execute(select(func.count()).select_from(User.__table__))).scalar() or 0
+    c = (await db.execute(select(func.count()).select_from(Channel.__table__))).scalar() or 0
+    s = (await db.execute(select(func.count()).select_from(MatchStats.__table__))).scalar() or 0
+    active = (
+        await db.execute(select(func.count()).select_from(Channel).where(Channel.is_active.is_(True)))
+    ).scalar() or 0
+    return AdminStatsResponse(
+        users=int(u),
+        channels=int(c),
+        live_scores=int(s),
+        active_channels=int(active),
+        cache_ttl_seconds=settings.cache_ttl_seconds,
+        scheduled_sync_minutes=settings.scheduled_sync_interval_minutes,
+        last_sync_at=get_last_sync_iso(),
+    )
+
+
 @router.post("/channels/sync", response_model=dict[str, int])
-def sync_channels(
-    db: Session = Depends(get_db),
+async def sync_channels(
+    _db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> dict[str, int]:
-    return scrape_and_sync_sports_channels(db)
+    del _db
+    check_sync_allowed()
+    result = await run_in_threadpool(_sync_m3u_blocking)
+    mark_sync_success()
+    invalidate_list_caches()
+    return result
 
 
 @router.get("/channels", response_model=list[ChannelRead])
-def admin_list_channels(
-    db: Session = Depends(get_db),
+async def admin_list_channels(
+    db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
-) -> list[Channel]:
+) -> list[ChannelRead]:
     stmt = select(Channel).order_by(Channel.updated_at.desc())
-    return list(db.scalars(stmt).all())
+    r = await db.execute(stmt)
+    chans = r.scalars().all()
+    return [ChannelRead.model_validate(c) for c in chans]
 
 
 @router.post("/channels", response_model=ChannelRead, status_code=status.HTTP_201_CREATED)
-def admin_create_channel(
+async def admin_create_channel(
     payload: ChannelCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> Channel:
-    exists = db.scalar(select(Channel).where(Channel.stream_url == str(payload.stream_url)))
+    r = await db.execute(select(Channel).where(Channel.stream_url == str(payload.stream_url)))
+    exists = r.scalars().first()
     if exists:
         raise HTTPException(status_code=400, detail="Stream URL already exists.")
 
@@ -55,19 +99,20 @@ def admin_create_channel(
         source="manual",
     )
     db.add(channel)
-    db.commit()
-    db.refresh(channel)
+    await db.commit()
+    await db.refresh(channel)
+    invalidate_list_caches()
     return channel
 
 
 @router.put("/channels/{channel_id}", response_model=ChannelRead)
-def admin_update_channel(
+async def admin_update_channel(
     channel_id: int,
     payload: ChannelUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> Channel:
-    channel = db.get(Channel, channel_id)
+    channel = await db.get(Channel, channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found.")
 
@@ -78,22 +123,24 @@ def admin_update_channel(
         else:
             setattr(channel, field, value)
 
-    db.commit()
-    db.refresh(channel)
+    await db.commit()
+    await db.refresh(channel)
+    invalidate_list_caches()
     return channel
 
 
 @router.delete("/channels/{channel_id}", status_code=status.HTTP_204_NO_CONTENT)
-def admin_delete_channel(
+async def admin_delete_channel(
     channel_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
-) -> None:
-    channel = db.get(Channel, channel_id)
-    if not channel:
+) -> Response:
+    r = await db.execute(delete(Channel).where(Channel.id == channel_id))
+    if r.rowcount == 0:
         raise HTTPException(status_code=404, detail="Channel not found.")
-    db.delete(channel)
-    db.commit()
+    await db.commit()
+    invalidate_list_caches()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _parse_sport(value: str) -> SportType:
@@ -117,18 +164,19 @@ def _parse_status(value: str) -> MatchStatus:
 
 
 @router.get("/scores", response_model=list[MatchStatsRead])
-def admin_list_scores(
-    db: Session = Depends(get_db),
+async def admin_list_scores(
+    db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
-) -> list[MatchStats]:
+) -> list[MatchStatsRead]:
     stmt = select(MatchStats).order_by(MatchStats.updated_at.desc())
-    return list(db.scalars(stmt).all())
+    r = await db.execute(stmt)
+    return [MatchStatsRead.model_validate(s) for s in r.scalars().all()]
 
 
 @router.post("/scores", response_model=MatchStatsRead, status_code=status.HTTP_201_CREATED)
-def admin_create_score(
+async def admin_create_score(
     payload: MatchStatsCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> MatchStats:
     score = MatchStats(
@@ -143,19 +191,20 @@ def admin_create_score(
         extra_data=payload.extra_data,
     )
     db.add(score)
-    db.commit()
-    db.refresh(score)
+    await db.commit()
+    await db.refresh(score)
+    invalidate_list_caches()
     return score
 
 
 @router.put("/scores/{score_id}", response_model=MatchStatsRead)
-def admin_update_score(
+async def admin_update_score(
     score_id: int,
     payload: MatchStatsUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> MatchStats:
-    score = db.get(MatchStats, score_id)
+    score = await db.get(MatchStats, score_id)
     if not score:
         raise HTTPException(status_code=404, detail="Live score not found.")
 
@@ -169,19 +218,21 @@ def admin_update_score(
             continue
         setattr(score, field, value)
 
-    db.commit()
-    db.refresh(score)
+    await db.commit()
+    await db.refresh(score)
+    invalidate_list_caches()
     return score
 
 
 @router.delete("/scores/{score_id}", status_code=status.HTTP_204_NO_CONTENT)
-def admin_delete_score(
+async def admin_delete_score(
     score_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
-) -> None:
-    score = db.get(MatchStats, score_id)
-    if not score:
+) -> Response:
+    r = await db.execute(delete(MatchStats).where(MatchStats.id == score_id))
+    if r.rowcount == 0:
         raise HTTPException(status_code=404, detail="Live score not found.")
-    db.delete(score)
-    db.commit()
+    await db.commit()
+    invalidate_list_caches()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
