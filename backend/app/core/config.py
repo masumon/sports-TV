@@ -68,7 +68,17 @@ class Settings(BaseSettings):
             and cleaned[0] in {'"', "'"}
         ):
             cleaned = cleaned[1:-1].strip()
-        return cleaned or None
+        if not cleaned:
+            return None
+
+        # Render and other providers often expose postgres URLs without driver hints.
+        # Force psycopg3-compatible SQLAlchemy URL to avoid startup failures.
+        if cleaned.startswith("postgres://"):
+            cleaned = "postgresql+psycopg://" + cleaned[len("postgres://") :]
+        elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
+            cleaned = "postgresql+psycopg://" + cleaned[len("postgresql://") :]
+
+        return cleaned
 
     @property
     def resolved_database_url(self) -> str:
