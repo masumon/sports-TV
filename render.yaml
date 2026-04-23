@@ -1,0 +1,41 @@
+# Render Blueprint — Web Service for the FastAPI backend (monorepo root: this file lives next to backend/)
+# Docs: https://render.com/docs/blueprint-spec
+#
+# After deploy: set CORS_ORIGINS to your Vercel URL(s), comma-separated, no trailing slashes.
+
+services:
+  - type: web
+    name: sports-tv-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: API_V1_PREFIX
+        value: /api/v1
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "1440"
+      - key: SCRAPER_SOURCE_URL
+        value: https://iptv-org.github.io/iptv/categories/sports.m3u
+      - key: AUTO_SYNC_CHANNELS_ON_STARTUP
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_FULL_NAME
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
