@@ -1,0 +1,398 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { RefreshCw, Save, Trash2 } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
+import type { Channel, LiveScore } from "@/lib/types";
+import { useAuthStore } from "@/store/authStore";
+
+type ChannelFormState = {
+  name: string;
+  country: string;
+  category: string;
+  language: string;
+  logo_url: string;
+  stream_url: string;
+  quality_tag: string;
+};
+
+type ScoreFormState = {
+  sport_type: "football" | "cricket";
+  league: string;
+  team_home: string;
+  team_away: string;
+  score_home: number;
+  score_away: number;
+  match_minute: string;
+  status: "live" | "upcoming" | "finished";
+  extra_data: string;
+};
+
+const initialChannelForm: ChannelFormState = {
+  name: "",
+  country: "Global",
+  category: "Sports",
+  language: "Unknown",
+  logo_url: "",
+  stream_url: "",
+  quality_tag: "auto",
+};
+
+const initialScoreForm: ScoreFormState = {
+  sport_type: "football",
+  league: "",
+  team_home: "",
+  team_away: "",
+  score_home: 0,
+  score_away: 0,
+  match_minute: "",
+  status: "live",
+  extra_data: "",
+};
+
+export default function AdminDashboardPage() {
+  const { token, user, clearSession } = useAuthStore();
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [scores, setScores] = useState<LiveScore[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [channelForm, setChannelForm] = useState<ChannelFormState>(initialChannelForm);
+  const [scoreForm, setScoreForm] = useState<ScoreFormState>(initialScoreForm);
+
+  const authToken = token;
+
+  const fetchAdminData = async () => {
+    if (!authToken) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const [channelRes, scoreRes] = await Promise.all([
+        apiClient.adminListChannels(authToken),
+        apiClient.adminListScores(authToken),
+      ]);
+      setChannels(channelRes);
+      setScores(scoreRes);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ডেটা লোড করা যায়নি");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authToken) return;
+    void fetchAdminData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
+
+  const createChannel = async () => {
+    if (!authToken) return;
+    setError(null);
+    try {
+      await apiClient.adminCreateChannel(authToken, {
+        ...channelForm,
+        logo_url: channelForm.logo_url || null,
+        stream_url: channelForm.stream_url,
+        is_active: true,
+      });
+      setChannelForm(initialChannelForm);
+      await fetchAdminData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "চ্যানেল তৈরি ব্যর্থ");
+    }
+  };
+
+  const createScore = async () => {
+    if (!authToken) return;
+    setError(null);
+    try {
+      await apiClient.adminCreateScore(authToken, {
+        ...scoreForm,
+        match_minute: scoreForm.match_minute || null,
+        extra_data: scoreForm.extra_data || null,
+      });
+      setScoreForm(initialScoreForm);
+      await fetchAdminData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "স্কোর তৈরি ব্যর্থ");
+    }
+  };
+
+  const deleteChannel = async (id: number) => {
+    if (!authToken) return;
+    try {
+      await apiClient.adminDeleteChannel(authToken, id);
+      await fetchAdminData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "চ্যানেল ডিলিট ব্যর্থ");
+    }
+  };
+
+  const deleteScore = async (id: number) => {
+    if (!authToken) return;
+    try {
+      await apiClient.adminDeleteScore(authToken, id);
+      await fetchAdminData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "স্কোর ডিলিট ব্যর্থ");
+    }
+  };
+
+  const syncM3u = async () => {
+    if (!authToken) return;
+    setSyncing(true);
+    setError(null);
+    try {
+      await apiClient.adminSyncChannels(authToken);
+      await fetchAdminData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "M3U Sync ব্যর্থ");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  if (!authToken || !user?.is_admin) {
+    return (
+      <main className="mx-auto max-w-3xl p-8">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
+          <p className="mb-4 text-zinc-200">অ্যাডমিন অ্যাক্সেস প্রয়োজন। আগে লগইন করুন।</p>
+          <a
+            href="/admin/login"
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400"
+          >
+            Admin Login
+          </a>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto max-w-7xl space-y-8 p-6 lg:p-8">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+          <p className="text-sm text-zinc-400">চ্যানেল ও লাইভ স্কোর ম্যানেজ করুন</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => void fetchAdminData()}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => void syncM3u()}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400 disabled:opacity-60"
+          >
+            <Save size={16} />
+            {syncing ? "Syncing..." : "Sync IPTV M3U"}
+          </button>
+          <button
+            type="button"
+            onClick={clearSession}
+            className="rounded-lg border border-rose-300/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-200 hover:bg-rose-500/20"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {error && (
+        <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+          {error}
+        </div>
+      )}
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-white/10 bg-white/5 p-5"
+        >
+          <h2 className="mb-4 text-lg font-semibold text-white">নতুন চ্যানেল যোগ করুন</h2>
+          <div className="grid gap-3">
+            {Object.entries(channelForm).map(([key, value]) => (
+              <input
+                key={key}
+                value={value}
+                onChange={(e) => setChannelForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                placeholder={key}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() => void createChannel()}
+              className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400"
+            >
+              Add Channel
+            </button>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="rounded-2xl border border-white/10 bg-white/5 p-5"
+        >
+          <h2 className="mb-4 text-lg font-semibold text-white">নতুন লাইভ স্কোর</h2>
+          <div className="grid gap-3">
+            <select
+              value={scoreForm.sport_type}
+              onChange={(e) =>
+                setScoreForm((prev) => ({ ...prev, sport_type: e.target.value as "football" | "cricket" }))
+              }
+              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            >
+              <option value="football">Football</option>
+              <option value="cricket">Cricket</option>
+            </select>
+            <input
+              value={scoreForm.league}
+              onChange={(e) => setScoreForm((prev) => ({ ...prev, league: e.target.value }))}
+              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+              placeholder="League / Tournament"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                value={scoreForm.team_home}
+                onChange={(e) => setScoreForm((prev) => ({ ...prev, team_home: e.target.value }))}
+                className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                placeholder="Home team"
+              />
+              <input
+                value={scoreForm.team_away}
+                onChange={(e) => setScoreForm((prev) => ({ ...prev, team_away: e.target.value }))}
+                className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                placeholder="Away team"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="number"
+                value={scoreForm.score_home}
+                onChange={(e) => setScoreForm((prev) => ({ ...prev, score_home: Number(e.target.value) }))}
+                className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                placeholder="Home score"
+              />
+              <input
+                type="number"
+                value={scoreForm.score_away}
+                onChange={(e) => setScoreForm((prev) => ({ ...prev, score_away: Number(e.target.value) }))}
+                className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                placeholder="Away score"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                value={scoreForm.match_minute}
+                onChange={(e) => setScoreForm((prev) => ({ ...prev, match_minute: e.target.value }))}
+                className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                placeholder="Minute / Over"
+              />
+              <select
+                value={scoreForm.status}
+                onChange={(e) =>
+                  setScoreForm((prev) => ({
+                    ...prev,
+                    status: e.target.value as "live" | "upcoming" | "finished",
+                  }))
+                }
+                className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+              >
+                <option value="live">Live</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="finished">Finished</option>
+              </select>
+            </div>
+            <textarea
+              value={scoreForm.extra_data}
+              onChange={(e) => setScoreForm((prev) => ({ ...prev, extra_data: e.target.value }))}
+              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+              placeholder="Extra data (JSON/string)"
+              rows={3}
+            />
+            <button
+              type="button"
+              onClick={() => void createScore()}
+              className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400"
+            >
+              Add Live Score
+            </button>
+          </div>
+        </motion.div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <h2 className="mb-4 text-lg font-semibold text-white">চ্যানেল তালিকা</h2>
+          {loading ? (
+            <p className="text-sm text-zinc-400">Loading...</p>
+          ) : (
+            <div className="max-h-96 space-y-2 overflow-auto">
+              {channels.map((channel) => (
+                <div
+                  key={channel.id}
+                  className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 p-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-white">{channel.name}</p>
+                    <p className="text-xs text-zinc-400">{channel.country}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void deleteChannel(channel.id)}
+                    className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <h2 className="mb-4 text-lg font-semibold text-white">লাইভ স্কোর তালিকা</h2>
+          {loading ? (
+            <p className="text-sm text-zinc-400">Loading...</p>
+          ) : (
+            <div className="max-h-96 space-y-2 overflow-auto">
+              {scores.map((score) => (
+                <div
+                  key={score.id}
+                  className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 p-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      {score.team_home} {score.score_home} - {score.score_away} {score.team_away}
+                    </p>
+                    <p className="text-xs text-zinc-400">
+                      {score.league} • {score.status}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void deleteScore(score.id)}
+                    className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
