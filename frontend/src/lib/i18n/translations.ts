@@ -31,6 +31,8 @@ export const translations: Record<
     directory: "Sports channel directory",
     tapToPlay: "Tap a channel to play",
     nowPlaying: "Now Playing",
+    refresh: "Refresh",
+    hlsLive: "HLS Live",
   },
   bn: {
     appTitle: "গ্লোবাল স্পোর্টস লাইভ টিভি",
@@ -59,6 +61,8 @@ export const translations: Record<
     directory: "স্পোর্টস চ্যানেল ডিরেক্টরি",
     tapToPlay: "প্লে করতে ট্যাপ করুন",
     nowPlaying: "চলছে",
+    refresh: "রিফ্রেশ",
+    hlsLive: "HLS লাইভ",
   },
 };
 
