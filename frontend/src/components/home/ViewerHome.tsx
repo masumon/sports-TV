@@ -182,7 +182,7 @@ export function ViewerHome() {
               {t("tagline")}
             </h1>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              {loading ? t("loading") : error ? error : `${allChannels.length} channels · ${filtered.length} shown`}
+              {loading ? t("loading") : error ? error : `${allChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}`}
             </p>
           </div>
 
@@ -259,7 +259,7 @@ export function ViewerHome() {
             style={{ color: "var(--text-muted)" }}
           >
             <Globe size={13} />
-            {showAllFilters ? "Hide" : "More"} filters
+            {showAllFilters ? t("hideFilters") : t("moreFilters")}
             <ChevronRight size={13} className={`transition-transform ${showAllFilters ? "rotate-90" : ""}`} />
           </button>
           <AnimatePresence>
@@ -272,6 +272,7 @@ export function ViewerHome() {
               >
                 <div className="mt-2 flex flex-wrap gap-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgb(255 255 255 / 7%)" }}>
                   <select
+                    aria-label={t("allCountries")}
                     value={filterCountry}
                     onChange={(e) => setFilterCountry(e.target.value)}
                     className="quality-select"
@@ -280,6 +281,7 @@ export function ViewerHome() {
                     {countryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                   <select
+                    aria-label={t("allLanguages")}
                     value={filterLanguage}
                     onChange={(e) => setFilterLanguage(e.target.value)}
                     className="quality-select"

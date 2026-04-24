@@ -146,7 +146,25 @@ async def _unhandled_error_handler(request, exc: Exception) -> JSONResponse:
 
 @app.get("/health", tags=["health"])
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "env": settings.app_env}
+
+
+@app.post("/internal/sync", tags=["internal"], include_in_schema=False)
+async def internal_sync() -> dict[str, object]:
+    """Internal endpoint for scheduler/webhook triggered M3U sync."""
+    from starlette.concurrency import run_in_threadpool
+
+    def _do_sync() -> dict[str, int]:
+        sdb = SessionLocal()
+        try:
+            return scrape_and_sync_sports_channels(sdb)
+        finally:
+            sdb.close()
+
+    result = await run_in_threadpool(_do_sync)
+    invalidate_list_caches()
+    mark_sync_success()
+    return {"status": "ok", "result": result}
 
 
 app.include_router(auth.router, prefix=settings.api_v1_prefix)

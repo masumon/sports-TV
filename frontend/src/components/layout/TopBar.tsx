@@ -47,7 +47,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
             placeholder={t("search")}
-            className="w-full rounded-lg py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+            className="w-full rounded-lg py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#00BFFF]/40"
             style={{ background: "var(--bg-card)", border: "1px solid rgb(255 255 255 / 10%)" }}
           />
         </div>

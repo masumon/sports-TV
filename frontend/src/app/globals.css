@@ -53,6 +53,7 @@ a {
 .glass-panel {
   background: linear-gradient(140deg, rgb(18 24 38 / 80%), rgb(10 15 28 / 90%));
   border: 1px solid rgb(255 255 255 / 8%);
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
 
@@ -254,4 +255,24 @@ html.light .ch-card {
   border-color: var(--primary-accent);
   background: rgb(var(--primary-rgb) / 10%);
   box-shadow: 0 0 0 1px var(--primary-accent), 0 6px 24px rgb(var(--primary-rgb) / 20%);
+}
+
+/* ── Scrollbar utilities ── */
+.scrollbar-none {
+  scrollbar-width: none; /* Firefox 64+ */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Opera */
+}
+
+/* ── Safe area bottom padding (PWA/notch phones) ── */
+.safe-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Responsive image fallback ── */
+img[src=""],
+img:not([src]) {
+  visibility: hidden;
 }
