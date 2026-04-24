@@ -104,31 +104,33 @@ export function SiteFooter() {
               Quick Links
             </p>
             <nav className="grid grid-cols-1 gap-1.5">
-              {[
-                { label: "API Docs", href: "/docs" },
+              {([
                 { label: "GitHub Repo", href: REPO_URL, external: true },
                 { label: "Contact", href: DEVELOPER_SITE, external: true },
-                { label: "System Status", href: "#", placeholder: true },
-              ].map(({ label, href, external, placeholder }) => (
+              ] as { label: string; href: string; external?: boolean }[]).map(({ label, href }) => (
                 <Link
                   key={label}
                   href={href}
-                  target={external ? "_blank" : undefined}
-                  rel={external ? "noopener noreferrer" : undefined}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs transition-colors ${
-                    placeholder
-                      ? "cursor-default text-slate-600"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-sky-300"
-                  }`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-slate-800/50 hover:text-sky-300"
                 >
-                  <Star size={10} className={placeholder ? "text-slate-700" : "text-sky-500/50"} />
+                  <Star size={10} className="text-sky-500/50" />
                   {label}
-                  {placeholder && (
-                    <span className="ml-auto rounded-sm bg-slate-800 px-1 py-0.5 text-[9px] text-slate-600">
-                      soon
-                    </span>
-                  )}
                 </Link>
+              ))}
+              {/* Placeholder items — not yet live */}
+              {["API Docs", "System Status"].map((label) => (
+                <span
+                  key={label}
+                  className="inline-flex cursor-default items-center gap-1.5 rounded-md px-3 py-2 text-xs text-slate-600"
+                >
+                  <Star size={10} className="text-slate-700" />
+                  {label}
+                  <span className="ml-auto rounded-sm bg-slate-800 px-1 py-0.5 text-[9px] text-slate-700">
+                    soon
+                  </span>
+                </span>
               ))}
             </nav>
           </div>
