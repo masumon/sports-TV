@@ -30,16 +30,21 @@ export function Sidebar() {
         aria-hidden
       />
       <aside
-        className={`fixed left-0 top-0 z-40 flex h-full w-64 flex-col border-r border-slate-800/80 bg-slate-950/98 p-4 transition-transform duration-200 md:static md:translate-x-0 ${
+        className={`fixed left-0 top-0 z-40 flex h-full w-64 flex-col p-4 transition-transform duration-200 md:static md:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } shrink-0`}
+        style={{ background: "var(--bg-card)", borderRight: "1px solid rgb(255 255 255 / 7%)" }}
       >
         <div className="mb-6 flex items-center justify-between gap-2 md:justify-center">
           <div className="md:hidden" />
-          <p className="text-xs font-bold uppercase tracking-widest text-sky-400/80">GSTV</p>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-black tracking-wider" style={{ color: "var(--primary-accent)" }}>G</span>
+            <p className="text-xs font-bold uppercase tracking-widest text-white">SPORTS TV</p>
+          </div>
           <button
             type="button"
-            className="rounded-lg p-1 text-slate-500 md:hidden"
+            className="rounded-lg p-1 md:hidden"
+            style={{ color: "var(--text-muted)" }}
             onClick={() => setSidebarOpen(false)}
             aria-label="Close"
           >
@@ -56,25 +61,29 @@ export function Sidebar() {
                   key={item.key}
                   href={to}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${
-                    active ? "bg-cyan-500/15 text-cyan-200" : "text-slate-300 hover:bg-slate-800/80"
-                  } `}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors"
+                  style={{
+                    background: active ? "rgb(229 9 20 / 15%)" : "transparent",
+                    color: active ? "#fff" : "var(--text-muted)",
+                  }}
                 >
                   <item.icon size={18} />
                   {t("admin")}
                 </Link>
               );
             }
+            const active = pathname === item.href;
             return (
               <Link
                 key={item.key}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${
-                  pathname === item.href
-                    ? "bg-cyan-500/15 text-cyan-200"
-                    : "text-slate-300 hover:bg-slate-800/80"
-                } `}
+                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors"
+                style={{
+                  background: active ? "rgb(229 9 20 / 15%)" : "transparent",
+                  color: active ? "#fff" : "var(--text-muted)",
+                  borderLeft: active ? "3px solid var(--primary-accent)" : "3px solid transparent",
+                }}
               >
                 <item.icon size={18} />
                 {t(item.key as "home" | "browse")}
@@ -86,7 +95,8 @@ export function Sidebar() {
           href="https://mumainsumon.netlify.app/"
           target="_blank"
           rel="noreferrer"
-          className="mt-4 flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300"
+          className="mt-4 flex items-center gap-2 text-xs hover:text-slate-300"
+          style={{ color: "var(--text-muted)" }}
         >
           <Sparkles size={12} />
           Dev credits
