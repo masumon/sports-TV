@@ -85,6 +85,14 @@ type ChannelListParams = {
   country?: string;
   category?: string;
   language?: string;
+  module?: string;
+};
+
+export type ChannelFilters = {
+  countries: string[];
+  categories: string[];
+  languages: string[];
+  modules: string[];
 };
 
 type AdminChannelCreateBody = {
@@ -95,6 +103,7 @@ type AdminChannelCreateBody = {
   logo_url: string | null;
   stream_url: string;
   quality_tag: string;
+  module: string;
   is_active: boolean;
 };
 
@@ -136,8 +145,13 @@ export const apiClient = {
     if (params.country) sp.set("country", params.country);
     if (params.category) sp.set("category", params.category);
     if (params.language) sp.set("language", params.language);
+    if (params.module) sp.set("module", params.module);
     const q = sp.toString();
     return apiRequest<ChannelListResponse>(`/sports-tv/channels${q ? `?${q}` : ""}`);
+  },
+
+  getChannelFilters() {
+    return apiRequest<ChannelFilters>("/sports-tv/filters");
   },
 
   getLiveScores(sportType?: string, limit?: number) {

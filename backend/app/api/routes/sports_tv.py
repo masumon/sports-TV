@@ -3,14 +3,14 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import cache_get_json, cache_set_json
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.channel import Channel
-from app.schemas.channel import ChannelListResponse, ChannelRead
+from app.schemas.channel import ChannelFiltersResponse, ChannelListResponse, ChannelRead
 
 logger = logging.getLogger("app.sports_tv")
 
@@ -26,6 +26,7 @@ async def list_channels(
     country: str | None = Query(default=None, min_length=1, max_length=120),
     category: str | None = Query(default=None, min_length=1, max_length=120),
     language: str | None = Query(default=None, min_length=1, max_length=120),
+    module: str | None = Query(default=None, min_length=1, max_length=40),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
@@ -38,6 +39,7 @@ async def list_channels(
         "country": country,
         "category": category,
         "language": language,
+        "module": module,
         "page": page,
         "page_size": page_size,
     }
@@ -58,6 +60,8 @@ async def list_channels(
         base_query = base_query.where(Channel.category.ilike(f"%{category}%"))
     if language:
         base_query = base_query.where(Channel.language.ilike(f"%{language}%"))
+    if module:
+        base_query = base_query.where(Channel.module == module)
 
     subq = base_query.subquery()
     total = (await db.execute(select(func.count()).select_from(subq))).scalar() or 0
@@ -84,6 +88,44 @@ async def list_channels(
         cache_set_json("channels", params, result.model_dump(mode="json"))
     except Exception as e:
         logger.debug("cache set failed: %s", e)
+    return result
+
+
+@router.get("/filters", response_model=ChannelFiltersResponse)
+async def get_filters(db: AsyncSession = Depends(get_db)) -> ChannelFiltersResponse:
+    """Return distinct filter values available for active channels."""
+    cached = cache_get_json("channel_filters", {})
+    if cached is not None:
+        try:
+            return ChannelFiltersResponse.model_validate(cached)
+        except Exception:
+            pass
+
+    base = select(Channel).where(Channel.is_active.is_(True))
+
+    countries_q = await db.execute(
+        select(distinct(Channel.country)).select_from(base.subquery()).order_by(Channel.country)
+    )
+    categories_q = await db.execute(
+        select(distinct(Channel.category)).select_from(base.subquery()).order_by(Channel.category)
+    )
+    languages_q = await db.execute(
+        select(distinct(Channel.language)).select_from(base.subquery()).order_by(Channel.language)
+    )
+    modules_q = await db.execute(
+        select(distinct(Channel.module)).select_from(base.subquery()).order_by(Channel.module)
+    )
+
+    result = ChannelFiltersResponse(
+        countries=sorted([r for r in countries_q.scalars().all() if r]),
+        categories=sorted([r for r in categories_q.scalars().all() if r]),
+        languages=sorted([r for r in languages_q.scalars().all() if r]),
+        modules=sorted([r for r in modules_q.scalars().all() if r]),
+    )
+    try:
+        cache_set_json("channel_filters", {}, result.model_dump(mode="json"))
+    except Exception as e:
+        logger.debug("filter cache set failed: %s", e)
     return result
 
 

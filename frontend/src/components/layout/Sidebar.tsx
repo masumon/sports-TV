@@ -128,6 +128,20 @@ export function Sidebar() {
                 </Link>
               );
             })}
+            {/* Bangladesh TV link */}
+            <a
+              href="/"
+              onClick={() => setSidebarOpen(false)}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: "transparent",
+                color: "var(--text-muted)",
+                borderLeft: "2px solid transparent",
+              }}
+            >
+              <Tv size={17} />
+              🇧🇩 Bangladesh TV
+            </a>
             {/* Admin link */}
             <Link
               href={(user?.is_admin ? "/admin/dashboard" : "/admin/login") as Route}

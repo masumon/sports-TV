@@ -10,6 +10,7 @@ import {
   Tv2,
   ChevronRight,
   Star,
+  Link2,
 } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +34,19 @@ function uniqueSorted(values: string[]): string[] {
   return [...new Set(values.map((v) => v.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
+const BD_CATEGORIES: Record<string, string> = {
+  news: "📰",
+  entertainment: "🎭",
+  drama: "🎬",
+  sports: "🏆",
+  music: "🎵",
+  kids: "🧒",
+  movies: "🎥",
+  general: "📺",
+  religious: "🕌",
+  cooking: "🍽️",
+};
+
 const SPORT_ICONS: Record<string, string> = {
   football: "⚽",
   cricket: "🏏",
@@ -49,12 +63,71 @@ const SPORT_ICONS: Record<string, string> = {
   athletics: "🏃",
 };
 
-function sportEmoji(category: string): string {
+function categoryEmoji(category: string, module: string): string {
   const key = category.toLowerCase();
+  if (module === "bangladesh") {
+    for (const [k, v] of Object.entries(BD_CATEGORIES)) {
+      if (key.includes(k)) return v;
+    }
+    return "📺";
+  }
   for (const [k, v] of Object.entries(SPORT_ICONS)) {
     if (key.includes(k)) return v;
   }
   return "📺";
+}
+
+type ActiveModule = "sports" | "bangladesh";
+
+/* ── Chip filter component ── */
+function FilterChips({
+  label,
+  options,
+  value,
+  onChange,
+  maxVisible = 8,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  maxVisible?: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? options : options.slice(0, maxVisible);
+  return (
+    <div>
+      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          className={`filter-chip${value === "" ? " active" : ""}`}
+          onClick={() => onChange("")}
+        >
+          All
+        </button>
+        {visible.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            className={`filter-chip${value === opt ? " active" : ""}`}
+            onClick={() => onChange(value === opt ? "" : opt)}
+          >
+            {flagFromCountryName(opt)} {opt}
+          </button>
+        ))}
+        {options.length > maxVisible && (
+          <button
+            type="button"
+            className="filter-chip"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Show less" : `+${options.length - maxVisible} more`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function ViewerHome() {
@@ -64,11 +137,14 @@ export function ViewerHome() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearch = useDeferredValue(searchQuery);
+  const [activeModule, setActiveModule] = useState<ActiveModule>("sports");
   const [activeCategory, setActiveCategory] = useState("");
   const [filterCountry, setFilterCountry] = useState("");
   const [filterLanguage, setFilterLanguage] = useState("");
   const [scores, setScores] = useState<LiveScore[]>([]);
   const [showAllFilters, setShowAllFilters] = useState(false);
+  const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
+  const [showAltLinks, setShowAltLinks] = useState(false);
   const tier = useSubscriptionStore((s) => s.tier);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -101,9 +177,28 @@ export function ViewerHome() {
     return () => clearInterval(id);
   }, [loadChannels]);
 
+  // Reset filters when module changes
   useEffect(() => {
-    if (allChannels.length > 0 && !activeChannel) setActiveChannel(allChannels[0]);
-  }, [allChannels, activeChannel, setActiveChannel]);
+    setActiveCategory("");
+    setFilterCountry("");
+    setFilterLanguage("");
+    setActiveStreamUrl(null);
+    setShowAltLinks(false);
+  }, [activeModule]);
+
+  // Reset active stream URL when channel changes
+  useEffect(() => {
+    setActiveStreamUrl(null);
+    setShowAltLinks(false);
+  }, [activeChannel?.id]);
+
+  // Auto-select first channel of active module
+  useEffect(() => {
+    const moduleChannels = allChannels.filter((c) => c.module === activeModule);
+    if (moduleChannels.length > 0 && (!activeChannel || activeChannel.module !== activeModule)) {
+      setActiveChannel(moduleChannels[0]);
+    }
+  }, [allChannels, activeModule, activeChannel, setActiveChannel]);
 
   useEffect(() => {
     const tick = async () => {
@@ -114,8 +209,13 @@ export function ViewerHome() {
     return () => clearInterval(id);
   }, []);
 
+  const moduleChannels = useMemo(
+    () => allChannels.filter((c) => c.module === activeModule),
+    [allChannels, activeModule]
+  );
+
   const filtered = useMemo(() => {
-    let list = allChannels;
+    let list = moduleChannels;
     const q = deferredSearch.trim().toLowerCase();
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
     if (activeCategory) {
@@ -131,17 +231,23 @@ export function ViewerHome() {
       list = list.filter((c) => c.language.toLowerCase().includes(f));
     }
     return list;
-  }, [allChannels, deferredSearch, activeCategory, filterCountry, filterLanguage]);
+  }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage]);
 
-  const categoryOptions = useMemo(() => uniqueSorted(allChannels.map((c) => c.category)), [allChannels]);
-  const countryOptions = useMemo(() => uniqueSorted(allChannels.map((c) => c.country)), [allChannels]);
-  const languageOptions = useMemo(() => uniqueSorted(allChannels.map((c) => c.language)), [allChannels]);
+  const categoryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.category)), [moduleChannels]);
+  const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
+  const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
 
   const liveScoresTicker = useMemo(() => {
     const live = scores.filter((s) => s.status === "live");
     if (live.length === 0) return null;
     return live.map((s) => `${s.team_home} ${s.score_home}–${s.score_away} ${s.team_away} (${s.league})`).join("   •   ");
   }, [scores]);
+
+  const currentStreamUrl = activeStreamUrl ?? activeChannel?.stream_url ?? "";
+  const altLinks = activeChannel?.alternate_urls ?? [];
+
+  const bdCount = allChannels.filter((c) => c.module === "bangladesh").length;
+  const sportsCount = allChannels.filter((c) => c.module === "sports").length;
 
   return (
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
@@ -165,6 +271,30 @@ export function ViewerHome() {
           </div>
         )}
 
+        {/* ── Module tabs ── */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveModule("sports")}
+            className={`module-tab${activeModule === "sports" ? " active" : ""}`}
+          >
+            🌍 Sports TV
+            {sportsCount > 0 && (
+              <span className="module-tab-badge">{sportsCount}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveModule("bangladesh")}
+            className={`module-tab${activeModule === "bangladesh" ? " active bd" : ""}`}
+          >
+            🇧🇩 Bangladesh TV
+            {bdCount > 0 && (
+              <span className="module-tab-badge">{bdCount}</span>
+            )}
+          </button>
+        </div>
+
         {/* ── Hero header ── */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -177,14 +307,14 @@ export function ViewerHome() {
                 <Tv2 className="h-4 w-4" style={{ color: "var(--primary-accent)" }} />
               </div>
               <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>
-                ABO SPORTS TV LIVE
+                {activeModule === "bangladesh" ? "BANGLADESH TV" : "ABO SPORTS TV LIVE"}
               </span>
             </div>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-white md:text-3xl">
-              {t("tagline")}
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl" style={{ color: "var(--text-main)" }}>
+              {activeModule === "bangladesh" ? "বাংলাদেশ টিভি চ্যানেল" : t("tagline")}
             </h1>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              {loading ? t("loading") : error ? error : `${allChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}`}
+              {loading ? t("loading") : error ? error : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}`}
             </p>
           </div>
 
@@ -197,10 +327,11 @@ export function ViewerHome() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t("search")}
-                className="rounded-lg py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2"
+                className="rounded-lg py-2 pl-9 pr-3 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2"
                 style={{
                   background: "var(--bg-card)",
-                  border: "1px solid rgb(255 255 255 / 10%)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-main)",
                 }}
               />
             </div>
@@ -209,8 +340,8 @@ export function ViewerHome() {
               type="button"
               onClick={() => void loadChannels(true)}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-white disabled:opacity-50"
-              style={{ background: "var(--bg-card)", border: "1px solid rgb(255 255 255 / 10%)" }}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)" }}
             >
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
               {t("refresh")}
@@ -247,12 +378,12 @@ export function ViewerHome() {
               className={`cat-tab${activeCategory === cat ? " active" : ""}`}
               onClick={() => setActiveCategory(activeCategory === cat ? "" : cat)}
             >
-              {sportEmoji(cat)} {cat}
+              {categoryEmoji(cat, activeModule)} {cat}
             </button>
           ))}
         </div>
 
-        {/* ── Advanced filters toggle ── */}
+        {/* ── Filter chips ── */}
         <div>
           <button
             type="button"
@@ -272,25 +403,20 @@ export function ViewerHome() {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="mt-2 flex flex-wrap gap-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgb(255 255 255 / 7%)" }}>
-                  <select
-                    aria-label={t("allCountries")}
+                <div className="mt-3 flex flex-col gap-3 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <FilterChips
+                    label="Country"
+                    options={countryOptions}
                     value={filterCountry}
-                    onChange={(e) => setFilterCountry(e.target.value)}
-                    className="quality-select"
-                  >
-                    <option value="">{t("allCountries")}</option>
-                    {countryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <select
-                    aria-label={t("allLanguages")}
+                    onChange={setFilterCountry}
+                  />
+                  <FilterChips
+                    label="Language"
+                    options={languageOptions}
                     value={filterLanguage}
-                    onChange={(e) => setFilterLanguage(e.target.value)}
-                    className="quality-select"
-                  >
-                    <option value="">{t("allLanguages")}</option>
-                    {languageOptions.map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
+                    onChange={setFilterLanguage}
+                    maxVisible={10}
+                  />
                 </div>
               </motion.div>
             )}
@@ -304,7 +430,7 @@ export function ViewerHome() {
           <section className="lg:col-span-8 xl:col-span-8">
             {activeChannel ? (
               <PremiumPlayer
-                streamUrl={activeChannel.stream_url}
+                streamUrl={currentStreamUrl}
                 title={activeChannel.name}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}
@@ -322,28 +448,77 @@ export function ViewerHome() {
                 key={activeChannel.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-3 flex items-center gap-3 rounded-xl px-4 py-3"
-                style={{ background: "var(--bg-card)", border: "1px solid rgb(255 255 255 / 7%)" }}
+                className="mt-3 rounded-xl px-4 py-3"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
-                {activeChannel.logo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={activeChannel.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover" style={{ border: "1px solid rgb(255 255 255 / 10%)" }} />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: "var(--primary-accent)" }}>
-                    {activeChannel.name.slice(0, 1)}
+                <div className="flex items-center gap-3">
+                  {activeChannel.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={activeChannel.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover" style={{ border: "1px solid var(--border)" }} />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: "var(--primary-accent)" }}>
+                      {activeChannel.name.slice(0, 1)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
+                    <p className="truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>{activeChannel.name}</p>
+                    <p className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                      <span>{flagFromCountryName(activeChannel.country)}</span>
+                      <span>{activeChannel.country} · {activeChannel.category} · {activeChannel.quality_tag.toUpperCase()}</span>
+                    </p>
+                  </div>
+                  <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
+                    <span className="pulse-dot" style={{ width: 6, height: 6 }} /> LIVE
+                  </span>
+                </div>
+
+                {/* ── Alternate / Backup stream links ── */}
+                {altLinks.length > 0 && (
+                  <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowAltLinks((v) => !v)}
+                      className="flex items-center gap-1.5 text-xs font-semibold transition-opacity hover:opacity-80"
+                      style={{ color: "var(--primary-accent)" }}
+                    >
+                      <Link2 size={13} />
+                      {altLinks.length} Backup Stream{altLinks.length > 1 ? "s" : ""}
+                      <ChevronRight size={12} className={`transition-transform ${showAltLinks ? "rotate-90" : ""}`} />
+                    </button>
+                    <AnimatePresence>
+                      {showAltLinks && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {/* Primary link */}
+                            <button
+                              type="button"
+                              onClick={() => setActiveStreamUrl(null)}
+                              className={`alt-link-btn${!activeStreamUrl ? " active" : ""}`}
+                            >
+                              Primary
+                            </button>
+                            {altLinks.map((url, i) => (
+                              <button
+                                key={url}
+                                type="button"
+                                onClick={() => setActiveStreamUrl(url)}
+                                className={`alt-link-btn${activeStreamUrl === url ? " active" : ""}`}
+                              >
+                                Backup {i + 1}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
-                  <p className="truncate text-sm font-bold text-white">{activeChannel.name}</p>
-                  <p className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                    <span>{flagFromCountryName(activeChannel.country)}</span>
-                    <span>{activeChannel.country} · {activeChannel.category} · {activeChannel.quality_tag.toUpperCase()}</span>
-                  </p>
-                </div>
-                <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
-                  <span className="pulse-dot" style={{ width: 6, height: 6 }} /> LIVE
-                </span>
               </motion.div>
             )}
           </section>
@@ -353,12 +528,12 @@ export function ViewerHome() {
             {tier === "free" && <AdSlot variant="inline" />}
 
             {/* Featured channels quick list */}
-            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid rgb(255 255 255 / 7%)" }}>
-              <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgb(255 255 255 / 7%)" }}>
-                <h2 className="text-sm font-bold text-white">{t("directory")}</h2>
+            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("directory")}</h2>
                 <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
               </div>
-              <div className="max-h-[420px] overflow-y-auto divide-y divide-white/5">
+              <div className="max-h-[420px] overflow-y-auto divide-y" style={{ borderColor: "var(--border)" }}>
                 {loading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
@@ -383,14 +558,14 @@ export function ViewerHome() {
                     >
                       {ch.logo_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" style={{ border: "1px solid rgb(255 255 255 / 10%)" }} />
+                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" style={{ border: "1px solid var(--border)" }} />
                       ) : (
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: "var(--bg-hover)" }}>
                           {ch.name.slice(0, 1)}
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className={`truncate text-sm font-medium ${activeChannel?.id === ch.id ? "text-white" : ""}`} style={{ color: activeChannel?.id === ch.id ? "#fff" : "var(--text-main)" }}>
+                        <p className="truncate text-sm font-medium" style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }}>
                           {ch.name}
                         </p>
                         <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
@@ -416,11 +591,15 @@ export function ViewerHome() {
         {/* ── Full channel grid ── */}
         <section>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">
-              {activeCategory ? `${sportEmoji(activeCategory)} ${activeCategory}` : "🌐 " + t("directory")}
+            <h2 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
+              {activeCategory
+                ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
+                : activeModule === "bangladesh"
+                  ? "🇧🇩 Bangladesh TV Channels"
+                  : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {filtered.length} / {allChannels.length} channels
+              {filtered.length} / {moduleChannels.length} channels
             </span>
           </div>
 
@@ -428,7 +607,7 @@ export function ViewerHome() {
             <ChannelSkeletonGrid count={18} />
           ) : filtered.length === 0 ? (
             <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
-              <p className="text-sm text-white">{t("noResults")}</p>
+              <p className="text-sm" style={{ color: "var(--text-main)" }}>{t("noResults")}</p>
               <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{t("tryAdjust")}</p>
             </div>
           ) : (
@@ -440,6 +619,7 @@ export function ViewerHome() {
                   active={activeChannel?.id === ch.id}
                   onSelect={setActiveChannel}
                   index={i}
+                  activeModule={activeModule}
                 />
               ))}
             </div>
@@ -456,11 +636,13 @@ function PremiumChannelCard({
   active,
   onSelect,
   index,
+  activeModule,
 }: {
   channel: Channel;
   active: boolean;
   onSelect: (c: Channel) => void;
   index: number;
+  activeModule: ActiveModule;
 }) {
   return (
     <motion.button
@@ -478,7 +660,7 @@ function PremiumChannelCard({
             src={channel.logo_url}
             alt=""
             className="h-12 w-12 shrink-0 rounded-lg object-cover"
-            style={{ border: "1px solid rgb(255 255 255 / 10%)" }}
+            style={{ border: "1px solid var(--border)" }}
             loading="lazy"
           />
         ) : (
@@ -490,7 +672,7 @@ function PremiumChannelCard({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">{channel.name}</p>
+          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }}>{channel.name}</p>
           <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: "var(--text-muted)" }}>
             {flagFromCountryName(channel.country)} {channel.country}
           </p>
@@ -503,7 +685,7 @@ function PremiumChannelCard({
           className="rounded-full px-2 py-0.5 text-[10px] font-medium"
           style={{ background: "rgb(255 255 255 / 6%)", color: "var(--text-muted)" }}
         >
-          {sportEmoji(channel.category)} {channel.category}
+          {categoryEmoji(channel.category, activeModule)} {channel.category}
         </span>
         <span
           className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
@@ -514,12 +696,14 @@ function PremiumChannelCard({
         >
           {channel.quality_tag}
         </span>
-        {channel.quality_tag.toLowerCase().includes("hd") && (
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgb(0 200 81 / 15%)", color: "#00c851" }}>
-            HD
+        {channel.alternate_urls.length > 0 && (
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgb(30 110 232 / 15%)", color: "#60a5fa" }}>
+            +{channel.alternate_urls.length} links
           </span>
         )}
       </div>
     </motion.button>
   );
 }
+
+

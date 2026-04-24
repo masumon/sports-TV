@@ -15,6 +15,7 @@ type ChannelFormState = {
   logo_url: string;
   stream_url: string;
   quality_tag: string;
+  module: string;
 };
 
 type ScoreFormState = {
@@ -37,6 +38,7 @@ const initialChannelForm: ChannelFormState = {
   logo_url: "",
   stream_url: "",
   quality_tag: "auto",
+  module: "sports",
 };
 
 const initialScoreForm: ScoreFormState = {

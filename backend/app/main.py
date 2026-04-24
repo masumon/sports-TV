@@ -16,7 +16,7 @@ from app.core.cache import invalidate_list_caches
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.core.sync_rate_limit import mark_sync_success
-from app.db.ensure_schema import ensure_user_subscription_tier
+from app.db.ensure_schema import ensure_channel_columns, ensure_user_subscription_tier
 from app.db.session import ASYNC_URL, Base, SessionLocal, engine
 from app.models import Channel, User
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
@@ -67,6 +67,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     try:
         ensure_user_subscription_tier(engine)
+        ensure_channel_columns(engine)
     except RuntimeError:
         logger.critical(
             "DB schema migration failed — login WILL return 500 until this is resolved. "

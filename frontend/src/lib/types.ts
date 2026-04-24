@@ -6,7 +6,9 @@ export type Channel = {
   language: string;
   logo_url: string | null;
   stream_url: string;
+  alternate_urls: string[];
   quality_tag: string;
+  module: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

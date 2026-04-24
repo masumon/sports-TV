@@ -399,3 +399,182 @@ img[src=""],
 img:not([src]) {
   visibility: hidden;
 }
+
+/* ── Module tabs ── */
+.module-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.module-tab:hover {
+  border-color: rgba(245,166,35,0.4);
+  color: var(--text-main);
+}
+.module-tab.active {
+  background: var(--primary-accent);
+  border-color: var(--primary-accent);
+  color: #07080F;
+  box-shadow: 0 0 16px rgba(245,166,35,0.3);
+}
+.module-tab.active.bd {
+  background: #006a4e;
+  border-color: #006a4e;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(0,106,78,0.4);
+}
+.module-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(0,0,0,0.2);
+  color: inherit;
+}
+
+/* ── Filter chips ── */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-card2);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.filter-chip:hover {
+  border-color: rgba(245,166,35,0.35);
+  color: var(--text-main);
+}
+.filter-chip.active {
+  background: rgba(245,166,35,0.15);
+  border-color: var(--primary-accent);
+  color: var(--primary-accent);
+  font-weight: 700;
+}
+
+/* ── Alternate stream link buttons ── */
+.alt-link-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card2);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.alt-link-btn:hover {
+  border-color: rgba(245,166,35,0.4);
+  color: var(--text-main);
+}
+.alt-link-btn.active {
+  background: rgba(245,166,35,0.12);
+  border-color: var(--primary-accent);
+  color: var(--primary-accent);
+}
+
+/* ── Light mode comprehensive fixes ── */
+html.light input {
+  color: var(--text-main);
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+html.light input::placeholder {
+  color: var(--text-muted);
+}
+html.light select,
+html.light select option {
+  color: var(--text-main);
+  background: var(--bg-card);
+}
+html.light .cat-tab {
+  color: var(--text-muted);
+}
+html.light .cat-tab:hover {
+  color: var(--text-main);
+  background: rgba(0,0,0,0.07);
+}
+html.light .ch-card p,
+html.light .ch-card span {
+  color: inherit;
+}
+html.light .control-btn {
+  background: rgba(0,0,0,0.06);
+  border-color: rgba(0,0,0,0.14);
+  color: var(--text-main);
+}
+html.light .control-btn:hover {
+  background: var(--primary-accent);
+  border-color: var(--primary-accent);
+  color: #fff;
+}
+html.light .volume-slider {
+  background: rgba(0,0,0,0.12);
+}
+html.light .live-badge {
+  background: rgba(198,40,40,0.1);
+  border-color: rgba(198,40,40,0.3);
+  color: #c62828;
+}
+html.light .pulse-dot {
+  background: var(--primary-accent);
+}
+html.light .module-tab {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+html.light .module-tab:hover {
+  color: var(--text-main);
+}
+html.light .filter-chip {
+  background: var(--bg-card2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+html.light .filter-chip:hover {
+  color: var(--text-main);
+}
+html.light .alt-link-btn {
+  background: var(--bg-card2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+html.light .alt-link-btn:hover {
+  color: var(--text-main);
+}
+html.light .sports-cat-item {
+  color: var(--text-muted);
+}
+html.light .sports-cat-item:hover {
+  color: var(--text-main);
+  background: rgba(0,0,0,0.05);
+}
+html.light .sports-cat-item.active {
+  color: var(--primary-accent);
+}
+
