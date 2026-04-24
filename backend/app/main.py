@@ -17,7 +17,7 @@ from app.core.config import settings
 from app.core.security import get_password_hash
 from app.core.sync_rate_limit import mark_sync_success
 from app.db.ensure_schema import ensure_user_subscription_tier
-from app.db.session import Base, SessionLocal, engine
+from app.db.session import ASYNC_URL, Base, SessionLocal, engine
 from app.models import Channel, User
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
 
@@ -154,7 +154,20 @@ async def _unhandled_error_handler(request, exc: Exception) -> JSONResponse:
 
 @app.get("/health", tags=["health"])
 def health() -> dict[str, str]:
-    return {"status": "ok", "env": settings.app_env, "version": "psycopg3-async-v6"}
+    return {"status": "ok", "env": settings.app_env, "version": "nullpool-v7"}
+
+
+@app.get("/health/db", tags=["health"], include_in_schema=False)
+async def health_db() -> dict:
+    """Diagnostic: test async DB connection and return error detail if it fails."""
+    from sqlalchemy import text as sa_text
+    from app.db.session import AsyncSessionLocal
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(sa_text("SELECT 1"))
+        return {"db": "ok", "async_url_prefix": str(ASYNC_URL)[:40]}
+    except Exception as exc:
+        return {"db": "error", "detail": str(exc), "async_url_prefix": str(ASYNC_URL)[:40]}
 
 
 @app.post("/internal/sync", tags=["internal"], include_in_schema=False)

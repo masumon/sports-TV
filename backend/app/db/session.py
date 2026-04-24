@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
@@ -47,13 +48,11 @@ def _to_async_url(sync_url: str) -> str:
 
 
 ASYNC_URL = _to_async_url(DATABASE_URL)
+# Use NullPool for async engine: Neon (serverless PostgreSQL) closes idle connections
+# aggressively; a persistent pool causes stale-connection 500s on cold starts.
+# NullPool opens a fresh connection per request — safe and correct for serverless.
 _async_pool_kw: dict = (
-    {
-        "pool_pre_ping": True,
-        "pool_size": settings.db_pool_size,
-        "max_overflow": settings.db_max_overflow,
-        # psycopg3 async: sslmode is handled by the URL param, no connect_args needed.
-    }
+    {"poolclass": NullPool}
     if not str(ASYNC_URL).startswith("sqlite+")
     else {"pool_pre_ping": True}
 )
