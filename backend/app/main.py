@@ -33,6 +33,14 @@ SCHEDULER = None
 
 
 def ensure_admin_seed(db: Session) -> None:
+    # Migrate legacy admin@gstv.local (invalid TLD rejected by email-validator)
+    # to the configured admin email so login works after the EmailStr fix.
+    legacy = db.scalar(select(User).where(User.email == "admin@gstv.local"))
+    if legacy and legacy.email != settings.admin_email:
+        legacy.email = settings.admin_email
+        db.commit()
+        logger.info("Migrated legacy admin email -> %s", settings.admin_email)
+
     admin = db.scalar(select(User).where(User.email == settings.admin_email))
     if admin:
         return

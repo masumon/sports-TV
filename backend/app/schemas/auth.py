@@ -10,7 +10,9 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Use str (not EmailStr) so admin@gstv.local and other reserved-TLD addresses
+    # are accepted — email-validator rejects .local domains.
+    email: str = Field(min_length=5, max_length=255)
     password: str = Field(min_length=8, max_length=128)
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field
 
 
 class ChannelBase(BaseModel):
@@ -8,14 +8,23 @@ class ChannelBase(BaseModel):
     country: str = Field(default="Global", min_length=2, max_length=120)
     category: str = Field(default="Sports", min_length=2, max_length=120)
     language: str = Field(default="Unknown", min_length=2, max_length=120)
-    logo_url: HttpUrl | None = None
-    stream_url: HttpUrl
+    # Use str so non-HTTP protocols (rtmp://, udp://, rtp://) from IPTV sources are accepted.
+    logo_url: str | None = None
+    stream_url: str
     quality_tag: str = Field(default="auto", max_length=40)
     is_active: bool = True
 
 
-class ChannelCreate(ChannelBase):
-    pass
+class ChannelCreate(BaseModel):
+    """Write schema — validates URLs are well-formed before storage."""
+    name: str = Field(min_length=2, max_length=255)
+    country: str = Field(default="Global", min_length=2, max_length=120)
+    category: str = Field(default="Sports", min_length=2, max_length=120)
+    language: str = Field(default="Unknown", min_length=2, max_length=120)
+    logo_url: AnyUrl | None = None
+    stream_url: AnyUrl
+    quality_tag: str = Field(default="auto", max_length=40)
+    is_active: bool = True
 
 
 class ChannelUpdate(BaseModel):
@@ -23,8 +32,8 @@ class ChannelUpdate(BaseModel):
     country: str | None = Field(default=None, min_length=2, max_length=120)
     category: str | None = Field(default=None, min_length=2, max_length=120)
     language: str | None = Field(default=None, min_length=2, max_length=120)
-    logo_url: HttpUrl | None = None
-    stream_url: HttpUrl | None = None
+    logo_url: AnyUrl | None = None
+    stream_url: AnyUrl | None = None
     quality_tag: str | None = Field(default=None, max_length=40)
     is_active: bool | None = None
 

@@ -61,7 +61,7 @@ export default function AdminLoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
-              placeholder="admin@gstv.local"
+              placeholder="admin@gstv.tv"
             />
           </label>
 

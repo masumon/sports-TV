@@ -42,10 +42,11 @@ services:
       - key: JWT_SECRET_KEY
         sync: false
       - key: ADMIN_EMAIL
-        sync: false
+        value: admin@gstv.tv
       - key: ADMIN_PASSWORD
         sync: false
       - key: ADMIN_FULL_NAME
         sync: false
+      # Include all Vercel deployment URLs; update when domain changes.
       - key: CORS_ORIGINS
-        sync: false
+        value: "https://sports-tv-lovat.vercel.app,http://localhost:3000"

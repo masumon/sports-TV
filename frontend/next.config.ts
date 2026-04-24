@@ -13,6 +13,16 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
+  // Proxy all /api/* requests to the Render backend so the frontend never
+  // needs to hardcode an absolute URL and avoids CORS preflight issues.
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: "https://gstv-backend.onrender.com/api/:path*",
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);
