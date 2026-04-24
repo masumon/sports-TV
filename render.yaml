@@ -16,7 +16,7 @@ services:
       - key: APP_ENV
         value: production
       - key: DEBUG
-        value: "false"
+        value: "true"
       - key: API_V1_PREFIX
         value: /api/v1
       - key: JWT_ALGORITHM
