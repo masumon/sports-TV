@@ -57,7 +57,14 @@ async def lifespan(app: FastAPI):
         settings.admin_email,
     )
     Base.metadata.create_all(bind=engine)
-    ensure_user_subscription_tier(engine)
+    try:
+        ensure_user_subscription_tier(engine)
+    except RuntimeError:
+        logger.critical(
+            "DB schema migration failed — login WILL return 500 until this is resolved. "
+            "Run: ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier VARCHAR(20) NOT NULL DEFAULT 'free';"
+        )
+        # Do not abort startup — the app should still serve non-user routes.
     db = SessionLocal()
     try:
         ensure_admin_seed(db)

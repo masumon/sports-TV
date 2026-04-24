@@ -36,9 +36,9 @@ class Settings(BaseSettings):
     sync_rate_limit_seconds: int = 60
     # Background M3U sync interval (0 = disabled). Use one worker or expect duplicate work.
     scheduled_sync_interval_minutes: int = 0
-    # Engine pool (PostgreSQL)
-    db_pool_size: int = 10
-    db_max_overflow: int = 20
+    # Engine pool (PostgreSQL). Keep low on free-tier DBs (e.g. Neon allows 25 connections).
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
 
     model_config = SettingsConfigDict(
         env_file=(
