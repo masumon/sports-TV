@@ -23,6 +23,7 @@ import { useI18n } from "@/lib/i18n/LocaleContext";
 import type { Channel, LiveScore } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
+import { useUiStore } from "@/store/uiStore";
 
 const LiveScoreOverlay = dynamic(() => import("@/components/LiveScoreOverlay"), { ssr: false });
 const PremiumPlayer = dynamic(
@@ -137,8 +138,10 @@ export function ViewerHome() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearch = useDeferredValue(searchQuery);
-  const [activeModule, setActiveModule] = useState<ActiveModule>("sports");
-  const [activeCategory, setActiveCategory] = useState("");
+  const activeModule = useUiStore((s) => s.activeModule);
+  const setActiveModule = useUiStore((s) => s.setActiveModule);
+  const activeCategory = useUiStore((s) => s.activeCategory);
+  const setActiveCategory = useUiStore((s) => s.setActiveCategory);
   const [filterCountry, setFilterCountry] = useState("");
   const [filterLanguage, setFilterLanguage] = useState("");
   const [scores, setScores] = useState<LiveScore[]>([]);
@@ -177,9 +180,8 @@ export function ViewerHome() {
     return () => clearInterval(id);
   }, [loadChannels]);
 
-  // Reset filters when module changes
+  // Reset local filters when module changes
   useEffect(() => {
-    setActiveCategory("");
     setFilterCountry("");
     setFilterLanguage("");
     setActiveStreamUrl(null);
@@ -589,7 +591,7 @@ export function ViewerHome() {
         </div>
 
         {/* ── Full channel grid ── */}
-        <section>
+        <section id="channel-grid">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
               {activeCategory

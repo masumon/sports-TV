@@ -36,19 +36,41 @@ const SPORTS_CATEGORIES = [
   { label: "Wrestling", emoji: "🤼", key: "wrestling" },
 ];
 
-const navItems: { href: Route; key: string; icon: typeof Home }[] = [
-  { href: "/", key: "home", icon: Home },
-  { href: "/#gstv-search" as Route, key: "browse", icon: LayoutGrid },
-];
-
 export function Sidebar() {
   const { t } = useI18n();
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const { sidebarOpen, setSidebarOpen } = useUiStore();
+  const activeModule = useUiStore((s) => s.activeModule);
+  const setActiveModule = useUiStore((s) => s.setActiveModule);
+  const activeCategory = useUiStore((s) => s.activeCategory);
+  const setActiveCategory = useUiStore((s) => s.setActiveCategory);
   const [showAllCats, setShowAllCats] = useState(false);
 
   const visibleCats = showAllCats ? SPORTS_CATEGORIES : SPORTS_CATEGORIES.slice(0, 8);
+
+  function handleCategoryClick(key: string) {
+    // If on bangladesh module, switch to sports first
+    if (activeModule !== "sports") setActiveModule("sports");
+    setActiveCategory(activeCategory === key ? "" : key);
+    setSidebarOpen(false);
+    // Scroll to channel grid
+    setTimeout(() => {
+      document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  }
+
+  function handleBangladeshClick() {
+    setActiveModule("bangladesh");
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleSportsTVClick() {
+    setActiveModule("sports");
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
     <>
@@ -109,39 +131,49 @@ export function Sidebar() {
             <p className="mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
               Navigation
             </p>
-            {navItems.map((item) => {
-              const active = pathname === item.href;
-              return (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
-                  style={{
-                    background: active ? "rgba(245,166,35,0.12)" : "transparent",
-                    color: active ? "var(--primary-accent)" : "var(--text-muted)",
-                    borderLeft: active ? "2px solid var(--primary-accent)" : "2px solid transparent",
-                  }}
-                >
-                  <item.icon size={17} />
-                  {t(item.key as "home" | "browse")}
-                </Link>
-              );
-            })}
-            {/* Bangladesh TV link */}
-            <a
+            <Link
               href="/"
-              onClick={() => setSidebarOpen(false)}
+              onClick={() => { setSidebarOpen(false); handleSportsTVClick(); }}
               className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
               style={{
-                background: "transparent",
-                color: "var(--text-muted)",
-                borderLeft: "2px solid transparent",
+                background: activeModule === "sports" ? "rgba(245,166,35,0.12)" : "transparent",
+                color: activeModule === "sports" ? "var(--primary-accent)" : "var(--text-muted)",
+                borderLeft: activeModule === "sports" ? "2px solid var(--primary-accent)" : "2px solid transparent",
+              }}
+            >
+              <Home size={17} />
+              {t("home")} — 🌍 Sports TV
+            </Link>
+
+            {/* Bangladesh TV */}
+            <button
+              type="button"
+              onClick={handleBangladeshClick}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: activeModule === "bangladesh" ? "rgba(0,106,78,0.15)" : "transparent",
+                color: activeModule === "bangladesh" ? "#10b981" : "var(--text-muted)",
+                borderLeft: activeModule === "bangladesh" ? "2px solid #10b981" : "2px solid transparent",
               }}
             >
               <Tv size={17} />
               🇧🇩 Bangladesh TV
-            </a>
+            </button>
+
+            {/* Browse / Search */}
+            <button
+              type="button"
+              onClick={() => {
+                setSidebarOpen(false);
+                document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{ color: "var(--text-muted)", borderLeft: "2px solid transparent" }}
+            >
+              <LayoutGrid size={17} />
+              {t("browse")}
+            </button>
+
             {/* Admin link */}
             <Link
               href={(user?.is_admin ? "/admin/dashboard" : "/admin/login") as Route}
@@ -165,15 +197,15 @@ export function Sidebar() {
             </p>
             <div className="flex flex-col gap-0.5">
               {visibleCats.map((cat) => (
-                <a
+                <button
                   key={cat.key}
-                  href={`/#gstv-search`}
-                  onClick={() => setSidebarOpen(false)}
-                  className="sports-cat-item"
+                  type="button"
+                  onClick={() => handleCategoryClick(cat.key)}
+                  className={`sports-cat-item${activeCategory === cat.key ? " active" : ""}`}
                 >
                   <span className="text-base leading-none">{cat.emoji}</span>
                   <span className="text-sm">{cat.label}</span>
-                </a>
+                </button>
               ))}
             </div>
             <button
