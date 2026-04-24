@@ -60,7 +60,9 @@ def _to_async_url(sync_url: str) -> str:
             "channel_binding", "application_name", "connect_timeout", "options",
         }
         clean_query = {k: v for k, v in u.query.items() if k not in _libpq_params}
-        return str(u.set(drivername="postgresql+asyncpg", query=clean_query))
+        # IMPORTANT: use render_as_string(hide_password=False) — str(URL) masks
+        # the password as "***" which causes asyncpg to literally send "***" to Neon.
+        return u.set(drivername="postgresql+asyncpg", query=clean_query).render_as_string(hide_password=False)
     return "sqlite+aiosqlite:///" + sync_url.split("///", 1)[-1] if "sqlite" in sync_url else str(u)
 
 

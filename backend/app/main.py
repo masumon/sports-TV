@@ -167,10 +167,13 @@ async def health_db() -> dict:
     # Show last 4 chars of password so we can confirm Render picked up the new value
     _pw_suffix = ""
     try:
-        _m = _re.search(r":([^:@]+)@", str(ASYNC_URL))
+        _m = _re.search(r":([^:@\s]+)@", str(ASYNC_URL))
         if _m:
             _pw = _m.group(1)
-            _pw_suffix = ("*" * max(0, len(_pw) - 4)) + _pw[-4:]
+            if _pw and _pw != "***":
+                _pw_suffix = ("*" * max(0, len(_pw) - 4)) + _pw[-4:]
+            else:
+                _pw_suffix = "(masked-check session.py)"
     except Exception:
         pass
 
