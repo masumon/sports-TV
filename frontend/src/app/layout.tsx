@@ -7,17 +7,17 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sports-tv-lovat.ver
 
 export const metadata: Metadata = {
   title: {
-    default: "Global Sports Live TV",
-    template: "%s · Global Sports Live TV",
+    default: "ABO SPORTS TV LIVE",
+    template: "%s · ABO SPORTS TV LIVE",
   },
   description:
-    "Premium global sports live TV streaming with real-time score overlays, HLS player, and JWT-secured admin.",
-  applicationName: "Global Sports Live TV",
-  authors: [{ name: "Mumain Ahmed", url: "https://mumainsumon.netlify.app/" }],
-  keywords: ["sports", "live tv", "streaming", "HLS", "Bangladesh", "FastAPI", "Next.js", "PWA"],
+    "ABO Sports TV Live — বিশ্বের সকল দেশের সব ধরনের খেলাধুলার চ্যানেল লাইভ স্ট্রিমিং। Real-time live scores, HD quality, PWA support.",
+  applicationName: "ABO SPORTS TV LIVE",
+  authors: [{ name: "ABO ENTERPRISE", url: "https://aboenterprise.netlify.app/" }],
+  keywords: ["sports", "live tv", "streaming", "HLS", "football", "cricket", "basketball", "tennis", "ABO SPORTS TV LIVE", "ABO Enterprise", "Next.js", "PWA", "global sports"],
   appleWebApp: {
     capable: true,
-    title: "GSTV Live",
+    title: "ABO Sports TV",
     statusBarStyle: "black-translucent",
   },
   formatDetection: {
@@ -28,16 +28,16 @@ export const metadata: Metadata = {
     type: "website",
     locale: "bn_BD",
     url: siteUrl,
-    siteName: "Global Sports Live TV",
-    title: "Global Sports Live TV",
-    description: "লাইভ স্পোর্টস স্ট্রিমিং ও রিয়েল-টাইম স্কোর প্ল্যাটফর্ম",
+    siteName: "ABO SPORTS TV LIVE",
+    title: "ABO SPORTS TV LIVE",
+    description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং প্ল্যাটফর্ম",
   },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#020617" },
-    { color: "#0ea5e9" },
+    { media: "(prefers-color-scheme: dark)", color: "#07080F" },
+    { color: "#F5A623" },
   ],
   colorScheme: "dark light",
   width: "device-width",

@@ -20,7 +20,7 @@ export default function ChannelGrid({
     <section className="rounded-2xl border border-white/10 bg-[#0c1324]/80 p-4 shadow-2xl backdrop-blur">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-100">লাইভ স্পোর্টস চ্যানেল</h2>
-        <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">
+        <span className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: "rgba(245,166,35,0.3)", background: "rgba(245,166,35,0.1)", color: "var(--primary-accent)" }}>
           মোট {channels.length}
         </span>
       </div>
@@ -35,8 +35,8 @@ export default function ChannelGrid({
               onClick={() => onSelectChannel(channel)}
               className={`group relative rounded-xl border px-3 py-3 text-left transition ${
                 isActive
-                  ? "border-cyan-400/70 bg-cyan-500/20"
-                  : "border-white/10 bg-slate-900/60 hover:border-cyan-400/30 hover:bg-slate-800/80"
+                  ? "border-amber-400/60 bg-amber-500/10"
+                  : "border-white/10 bg-slate-900/60 hover:border-amber-400/30 hover:bg-slate-800/80"
               }`}
               whileHover={{ y: -2, scale: 1.01 }}
               initial={{ opacity: 0, y: 12 }}
@@ -64,7 +64,7 @@ export default function ChannelGrid({
                 </div>
                 <PlayCircle
                   className={`h-5 w-5 ${
-                    isActive ? "text-cyan-200" : "text-slate-500 group-hover:text-cyan-300"
+                    isActive ? "text-amber-300" : "text-slate-500 group-hover:text-amber-400"
                   }`}
                 />
               </div>

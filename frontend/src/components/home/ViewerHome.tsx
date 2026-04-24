@@ -151,7 +151,7 @@ export function ViewerHome() {
         {liveScoresTicker && (
           <div
             className="flex items-center gap-3 overflow-hidden rounded-xl px-4 py-2.5"
-            style={{ background: "var(--bg-card)", border: "1px solid rgb(0 191 255 / 30%)" }}
+            style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.25)" }}
           >
             <span className="flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>
               <span className="pulse-dot" />
@@ -173,9 +173,11 @@ export function ViewerHome() {
         >
           <div>
             <div className="flex items-center gap-2">
-              <Tv2 className="h-5 w-5" style={{ color: "var(--primary-accent)" }} />
-              <span className="text-xs font-bold uppercase tracking-[0.25em]" style={{ color: "var(--primary-accent)" }}>
-                {t("appTitle")}
+              <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "rgba(245,166,35,0.15)" }}>
+                <Tv2 className="h-4 w-4" style={{ color: "var(--primary-accent)" }} />
+              </div>
+              <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>
+                ABO SPORTS TV LIVE
               </span>
             </div>
             <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-white md:text-3xl">
@@ -214,7 +216,7 @@ export function ViewerHome() {
               {t("refresh")}
             </button>
 
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgb(0 191 255 / 12%)", border: "1px solid rgb(0 191 255 / 30%)", color: "var(--primary-accent)" }}>
+            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgba(229,57,53,0.1)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}>
               <Signal size={12} /> {t("hlsLive")}
             </div>
 
@@ -339,7 +341,7 @@ export function ViewerHome() {
                     <span>{activeChannel.country} · {activeChannel.category} · {activeChannel.quality_tag.toUpperCase()}</span>
                   </p>
                 </div>
-                <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgb(0 191 255 / 15%)", color: "var(--primary-accent)", border: "1px solid rgb(0 191 255 / 35%)" }}>
+                <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
                   <span className="pulse-dot" style={{ width: 6, height: 6 }} /> LIVE
                 </span>
               </motion.div>
@@ -375,7 +377,7 @@ export function ViewerHome() {
                       onClick={() => setActiveChannel(ch)}
                       className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
                       style={{
-                        background: activeChannel?.id === ch.id ? "rgb(0 191 255 / 10%)" : "transparent",
+                        background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
                         borderLeft: activeChannel?.id === ch.id ? "3px solid var(--primary-accent)" : "3px solid transparent",
                       }}
                     >
@@ -425,7 +427,7 @@ export function ViewerHome() {
           {loading ? (
             <ChannelSkeletonGrid count={18} />
           ) : filtered.length === 0 ? (
-            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgb(0 191 255 / 20%)" }}>
+            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
               <p className="text-sm text-white">{t("noResults")}</p>
               <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{t("tryAdjust")}</p>
             </div>
@@ -506,7 +508,7 @@ function PremiumChannelCard({
         <span
           className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
           style={{
-            background: active ? "rgb(0 191 255 / 15%)" : "rgb(255 255 255 / 6%)",
+            background: active ? "rgba(245,166,35,0.12)" : "rgb(255 255 255 / 6%)",
             color: active ? "var(--primary-accent)" : "var(--text-muted)",
           }}
         >

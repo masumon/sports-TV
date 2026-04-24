@@ -2,16 +2,43 @@
 
 import type { Route } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Home, LayoutGrid, LucideIcon, Settings, Sparkles, X } from "lucide-react";
+import {
+  Home, LayoutGrid, Settings, X, Trophy, Tv, Globe, ChevronDown, ChevronUp,
+  Zap, Star, Flame, Activity,
+} from "lucide-react";
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useAuthStore } from "@/store/authStore";
 import { useUiStore } from "@/store/uiStore";
 
-const items: { href: Route; key: string; icon: LucideIcon }[] = [
+const SPORTS_CATEGORIES = [
+  { label: "Football", emoji: "⚽", key: "football" },
+  { label: "Cricket", emoji: "🏏", key: "cricket" },
+  { label: "Basketball", emoji: "🏀", key: "basketball" },
+  { label: "Tennis", emoji: "🎾", key: "tennis" },
+  { label: "Baseball", emoji: "⚾", key: "baseball" },
+  { label: "Rugby", emoji: "🏉", key: "rugby" },
+  { label: "Hockey", emoji: "🏒", key: "hockey" },
+  { label: "Golf", emoji: "⛳", key: "golf" },
+  { label: "Boxing", emoji: "🥊", key: "boxing" },
+  { label: "MMA / UFC", emoji: "🥋", key: "mma" },
+  { label: "Formula 1", emoji: "🏎️", key: "formula" },
+  { label: "Cycling", emoji: "🚴", key: "cycling" },
+  { label: "Swimming", emoji: "🏊", key: "swimming" },
+  { label: "Athletics", emoji: "🏃", key: "athletics" },
+  { label: "Volleyball", emoji: "🏐", key: "volleyball" },
+  { label: "Table Tennis", emoji: "🏓", key: "table-tennis" },
+  { label: "Badminton", emoji: "🏸", key: "badminton" },
+  { label: "Snooker", emoji: "🎱", key: "snooker" },
+  { label: "Darts", emoji: "🎯", key: "darts" },
+  { label: "Wrestling", emoji: "🤼", key: "wrestling" },
+];
+
+const navItems: { href: Route; key: string; icon: typeof Home }[] = [
   { href: "/", key: "home", icon: Home },
   { href: "/#gstv-search" as Route, key: "browse", icon: LayoutGrid },
-  { href: "/admin/login", key: "admin", icon: Settings },
 ];
 
 export function Sidebar() {
@@ -19,89 +46,180 @@ export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const { sidebarOpen, setSidebarOpen } = useUiStore();
+  const [showAllCats, setShowAllCats] = useState(false);
+
+  const visibleCats = showAllCats ? SPORTS_CATEGORIES : SPORTS_CATEGORIES.slice(0, 8);
 
   return (
     <>
+      {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 z-30 bg-black/50 transition-opacity md:hidden ${
+        className={`fixed inset-0 z-30 bg-black/60 backdrop-blur-sm transition-opacity md:hidden ${
           sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={() => setSidebarOpen(false)}
         aria-hidden
       />
+
       <aside
-        className={`fixed left-0 top-0 z-40 flex h-full w-64 flex-col p-4 transition-transform duration-200 md:static md:translate-x-0 ${
+        className={`fixed left-0 top-0 z-40 flex h-full w-64 flex-col transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } shrink-0`}
-        style={{ background: "var(--bg-card)", borderRight: "1px solid rgb(255 255 255 / 7%)" }}
+        } shrink-0 overflow-y-auto`}
+        style={{
+          background: "var(--bg-card)",
+          borderRight: "1px solid rgba(255,255,255,0.07)",
+          scrollbarWidth: "none",
+        }}
       >
-        <div className="mb-6 flex items-center justify-between gap-2 md:justify-center">
-          <div className="md:hidden" />
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-black tracking-wider" style={{ color: "var(--primary-accent)" }}>G</span>
-            <p className="text-xs font-bold uppercase tracking-widest text-white">SPORTS TV</p>
+        {/* ── Logo / Brand ── */}
+        <div
+          className="sticky top-0 z-10 flex items-center justify-between px-4 py-4"
+          style={{
+            background: "var(--bg-card)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative h-9 w-9 shrink-0">
+              <Image src="/icons/abo-logo.svg" alt="ABO" width={36} height={36} className="rounded-lg" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] leading-none" style={{ color: "var(--primary-accent)" }}>
+                ABO SPORTS
+              </p>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.18em] leading-tight" style={{ color: "var(--text-muted)" }}>
+                TV LIVE
+              </p>
+            </div>
           </div>
           <button
             type="button"
-            className="rounded-lg p-1 md:hidden"
+            className="rounded-lg p-1.5 transition hover:bg-white/10 md:hidden"
             style={{ color: "var(--text-muted)" }}
             onClick={() => setSidebarOpen(false)}
-            aria-label="Close"
+            aria-label="Close menu"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
-        <nav className="flex flex-1 flex-col gap-1">
-          {items.map((item) => {
-            if (item.key === "admin") {
-              const to = (user?.is_admin ? "/admin/dashboard" : "/admin/login") as Route;
-              const active = pathname?.startsWith("/admin");
+
+        <div className="flex flex-1 flex-col gap-1 px-3 py-3">
+          {/* ── Main Navigation ── */}
+          <div className="mb-1">
+            <p className="mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
+              Navigation
+            </p>
+            {navItems.map((item) => {
+              const active = pathname === item.href;
               return (
                 <Link
                   key={item.key}
-                  href={to}
+                  href={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors"
+                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
                   style={{
-                    background: active ? "rgb(0 191 255 / 15%)" : "transparent",
-                    color: active ? "#fff" : "var(--text-muted)",
+                    background: active ? "rgba(245,166,35,0.12)" : "transparent",
+                    color: active ? "var(--primary-accent)" : "var(--text-muted)",
+                    borderLeft: active ? "2px solid var(--primary-accent)" : "2px solid transparent",
                   }}
                 >
-                  <item.icon size={18} />
-                  {t("admin")}
+                  <item.icon size={17} />
+                  {t(item.key as "home" | "browse")}
                 </Link>
               );
-            }
-            const active = pathname === item.href;
-            return (
-              <Link
-                key={item.key}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors"
-                style={{
-                  background: active ? "rgb(0 191 255 / 15%)" : "transparent",
-                  color: active ? "#fff" : "var(--text-muted)",
-                  borderLeft: active ? "3px solid var(--primary-accent)" : "3px solid transparent",
-                }}
-              >
-                <item.icon size={18} />
-                {t(item.key as "home" | "browse")}
-              </Link>
-            );
-          })}
-        </nav>
-        <a
-          href="https://mumainsumon.netlify.app/"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-4 flex items-center gap-2 text-xs hover:text-slate-300"
-          style={{ color: "var(--text-muted)" }}
+            })}
+            {/* Admin link */}
+            <Link
+              href={(user?.is_admin ? "/admin/dashboard" : "/admin/login") as Route}
+              onClick={() => setSidebarOpen(false)}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: pathname?.startsWith("/admin") ? "rgba(245,166,35,0.12)" : "transparent",
+                color: pathname?.startsWith("/admin") ? "var(--primary-accent)" : "var(--text-muted)",
+                borderLeft: pathname?.startsWith("/admin") ? "2px solid var(--primary-accent)" : "2px solid transparent",
+              }}
+            >
+              <Settings size={17} />
+              {t("admin")}
+            </Link>
+          </div>
+
+          {/* ── Sports Categories ── */}
+          <div className="mt-2">
+            <p className="mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
+              🏆 Sports Categories
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {visibleCats.map((cat) => (
+                <a
+                  key={cat.key}
+                  href={`/#gstv-search`}
+                  onClick={() => setSidebarOpen(false)}
+                  className="sports-cat-item"
+                >
+                  <span className="text-base leading-none">{cat.emoji}</span>
+                  <span className="text-sm">{cat.label}</span>
+                </a>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium transition hover:bg-white/5"
+              style={{ color: "var(--text-muted)" }}
+              onClick={() => setShowAllCats((v) => !v)}
+            >
+              {showAllCats ? (
+                <><ChevronUp size={13} /> Show less</>
+              ) : (
+                <><ChevronDown size={13} /> {SPORTS_CATEGORIES.length - 8} more sports</>
+              )}
+            </button>
+          </div>
+
+          {/* ── Features ── */}
+          <div className="mt-3 rounded-xl p-3" style={{ background: "rgba(245,166,35,0.05)", border: "1px solid rgba(245,166,35,0.12)" }}>
+            <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--primary-accent)" }}>
+              Platform Features
+            </p>
+            {[
+              { icon: <Zap size={12} />, label: "HLS Live Streaming" },
+              { icon: <Activity size={12} />, label: "Real-time Scores" },
+              { icon: <Globe size={12} />, label: "All Countries" },
+              { icon: <Star size={12} />, label: "HD Quality" },
+              { icon: <Flame size={12} />, label: "300+ Channels" },
+              { icon: <Tv size={12} />, label: "PWA Support" },
+            ].map(({ icon, label }) => (
+              <div key={label} className="flex items-center gap-2 py-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                <span style={{ color: "var(--primary-accent)" }}>{icon}</span>
+                {label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Footer credit ── */}
+        <div
+          className="px-4 py-3"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
         >
-          <Sparkles size={12} />
-          Dev credits
-        </a>
+          <p className="text-[9px] uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
+            Powered by
+          </p>
+          <a
+            href="https://aboenterprise.netlify.app/"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] font-bold transition hover:opacity-80"
+            style={{ color: "var(--primary-accent)" }}
+          >
+            ABO ENTERPRISE
+          </a>
+          <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>
+            SUMONIX AI · © 2026
+          </p>
+        </div>
       </aside>
     </>
   );
 }
+

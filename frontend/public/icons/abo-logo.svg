@@ -1,0 +1,17 @@
+<svg viewBox="0 0 220 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- A -->
+  <polygon points="8,60 26,12 44,60" fill="#C9A227"/>
+  <rect x="16.5" y="42" width="19" height="5" fill="#080A14"/>
+  <!-- B -->
+  <rect x="50" y="12" width="6" height="48" fill="#C9A227"/>
+  <path d="M56 12 Q76 12 76 27 Q76 36 56 36" fill="#C9A227"/>
+  <path d="M56 36 Q78 36 78 49 Q78 60 56 60" fill="#C9A227"/>
+  <!-- O -->
+  <circle cx="105" cy="38" r="20" fill="none" stroke="#C9A227" stroke-width="6"/>
+  <!-- Flame on O -->
+  <path d="M108,18 C114,5 128,10 120,24 C128,8 140,18 130,32" fill="#CC2828"/>
+  <!-- SPORTS -->
+  <text x="136" y="34" font-size="15" font-family="Arial Black,sans-serif" fill="#E8E8F0" font-weight="900" letter-spacing="1">SPORTS</text>
+  <!-- TV LIVE -->
+  <text x="136" y="54" font-size="13" font-family="Arial Black,sans-serif" fill="#C9A227" font-weight="900" letter-spacing="3">TV LIVE</text>
+</svg>

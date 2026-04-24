@@ -5,8 +5,8 @@ export const translations: Record<
   Record<string, string>
 > = {
   en: {
-    appTitle: "Global Sports Live TV",
-    tagline: "Worldwide live sports streaming with real-time scores",
+    appTitle: "ABO SPORTS TV LIVE",
+    tagline: "All sports · All countries · Watch live now",
     loading: "Loading channels...",
     home: "Home",
     browse: "Browse",
@@ -41,12 +41,12 @@ export const translations: Record<
     syncSuccess: "Sync complete",
     syncError: "Sync failed",
     liveNow: "LIVE NOW",
-    builtWith: "Built with modern AI-driven architecture",
-    footerTagline: "Premium global sports live TV streaming",
+    builtWith: "Built by ABO ENTERPRISE · Powered by SUMONIX AI",
+    footerTagline: "ABO Sports TV Live — Watch the world's best sports",
   },
   bn: {
-    appTitle: "গ্লোবাল স্পোর্টস লাইভ টিভি",
-    tagline: "বিশ্বজুড়ে লাইভ স্পোর্টস স্ট্রিমিং ও রিয়েল-টাইম স্কোর",
+    appTitle: "ABO স্পোর্টস টিভি লাইভ",
+    tagline: "সকল খেলা · সকল দেশ · এখনই লাইভ দেখুন",
     loading: "চ্যানেল লোড হচ্ছে...",
     home: "হোম",
     browse: "ব্রাউজ",

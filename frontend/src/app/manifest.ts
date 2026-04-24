@@ -2,15 +2,15 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Global Sports Live TV",
-    short_name: "GSTV Live",
-    description: "Premium global sports live TV streaming with real-time score overlays.",
+    name: "ABO SPORTS TV LIVE",
+    short_name: "ABO Sports",
+    description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং — ABO ENTERPRISE",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait-primary",
-    background_color: "#020617",
-    theme_color: "#0ea5e9",
+    background_color: "#07080F",
+    theme_color: "#F5A623",
     categories: ["entertainment", "sports"],
     icons: [
       {
@@ -34,3 +34,4 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
   };
 }
+

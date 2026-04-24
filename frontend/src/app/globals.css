@@ -1,33 +1,53 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design tokens (dark — default) ── */
+/* ── ABO SPORTS TV LIVE — Design tokens (dark — default) ── */
 :root {
   color-scheme: dark;
-  --bg-dark: #0A0F1C;
-  --bg-card: #121826;
-  --bg-hover: #1a2236;
-  --primary-accent: #00BFFF;
-  --primary-rgb: 0 191 255;
-  --success: #00c851;
-  --text-main: #ffffff;
-  --text-muted: #9CA3AF;
+  --bg-dark: #07080F;
+  --bg-card: #0D0F1C;
+  --bg-card2: #111320;
+  --bg-hover: #161924;
+  --bg-glass: rgba(13,15,28,0.88);
+  --primary-accent: #F5A623;
+  --primary-rgb: 245 166 35;
+  --accent-red: #E53935;
+  --accent-red-rgb: 229 57 53;
+  --accent-blue: #1E6EE8;
+  --accent-blue-rgb: 30 110 232;
+  --accent-green: #10B981;
+  --success: #10B981;
+  --gold: #C9A227;
+  --text-main: #EEF0F7;
+  --text-muted: #7B809A;
+  --border: rgba(255,255,255,0.07);
+  --border-accent: rgba(245,166,35,0.25);
+  --shadow-card: 0 4px 24px rgba(0,0,0,0.5);
+  --glow-gold: 0 0 24px rgba(245,166,35,0.2);
+  --glow-red: 0 0 24px rgba(229,57,53,0.25);
 }
 
 /* ── Design tokens (light) ── */
 html.light {
   color-scheme: light;
-  --bg-dark: #f0f4f8;
-  --bg-card: #ffffff;
-  --bg-hover: #e8eef5;
-  --primary-accent: #0099cc;
-  --primary-rgb: 0 153 204;
-  --success: #00a844;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
+  --bg-dark: #F0F2F8;
+  --bg-card: #FFFFFF;
+  --bg-card2: #F5F7FF;
+  --bg-hover: #E8EBF6;
+  --bg-glass: rgba(255,255,255,0.92);
+  --primary-accent: #D4890A;
+  --primary-rgb: 212 137 10;
+  --accent-red: #C62828;
+  --accent-blue: #1557D0;
+  --success: #059669;
+  --gold: #B8860B;
+  --text-main: #0D0F1C;
+  --text-muted: #566080;
+  --border: rgba(0,0,0,0.08);
+  --border-accent: rgba(212,137,10,0.3);
 }
 
 html,
@@ -51,15 +71,72 @@ a {
 }
 
 .glass-panel {
-  background: linear-gradient(140deg, rgb(18 24 38 / 80%), rgb(10 15 28 / 90%));
-  border: 1px solid rgb(255 255 255 / 8%);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  background: linear-gradient(140deg, rgba(13,15,28,0.85), rgba(7,8,15,0.92));
+  border: 1px solid rgba(255,255,255,0.08);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 html.light .glass-panel {
-  background: linear-gradient(140deg, rgb(255 255 255 / 85%), rgb(240 244 248 / 90%));
-  border: 1px solid rgb(0 0 0 / 8%);
+  background: linear-gradient(140deg, rgba(255,255,255,0.88), rgba(240,242,248,0.92));
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+/* ── Live badge ── */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: rgba(229,57,53,0.15);
+  border: 1px solid rgba(229,57,53,0.4);
+  color: #FF5252;
+}
+
+/* ── Glow accents ── */
+.glow-gold { box-shadow: var(--glow-gold); }
+.glow-red  { box-shadow: var(--glow-red); }
+
+/* ── ABO brand gradient text ── */
+.abo-gradient {
+  background: linear-gradient(135deg, #F5A623 0%, #C9A227 50%, #E8C84A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Sidebar sports category item ── */
+.sports-cat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  color: var(--text-muted);
+  border-left: 2px solid transparent;
+  text-align: left;
+  width: 100%;
+  background: transparent;
+}
+.sports-cat-item:hover {
+  background: rgba(245,166,35,0.08);
+  color: var(--text-main);
+  border-left-color: rgba(245,166,35,0.4);
+}
+.sports-cat-item.active {
+  background: rgba(245,166,35,0.12);
+  color: var(--primary-accent);
+  border-left-color: var(--primary-accent);
+  font-weight: 600;
 }
 
 .pulse-dot {
@@ -228,33 +305,34 @@ html.light .cat-tab:hover {
 .cat-tab.active {
   background: var(--primary-accent);
   border-color: var(--primary-accent);
-  color: #fff;
+  color: #07080F;
+  font-weight: 700;
 }
 
 /* ── Channel card ── */
 .ch-card {
   background: var(--bg-card);
-  border: 1px solid rgb(255 255 255 / 7%);
+  border: 1px solid rgba(255,255,255,0.06);
   border-radius: 12px;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s, transform 0.15s, box-shadow 0.2s;
 }
 
 html.light .ch-card {
-  border-color: rgb(0 0 0 / 7%);
+  border-color: rgba(0,0,0,0.07);
 }
 
 .ch-card:hover {
   background: var(--bg-hover);
-  border-color: rgb(var(--primary-rgb) / 40%);
+  border-color: rgba(245,166,35,0.35);
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgb(0 0 0 / 20%);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.3), 0 0 0 1px rgba(245,166,35,0.1);
 }
 
 .ch-card.active {
   border-color: var(--primary-accent);
-  background: rgb(var(--primary-rgb) / 10%);
-  box-shadow: 0 0 0 1px var(--primary-accent), 0 6px 24px rgb(var(--primary-rgb) / 20%);
+  background: rgba(245,166,35,0.08);
+  box-shadow: 0 0 0 1px var(--primary-accent), 0 6px 24px rgba(245,166,35,0.15);
 }
 
 /* ── Scrollbar utilities ── */
