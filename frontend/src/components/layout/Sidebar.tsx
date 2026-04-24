@@ -63,7 +63,7 @@ export function Sidebar() {
                   onClick={() => setSidebarOpen(false)}
                   className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors"
                   style={{
-                    background: active ? "rgb(229 9 20 / 15%)" : "transparent",
+                    background: active ? "rgb(0 191 255 / 15%)" : "transparent",
                     color: active ? "#fff" : "var(--text-muted)",
                   }}
                 >
@@ -80,7 +80,7 @@ export function Sidebar() {
                 onClick={() => setSidebarOpen(false)}
                 className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors"
                 style={{
-                  background: active ? "rgb(229 9 20 / 15%)" : "transparent",
+                  background: active ? "rgb(0 191 255 / 15%)" : "transparent",
                   color: active ? "#fff" : "var(--text-muted)",
                   borderLeft: active ? "3px solid var(--primary-accent)" : "3px solid transparent",
                 }}

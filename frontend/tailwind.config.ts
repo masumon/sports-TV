@@ -6,17 +6,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#030712",
-        surface: "#0b1220",
-        accent: "#22c55e",
-        accentSoft: "#4ade80",
+        background: "#0A0F1C",
+        surface: "#121826",
+        primary: "#00BFFF",
+        muted: "#9CA3AF",
+        accent: "#00BFFF",
+        accentSoft: "#7dd3fc",
       },
       boxShadow: {
         glass: "0 20px 50px rgba(0,0,0,0.35)",
+        primary: "0 0 24px rgba(0,191,255,0.25)",
       },
       backgroundImage: {
         "sports-grid":
-          "radial-gradient(circle at 10% 20%, rgba(34,197,94,0.15), transparent 30%), radial-gradient(circle at 85% 10%, rgba(59,130,246,0.18), transparent 30%), linear-gradient(180deg, rgba(2,6,23,0.95), rgba(1,3,10,1))",
+          "radial-gradient(circle at 10% 20%, rgba(0,191,255,0.08), transparent 30%), radial-gradient(circle at 85% 10%, rgba(59,130,246,0.12), transparent 30%), linear-gradient(180deg, rgba(10,15,28,0.98), rgba(10,15,28,1))",
       },
     },
   },

@@ -151,7 +151,7 @@ export function ViewerHome() {
         {liveScoresTicker && (
           <div
             className="flex items-center gap-3 overflow-hidden rounded-xl px-4 py-2.5"
-            style={{ background: "var(--bg-card)", border: "1px solid rgb(229 9 20 / 30%)" }}
+            style={{ background: "var(--bg-card)", border: "1px solid rgb(0 191 255 / 30%)" }}
           >
             <span className="flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>
               <span className="pulse-dot" />
@@ -211,11 +211,11 @@ export function ViewerHome() {
               style={{ background: "var(--bg-card)", border: "1px solid rgb(255 255 255 / 10%)" }}
             >
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-              Refresh
+              {t("refresh")}
             </button>
 
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgb(229 9 20 / 15%)", border: "1px solid rgb(229 9 20 / 30%)", color: "#ff6b6b" }}>
-              <Signal size={12} /> HLS Live
+            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgb(0 191 255 / 12%)", border: "1px solid rgb(0 191 255 / 30%)", color: "var(--primary-accent)" }}>
+              <Signal size={12} /> {t("hlsLive")}
             </div>
 
             {tier === "premium" && (
@@ -337,7 +337,7 @@ export function ViewerHome() {
                     <span>{activeChannel.country} · {activeChannel.category} · {activeChannel.quality_tag.toUpperCase()}</span>
                   </p>
                 </div>
-                <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgb(229 9 20 / 20%)", color: "#ff6b6b", border: "1px solid rgb(229 9 20 / 40%)" }}>
+                <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgb(0 191 255 / 15%)", color: "var(--primary-accent)", border: "1px solid rgb(0 191 255 / 35%)" }}>
                   <span className="pulse-dot" style={{ width: 6, height: 6 }} /> LIVE
                 </span>
               </motion.div>
@@ -373,7 +373,7 @@ export function ViewerHome() {
                       onClick={() => setActiveChannel(ch)}
                       className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
                       style={{
-                        background: activeChannel?.id === ch.id ? "rgb(229 9 20 / 10%)" : "transparent",
+                        background: activeChannel?.id === ch.id ? "rgb(0 191 255 / 10%)" : "transparent",
                         borderLeft: activeChannel?.id === ch.id ? "3px solid var(--primary-accent)" : "3px solid transparent",
                       }}
                     >
@@ -423,12 +423,12 @@ export function ViewerHome() {
           {loading ? (
             <ChannelSkeletonGrid count={18} />
           ) : filtered.length === 0 ? (
-            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgb(229 9 20 / 20%)" }}>
+            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgb(0 191 255 / 20%)" }}>
               <p className="text-sm text-white">{t("noResults")}</p>
               <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{t("tryAdjust")}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
               {filtered.map((ch, i) => (
                 <PremiumChannelCard
                   key={ch.id}
@@ -504,8 +504,8 @@ function PremiumChannelCard({
         <span
           className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
           style={{
-            background: active ? "rgb(229 9 20 / 20%)" : "rgb(255 255 255 / 6%)",
-            color: active ? "#ff6b6b" : "var(--text-muted)",
+            background: active ? "rgb(0 191 255 / 15%)" : "rgb(255 255 255 / 6%)",
+            color: active ? "var(--primary-accent)" : "var(--text-muted)",
           }}
         >
           {channel.quality_tag}
