@@ -154,7 +154,7 @@ async def _unhandled_error_handler(request, exc: Exception) -> JSONResponse:
 
 @app.get("/health", tags=["health"])
 def health() -> dict[str, str]:
-    return {"status": "ok", "env": settings.app_env}
+    return {"status": "ok", "env": settings.app_env, "version": "psycopg3-async-v6"}
 
 
 @app.post("/internal/sync", tags=["internal"], include_in_schema=False)

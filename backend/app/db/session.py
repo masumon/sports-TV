@@ -39,14 +39,10 @@ def _to_async_url(sync_url: str) -> str:
     if backend == "sqlite":
         return str(u.set(drivername="sqlite+aiosqlite"))
     if "postgresql" in backend:
-        # asyncpg does NOT understand libpq/psycopg URL params (sslmode, connect_timeout, etc.).
-        # Strip them here; SSL is handled via connect_args={"ssl": True} on the engine instead.
-        _libpq_params = {
-            "sslmode", "sslcert", "sslkey", "sslrootcert", "sslcrl",
-            "application_name", "connect_timeout", "options",
-        }
-        clean_query = {k: v for k, v in u.query.items() if k not in _libpq_params}
-        return str(u.set(drivername="postgresql+asyncpg", query=clean_query))
+        # Use psycopg3 async driver instead of asyncpg.
+        # psycopg3 understands all libpq URL params (sslmode=require, etc.) natively,
+        # so no stripping or special connect_args are needed.
+        return str(u.set(drivername="postgresql+psycopg"))
     return "sqlite+aiosqlite:///" + sync_url.split("///", 1)[-1] if "sqlite" in sync_url else str(u)
 
 
@@ -56,8 +52,7 @@ _async_pool_kw: dict = (
         "pool_pre_ping": True,
         "pool_size": settings.db_pool_size,
         "max_overflow": settings.db_max_overflow,
-        # asyncpg uses ssl=True (not sslmode string). Neon requires SSL.
-        "connect_args": {"ssl": True},
+        # psycopg3 async: sslmode is handled by the URL param, no connect_args needed.
     }
     if not str(ASYNC_URL).startswith("sqlite+")
     else {"pool_pre_ping": True}
