@@ -56,11 +56,10 @@ def ensure_channel_columns(engine: Engine) -> None:
         "TEXT"
     )
 
+    # Raises RuntimeError if the column cannot be added, so the caller can decide
+    # whether to abort startup rather than serve broken 500 responses on every
+    # authenticated request.
 
-    Raises RuntimeError if the column cannot be added, so the caller can decide
-    whether to abort startup rather than serve broken 500 responses on every
-    authenticated request.
-    """
     try:
         insp = inspect(engine)
         if "users" not in insp.get_table_names():
@@ -76,7 +75,6 @@ def ensure_channel_columns(engine: Engine) -> None:
         )
         with engine.begin() as conn:
             if engine.dialect.name == "sqlite":
-                # SQLite < 3.37.0 doesn't support ADD COLUMN IF NOT EXISTS.
                 conn.execute(
                     text(
                         "ALTER TABLE users ADD COLUMN"
@@ -92,7 +90,6 @@ def ensure_channel_columns(engine: Engine) -> None:
                 )
         logger.info("Schema migration applied: users.subscription_tier added")
     except Exception as exc:
-        # Re-inspect to see if another process raced us and the column now exists.
         try:
             cols_after = {c["name"] for c in inspect(engine).get_columns("users")}
             if "subscription_tier" in cols_after:
