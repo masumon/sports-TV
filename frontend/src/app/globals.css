@@ -112,3 +112,101 @@ a {
     opacity: 1;
   }
 }
+
+/* ── Player shell ── */
+.player-shell {
+  background: #0a0a10;
+  border-radius: 16px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgb(0 0 0 / 60%);
+}
+
+/* ── Player controls ── */
+.control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  background: rgb(0 0 0 / 40%);
+  color: #e0e0e0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.control-btn:hover {
+  background: var(--primary-accent);
+  border-color: var(--primary-accent);
+  color: #fff;
+}
+
+/* ── Quality select ── */
+.quality-select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  background: rgb(0 0 0 / 50%);
+  color: #e0e0e0;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+.quality-select:hover,
+.quality-select:focus {
+  border-color: var(--primary-accent);
+}
+
+/* ── Category tab ── */
+.cat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(255 255 255 / 4%);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.cat-tab:hover {
+  background: rgb(255 255 255 / 9%);
+  color: var(--text-main);
+}
+
+.cat-tab.active {
+  background: var(--primary-accent);
+  border-color: var(--primary-accent);
+  color: #fff;
+}
+
+/* ── Channel card ── */
+.ch-card {
+  background: var(--bg-card);
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s, box-shadow 0.2s;
+}
+
+.ch-card:hover {
+  background: var(--bg-hover);
+  border-color: rgb(229 9 20 / 40%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 40%);
+}
+
+.ch-card.active {
+  border-color: var(--primary-accent);
+  background: rgb(229 9 20 / 12%);
+  box-shadow: 0 0 0 1px var(--primary-accent), 0 6px 24px rgb(229 9 20 / 20%);
+}

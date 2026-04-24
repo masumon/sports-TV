@@ -12,7 +12,7 @@ type Props = {
 
 export function AppShell({ children, searchQuery, onSearch }: Props) {
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100 dark:bg-slate-950">
+    <div className="flex min-h-screen text-slate-100" style={{ background: "var(--bg-dark)" }}>
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onSearch={onSearch} searchQuery={searchQuery} />

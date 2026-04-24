@@ -25,42 +25,45 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
   useEffect(() => setMounted(true), []);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
+    <header className="sticky top-0 z-40 backdrop-blur-md" style={{ background: "rgb(13 13 18 / 95%)", borderBottom: "1px solid rgb(255 255 255 / 8%)" }}>
       <div className="flex h-14 items-center gap-2 px-2 md:px-4">
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-lg p-2 text-slate-300 md:hidden"
+          className="inline-flex items-center justify-center rounded-lg p-2 md:hidden"
+          style={{ color: "var(--text-muted)" }}
           onClick={toggleSidebar}
           aria-label="Menu"
         >
           <Menu size={22} />
         </button>
         <div className="hidden items-center gap-2 md:flex">
-          <Tv className="h-6 w-6 text-sky-400" />
+          <Tv className="h-6 w-6" style={{ color: "var(--primary-accent)" }} />
           <span className="text-sm font-bold tracking-tight text-white">{t("appTitle")}</span>
         </div>
         <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
           <input
             id="gstv-search"
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
             placeholder={t("search")}
-            className="w-full rounded-lg border border-slate-700/80 bg-slate-900/80 py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+            className="w-full rounded-lg py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+            style={{ background: "var(--bg-card)", border: "1px solid rgb(255 255 255 / 10%)" }}
           />
         </div>
         {tier === "premium" ? (
-          <span className="hidden items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-200 sm:inline-flex">
+          <span className="hidden items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold sm:inline-flex" style={{ background: "rgb(251 191 36 / 15%)", border: "1px solid rgb(251 191 36 / 30%)", color: "#fbbf24" }}>
             <Sparkles size={12} /> {t("premium")}
           </span>
         ) : (
-          <span className="hidden sm:inline text-[10px] text-slate-500">{t("free")}</span>
+          <span className="hidden sm:inline text-[10px]" style={{ color: "var(--text-muted)" }}>{t("free")}</span>
         )}
         {mounted && (
           <button
             type="button"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="rounded-lg p-2 text-slate-300 hover:bg-slate-800"
+            className="rounded-lg p-2"
+            style={{ color: "var(--text-muted)" }}
             aria-label="Theme"
           >
             {resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
@@ -69,7 +72,8 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         <button
           type="button"
           onClick={() => setLocale(locale === "en" ? "bn" : "en")}
-          className="flex items-center gap-1 rounded-lg p-2 text-slate-300 hover:bg-slate-800"
+          className="flex items-center gap-1 rounded-lg p-2"
+          style={{ color: "var(--text-muted)" }}
           title="Language"
         >
           <Globe size={18} />
@@ -78,7 +82,8 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         {user?.is_admin ? (
           <Link
             href="/admin/dashboard"
-            className="hidden items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-xs font-medium text-emerald-200 sm:inline-flex"
+            className="hidden items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium sm:inline-flex"
+            style={{ background: "rgb(0 200 81 / 10%)", border: "1px solid rgb(0 200 81 / 30%)", color: "#00c851" }}
           >
             <Shield size={14} />
             {t("admin")}
@@ -86,7 +91,8 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         ) : (
           <Link
             href="/admin/login"
-            className="hidden text-xs text-slate-400 underline-offset-2 hover:underline sm:inline"
+            className="hidden text-xs underline-offset-2 hover:underline sm:inline"
+            style={{ color: "var(--text-muted)" }}
           >
             {t("signIn")}
           </Link>
