@@ -40,10 +40,12 @@ def _to_async_url(sync_url: str) -> str:
     if backend == "sqlite":
         return str(u.set(drivername="sqlite+aiosqlite"))
     if "postgresql" in backend:
-        # Use psycopg3 async driver instead of asyncpg.
-        # psycopg3 understands all libpq URL params (sslmode=require, etc.) natively,
-        # so no stripping or special connect_args are needed.
-        return str(u.set(drivername="postgresql+psycopg"))
+        # Neon pooler (PgBouncer) does NOT support SCRAM-SHA-256-PLUS, so
+        # channel_binding=require causes authentication failure even with the correct
+        # password. Strip it — SSL is still enforced via sslmode=require.
+        _strip_params = {"channel_binding"}
+        clean_query = {k: v for k, v in u.query.items() if k not in _strip_params}
+        return str(u.set(drivername="postgresql+psycopg", query=clean_query))
     return "sqlite+aiosqlite:///" + sync_url.split("///", 1)[-1] if "sqlite" in sync_url else str(u)
 
 

@@ -154,7 +154,7 @@ async def _unhandled_error_handler(request, exc: Exception) -> JSONResponse:
 
 @app.get("/health", tags=["health"])
 def health() -> dict[str, str]:
-    return {"status": "ok", "env": settings.app_env, "version": "nullpool-v7"}
+    return {"status": "ok", "env": settings.app_env, "version": "strip-channel-binding-v8"}
 
 
 @app.get("/health/db", tags=["health"], include_in_schema=False)

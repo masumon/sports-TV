@@ -88,6 +88,16 @@ class Settings(BaseSettings):
         elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
             cleaned = "postgresql+psycopg://" + cleaned[len("postgresql://") :]
 
+        # Strip channel_binding — Neon's PgBouncer pooler does not support
+        # SCRAM-SHA-256-PLUS (required by channel_binding=require), causing
+        # "password authentication failed" even with the correct password.
+        if "channel_binding" in cleaned:
+            import re
+            cleaned = re.sub(r"[&?]channel_binding=[^&]*", "", cleaned)
+            # Fix leading & if sslmode was stripped away, leaving ?&...
+            cleaned = re.sub(r"\?&", "?", cleaned)
+            cleaned = cleaned.rstrip("?&")
+
         return cleaned
 
     @property
