@@ -88,15 +88,16 @@ class Settings(BaseSettings):
         elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
             cleaned = "postgresql+psycopg://" + cleaned[len("postgresql://") :]
 
-        # Strip channel_binding — Neon's PgBouncer pooler does not support
-        # SCRAM-SHA-256-PLUS (required by channel_binding=require), causing
-        # "password authentication failed" even with the correct password.
-        if "channel_binding" in cleaned:
-            import re
-            cleaned = re.sub(r"[&?]channel_binding=[^&]*", "", cleaned)
-            # Fix leading & if sslmode was stripped away, leaving ?&...
-            cleaned = re.sub(r"\?&", "?", cleaned)
-            cleaned = cleaned.rstrip("?&")
+        # Neon PgBouncer pooler does not support SCRAM-SHA-256-PLUS (channel binding).
+        # Replace channel_binding=require with channel_binding=disable so both sync
+        # and async psycopg3 engines use plain SCRAM-SHA-256 authentication.
+        import re as _re
+        cleaned = _re.sub(r"channel_binding=[^&]*", "channel_binding=disable", cleaned)
+        # If channel_binding was not in URL at all, add it
+        if "channel_binding" not in cleaned and "?" in cleaned:
+            cleaned += "&channel_binding=disable"
+        elif "channel_binding" not in cleaned:
+            cleaned += "?channel_binding=disable"
 
         return cleaned
 

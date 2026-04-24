@@ -48,12 +48,12 @@ def _to_async_url(sync_url: str) -> str:
     if backend == "sqlite":
         return str(u.set(drivername="sqlite+aiosqlite"))
     if "postgresql" in backend:
-        # Neon pooler (PgBouncer) does NOT support SCRAM-SHA-256-PLUS, so
-        # channel_binding=require causes authentication failure even with the correct
-        # password. Strip it — SSL is still enforced via sslmode=require.
-        _strip_params = {"channel_binding"}
-        clean_query = {k: v for k, v in u.query.items() if k not in _strip_params}
-        return str(u.set(drivername="postgresql+psycopg", query=clean_query))
+        # Force channel_binding=disable in the URL so psycopg3 async never attempts
+        # SCRAM-SHA-256-PLUS. Neon PgBouncer doesn't support channel binding and
+        # returns 'password authentication failed' if the client tries it.
+        q = {k: v for k, v in u.query.items() if k != "channel_binding"}
+        q["channel_binding"] = "disable"
+        return str(u.set(drivername="postgresql+psycopg", query=q))
     return "sqlite+aiosqlite:///" + sync_url.split("///", 1)[-1] if "sqlite" in sync_url else str(u)
 
 
