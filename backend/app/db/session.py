@@ -16,7 +16,15 @@ class Base(DeclarativeBase):
 
 
 DATABASE_URL = settings.resolved_database_url
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+
+# psycopg3 auto-negotiates SCRAM-SHA-256-PLUS on SSL connections.
+# Neon's PgBouncer pooler does NOT support this auth method — it causes
+# "password authentication failed" even with correct credentials.
+# channel_binding=disable forces plain SCRAM-SHA-256 which PgBouncer supports.
+if DATABASE_URL.startswith("sqlite"):
+    connect_args: dict = {"check_same_thread": False}
+else:
+    connect_args = {"channel_binding": "disable"}
 
 _engine_kwargs: dict = {
     "future": True,
@@ -50,11 +58,14 @@ def _to_async_url(sync_url: str) -> str:
 
 
 ASYNC_URL = _to_async_url(DATABASE_URL)
-# Use NullPool for async engine: Neon (serverless PostgreSQL) closes idle connections
-# aggressively; a persistent pool causes stale-connection 500s on cold starts.
-# NullPool opens a fresh connection per request — safe and correct for serverless.
+# NullPool: Neon serverless closes idle connections aggressively.
+# channel_binding=disable: psycopg3 auto-negotiates SCRAM-SHA-256-PLUS on SSL;
+# Neon PgBouncer doesn't support it → explicit disable forces SCRAM-SHA-256.
 _async_pool_kw: dict = (
-    {"poolclass": NullPool}
+    {
+        "poolclass": NullPool,
+        "connect_args": {"channel_binding": "disable"},
+    }
     if not str(ASYNC_URL).startswith("sqlite+")
     else {"pool_pre_ping": True}
 )
