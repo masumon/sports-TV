@@ -75,11 +75,10 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
             placeholder={t("search")}
-            className="w-full rounded-xl py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2"
+            className="search-input w-full rounded-xl py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:outline-none"
             style={{
               background: "var(--bg-card)",
               border: "1px solid rgba(255,255,255,0.09)",
-              focusRingColor: "var(--primary-accent)",
             }}
           />
         </div>

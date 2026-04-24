@@ -335,6 +335,51 @@ html.light .ch-card {
   box-shadow: 0 0 0 1px var(--primary-accent), 0 6px 24px rgba(245,166,35,0.15);
 }
 
+/* ── Volume slider ── */
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--primary-accent);
+  cursor: pointer;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 6px rgba(245, 166, 35, 0.5);
+  transition: transform 0.1s;
+}
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+.volume-slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--primary-accent);
+  cursor: pointer;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+}
+.volume-slider:focus {
+  outline: none;
+}
+
+/* ── Search input focus ring ── */
+.search-input:focus {
+  border-color: rgba(245, 166, 35, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.15);
+  outline: none;
+}
+
 /* ── Scrollbar utilities ── */
 .scrollbar-none {
   scrollbar-width: none; /* Firefox 64+ */
