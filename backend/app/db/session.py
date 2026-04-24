@@ -35,12 +35,18 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expi
 
 def _to_async_url(sync_url: str) -> str:
     u = make_url(sync_url)
-    if u.get_backend_name() == "sqlite":
+    backend = u.get_backend_name() or ""
+    if backend == "sqlite":
         return str(u.set(drivername="sqlite+aiosqlite"))
-    if u.get_backend_name() == "postgresql":
-        return str(u.set(drivername="postgresql+asyncpg"))
-    if "postgresql" in (u.get_backend_name() or ""):
-        return str(u.set(drivername="postgresql+asyncpg"))
+    if "postgresql" in backend:
+        # asyncpg does NOT understand libpq/psycopg URL params (sslmode, connect_timeout, etc.).
+        # Strip them here; SSL is handled via connect_args={"ssl": True} on the engine instead.
+        _libpq_params = {
+            "sslmode", "sslcert", "sslkey", "sslrootcert", "sslcrl",
+            "application_name", "connect_timeout", "options",
+        }
+        clean_query = {k: v for k, v in u.query.items() if k not in _libpq_params}
+        return str(u.set(drivername="postgresql+asyncpg", query=clean_query))
     return "sqlite+aiosqlite:///" + sync_url.split("///", 1)[-1] if "sqlite" in sync_url else str(u)
 
 
