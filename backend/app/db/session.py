@@ -56,8 +56,8 @@ _async_pool_kw: dict = (
         "pool_pre_ping": True,
         "pool_size": settings.db_pool_size,
         "max_overflow": settings.db_max_overflow,
-        # Neon and most managed Postgres require SSL. asyncpg needs it via connect_args.
-        "connect_args": {"ssl": "require"},
+        # asyncpg uses ssl=True (not sslmode string). Neon requires SSL.
+        "connect_args": {"ssl": True},
     }
     if not str(ASYNC_URL).startswith("sqlite+")
     else {"pool_pre_ping": True}
