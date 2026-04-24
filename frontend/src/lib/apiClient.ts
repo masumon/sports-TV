@@ -3,15 +3,18 @@ import { useAuthStore } from "@/store/authStore";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
 const isRelativeApi = API_BASE_URL.startsWith("/");
-/** Avoids .../api/api/... when base is a Next rewrites path like /api. */
-const API_V1 = isRelativeApi && API_BASE_URL.endsWith("/api") ? "/v1" : "/api/v1";
+/**
+ * Avoids .../api/api/... when the base URL already ends with "/api":
+ *  - relative proxy path: /api  → API_V1 = /v1   → full path = /api/v1/...
+ *  - absolute URL:  https://host/api → API_V1 = /v1   → full path = https://host/api/v1/...
+ *  - absolute URL:  https://host     → API_V1 = /api/v1 → full path = https://host/api/v1/...
+ */
+const endsWithApi = API_BASE_URL.endsWith("/api");
+const API_V1 = endsWithApi ? "/v1" : "/api/v1";
 
 function buildUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  if (isRelativeApi) {
-    return `${API_BASE_URL}${API_V1}${normalized}`;
-  }
-  return `${API_BASE_URL}/api/v1${normalized}`;
+  return `${API_BASE_URL}${API_V1}${normalized}`;
 }
 
 type ApiRequestOptions = RequestInit & {
@@ -143,6 +146,13 @@ export const apiClient = {
     if (limit != null) sp.set("limit", String(limit));
     const q = sp.toString();
     return apiRequest<LiveScore[]>(`/live-scores${q ? `?${q}` : ""}`);
+  },
+
+  register(fullName: string, email: string, password: string) {
+    return apiRequest<TokenResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ full_name: fullName, email, password }),
+    });
   },
 
   login(email: string, password: string) {
