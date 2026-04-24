@@ -1,5 +1,4 @@
 import { ExternalLink, Github, Globe, Layers, Radio, Smartphone, Star, Zap } from "lucide-react";
-import Link from "next/link";
 
 const DEVELOPER_SITE = "https://mumainsumon.netlify.app/";
 const GITHUB_PROFILE = "https://github.com/masumon";
@@ -42,7 +41,7 @@ export function SiteFooter() {
               <p className="mt-0.5 text-xs text-sky-400/80">AI Solution Architect &amp; Full-Stack Engineer</p>
 
               <div className="mt-3 flex flex-col gap-1.5">
-                <Link
+                <a
                   href={DEVELOPER_SITE}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -51,8 +50,8 @@ export function SiteFooter() {
                   <Globe size={12} className="shrink-0 text-sky-500/70" />
                   Portfolio
                   <ExternalLink size={10} className="opacity-50" />
-                </Link>
-                <Link
+                </a>
+                <a
                   href={GITHUB_PROFILE}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -61,7 +60,7 @@ export function SiteFooter() {
                   <Github size={12} className="shrink-0 text-sky-500/70" />
                   GitHub
                   <ExternalLink size={10} className="opacity-50" />
-                </Link>
+                </a>
               </div>
 
               <p className="mt-3 text-[10px] italic text-slate-500">
@@ -104,21 +103,24 @@ export function SiteFooter() {
               Quick Links
             </p>
             <nav className="grid grid-cols-1 gap-1.5">
-              {([
-                { label: "GitHub Repo", href: REPO_URL, external: true },
-                { label: "Contact", href: DEVELOPER_SITE, external: true },
-              ] as { label: string; href: string; external?: boolean }[]).map(({ label, href }) => (
-                <Link
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-slate-800/50 hover:text-sky-300"
-                >
-                  <Star size={10} className="text-sky-500/50" />
-                  {label}
-                </Link>
-              ))}
+              <a
+                href={REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-slate-800/50 hover:text-sky-300"
+              >
+                <Star size={10} className="text-sky-500/50" />
+                GitHub Repo
+              </a>
+              <a
+                href={DEVELOPER_SITE}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-slate-800/50 hover:text-sky-300"
+              >
+                <Star size={10} className="text-sky-500/50" />
+                Contact
+              </a>
               {/* Placeholder items — not yet live */}
               {["API Docs", "System Status"].map((label) => (
                 <span
