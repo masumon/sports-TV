@@ -3,6 +3,8 @@
 import Hls from "hls.js";
 import { motion } from "framer-motion";
 import {
+  ExternalLink,
+  Link2,
   Maximize,
   Minimize,
   Pause,
@@ -14,6 +16,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 type QualityOption = {
   label: string;
@@ -55,6 +58,7 @@ export default function PremiumPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [qualityOptions, setQualityOptions] = useState<QualityOption[]>([{ label: "Auto", value: -1 }]);
   const [selectedQuality, setSelectedQuality] = useState(-1);
+  const [bufferedPct, setBufferedPct] = useState(0);
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) {
@@ -89,6 +93,7 @@ export default function PremiumPlayer({
     cleanup();
     setQualityOptions([{ label: "Auto", value: -1 }]);
     setSelectedQuality(-1);
+    setBufferedPct(0);
 
     if (Hls.isSupported()) {
       const hls = new Hls({
@@ -99,7 +104,17 @@ export default function PremiumPlayer({
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal) {
+          toast.error("Stream error — try external player or open in new tab");
+        }
+      });
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        void video.play().catch(() => {
+          video.muted = true;
+          void video.play().catch(() => {});
+        });
         const levelMap = new Map<number, QualityOption>();
         hls.levels.forEach((level, idx) => {
           if (!level.height) return;
@@ -142,10 +157,19 @@ export default function PremiumPlayer({
     video.addEventListener("pause", onPause);
     video.addEventListener("volumechange", onVolumeChange);
 
+    const onProgress = () => {
+      if (!video.buffered.length) return;
+      const end = video.buffered.end(video.buffered.length - 1);
+      const dur = video.duration;
+      if (dur > 0 && Number.isFinite(dur)) setBufferedPct(Math.min(100, (end / dur) * 100));
+    };
+    video.addEventListener("progress", onProgress);
+
     return () => {
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
       video.removeEventListener("volumechange", onVolumeChange);
+      video.removeEventListener("progress", onProgress);
     };
   }, [clearHideTimer, scheduleHideControls]);
 
@@ -232,7 +256,14 @@ export default function PremiumPlayer({
         playsInline
         muted={false}
         controls={false}
+        preload="metadata"
       />
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-1 bg-slate-800/80">
+        <div
+          className="h-full bg-cyan-500/80 transition-all duration-300"
+          style={{ width: `${bufferedPct}%` }}
+        />
+      </div>
 
       {overlay}
 
@@ -288,6 +319,47 @@ export default function PremiumPlayer({
             <button className="control-btn" type="button" onClick={toggleFullscreen} aria-label="Fullscreen toggle">
               {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
             </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+            <button
+              type="button"
+              className="rounded-md border border-white/15 bg-black/30 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
+              onClick={() => window.open(streamUrl, "_blank", "noopener,noreferrer")}
+            >
+              <span className="inline-flex items-center gap-1">
+                <ExternalLink size={12} /> Open stream (new tab)
+              </span>
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-white/15 bg-black/30 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(streamUrl);
+                  toast.message("Stream URL copied");
+                } catch {
+                  toast.error("Could not copy");
+                }
+              }}
+            >
+              <span className="inline-flex items-center gap-1">
+                <Link2 size={12} /> Copy URL
+              </span>
+            </button>
+            <a
+              className="rounded-md border border-white/15 bg-black/30 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
+              href={`vlc://${encodeURI(streamUrl)}`}
+              rel="noreferrer"
+            >
+              Open in VLC
+            </a>
+            <a
+              className="rounded-md border border-white/15 bg-black/30 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
+              href={`intent:${encodeURI(streamUrl)}#Intent;package=com.mxtech.videoplayer.ad;S.browser_fallback_url=${encodeURIComponent(streamUrl)};end`}
+              rel="noreferrer"
+            >
+              Open in MX Player
+            </a>
           </div>
         </div>
       </motion.div>

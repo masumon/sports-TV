@@ -1,0 +1,67 @@
+export type Locale = "en" | "bn";
+
+export const translations: Record<
+  Locale,
+  Record<string, string>
+> = {
+  en: {
+    appTitle: "Global Sports Live TV",
+    tagline: "Worldwide live sports streaming with real-time scores",
+    loading: "Loading channels...",
+    home: "Home",
+    browse: "Browse",
+    search: "Search",
+    admin: "Admin",
+    openPlayer: "Player",
+    openExternal: "Open in new tab",
+    openVlc: "VLC / external",
+    openMx: "External player",
+    filters: "Filters",
+    allCountries: "All countries",
+    allLanguages: "All languages",
+    allCategories: "All categories",
+    noResults: "No channels match your filters",
+    tryAdjust: "Clear filters or adjust search",
+    signIn: "Sign in",
+    installHint: "Install this app for quick access",
+    premium: "PREMIUM",
+    free: "FREE",
+    adPlaceholder: "Ad space (AdSense)",
+    noChannel: "No channel selected",
+    directory: "Sports channel directory",
+    tapToPlay: "Tap a channel to play",
+    nowPlaying: "Now Playing",
+  },
+  bn: {
+    appTitle: "গ্লোবাল স্পোর্টস লাইভ টিভি",
+    tagline: "বিশ্বজুড়ে লাইভ স্পোর্টস স্ট্রিমিং ও রিয়াল-টাইম স্কোর",
+    loading: "চ্যানেল লোড হচ্ছে...",
+    home: "হোম",
+    browse: "ব্রাউজ",
+    search: "অনুসন্ধান",
+    admin: "অ্যাডমিন",
+    openPlayer: "প্লেয়ার",
+    openExternal: "নতুন ট্যাবে খুলুন",
+    openVlc: "VLC / বহি",
+    openMx: "বাহ্যিক প্লেয়ার",
+    filters: "ফিল্টার",
+    allCountries: "সব দেশ",
+    allLanguages: "সব ভাষা",
+    allCategories: "সব ক্যাটাগরি",
+    noResults: "আপনার ফিল্টারে কোনো চ্যানেল নেই",
+    tryAdjust: "ফিল্টার সরান বা সার্চ বদলান",
+    signIn: "লগইন",
+    installHint: "দ্রুত অ্যাক্সেসের জন্য অ্যাপ ইনস্টল",
+    premium: "প্রিমিয়াম",
+    free: "ফ্রি",
+    adPlaceholder: "বিজ্ঞাপন (AdSense)",
+    noChannel: "কোনো চ্যানেল সিলেক্ট করা হয়নি",
+    directory: "স্পোর্টস চ্যানেল ডিরেক্টরি",
+    tapToPlay: "প্লে করতে ট্যাপ করুন",
+    nowPlaying: "চলছে",
+  },
+};
+
+export function t(locale: Locale, key: string): string {
+  return translations[locale][key] ?? translations.en[key] ?? key;
+}

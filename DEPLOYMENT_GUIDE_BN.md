@@ -23,10 +23,12 @@ Backend মূল অংশ:
 
 Frontend মূল অংশ:
 
-- `frontend/src/app/` → Public homepage + Admin pages
-- `frontend/src/components/` → `PremiumPlayer.tsx`, `LiveScoreOverlay.tsx`, `ChannelGrid.tsx`
-- `frontend/src/store/` → `authStore.ts`, `playerStore.ts`
-- `frontend/src/lib/` → `apiClient.ts`, `types.ts`
+- `frontend/src/app/` → `(viewer)/` হোম, `admin/`, `offline/`, `manifest`
+- `frontend/src/components/` → `home/`, `layout/`, `PremiumPlayer`, `AuthSessionSync`, ইত্যাদি
+- `frontend/src/store/` → `authStore`, `subscriptionStore`, `uiStore`, `playerStore`
+- `frontend/src/lib/` → `apiClient.ts`, `types.ts`, `i18n/`
+
+**নতুন env (বিস্তারিত `README.md` ও `.env.example` দেখুন):** `REDIS_URL`, `CACHE_TTL_SECONDS`, `SCHEDULED_SYNC_INTERVAL_MINUTES`, `SYNC_RATE_LIMIT_SECONDS`।
 
 ---
 
@@ -217,13 +219,16 @@ DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME
 3. **Root Directory** দিন: `frontend`
 4. Framework auto-detect হবে: **Next.js**
 5. Environment Variable যুক্ত করুন:
-   - `NEXT_PUBLIC_API_BASE_URL` = `https://<your-render-backend-domain>`
+   - `NEXT_PUBLIC_API_BASE_URL` = `https://<your-render-backend-domain>` (ট্রেইলিং স্ল্যাশ ছাড়া, `/api/v1` সফিক্স ছাড়া)
+   - `NEXT_PUBLIC_SITE_URL` = `https://<your-vercel-domain>` (Open Graph / SEO; উদাহরণ: `https://sports-tv-lovat.vercel.app`)
 6. Deploy দিন
 
 ### গুরুত্বপূর্ণ
 
 - Backend URL এ `/api/v1` যোগ করবেন না; client কোড নিজেই path যোগ করে।
 - ডোমেইন বদলালে Vercel env update করে redeploy দিন।
+- **লাইভ ডেটার জন্য** Render ব্যাকএন্ডের `CORS_ORIGINS` এ Vercel URL অবশ্যই থাকতে হবে (কমা দিয়ে একাধিক):  
+  `http://localhost:3000,https://sports-tv-lovat.vercel.app`
 
 ---
 
@@ -260,7 +265,7 @@ Render service env-এ দিন:
 - `ADMIN_EMAIL=admin@yourdomain.com`
 - `ADMIN_PASSWORD=<strong-password>`
 - `ADMIN_FULL_NAME=Platform Admin`
-- `CORS_ORIGINS=https://<your-vercel-domain>`
+- `CORS_ORIGINS=http://localhost:3000,https://<your-vercel-domain>` (প্রোডে শুধু নিজের ফ্রন্টএন্ড ডোমেইন রাখুন; ট্রেইলিং `/` নয়)
 - `SCRAPER_SOURCE_URL=https://iptv-org.github.io/iptv/categories/sports.m3u`
 - `AUTO_SYNC_CHANNELS_ON_STARTUP=false`
 
@@ -285,11 +290,14 @@ Render service env-এ দিন:
 
 ## ১১) নিরাপত্তা ও প্রোডাকশন সুপারিশ
 
-1. `JWT_SECRET_KEY` খুব শক্তিশালী রাখুন।
-2. Default admin password deploy-এর পরে পরিবর্তন করুন।
-3. `CORS_ORIGINS` শুধুমাত্র trusted frontend domain রাখুন।
-4. সম্ভব হলে HTTPS-only cookies / reverse proxy hardening যুক্ত করুন।
-5. ভবিষ্যতে DB migrations (Alembic) যোগ করা ভালো।
+1. `JWT_SECRET_KEY` খুব শক্তিশালী রাখুন — কখনো GitHub বা চ্যাটে শেয়ার করবেন না।
+2. `ADMIN_PASSWORD` প্রোডাকশনে অনন্য ও শক্ত রাখুন।
+3. **ডাটাবেস URL বা পাসওয়ার্ড লিক হলে** (চ্যাট, স্ক্রিনশট, লগ) — Neon/PostgreSQL এ পাসওয়ার্ড রিসেট, `DATABASE_URL` আপডেট, Render redeploy।
+4. `CORS_ORIGINS` শুধুমাত্র trusted frontend origin রাখুন (কমা সেপারেটেড)।
+5. সম্ভব হলে HTTPS-only ও reverse proxy hardening যুক্ত করুন।
+6. ভবিষ্যতে DB migrations (Alembic) যোগ করা ভালো।
+
+রিপোতে ইংরেজি ওভারভিউ: **[README.md](./README.md)**।
 
 ---
 
@@ -331,4 +339,17 @@ npm run dev
 
 ---
 
-আপনার প্ল্যাটফর্ম এখন production-ready foundation সহ চলার জন্য প্রস্তুত: secure JWT admin, IPTV auto-sync, premium HLS player UI, এবং real-time live score overlay সহ end-to-end monorepo architecture।
+## ১৪) PWA (প্রগ্রেসিভ ওয়েব অ্যাপ)
+
+- প্রোডাকশন বিল্ডে সার্ভিস ওয়ার্কার রেজিস্টার হয় (`@ducanh2912/next-pwa`)। লোকাল `npm run dev` এ PWA সাধারণত বন্ধ থাকে।
+- আইকন: `frontend/public/icons/` (SVG)। প্রয়োজনে PNG ১৯২/৫১২ যোগ করতে পারেন।
+- ব্রাউজার মেনু থেকে **Install app** / **Add to Home Screen** দিয়ে ইনস্টল করুন।
+
+## ১৫) ডেভেলপার ক্রেডিট
+
+- **আর্কিটেকচার ও ডেভেলপমেন্ট:** [Mumain Ahmed — AI Solution Architect](https://mumainsumon.netlify.app/)
+- পোর্টফোলিও, যোগাযোগ ও টেক স্ট্যাক: [mumainsumon.netlify.app](https://mumainsumon.netlify.app/)
+
+---
+
+আপনার প্ল্যাটফর্ম এখন production-ready foundation সহ চলার জন্য প্রস্তুত: secure JWT admin, IPTV auto-sync, premium HLS player UI, PWA, এবং real-time live score overlay সহ end-to-end monorepo architecture।

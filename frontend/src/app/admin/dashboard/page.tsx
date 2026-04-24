@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw, Save, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
-import type { Channel, LiveScore } from "@/lib/types";
+import type { AdminStats, Channel, LiveScore } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
 type ChannelFormState = {
@@ -60,6 +60,7 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [channelForm, setChannelForm] = useState<ChannelFormState>(initialChannelForm);
   const [scoreForm, setScoreForm] = useState<ScoreFormState>(initialScoreForm);
+  const [stats, setStats] = useState<AdminStats | null>(null);
 
   const authToken = token;
 
@@ -81,10 +82,55 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const fetchStats = async () => {
+    if (!authToken) return;
+    try {
+      setStats(await apiClient.adminStats(authToken));
+    } catch {
+      /* optional */
+    }
+  };
+
   useEffect(() => {
     if (!authToken) return;
     void fetchAdminData();
+    void fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken || !user?.is_admin) return;
+    const k = "gstv_admin_bg_sync";
+    if (sessionStorage.getItem(k)) return;
+    sessionStorage.setItem(k, "1");
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          await apiClient.adminSyncChannels(authToken);
+          await fetchAdminData();
+          await fetchStats();
+        } catch {
+          /* rate limit / network */
+        }
+      })();
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [authToken, user?.is_admin]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    const id = setInterval(() => {
+      void (async () => {
+        try {
+          await apiClient.adminSyncChannels(authToken);
+          await fetchAdminData();
+          await fetchStats();
+        } catch {
+          /* */
+        }
+      })();
+    }, 30 * 60 * 1000);
+    return () => clearInterval(id);
   }, [authToken]);
 
   const createChannel = async () => {
@@ -147,6 +193,7 @@ export default function AdminDashboardPage() {
     try {
       await apiClient.adminSyncChannels(authToken);
       await fetchAdminData();
+      await fetchStats();
     } catch (err) {
       setError(err instanceof Error ? err.message : "M3U Sync ব্যর্থ");
     } finally {
@@ -180,7 +227,10 @@ export default function AdminDashboardPage() {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => void fetchAdminData()}
+            onClick={() => {
+              void fetchAdminData();
+              void fetchStats();
+            }}
             className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
           >
             <RefreshCw size={16} />
@@ -204,6 +254,62 @@ export default function AdminDashboardPage() {
           </button>
         </div>
       </header>
+
+      {stats ? (
+        <>
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs text-zinc-500">Users</p>
+              <p className="text-2xl font-bold text-white">{stats.users}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs text-zinc-500">Channels (all)</p>
+              <p className="text-2xl font-bold text-white">{stats.channels}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs text-zinc-500">Active channels</p>
+              <p className="text-2xl font-bold text-white">{stats.active_channels}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs text-zinc-500">Live scores</p>
+              <p className="text-2xl font-bold text-white">{stats.live_scores}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs text-zinc-500">Cache / job / last sync</p>
+              <p className="text-sm text-zinc-200">
+                {stats.cache_ttl_seconds}s · {stats.scheduled_sync_minutes || "off"}m
+                {stats.last_sync_at ? (
+                  <>
+                    <br />
+                    <span className="text-xs text-zinc-500">{new Date(stats.last_sync_at).toLocaleString()}</span>
+                  </>
+                ) : null}
+              </p>
+            </div>
+          </section>
+          <div className="flex flex-wrap gap-4">
+            {[
+              { label: "Users", n: stats.users, color: "from-sky-500/80" },
+              { label: "Channels", n: stats.channels, color: "from-violet-500/80" },
+              { label: "Active", n: stats.active_channels, color: "from-emerald-500/80" },
+              { label: "Scores", n: stats.live_scores, color: "from-amber-500/80" },
+            ].map((m) => {
+              const max = Math.max(1, stats.users, stats.channels, stats.active_channels, stats.live_scores);
+              return (
+                <div key={m.label} className="min-w-[100px] flex-1">
+                  <p className="mb-1 text-[10px] text-zinc-500">{m.label}</p>
+                  <div className="flex h-24 items-end overflow-hidden rounded-md bg-zinc-800/50">
+                    <div
+                      className={`w-full min-h-[2px] rounded-t bg-gradient-to-t ${m.color} to-transparent/10`}
+                      style={{ height: `${(m.n / max) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
 
       {error && (
         <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-3 text-sm text-rose-200">
