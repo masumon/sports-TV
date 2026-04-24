@@ -48,23 +48,29 @@ def _to_async_url(sync_url: str) -> str:
     if backend == "sqlite":
         return str(u.set(drivername="sqlite+aiosqlite"))
     if "postgresql" in backend:
-        # Force channel_binding=disable in the URL so psycopg3 async never attempts
-        # SCRAM-SHA-256-PLUS. Neon PgBouncer doesn't support channel binding and
-        # returns 'password authentication failed' if the client tries it.
-        q = {k: v for k, v in u.query.items() if k != "channel_binding"}
-        q["channel_binding"] = "disable"
-        return str(u.set(drivername="postgresql+psycopg", query=q))
+        # Use asyncpg (not psycopg3 async) because:
+        # - psycopg3 async uses Python's asyncio SSL stack which auto-negotiates
+        #   SCRAM-SHA-256-PLUS regardless of channel_binding URL param.
+        # - Neon PgBouncer does not support SCRAM-SHA-256-PLUS → auth fails.
+        # - asyncpg has its own SCRAM implementation (plain SCRAM-SHA-256),
+        #   no channel binding, works perfectly with Neon pooler.
+        # asyncpg does NOT understand libpq params — strip sslmode, channel_binding etc.
+        _libpq_params = {
+            "sslmode", "sslcert", "sslkey", "sslrootcert", "sslcrl",
+            "channel_binding", "application_name", "connect_timeout", "options",
+        }
+        clean_query = {k: v for k, v in u.query.items() if k not in _libpq_params}
+        return str(u.set(drivername="postgresql+asyncpg", query=clean_query))
     return "sqlite+aiosqlite:///" + sync_url.split("///", 1)[-1] if "sqlite" in sync_url else str(u)
 
 
 ASYNC_URL = _to_async_url(DATABASE_URL)
 # NullPool: Neon serverless closes idle connections aggressively.
-# channel_binding=disable: psycopg3 auto-negotiates SCRAM-SHA-256-PLUS on SSL;
-# Neon PgBouncer doesn't support it → explicit disable forces SCRAM-SHA-256.
+# ssl=True: asyncpg needs explicit SSL flag (not sslmode URL param).
 _async_pool_kw: dict = (
     {
         "poolclass": NullPool,
-        "connect_args": {"channel_binding": "disable"},
+        "connect_args": {"ssl": True},
     }
     if not str(ASYNC_URL).startswith("sqlite+")
     else {"pool_pre_ping": True}
