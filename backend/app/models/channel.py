@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -10,7 +10,11 @@ from app.db.session import Base
 
 class Channel(Base):
     __tablename__ = "channels"
-    __table_args__ = (UniqueConstraint("stream_url", name="uq_channels_stream_url"),)
+    __table_args__ = (
+        UniqueConstraint("stream_url", name="uq_channels_stream_url"),
+        # Composite index for the most common query: active channels ordered by updated_at
+        Index("ix_channels_active_updated", "is_active", "updated_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
