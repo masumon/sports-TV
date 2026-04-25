@@ -23,7 +23,7 @@ logger = logging.getLogger("app.scraper")
 # Examples stripped: (1080p), [Geo-blocked], (HD), [FHD], (720p), [Geo-Blocked]
 _CHAN_NORM_RE = re.compile(
     r"\s*[\[\(]"
-    r"(?:\d{3,4}p|fhd|uhd|4k|hd|sd|geo[\s\-]?block(?:ed)?|geoblocked?|"
+    r"(?:\d{3,4}p|fhd|uhd|4k|hd|sd|geo[\s\-]?block(?:ed)?|"
     r"stream\s*\d*|backup\s*\d*|mirror\s*\d*|alt\s*\d*|live|auto|main|primary)"
     r"[\]\)]\s*",
     re.IGNORECASE,
