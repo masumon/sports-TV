@@ -11,7 +11,9 @@ Endpoint: GET /api/v1/proxy/stream?url=<encoded_stream_url>
 """
 from __future__ import annotations
 
+import ipaddress
 import logging
+import socket
 import urllib.parse
 from typing import AsyncGenerator
 
@@ -40,13 +42,42 @@ _FORWARD_HEADERS = {
     "content-length",
     "transfer-encoding",
     "accept-ranges",
-    "cache-control",
     "access-control-allow-origin",
 }
 
+# Private/reserved IP networks that must never be reached via the proxy (SSRF protection).
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),   # link-local
+    ipaddress.ip_network("::1/128"),           # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),          # IPv6 unique local
+    ipaddress.ip_network("fe80::/10"),         # IPv6 link-local
+    ipaddress.ip_network("0.0.0.0/8"),
+]
+
+
+def _is_private_ip(ip_str: str) -> bool:
+    """Return True if the resolved IP address belongs to a private/reserved range."""
+    try:
+        addr = ipaddress.ip_address(ip_str)
+        return any(addr in net for net in _BLOCKED_NETWORKS)
+    except ValueError:
+        return True  # Unparseable address — block it
+
 
 def _validate_stream_url(url: str) -> str:
-    """Parse and validate the target URL. Raises HTTPException on invalid input."""
+    """
+    Parse, validate, and resolve the target URL.
+
+    - Only http/https allowed
+    - Host must not be empty
+    - Resolved IP must not be in private/reserved ranges (SSRF protection)
+
+    Raises HTTPException on invalid input.
+    """
     try:
         parsed = urllib.parse.urlparse(url)
     except Exception:
@@ -55,13 +86,21 @@ def _validate_stream_url(url: str) -> str:
     if parsed.scheme.lower() not in _ALLOWED_SCHEMES:
         raise HTTPException(status_code=400, detail="Only http/https URLs are allowed")
 
-    if not parsed.netloc:
+    host = parsed.hostname
+    if not host:
         raise HTTPException(status_code=400, detail="URL must have a valid host")
 
-    # Block internal / loopback addresses to prevent SSRF
-    host = parsed.hostname or ""
-    if host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"} or host.startswith("192.168.") or host.startswith("10."):
-        raise HTTPException(status_code=400, detail="Internal addresses are not allowed")
+    # Resolve hostname to IP and check against blocked ranges (prevents DNS rebinding).
+    try:
+        addr_info = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        for _family, _type, _proto, _canon, sockaddr in addr_info:
+            ip = sockaddr[0]
+            if _is_private_ip(ip):
+                raise HTTPException(status_code=403, detail="Upstream host is not publicly accessible")
+    except HTTPException:
+        raise
+    except OSError:
+        raise HTTPException(status_code=400, detail="Could not resolve upstream host")
 
     return url
 
@@ -90,6 +129,8 @@ async def _stream_generator(
         logger.warning("Proxy stream error for %s: %s", url, exc)
     except Exception as exc:
         logger.warning("Proxy unexpected error for %s: %s", url, exc)
+    finally:
+        await client.aclose()
 
 
 @router.get("/stream")
@@ -106,7 +147,7 @@ async def proxy_stream(
     target_url = _validate_stream_url(url)
 
     # Forward only safe request headers to the origin.
-    forward = {}
+    forward: dict[str, str] = {}
     for header in ("user-agent", "range", "accept", "accept-encoding", "icy-metadata"):
         val = request.headers.get(header)
         if val:
@@ -114,46 +155,24 @@ async def proxy_stream(
     if "user-agent" not in forward:
         forward["user-agent"] = "Mozilla/5.0 (compatible; IPTV-Proxy/1.0)"
 
+    # The client is closed by _stream_generator's finally block after streaming completes.
     client = httpx.AsyncClient(
         verify=False,  # Many IPTV servers use self-signed certs
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
     )
 
-    # Peek at the response to get status/headers before streaming.
-    try:
-        head_resp = await client.head(
-            target_url,
-            headers=forward,
-            timeout=httpx.Timeout(connect=_CONNECT_TIMEOUT, read=10.0),
-            follow_redirects=True,
-        )
-        upstream_status = head_resp.status_code
-        upstream_headers = dict(head_resp.headers)
-    except Exception:
-        upstream_status = 200
-        upstream_headers = {}
-
-    if upstream_status >= 400:
-        await client.aclose()
-        raise HTTPException(status_code=502, detail="Upstream stream unavailable")
-
-    # Build response headers
+    # Build response headers — live streams must not be cached at CDN edge
     response_headers: dict[str, str] = {
         "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-store",  # live streams must not be cached at CDN edge
+        "Cache-Control": "no-store",
     }
-    for key, val in upstream_headers.items():
-        if key.lower() in _FORWARD_HEADERS:
-            response_headers[key.lower()] = val
-
-    content_type = upstream_headers.get("content-type", "application/octet-stream")
 
     generator = _stream_generator(client, target_url, forward)
 
     return StreamingResponse(
         generator,
         status_code=200,
-        media_type=content_type,
+        media_type="application/octet-stream",
         headers=response_headers,
     )
 

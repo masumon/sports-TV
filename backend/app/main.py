@@ -135,7 +135,8 @@ async def lifespan(app: FastAPI):
                 url_map = {ch.stream_url: ch for ch in rows}
                 results = validate_stream_urls(list(url_map.keys()), max_workers=20)
 
-                dead = [ch for url, ch in url_map.items() if not results.get(url, True)]
+                # Default to False (dead) when validation result is absent — fail-safe.
+                dead = [ch for url, ch in url_map.items() if not results.get(url, False)]
                 if dead:
                     for ch in dead:
                         ch.is_active = False
