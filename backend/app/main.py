@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from functools import partial
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -11,18 +12,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.api.routes import admin, auth, live_scores, proxy, sports_tv
-from app.core.cache import invalidate_list_caches
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.core.sync_rate_limit import mark_sync_success
 from app.db.ensure_schema import ensure_channel_columns, ensure_user_subscription_tier
 from app.db.session import ASYNC_URL, Base, SessionLocal, engine
-from app.models import Channel, DynamicStream, User
-from app.services.channel_cleanup import run_full_cleanup
-from app.services.iptv_scraper import scrape_and_sync_sports_channels
-from app.services.m3u_discovery import discover_new_sources, get_cached_discovered_sources
+from app.models import Channel, User
+from app.services.automation import run_channel_health_check, run_channel_sync
+from app.services.m3u_discovery import discover_new_sources
 
 if not logging.getLogger().handlers:
     logging.basicConfig(
@@ -80,13 +79,16 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         ensure_admin_seed(db)
+        needs_startup_sync = False
         if settings.auto_sync_channels_on_startup:
             existing_count = db.scalar(select(func.count()).select_from(Channel)) or 0
             if existing_count == 0:
-                scrape_and_sync_sports_channels(db)
-                invalidate_list_caches()
+                needs_startup_sync = True
     finally:
         db.close()
+
+    if needs_startup_sync:
+        await run_in_threadpool(partial(run_channel_sync, include_discovery=True, source="startup"))
 
     _needs_scheduler = (
         settings.scheduled_sync_interval_minutes > 0
@@ -96,67 +98,21 @@ async def lifespan(app: FastAPI):
     if _needs_scheduler:
         from apscheduler.schedulers.background import BackgroundScheduler
         from sqlalchemy import select as _select, or_
-        from app.models.channel import Channel as _Channel
         from app.models.dynamic_stream import DynamicStream as _DS
-        from app.services.stream_validator import validate_stream_urls
 
         def scheduled_m3u_sync() -> None:
             """Run every `scheduled_sync_interval_minutes` — fetch sources + cleanup."""
-            sdb = SessionLocal()
-            _success = False
             try:
-                discovered = get_cached_discovered_sources()
-                scrape_and_sync_sports_channels(sdb, extra_urls=discovered or None)
-                run_full_cleanup(sdb, stale_days=settings.channel_stale_days)
-                _success = True
+                run_channel_sync(include_discovery=True, source="scheduler")
             except Exception:
                 logger.exception("Scheduled M3U sync failed")
-            finally:
-                sdb.close()
-            if _success:
-                invalidate_list_caches()
-                mark_sync_success()
 
         def scheduled_stream_validation() -> None:
-            """Validate a rotating sample of active channels; deactivate dead ones.
-
-            Runs every 2× sync interval so it doesn't compete with the main sync.
-            Validates up to 80 channels per run (fast with 20 workers).
-            Channels are sampled oldest-updated-first to ensure full rotation.
-            """
-            sdb = SessionLocal()
+            """Validate a rotating sample of active channels; deactivate dead ones."""
             try:
-                # Pick the 80 active channels updated longest ago (oldest first).
-                rows = list(
-                    sdb.scalars(
-                        _select(_Channel)
-                        .where(_Channel.is_active.is_(True))
-                        .order_by(_Channel.updated_at.asc())
-                        .limit(80)
-                    ).all()
-                )
-                if not rows:
-                    return
-
-                url_map = {ch.stream_url: ch for ch in rows}
-                results = validate_stream_urls(list(url_map.keys()), max_workers=20)
-
-                # Default to False (dead) when validation result is absent — fail-safe.
-                dead = [ch for url, ch in url_map.items() if not results.get(url, False)]
-                if dead:
-                    for ch in dead:
-                        ch.is_active = False
-                    sdb.commit()
-                    invalidate_list_caches()
-                    logger.info(
-                        "Stream validation: deactivated %d dead stream(s) out of %d checked",
-                        len(dead),
-                        len(rows),
-                    )
+                run_channel_health_check(sample_limit=80, max_workers=20)
             except Exception:
                 logger.exception("Scheduled stream validation failed")
-            finally:
-                sdb.close()
 
         def scheduled_discovery() -> None:
             """Run every `source_discovery_interval_hours` — find new M3U sources."""
@@ -254,21 +210,20 @@ async def lifespan(app: FastAPI):
                 id="m3u_sync",
                 max_instances=1,
                 coalesce=True,
+                misfire_grace_time=60,
             )
             logger.info("Scheduled M3U sync every %s min", settings.scheduled_sync_interval_minutes)
 
-            # Stream validation: runs every 2× the sync interval, offset by half a cycle
-            # so it doesn't fire at the same time as the main sync.
-            validation_interval = max(settings.scheduled_sync_interval_minutes * 2, 10)
             SCHEDULER.add_job(
                 scheduled_stream_validation,
                 "interval",
-                minutes=validation_interval,
+                minutes=15,
                 id="stream_validation",
                 max_instances=1,
                 coalesce=True,
+                misfire_grace_time=60,
             )
-            logger.info("Scheduled stream validation every %s min", validation_interval)
+            logger.info("Scheduled stream validation every 15 min")
 
         if settings.source_discovery_interval_hours > 0:
             SCHEDULER.add_job(
@@ -278,6 +233,7 @@ async def lifespan(app: FastAPI):
                 id="m3u_discovery",
                 max_instances=1,
                 coalesce=True,
+                misfire_grace_time=60,
             )
             logger.info(
                 "Scheduled M3U discovery every %sh",
@@ -292,6 +248,7 @@ async def lifespan(app: FastAPI):
                 id="m3u8_refresh",
                 max_instances=1,
                 coalesce=True,
+                misfire_grace_time=60,
             )
             logger.info(
                 "Scheduled dynamic m3u8 refresh every %s min",
@@ -383,7 +340,6 @@ async def internal_sync(request: Request) -> dict[str, object]:
     Protected by X-Sync-Secret header when INTERNAL_SYNC_SECRET env var is set.
     """
     import hmac as _hmac
-    from starlette.concurrency import run_in_threadpool
 
     secret = os.environ.get("INTERNAL_SYNC_SECRET", "").strip()
     if secret:
@@ -391,16 +347,7 @@ async def internal_sync(request: Request) -> dict[str, object]:
         if not _hmac.compare_digest(provided.encode(), secret.encode()):
             raise HTTPException(status_code=403, detail="Forbidden")
 
-    def _do_sync() -> dict[str, int]:
-        sdb = SessionLocal()
-        try:
-            return scrape_and_sync_sports_channels(sdb)
-        finally:
-            sdb.close()
-
-    result = await run_in_threadpool(_do_sync)
-    invalidate_list_caches()
-    mark_sync_success()
+    result = await run_in_threadpool(partial(run_channel_sync, include_discovery=True, source="internal"))
     return {"status": "ok", "result": result}
 
 
