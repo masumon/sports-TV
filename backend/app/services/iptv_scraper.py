@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -16,6 +17,17 @@ from app.core.config import settings
 from app.models.channel import Channel
 
 logger = logging.getLogger("app.scraper")
+
+# Regex to strip quality/status tags (in brackets or parens) from channel names
+# before grouping, so mirrors with different quality labels group together.
+# Examples stripped: (1080p), [Geo-blocked], (HD), [FHD], (720p), [Geo-Blocked]
+_CHAN_NORM_RE = re.compile(
+    r"\s*[\[\(]"
+    r"(?:\d{3,4}p|fhd|uhd|4k|hd|sd|geo[\s\-]?block(?:ed)?|"
+    r"stream\s*\d*|backup\s*\d*|mirror\s*\d*|alt\s*\d*|live|auto|main|primary)"
+    r"[\]\)]\s*",
+    re.IGNORECASE,
+)
 
 REQUEST_TIMEOUT_SECONDS = 25
 
@@ -265,12 +277,26 @@ def fetch_all_sports_m3u(extra_urls: list[str] | None = None) -> list[str]:
     return results
 
 
+def _normalize_channel_name(name: str) -> str:
+    """Strip quality/status tags to normalize channel names for mirror grouping.
+
+    "ESPN (1080p)" and "ESPN (720p)" from two different sources will be treated
+    as mirrors of the same channel, with the second URL stored as an alternate.
+    """
+    normalized = _CHAN_NORM_RE.sub(" ", name)
+    return " ".join(normalized.split()).lower().strip()
+
+
 def _group_entries_by_name(
     entries: list[ParsedChannel],
 ) -> list[tuple[ParsedChannel, list[str]]]:
     """
     Group entries by (module, normalized_name).
     Returns list of (primary_entry, [alternate_stream_urls]).
+
+    Normalization strips quality/geo-block tags so that duplicate entries of the
+    same channel (e.g. "ESPN (1080p)" and "ESPN (720p)" from different sources)
+    are merged into one record with multiple backup stream URLs.
     """
     seen_urls: set[str] = set()
     groups: dict[str, tuple[ParsedChannel, list[str]]] = {}
@@ -280,7 +306,7 @@ def _group_entries_by_name(
             continue
         seen_urls.add(entry.stream_url)
 
-        norm = f"{entry.module}::{entry.name.lower().strip()}"
+        norm = f"{entry.module}::{_normalize_channel_name(entry.name)}"
         if norm not in groups:
             groups[norm] = (entry, [])
         else:
