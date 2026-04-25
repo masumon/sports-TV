@@ -77,6 +77,35 @@ export default function AdminDashboardPage() {
 
   const authToken = token;
 
+  const setFormError = (message: string) => {
+    setError(message);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const validateUrl = (
+    value: string,
+    label: string,
+    required = true,
+    allowedProtocols = ["http:", "https:"]
+  ): boolean => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      if (required) setFormError(`${label} is required.`);
+      return !required;
+    }
+    try {
+      const url = new URL(trimmed);
+      if (!allowedProtocols.includes(url.protocol)) {
+        setFormError(`${label} must start with ${allowedProtocols.map((protocol) => protocol.replace(":", "://")).join(", ")}.`);
+        return false;
+      }
+      return true;
+    } catch {
+      setFormError(`${label} must be a valid URL.`);
+      return false;
+    }
+  };
+
   const fetchAdminData = async () => {
     if (!authToken) return;
     setLoading(true);
@@ -127,11 +156,22 @@ export default function AdminDashboardPage() {
   const createChannel = async () => {
     if (!authToken) return;
     setError(null);
+    if (!channelForm.name.trim()) return setFormError("Channel name is required.");
+    if (!channelForm.country.trim()) return setFormError("Country is required.");
+    if (!channelForm.category.trim()) return setFormError("Category is required.");
+    if (!channelForm.language.trim()) return setFormError("Language is required.");
+    if (!validateUrl(channelForm.stream_url, "Stream URL", true, ["http:", "https:", "rtmp:", "rtsp:", "udp:", "rtp:"])) return;
+    if (!validateUrl(channelForm.logo_url, "Logo URL", false)) return;
     try {
       await apiClient.adminCreateChannel(authToken, {
-        ...channelForm,
-        logo_url: channelForm.logo_url || null,
-        stream_url: channelForm.stream_url,
+        name: channelForm.name.trim(),
+        country: channelForm.country.trim(),
+        category: channelForm.category.trim(),
+        language: channelForm.language.trim(),
+        logo_url: channelForm.logo_url.trim() || null,
+        stream_url: channelForm.stream_url.trim(),
+        quality_tag: channelForm.quality_tag.trim(),
+        module: channelForm.module,
         is_active: true,
       });
       setChannelForm(initialChannelForm);
@@ -144,11 +184,18 @@ export default function AdminDashboardPage() {
   const createScore = async () => {
     if (!authToken) return;
     setError(null);
+    if (!scoreForm.league.trim()) return setFormError("League / Tournament is required.");
+    if (!scoreForm.team_home.trim()) return setFormError("Home team is required.");
+    if (!scoreForm.team_away.trim()) return setFormError("Away team is required.");
+    if (scoreForm.score_home < 0 || scoreForm.score_away < 0) return setFormError("Scores cannot be negative.");
     try {
       await apiClient.adminCreateScore(authToken, {
         ...scoreForm,
-        match_minute: scoreForm.match_minute || null,
-        extra_data: scoreForm.extra_data || null,
+        league: scoreForm.league.trim(),
+        team_home: scoreForm.team_home.trim(),
+        team_away: scoreForm.team_away.trim(),
+        match_minute: scoreForm.match_minute.trim() || null,
+        extra_data: scoreForm.extra_data.trim() || null,
       });
       setScoreForm(initialScoreForm);
       await fetchAdminData();
@@ -335,7 +382,8 @@ export default function AdminDashboardPage() {
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl border border-white/10 bg-white/5 p-5"
         >
-          <h2 className="mb-4 text-lg font-semibold text-white">নতুন চ্যানেল যোগ করুন</h2>
+          <h2 className="mb-1 text-lg font-semibold text-white">নতুন চ্যানেল যোগ করুন</h2>
+          <p className="mb-4 text-xs text-zinc-500">Required fields are validated before the backend call.</p>
           <div className="grid gap-3">
             {(Object.keys(channelForm) as Array<keyof ChannelFormState>).map((key) => {
               if (key === "module") {
@@ -374,6 +422,8 @@ export default function AdminDashboardPage() {
                   onChange={(e) => setChannelForm((prev) => ({ ...prev, [key]: e.target.value }))}
                   className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
                   placeholder={key}
+                  type={key.includes("url") ? "url" : "text"}
+                  required={key !== "logo_url"}
                 />
               );
             })}
@@ -393,7 +443,8 @@ export default function AdminDashboardPage() {
           transition={{ delay: 0.05 }}
           className="rounded-2xl border border-white/10 bg-white/5 p-5"
         >
-          <h2 className="mb-4 text-lg font-semibold text-white">নতুন লাইভ স্কোর</h2>
+          <h2 className="mb-1 text-lg font-semibold text-white">নতুন লাইভ স্কোর</h2>
+          <p className="mb-4 text-xs text-zinc-500">League and team names are required.</p>
           <div className="grid gap-3">
             <select
               value={scoreForm.sport_type}
@@ -410,6 +461,7 @@ export default function AdminDashboardPage() {
               onChange={(e) => setScoreForm((prev) => ({ ...prev, league: e.target.value }))}
               className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
               placeholder="League / Tournament"
+              required
             />
             <div className="grid grid-cols-2 gap-3">
               <input
@@ -417,17 +469,20 @@ export default function AdminDashboardPage() {
                 onChange={(e) => setScoreForm((prev) => ({ ...prev, team_home: e.target.value }))}
                 className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
                 placeholder="Home team"
+                required
               />
               <input
                 value={scoreForm.team_away}
                 onChange={(e) => setScoreForm((prev) => ({ ...prev, team_away: e.target.value }))}
                 className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
                 placeholder="Away team"
+                required
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <input
                 type="number"
+                min={0}
                 value={scoreForm.score_home}
                 onChange={(e) => setScoreForm((prev) => ({ ...prev, score_home: Number(e.target.value) }))}
                 className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
@@ -435,6 +490,7 @@ export default function AdminDashboardPage() {
               />
               <input
                 type="number"
+                min={0}
                 value={scoreForm.score_away}
                 onChange={(e) => setScoreForm((prev) => ({ ...prev, score_away: Number(e.target.value) }))}
                 className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"

@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-
 import { buildApiUrl } from "@/lib/apiClient";
 
 /* ─────────────────────────────────────────────────────────── Types ── */
@@ -111,7 +110,7 @@ function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
 /* ────────────────────────────────────────────────────────── Helpers ── */
 const HIDE_CONTROLS_AFTER_MS = 3500;
 
-/** Backend proxy endpoint — bypasses CORS and some geo-blocks for the player (uses same base as `apiRequest`). */
+/** Backend proxy — same base as `apiRequest` (use query on path, not inside path segment). */
 function buildProxyUrl(streamUrl: string): string {
   return `${buildApiUrl("/proxy/stream")}?url=${encodeURIComponent(streamUrl)}`;
 }

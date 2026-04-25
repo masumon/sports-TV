@@ -18,6 +18,9 @@ export function buildApiUrl(path: string): string {
   return `${API_BASE_URL}${API_V1}${normalized}`;
 }
 
+/** @deprecated Use `buildApiUrl` — same implementation. */
+export const buildApiV1Url = buildApiUrl;
+
 type ApiRequestOptions = RequestInit & {
   /** When set, 401 will clear the persisted auth session. */
   authToken?: string | null;

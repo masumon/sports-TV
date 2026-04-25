@@ -308,29 +308,16 @@ def health() -> dict[str, str]:
 @app.get("/health/db", tags=["health"], include_in_schema=False)
 async def health_db() -> dict:
     """Diagnostic: test async DB connection and return error detail if it fails."""
-    import re as _re
     from sqlalchemy import text as sa_text
     from app.db.session import AsyncSessionLocal
-
-    # Show last 4 chars of password so we can confirm Render picked up the new value
-    _pw_suffix = ""
-    try:
-        _m = _re.search(r":([^:@\s]+)@", str(ASYNC_URL))
-        if _m:
-            _pw = _m.group(1)
-            if _pw and _pw != "***":
-                _pw_suffix = ("*" * max(0, len(_pw) - 4)) + _pw[-4:]
-            else:
-                _pw_suffix = "(masked-check session.py)"
-    except Exception:
-        pass
 
     try:
         async with AsyncSessionLocal() as session:
             await session.execute(sa_text("SELECT 1"))
-        return {"db": "ok", "async_url_prefix": str(ASYNC_URL)[:40], "pw_suffix": _pw_suffix}
+        return {"db": "ok", "backend": str(ASYNC_URL).split(":", 1)[0]}
     except Exception as exc:
-        return {"db": "error", "detail": str(exc), "async_url_prefix": str(ASYNC_URL)[:40], "pw_suffix": _pw_suffix}
+        detail = str(exc) if settings.debug else "Database connection failed"
+        return {"db": "error", "detail": detail, "backend": str(ASYNC_URL).split(":", 1)[0]}
 
 
 @app.post("/internal/sync", tags=["internal"], include_in_schema=False)
