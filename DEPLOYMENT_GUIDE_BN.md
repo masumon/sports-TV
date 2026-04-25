@@ -219,13 +219,14 @@ DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME
 3. **Root Directory** দিন: `frontend`
 4. Framework auto-detect হবে: **Next.js**
 5. Environment Variable যুক্ত করুন:
-   - `NEXT_PUBLIC_API_BASE_URL` = `https://<your-render-backend-domain>` (ট্রেইলিং স্ল্যাশ ছাড়া, `/api/v1` সফিক্স ছাড়া)
-   - `NEXT_PUBLIC_SITE_URL` = `https://<your-vercel-domain>` (Open Graph / SEO; উদাহরণ: `https://sports-tv-lovat.vercel.app`)
+   - `NEXT_PUBLIC_API_BASE_URL` = `/api` (Vercel proxy দিয়ে backend call করলে; recommended) অথবা `https://gstv-backend.onrender.com` (সরাসরি)
+   - `NEXT_PUBLIC_SITE_URL` = `https://sports-tv-lovat.vercel.app` (Open Graph / SEO)
 6. Deploy দিন
 
 ### গুরুত্বপূর্ণ
 
-- Backend URL এ `/api/v1` যোগ করবেন না; client কোড নিজেই path যোগ করে।
+- `NEXT_PUBLIC_API_BASE_URL=/api` দিলে Next.js proxy `https://gstv-backend.onrender.com` এ forward করে — CORS সমস্যা নেই।
+- সরাসরি `https://gstv-backend.onrender.com` দিলে `/api/v1` যোগ করবেন না; client কোড নিজেই path যোগ করে।
 - ডোমেইন বদলালে Vercel env update করে redeploy দিন।
 - **লাইভ ডেটার জন্য** Render ব্যাকএন্ডের `CORS_ORIGINS` এ Vercel URL অবশ্যই থাকতে হবে (কমা দিয়ে একাধিক):  
   `http://localhost:3000,https://sports-tv-lovat.vercel.app`
@@ -265,20 +266,20 @@ Render service env-এ দিন:
 - `ADMIN_EMAIL=admin@yourdomain.com`
 - `ADMIN_PASSWORD=<strong-password>`
 - `ADMIN_FULL_NAME=Platform Admin`
-- `CORS_ORIGINS=http://localhost:3000,https://<your-vercel-domain>` (প্রোডে শুধু নিজের ফ্রন্টএন্ড ডোমেইন রাখুন; ট্রেইলিং `/` নয়)
+- `CORS_ORIGINS=http://localhost:3000,https://sports-tv-lovat.vercel.app` (প্রোডে শুধু নিজের ফ্রন্টএন্ড ডোমেইন রাখুন; ট্রেইলিং `/` নয়)
 - `SCRAPER_SOURCE_URL=https://iptv-org.github.io/iptv/categories/sports.m3u`
 - `AUTO_SYNC_CHANNELS_ON_STARTUP=false`
 
 ### ধাপ ৯.৪: Deploy verify
 
-- `https://<render-domain>/health` → `{"status":"ok"}`
-- `https://<render-domain>/docs` → Swagger UI
+- `https://gstv-backend.onrender.com/health` → `{"status":"ok"}`
+- `https://gstv-backend.onrender.com/docs` → Swagger UI
 
 ---
 
 ## ১০) পূর্ণ সিস্টেম কানেকশন টেস্ট
 
-1. Render backend live কিনা দেখুন (`/health`)
+1. Render backend live কিনা দেখুন: `https://gstv-backend.onrender.com/health`
 2. Vercel frontend env-এ backend base URL সঠিক কিনা দেখুন
 3. Admin login করুন (Render env-এ দেয়া admin credential)
 4. Dashboard থেকে:
