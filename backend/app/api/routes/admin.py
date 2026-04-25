@@ -9,8 +9,8 @@ from starlette.responses import Response
 from app.core.cache import invalidate_list_caches
 from app.core.config import settings
 from app.core.security import get_current_admin_user
-from app.core.sync_rate_limit import check_sync_allowed, get_last_sync_iso, mark_sync_success
-from app.db.session import SessionLocal, get_db
+from app.core.sync_rate_limit import check_sync_allowed, get_last_sync_iso
+from app.db.session import get_db
 from app.models.channel import Channel
 from app.models.dynamic_stream import DynamicStream
 from app.models.match_stats import MatchStats, MatchStatus, SportType
@@ -19,22 +19,13 @@ from app.schemas.admin import AdminStatsResponse
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
 from app.schemas.match_stats import MatchStatsCreate, MatchStatsRead, MatchStatsUpdate
-from app.services.channel_cleanup import run_full_cleanup
-from app.services.iptv_scraper import scrape_and_sync_sports_channels
-from app.services.m3u_discovery import get_cached_discovered_sources
+from app.services.automation import run_channel_sync
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 def _sync_m3u_blocking() -> dict[str, int]:
-    sdb = SessionLocal()
-    try:
-        discovered = get_cached_discovered_sources()
-        result = scrape_and_sync_sports_channels(sdb, extra_urls=discovered or None)
-        run_full_cleanup(sdb, stale_days=settings.channel_stale_days)
-        return result
-    finally:
-        sdb.close()
+    return run_channel_sync(include_discovery=True, source="admin")
 
 
 @router.get("/stats", response_model=AdminStatsResponse)
@@ -67,8 +58,6 @@ async def sync_channels(
     del _db
     check_sync_allowed()
     result = await run_in_threadpool(_sync_m3u_blocking)
-    mark_sync_success()
-    invalidate_list_caches()
     return result
 
 

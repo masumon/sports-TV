@@ -6,6 +6,33 @@ from datetime import datetime, timezone
 from app.core.config import settings
 
 _last_sync_at: float = 0.0
+_last_sync_completed_at: float = 0.0
+_last_sync_started_at: float = 0.0
+_last_sync_status: str | None = None
+_last_sync_error: str | None = None
+_SYNC_STATE_KEY = "gstv:sync:state"
+
+
+def _utc_iso(ts: float) -> str:
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+
+
+def _persist_state() -> None:
+    """Best-effort Redis persistence for cross-worker visibility; never raises."""
+    try:
+        import json
+        from app.core.redis_client import safe_set
+
+        payload = {
+            "last_sync_at": get_last_sync_iso(),
+            "last_sync_status": _last_sync_status,
+            "last_sync_error": _last_sync_error,
+            "last_sync_started_at": _utc_iso(_last_sync_started_at) if _last_sync_started_at else None,
+            "last_sync_success_at": _utc_iso(_last_sync_at) if _last_sync_at else None,
+        }
+        safe_set(_SYNC_STATE_KEY, json.dumps(payload), ttl=86400)
+    except Exception:
+        pass
 
 
 def check_sync_allowed() -> None:
@@ -23,11 +50,40 @@ def check_sync_allowed() -> None:
 
 
 def mark_sync_success() -> None:
-    global _last_sync_at
-    _last_sync_at = time.time()
+    global _last_sync_at, _last_sync_completed_at, _last_sync_status, _last_sync_error
+    now = time.time()
+    _last_sync_at = now
+    _last_sync_completed_at = now
+    _last_sync_status = "success"
+    _last_sync_error = None
+    _persist_state()
+
+
+def mark_sync_started() -> None:
+    global _last_sync_started_at, _last_sync_status, _last_sync_error
+    _last_sync_started_at = time.time()
+    _last_sync_status = "running"
+    _last_sync_error = None
+    _persist_state()
+
+
+def mark_sync_failure(error: str) -> None:
+    global _last_sync_completed_at, _last_sync_status, _last_sync_error
+    _last_sync_completed_at = time.time()
+    _last_sync_status = "failed"
+    _last_sync_error = error[:500]
+    _persist_state()
 
 
 def get_last_sync_iso() -> str | None:
-    if not _last_sync_at:
+    if not _last_sync_completed_at:
         return None
-    return datetime.fromtimestamp(_last_sync_at, tz=timezone.utc).isoformat()
+    return _utc_iso(_last_sync_completed_at)
+
+
+def get_last_sync_status() -> str | None:
+    return _last_sync_status
+
+
+def get_last_sync_error() -> str | None:
+    return _last_sync_error

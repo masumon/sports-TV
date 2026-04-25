@@ -4,9 +4,10 @@ import hashlib
 import json
 import logging
 import re
+import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import requests
@@ -29,7 +30,9 @@ _CHAN_NORM_RE = re.compile(
     re.IGNORECASE,
 )
 
-REQUEST_TIMEOUT_SECONDS = 25
+REQUEST_TIMEOUT_SECONDS = 8
+FETCH_RETRY_DELAYS_SECONDS = (1, 2, 4, 8)
+MAX_FETCH_ATTEMPTS = 5
 
 # ─────────────────────────────────────────────────────────────────────────────
 # M3U Source Definitions
@@ -222,10 +225,33 @@ def parse_m3u_entries(
     return entries
 
 
+def _get_with_retry(url: str) -> requests.Response:
+    last_exc: Exception | None = None
+    for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
+        try:
+            response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            return response
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= MAX_FETCH_ATTEMPTS:
+                break
+            delay = FETCH_RETRY_DELAYS_SECONDS[min(attempt - 1, len(FETCH_RETRY_DELAYS_SECONDS) - 1)]
+            logger.warning(
+                "M3U fetch retry scheduled url=%s attempt=%d/%d delay=%ss error=%s",
+                url,
+                attempt + 1,
+                MAX_FETCH_ATTEMPTS,
+                delay,
+                exc,
+            )
+            time.sleep(delay)
+    raise RuntimeError(f"M3U fetch failed after {MAX_FETCH_ATTEMPTS} attempts: {url}") from last_exc
+
+
 def fetch_sports_m3u(url: str | None = None) -> str:
     source_url = url or settings.scraper_source_url or SPORTS_M3U_URL
-    response = requests.get(source_url, timeout=REQUEST_TIMEOUT_SECONDS)
-    response.raise_for_status()
+    response = _get_with_retry(source_url)
     body = response.text
     if not body.strip().startswith("#EXTM3U"):
         raise ValueError("Invalid M3U source received.")
@@ -248,8 +274,7 @@ def _fetch_m3u_safe(url: str) -> str | None:
         return cached
 
     try:
-        response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
-        response.raise_for_status()
+        response = _get_with_retry(url)
         body = response.text
         if body.strip().startswith("#EXTM3U"):
             safe_set(cache_key, body, ttl=1500)  # 25 min — slightly under sync interval
@@ -277,14 +302,18 @@ def fetch_all_sports_m3u(extra_urls: list[str] | None = None) -> list[str]:
     return results
 
 
+def _display_channel_name(name: str) -> str:
+    cleaned = _CHAN_NORM_RE.sub(" ", name)
+    return " ".join(cleaned.split()).strip() or name.strip()
+
+
 def _normalize_channel_name(name: str) -> str:
     """Strip quality/status tags to normalize channel names for mirror grouping.
 
     "ESPN (1080p)" and "ESPN (720p)" from two different sources will be treated
     as mirrors of the same channel, with the second URL stored as an alternate.
     """
-    normalized = _CHAN_NORM_RE.sub(" ", name)
-    return " ".join(normalized.split()).lower().strip()
+    return _display_channel_name(name).lower().strip()
 
 
 def _group_entries_by_name(
@@ -322,15 +351,27 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
     created = 0
     updated = 0
     _now = datetime.now(tz=timezone.utc).replace(tzinfo=None)  # naive UTC for DB
+    primary_urls = [primary.stream_url for primary, _alts in grouped]
+    existing_by_url: dict[str, Channel] = {}
+    for offset in range(0, len(primary_urls), 500):
+        chunk = primary_urls[offset : offset + 500]
+        if not chunk:
+            continue
+        existing_by_url.update(
+            {
+                channel.stream_url: channel
+                for channel in db.scalars(select(Channel).where(Channel.stream_url.in_(chunk))).all()
+            }
+        )
 
     for primary, alts in grouped:
         alt_json = json.dumps(alts) if alts else None
-
-        channel = db.scalar(select(Channel).where(Channel.stream_url == primary.stream_url))
+        normalized_name = _display_channel_name(primary.name)[:255]
+        channel = existing_by_url.get(primary.stream_url)
 
         if channel is None:
             channel = Channel(
-                name=primary.name,
+                name=normalized_name,
                 stream_url=primary.stream_url,
                 logo_url=primary.logo_url,
                 category=primary.category,
@@ -343,9 +384,10 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
                 is_active=True,
             )
             db.add(channel)
+            existing_by_url[primary.stream_url] = channel
             created += 1
         else:
-            channel.name = primary.name
+            channel.name = normalized_name
             channel.logo_url = primary.logo_url
             channel.category = primary.category or channel.category
             channel.country = primary.country or channel.country
@@ -360,6 +402,14 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
             updated += 1
 
     db.commit()
+    logger.info(
+        "Sync DB write complete created=%d updated=%d total=%d grouped=%d parsed=%d",
+        created,
+        updated,
+        created + updated,
+        len(grouped),
+        len(all_entries),
+    )
     return {"created": created, "updated": updated, "total": created + updated}
 
 
@@ -436,15 +486,15 @@ def scrape_and_sync_sports_channels(
             if url not in known:
                 fetch_jobs.append((url, True, "sports"))  # filter by sports keywords
 
-    logger.info("Sync: fetching %d M3U source(s) in parallel…", len(fetch_jobs))
+    logger.info("Sync start source_count=%d", len(fetch_jobs))
     all_entries = _fetch_sources_parallel(fetch_jobs, max_workers=8)
 
     if not all_entries:
-        logger.warning("Sync: no channels parsed from any M3U source — skipping DB write")
+        logger.warning("Sync skipped reason=no_channels_parsed source_count=%d", len(fetch_jobs))
         return {"created": 0, "updated": 0, "total": 0}
 
     logger.info(
-        "Sync total: %d entries from %d source(s) — writing to DB",
+        "Sync parsed entry_count=%d source_count=%d",
         len(all_entries),
         len(fetch_jobs),
     )
