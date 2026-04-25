@@ -198,10 +198,9 @@ export function SiteFooter() {
               <div
                 className="mt-3 flex flex-wrap items-center justify-end gap-1.5"
                 role="list"
-                aria-label="Developer links"
+                aria-label="Developer social links"
               >
                 {[
-                  { href: DEVELOPER_URL, icon: <Globe size={16} />, label: "Developer website" },
                   { href: DEVELOPER_LINKEDIN, icon: <Linkedin size={16} />, label: "LinkedIn" },
                   { href: DEVELOPER_GITHUB, icon: <Github size={16} />, label: "GitHub" },
                   { href: DEVELOPER_FIVERR, icon: <Briefcase size={16} />, label: "Fiverr" },
@@ -221,6 +220,18 @@ export function SiteFooter() {
                   </a>
                 ))}
               </div>
+              <a
+                href={DEVELOPER_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2.5 flex items-center justify-end gap-1 text-[10px] font-medium transition hover:opacity-90"
+                style={{ color: "var(--primary-accent)" }}
+                aria-label="Developer portfolio: mumainsumon.netlify.app"
+              >
+                <Globe size={11} aria-hidden />
+                <span>mumainsumon.netlify.app</span>
+                <ExternalLink size={10} className="opacity-70" aria-hidden />
+              </a>
             </div>
 
             {/* SUMONIX AI card */}
