@@ -62,27 +62,29 @@ def cache_set_json(prefix: str, params: dict[str, Any], data: Any, ttl: int | No
     _raw_set(key, json.dumps(data, default=str).encode("utf-8"), ttl)
 
 
+# Cache key prefixes that should be cleared together after channel sync or admin writes.
+_INVALIDATE_PREFIXES: tuple[str, ...] = (
+    "gstv:channels:",
+    "gstv:channel_filters:",
+    "gstv:live-scores:",
+)
+
+
 def invalidate_list_caches() -> None:
     """Invalidate channel, filter, and live-score list caches (after sync or admin writes)."""
     global _cache_version
     r = _get_redis()
     if r:
         try:
-            for k in r.scan_iter("gstv:channels:*"):
-                r.delete(k)
-            for k in r.scan_iter("gstv:channel_filters:*"):
-                r.delete(k)
-            for k in r.scan_iter("gstv:live-scores:*"):
-                r.delete(k)
+            for prefix in _INVALIDATE_PREFIXES:
+                for k in r.scan_iter(f"{prefix}*"):
+                    r.delete(k)
         except Exception as e:
             logger.warning("redis invalidate: %s", e)
     else:
         _cache_version += 1
     with _mem_lock:
-        drop = [
-            k for k in _mem
-            if "gstv:channels:" in k or "gstv:channel_filters:" in k or "gstv:live-scores:" in k
-        ]
+        drop = [k for k in _mem if any(k.startswith(p) for p in _INVALIDATE_PREFIXES)]
         for k in drop:
             _mem.pop(k, None)
 
