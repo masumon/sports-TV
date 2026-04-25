@@ -718,3 +718,24 @@ html.light [data-admin] select option {
   outline-offset: 2px;
 }
 
+/* ── Mobile / tablet touch: larger tap areas (coarse pointer) ── */
+@media (hover: none) and (pointer: coarse) {
+  .module-tab,
+  .cat-tab {
+    min-height: 44px;
+    align-items: center;
+  }
+  .filter-chip,
+  .alt-link-btn {
+    min-height: 40px;
+    align-items: center;
+  }
+  .sports-cat-item {
+    min-height: 44px;
+  }
+  .ch-card,
+  .interactive-card {
+    padding: 0.8rem 0.7rem;
+  }
+}
+

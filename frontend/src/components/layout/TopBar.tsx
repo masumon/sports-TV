@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio } from "lucide-react";
+import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useAuthStore } from "@/store/authStore";
@@ -40,7 +40,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         boxShadow: "0 1px 20px rgba(0,0,0,0.4)",
       }}
     >
-      <div className="flex h-14 items-center gap-2 px-2 md:px-4">
+      <div className="flex min-h-14 items-center gap-1.5 px-2 sm:gap-2 md:min-h-16 md:gap-2 md:px-4">
         {/* Mobile menu button */}
         <button
           type="button"
@@ -81,7 +81,10 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
             placeholder={t("search")}
-            className="search-input w-full rounded-xl py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:outline-none"
+            inputMode="search"
+            autoComplete="off"
+            autoCorrect="off"
+            className="search-input min-h-11 w-full rounded-xl py-2.5 pl-9 pr-3 text-[15px] text-white placeholder:text-slate-500 focus:outline-none sm:text-sm md:min-h-10 md:py-2"
             style={{
               background: "var(--bg-card)",
               border: "1px solid rgba(255,255,255,0.09)",
@@ -131,19 +134,24 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         {user?.is_admin ? (
           <Link
             href="/admin/dashboard"
-            className="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold sm:inline-flex transition"
+            className="hidden min-h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold md:inline-flex"
             style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#10B981" }}
+            aria-label={t("admin")}
+            title={t("admin")}
           >
-            <Shield size={13} />
-            {t("admin")}
+            <Shield size={15} className="shrink-0" />
+            <span className="hidden lg:inline">{t("admin")}</span>
           </Link>
         ) : (
           <Link
             href="/admin/login"
-            className="hidden rounded-lg px-2.5 py-1.5 text-xs font-medium transition hover:bg-white/10 sm:inline-flex"
+            className="hidden min-h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition hover:bg-white/10 md:inline-flex"
             style={{ color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
+            aria-label={t("signIn")}
+            title={t("signIn")}
           >
-            {t("signIn")}
+            <User size={15} className="shrink-0" />
+            <span className="hidden lg:inline">{t("signIn")}</span>
           </Link>
         )}
       </div>

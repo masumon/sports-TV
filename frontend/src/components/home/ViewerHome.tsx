@@ -373,7 +373,7 @@ export function ViewerHome() {
 
   return (
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
-      <div className="mx-auto w-full max-w-[1920px] space-y-5">
+      <div className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
         {/* ── Live Scores Ticker ── */}
         {liveScoresTicker && (
@@ -609,10 +609,10 @@ export function ViewerHome() {
         </div>
 
         {/* ── Main grid: player + channel list ── */}
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
 
-          {/* Player */}
-          <section className="lg:col-span-8 xl:col-span-8">
+          {/* Player — tablet+ shares row with directory */}
+          <section className="min-w-0 md:col-span-7 lg:col-span-8">
             {activeChannel ? (
               <PremiumPlayer
                 streamUrl={currentStreamUrl}
@@ -710,7 +710,7 @@ export function ViewerHome() {
           </section>
 
           {/* Sidebar: upcoming channels */}
-          <aside className="flex flex-col gap-3 lg:col-span-4 xl:col-span-4">
+          <aside className="flex min-w-0 flex-col gap-3 md:col-span-5 lg:col-span-4">
             {tier === "free" && <AdSlot variant="inline" />}
 
             {/* Featured channels quick list */}
@@ -719,7 +719,10 @@ export function ViewerHome() {
                 <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("directory")}</h2>
                 <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
               </div>
-              <div className="max-h-[420px] overflow-y-auto divide-y" style={{ borderColor: "var(--border)" }}>
+              <div
+                className="max-h-[min(50dvh,26rem)] overflow-y-auto overscroll-y-contain divide-y sm:max-h-[min(55dvh,28rem)] md:max-h-[min(52dvh,26rem)] lg:max-h-[26.25rem]"
+                style={{ borderColor: "var(--border)" }}
+              >
                 {loading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
@@ -799,7 +802,7 @@ export function ViewerHome() {
               <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{t("tryAdjust")}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+            <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
               {filtered.map((ch, i) => (
                 <PremiumChannelCard
                   key={ch.id}
