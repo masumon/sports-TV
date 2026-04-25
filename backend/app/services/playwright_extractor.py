@@ -33,10 +33,11 @@ _BLOCKED_RESOURCE_TYPES: frozenset[str] = frozenset(
 )
 
 # A realistic desktop User-Agent; avoids trivial bot detection.
+# Keep this reasonably current to avoid triggering bot-detection rules.
 _STEALTH_USER_AGENT: str = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
+    "Chrome/124.0.0.0 Safari/537.36"
 )
 
 # Chromium launch flags tuned for a low-memory (~512 MB) environment.
@@ -269,7 +270,7 @@ def _run_playwright_extraction(
             except Exception:
                 pass
 
-    return None  # unreachable but satisfies type checker
+    return None
 
 
 def _try_click_play(page: object) -> None:

@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI):
     )
     if _needs_scheduler:
         from apscheduler.schedulers.background import BackgroundScheduler
-        from sqlalchemy import select as _select, or_ as _or
+        from sqlalchemy import select as _select, or_
         from app.models.channel import Channel as _Channel
         from app.models.dynamic_stream import DynamicStream as _DS
         from app.services.stream_validator import validate_stream_urls
@@ -189,7 +189,7 @@ async def lifespan(app: FastAPI):
                 # Select active streams with no URL yet, or whose token expires soon.
                 stmt = _select(_DS).where(
                     _DS.is_active.is_(True),
-                    _or(
+                    or_(
                         _DS.m3u8_url.is_(None),
                         _DS.expires_at.is_(None),
                         _DS.expires_at <= refresh_window,
