@@ -14,7 +14,7 @@ Safe strategy:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -38,7 +38,7 @@ def cleanup_stale_channels(
 
     Only touches source='iptv-org' channels — never manual entries.
     """
-    cutoff = datetime.now(tz=timezone.utc).replace(tzinfo=None) - __import__("datetime").timedelta(days=stale_days)
+    cutoff = datetime.now(tz=timezone.utc).replace(tzinfo=None) - timedelta(days=stale_days)
 
     stmt = (
         select(Channel)

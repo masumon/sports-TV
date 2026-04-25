@@ -47,7 +47,14 @@ async def list_channels(
     cached = cache_get_json("channels", params)
     if cached is not None:
         try:
-            return ChannelListResponse.model_validate(cached)
+            result = ChannelListResponse.model_validate(cached)
+            # Apply geo-sort AFTER reading from cache so the cached copy is
+            # country-neutral and all users share the same cache entry.
+            if cf_country:
+                result.items.sort(
+                    key=lambda c: 0 if c.country.upper()[:2] == cf_country else 1
+                )
+            return result
         except Exception:
             logger.debug("cache miss parse, refetching")
 
@@ -94,6 +101,13 @@ async def list_channels(
         items=[ChannelRead.model_validate(channel) for channel in channels],
     )
 
+    # Cache the UNSORTED result so all users share the same cache entry.
+    # Geo-sort is applied per-request after reading from cache.
+    try:
+        cache_set_json("channels", params, result.model_dump(mode="json"))
+    except Exception as e:
+        logger.debug("cache set failed: %s", e)
+
     # Geo-sort: same-country channels float to top of the page (stable sort).
     # Does NOT affect total count or pagination offsets.
     if cf_country:
@@ -101,10 +115,6 @@ async def list_channels(
             key=lambda c: 0 if c.country.upper()[:2] == cf_country else 1
         )
 
-    try:
-        cache_set_json("channels", params, result.model_dump(mode="json"))
-    except Exception as e:
-        logger.debug("cache set failed: %s", e)
     return result
 
 

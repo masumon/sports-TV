@@ -414,7 +414,8 @@ def scrape_and_sync_sports_channels(
     all_entries = _fetch_sources_parallel(fetch_jobs, max_workers=8)
 
     if not all_entries:
-        raise ValueError("No channels parsed from any M3U source.")
+        logger.warning("Sync: no channels parsed from any M3U source — skipping DB write")
+        return {"created": 0, "updated": 0, "total": 0}
 
     logger.info(
         "Sync total: %d entries from %d source(s) — writing to DB",

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -93,16 +94,19 @@ async def lifespan(app: FastAPI):
         def scheduled_m3u_sync() -> None:
             """Run every `scheduled_sync_interval_minutes` — fetch sources + cleanup."""
             sdb = SessionLocal()
+            _success = False
             try:
                 discovered = get_cached_discovered_sources()
                 scrape_and_sync_sports_channels(sdb, extra_urls=discovered or None)
                 run_full_cleanup(sdb, stale_days=settings.channel_stale_days)
+                _success = True
             except Exception:
                 logger.exception("Scheduled M3U sync failed")
             finally:
                 sdb.close()
-            invalidate_list_caches()
-            mark_sync_success()
+            if _success:
+                invalidate_list_caches()
+                mark_sync_success()
 
         def scheduled_discovery() -> None:
             """Run every `source_discovery_interval_hours` — find new M3U sources."""
@@ -216,9 +220,19 @@ async def health_db() -> dict:
 
 
 @app.post("/internal/sync", tags=["internal"], include_in_schema=False)
-async def internal_sync() -> dict[str, object]:
-    """Internal endpoint for scheduler/webhook triggered M3U sync."""
+async def internal_sync(request: Request) -> dict[str, object]:
+    """Internal endpoint for scheduler/webhook triggered M3U sync.
+
+    Protected by X-Sync-Secret header when INTERNAL_SYNC_SECRET env var is set.
+    """
+    import hmac as _hmac
     from starlette.concurrency import run_in_threadpool
+
+    secret = os.environ.get("INTERNAL_SYNC_SECRET", "").strip()
+    if secret:
+        provided = request.headers.get("X-Sync-Secret", "")
+        if not _hmac.compare_digest(provided.encode(), secret.encode()):
+            raise HTTPException(status_code=403, detail="Forbidden")
 
     def _do_sync() -> dict[str, int]:
         sdb = SessionLocal()

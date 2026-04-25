@@ -29,7 +29,7 @@ def _sync_m3u_blocking() -> dict[str, int]:
     try:
         discovered = get_cached_discovered_sources()
         result = scrape_and_sync_sports_channels(sdb, extra_urls=discovered or None)
-        run_full_cleanup(sdb)
+        run_full_cleanup(sdb, stale_days=settings.channel_stale_days)
         return result
     finally:
         sdb.close()
