@@ -21,11 +21,19 @@ const LEGAL_PDF = {
 } as const;
 
 function iconLinkClass(accent: "amber" | "blue") {
-  return [
-    "inline-flex h-9 w-9 items-center justify-center rounded-lg transition-all hover:scale-105",
+  const focus =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#04050A]";
+  const ring =
     accent === "amber"
-      ? "text-[var(--primary-accent)] hover:bg-white/10"
-      : "text-[var(--accent-blue)] hover:bg-white/10",
+      ? "focus-visible:ring-[var(--primary-accent)]/60"
+      : "focus-visible:ring-[var(--accent-blue)]/60";
+  return [
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-200",
+    accent === "amber"
+      ? "text-[var(--primary-accent)] hover:bg-white/[0.08] active:bg-white/[0.12]"
+      : "text-[var(--accent-blue)] hover:bg-white/[0.08] active:bg-white/[0.12]",
+    focus,
+    ring,
   ].join(" ");
 }
 
@@ -168,84 +176,98 @@ export function SiteFooter() {
             </a>
           </div>
 
-          {/* ── 4. BUILT BY / POWERED BY ── */}
+          {/* ── 4. CREDITS (DEVELOPER + TECH) — international layout, icon-only external links */}
           <div className="space-y-4">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
-              Built By
+              Credits
             </p>
 
-            <div
-              className="rounded-xl p-4 transition-all hover:scale-[1.01]"
+            <article
+              className="rounded-2xl p-4 transition-shadow duration-200 hover:shadow-lg hover:shadow-black/20"
               style={{
                 background: "linear-gradient(135deg, rgba(245,166,35,0.1) 0%, rgba(229,57,53,0.05) 100%)",
                 border: "1px solid rgba(245,166,35,0.25)",
               }}
+              aria-labelledby="credits-dev-heading"
             >
-              <div className="mb-2 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(245,166,35,0.15)" }}>
-                  <User2 size={18} style={{ color: "var(--primary-accent)" }} />
+              <div className="mb-3 flex items-center gap-3">
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(245,166,35,0.15)" }}
+                  aria-hidden
+                >
+                  <User2 size={20} style={{ color: "var(--primary-accent)" }} />
                 </div>
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--primary-accent)" }}>
-                    Mumain Ahmed
-                  </p>
-                  <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>Full-Stack Developer · ABO Enterprise</p>
-                </div>
-              </div>
-              <p className="text-[10px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                Building modern digital platforms with AI-powered architecture.
-              </p>
-              <div
-                className="mt-3 flex flex-wrap items-center justify-end gap-1.5"
-                role="list"
-                aria-label="Developer links"
-              >
-                {[
-                  {
-                    key: "portfolio",
-                    href: DEVELOPER_URL,
-                    icon: <Globe size={16} />,
-                    label: "Developer portfolio website",
-                  },
-                  { key: "linkedin", href: DEVELOPER_LINKEDIN, icon: <Linkedin size={16} />, label: "LinkedIn", title: "LinkedIn" },
-                  { key: "github", href: DEVELOPER_GITHUB, icon: <Github size={16} />, label: "GitHub", title: "GitHub" },
-                  { key: "fiverr", href: DEVELOPER_FIVERR, icon: <Briefcase size={16} />, label: "Fiverr", title: "Fiverr" },
-                ].map(({ key, href, icon, label, title }) => (
-                  <a
-                    key={key}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={iconLinkClass("amber")}
+                <div className="min-w-0">
+                  <h3
+                    id="credits-dev-heading"
+                    className="text-sm font-black uppercase tracking-[0.12em] text-balance"
                     style={{ color: "var(--primary-accent)" }}
-                    aria-label={label}
-                    role="listitem"
-                    {...(title !== undefined ? { title } : {})}
                   >
-                    {icon}
-                  </a>
-                ))}
+                    Mumain Ahmed
+                  </h3>
+                  <p className="text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                    Full-stack developer, ABO Enterprise
+                  </p>
+                </div>
               </div>
-            </div>
+              <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                Building modern, AI-assisted digital platforms and streaming experiences.
+              </p>
+              <div className="mt-3 border-t border-white/[0.06] pt-3">
+                <p className="visuallyHidden">Profile and social links (open in a new tab)</p>
+                <ul className="flex flex-wrap items-center gap-1 sm:gap-1.5" aria-label="Developer profile and social">
+                  {[
+                    {
+                      key: "portfolio",
+                      href: DEVELOPER_URL,
+                      icon: <Globe size={16} className="shrink-0" />,
+                      label: "Developer portfolio website",
+                    },
+                    { key: "linkedin", href: DEVELOPER_LINKEDIN, icon: <Linkedin size={16} />, label: "LinkedIn profile", title: "LinkedIn" },
+                    { key: "github", href: DEVELOPER_GITHUB, icon: <Github size={16} />, label: "GitHub profile", title: "GitHub" },
+                    { key: "fiverr", href: DEVELOPER_FIVERR, icon: <Briefcase size={16} />, label: "Fiverr profile", title: "Fiverr" },
+                  ].map(({ key, href, icon, label, title }) => (
+                    <li key={key}>
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={iconLinkClass("amber")}
+                        style={{ color: "var(--primary-accent)" }}
+                        aria-label={label}
+                        {...(title !== undefined ? { title } : {})}
+                      >
+                        {icon}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </article>
 
-            {/* SUMONIX AI card */}
-            <div
-              className="rounded-xl p-3.5 transition-all hover:scale-[1.01]"
+            <article
+              className="rounded-2xl p-4 transition-shadow duration-200 hover:shadow-lg hover:shadow-black/15"
               style={{
-                background: "rgba(30,110,232,0.06)",
-                border: "1px solid rgba(30,110,232,0.2)",
+                background: "rgba(30,110,232,0.08)",
+                border: "1px solid rgba(30,110,232,0.22)",
               }}
+              aria-labelledby="credits-sumonix-heading"
             >
-              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] mb-1" style={{ color: "var(--text-muted)" }}>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.18em] mb-2" style={{ color: "var(--text-muted)" }}>
                 Powered by
               </p>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--accent-blue)" }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3
+                    id="credits-sumonix-heading"
+                    className="text-sm font-black uppercase tracking-[0.1em] text-balance"
+                    style={{ color: "var(--accent-blue)" }}
+                  >
                     SUMONIX AI
-                  </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-                    AI-driven architecture & intelligence
+                  </h3>
+                  <p className="text-[10px] mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    AI architecture, data intelligence, and product engineering.
                   </p>
                 </div>
                 <a
@@ -254,13 +276,12 @@ export function SiteFooter() {
                   rel="noopener noreferrer"
                   className={iconLinkClass("blue")}
                   style={{ color: "var(--accent-blue)" }}
-                  aria-label="SUMONIX AI website"
-                  title="SUMONIX AI"
+                  aria-label="SUMONIX AI — open website"
                 >
-                  <Sparkles size={18} />
+                  <Sparkles size={20} className="shrink-0" />
                 </a>
               </div>
-            </div>
+            </article>
           </div>
 
         </div>
@@ -297,7 +318,7 @@ export function SiteFooter() {
           <div className="text-[11px] text-center sm:text-right" style={{ color: "var(--text-muted)" }}>
             <p>
               © 2026{" "}
-              <a href={DEVELOPER_URL} target="_blank" rel="noreferrer" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
+              <a href="/" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
                 ABO SPORTS TV LIVE
               </a>
               {" "}· All Rights Reserved
