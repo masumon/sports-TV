@@ -1,8 +1,7 @@
 import type { AdminStats, Channel, ChannelListResponse, LiveScore, TokenResponse, UserRead } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
-const isRelativeApi = API_BASE_URL.startsWith("/");
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api").replace(/\/$/, "");
 /**
  * Avoids .../api/api/... when the base URL already ends with "/api":
  *  - relative proxy path: /api  → API_V1 = /v1   → full path = /api/v1/...
@@ -12,7 +11,7 @@ const isRelativeApi = API_BASE_URL.startsWith("/");
 const endsWithApi = API_BASE_URL.endsWith("/api");
 const API_V1 = endsWithApi ? "/v1" : "/api/v1";
 
-function buildUrl(path: string): string {
+export function buildApiV1Url(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${API_V1}${normalized}`;
 }
@@ -30,7 +29,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   };
   if (authToken) merged["Authorization"] = `Bearer ${authToken}`;
 
-  const res = await fetch(buildUrl(path), {
+  const res = await fetch(buildApiV1Url(path), {
     ...rest,
     headers: merged,
   });

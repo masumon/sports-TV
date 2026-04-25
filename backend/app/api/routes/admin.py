@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json as _json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,6 +93,7 @@ async def admin_create_channel(
         logo_url=str(payload.logo_url) if payload.logo_url else None,
         stream_url=str(payload.stream_url),
         quality_tag=payload.quality_tag.strip().lower(),
+        module=payload.module.strip().lower(),
         is_active=payload.is_active,
         source="manual",
     )
@@ -116,6 +119,10 @@ async def admin_update_channel(
     for field, value in data.items():
         if field in {"logo_url", "stream_url"} and value is not None:
             setattr(channel, field, str(value))
+        elif field == "alternate_urls" and value is not None:
+            setattr(channel, field, _json.dumps([str(url).strip() for url in value if str(url).strip()]))
+        elif isinstance(value, str):
+            setattr(channel, field, value.strip())
         else:
             setattr(channel, field, value)
 

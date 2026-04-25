@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Star,
   Link2,
+  Sparkles,
 } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -418,68 +419,81 @@ export function ViewerHome() {
         </div>
 
         {/* ── Hero header ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
+        <motion.section
+          initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+          className="relative overflow-hidden rounded-3xl border p-5 shadow-2xl md:p-6"
+          style={{
+            background:
+              "radial-gradient(circle at top left, rgb(var(--primary-rgb) / 18%), transparent 32%), linear-gradient(135deg, var(--bg-card), var(--bg-card2))",
+            borderColor: "var(--border-accent)",
+          }}
         >
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "rgba(245,166,35,0.15)" }}>
-                <Tv2 className="h-4 w-4" style={{ color: "var(--primary-accent)" }} />
+          <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full blur-3xl" style={{ background: "rgb(var(--primary-rgb) / 16%)" }} />
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em]" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.25)" }}>
+                <Sparkles className="h-3.5 w-3.5" />
+                {activeModule === "bangladesh" ? "Bangladesh live hub" : "Premium live sports"}
               </div>
-              <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>
-                {activeModule === "bangladesh" ? "BANGLADESH TV" : "ABO SPORTS TV LIVE"}
-              </span>
-            </div>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl" style={{ color: "var(--text-main)" }}>
-              {activeModule === "bangladesh" ? "বাংলাদেশ টিভি চ্যানেল" : t("tagline")}
-            </h1>
-            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              {loading ? t("loading") : error ? error : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}`}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search bar */}
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-              <input
-                ref={searchRef}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t("search")}
-                className="rounded-lg py-2 pl-9 pr-3 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2"
-                style={{
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-main)",
-                }}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => void loadChannels(true)}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)" }}
-            >
-              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-              {t("refresh")}
-            </button>
-
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgba(229,57,53,0.1)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}>
-              <Signal size={12} /> {t("hlsLive")}
-            </div>
-
-            {tier === "premium" && (
-              <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgb(251 191 36 / 15%)", border: "1px solid rgb(251 191 36 / 30%)", color: "#fbbf24" }}>
-                <Star size={12} fill="currentColor" /> {t("premium")}
+              <h1 className="text-3xl font-black tracking-tight md:text-5xl" style={{ color: "var(--text-main)" }}>
+                {activeModule === "bangladesh" ? "বাংলাদেশ টিভি চ্যানেল" : t("tagline")}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm md:text-base" style={{ color: "var(--text-muted)" }}>
+                {loading
+                  ? t("loading")
+                  : error
+                    ? error
+                    : `${moduleChannels.length} channels ready · ${filtered.length} matching your filters · HLS playback with backup stream failover`}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                <span className="rounded-full border px-3 py-1" style={{ borderColor: "var(--border)" }}>Global sports</span>
+                <span className="rounded-full border px-3 py-1" style={{ borderColor: "var(--border)" }}>Bangladesh TV</span>
+                <span className="rounded-full border px-3 py-1" style={{ borderColor: "var(--border)" }}>Admin managed</span>
               </div>
-            )}
+            </div>
+
+            <div className="flex w-full flex-col gap-3 lg:w-[360px]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                <input
+                  ref={searchRef}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t("search")}
+                  className="w-full rounded-2xl py-3 pl-10 pr-3 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2"
+                  style={{
+                    background: "rgb(255 255 255 / 6%)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-main)",
+                  }}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void loadChannels(true)}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                  style={{ background: "var(--primary-accent)", color: "#07080F" }}
+                >
+                  <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+                  {t("refresh")}
+                </button>
+
+                <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgba(229,57,53,0.1)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}>
+                  <Signal size={12} /> {t("hlsLive")}
+                </div>
+
+                {tier === "premium" && (
+                  <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgb(251 191 36 / 15%)", border: "1px solid rgb(251 191 36 / 30%)", color: "#fbbf24" }}>
+                    <Star size={12} fill="currentColor" /> {t("premium")}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </motion.div>
+        </motion.section>
 
         {/* ── AdSlot banner ── */}
         {tier === "free" && <AdSlot variant="banner" />}
