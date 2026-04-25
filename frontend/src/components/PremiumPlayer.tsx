@@ -23,6 +23,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { buildApiUrl } from "@/lib/apiClient";
+
 /* ─────────────────────────────────────────────────────────── Types ── */
 type QualityOption = { label: string; value: number };
 
@@ -109,11 +111,9 @@ function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
 /* ────────────────────────────────────────────────────────── Helpers ── */
 const HIDE_CONTROLS_AFTER_MS = 3500;
 
-/** Backend proxy endpoint — bypasses CORS and some geo-blocks for the player. */
-const PROXY_STREAM_PATH = "/api/v1/proxy/stream";
-
+/** Backend proxy endpoint — bypasses CORS and some geo-blocks for the player (uses same base as `apiRequest`). */
 function buildProxyUrl(streamUrl: string): string {
-  return `${PROXY_STREAM_PATH}?url=${encodeURIComponent(streamUrl)}`;
+  return `${buildApiUrl("/proxy/stream")}?url=${encodeURIComponent(streamUrl)}`;
 }
 
 function formatQualityFromHeight(height: number): string {
