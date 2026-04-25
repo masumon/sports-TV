@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 import {
   ExternalLink, Mail, Phone, Globe, Shield, FileText, BookOpen,
@@ -153,16 +155,14 @@ export function SiteFooter() {
               Built By
             </p>
 
-            {/* Developer card */}
-            <a
-              href={DEVELOPER_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-xl p-4 transition-all hover:scale-[1.02]"
+            {/* Developer card — uses div to avoid nested <a> invalid HTML */}
+            <div
+              className="block rounded-xl p-4 transition-all hover:scale-[1.02] cursor-pointer"
               style={{
                 background: "linear-gradient(135deg, rgba(245,166,35,0.1) 0%, rgba(229,57,53,0.05) 100%)",
                 border: "1px solid rgba(245,166,35,0.25)",
               }}
+              onClick={() => window.open(DEVELOPER_URL, "_blank", "noopener,noreferrer")}
             >
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(245,166,35,0.15)" }}>
@@ -196,7 +196,7 @@ export function SiteFooter() {
               <div className="mt-2 flex items-center gap-1 text-[10px]" style={{ color: "var(--primary-accent)" }}>
                 <Globe size={10} /> mumainsumon.netlify.app <ExternalLink size={9} />
               </div>
-            </a>
+            </div>
 
             {/* SUMONIX AI card */}
             <a
