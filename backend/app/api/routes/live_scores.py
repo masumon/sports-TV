@@ -16,7 +16,8 @@ logger = logging.getLogger("app.live_scores")
 
 router = APIRouter(prefix="/live-scores", tags=["Live Scores"])
 
-LIVE_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}, stale-while-revalidate=60"
+LIVE_SCORE_CACHE_TTL = 30  # seconds — live data must be fresh
+LIVE_CACHE_HEADER = f"public, s-maxage={LIVE_SCORE_CACHE_TTL}, stale-while-revalidate=10"
 
 
 @router.get("", response_model=list[MatchStatsRead])
@@ -45,7 +46,7 @@ async def get_live_scores(
     scores = list(result.scalars().all())
     out = [MatchStatsRead.model_validate(score) for score in scores]
     try:
-        cache_set_json("live-scores", params, [m.model_dump(mode="json") for m in out])
+        cache_set_json("live-scores", params, [m.model_dump(mode="json") for m in out], ttl=LIVE_SCORE_CACHE_TTL)
     except Exception as e:
         logger.debug("cache set failed: %s", e)
     return out

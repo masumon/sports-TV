@@ -109,39 +109,17 @@ export default function AdminDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
-  useEffect(() => {
-    if (!authToken || !user?.is_admin) return;
-    const k = "gstv_admin_bg_sync";
-    if (sessionStorage.getItem(k)) return;
-    sessionStorage.setItem(k, "1");
-    const t = setTimeout(() => {
-      void (async () => {
-        try {
-          await apiClient.adminSyncChannels(authToken);
-          await fetchAdminData();
-          await fetchStats();
-        } catch {
-          /* rate limit / network */
-        }
-      })();
-    }, 4000);
-    return () => clearTimeout(t);
-  }, [authToken, user?.is_admin]);
-
+  // Auto-refresh admin data every 5 min when logged in.
+  // NOTE: M3U channel sync runs automatically on the backend every 5 min —
+  //       no need to trigger it from the frontend at all.
   useEffect(() => {
     if (!authToken) return;
     const id = setInterval(() => {
-      void (async () => {
-        try {
-          await apiClient.adminSyncChannels(authToken);
-          await fetchAdminData();
-          await fetchStats();
-        } catch {
-          /* */
-        }
-      })();
-    }, 30 * 60 * 1000);
+      void fetchAdminData();
+      void fetchStats();
+    }, 5 * 60 * 1000);
     return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
   const createChannel = async () => {

@@ -31,12 +31,12 @@ services:
       - key: REDIS_URL
         sync: false
       - key: CACHE_TTL_SECONDS
-        value: "300"
-      - key: SYNC_RATE_LIMIT_SECONDS
         value: "60"
-      # M3U sync every 30 minutes (single worker recommended)
-      - key: SCHEDULED_SYNC_INTERVAL_MINUTES
+      - key: SYNC_RATE_LIMIT_SECONDS
         value: "30"
+      # M3U sync every 5 minutes — backend scheduler runs automatically, no admin login needed
+      - key: SCHEDULED_SYNC_INTERVAL_MINUTES
+        value: "5"
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET_KEY

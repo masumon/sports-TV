@@ -210,7 +210,7 @@ export function ViewerHome() {
   useEffect(() => { void loadChannels(false); }, [loadChannels]);
 
   useEffect(() => {
-    const id = setInterval(() => void loadChannels(false, true), 30 * 60_000);
+    const id = setInterval(() => void loadChannels(false, true), 5 * 60_000); // 5 min silent refresh
     return () => clearInterval(id);
   }, [loadChannels]);
 
