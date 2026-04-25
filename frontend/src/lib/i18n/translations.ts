@@ -44,6 +44,12 @@ export const translations: Record<
     liveNow: "LIVE NOW",
     builtWith: "Built by ABO ENTERPRISE · Powered by SUMONIX AI",
     footerTagline: "ABO Sports TV Live — Watch the world's best sports",
+    filterAll: "All",
+    showLess: "Show less",
+    moreSuffix: "more",
+    offlineTitle: "You are offline",
+    offlineBody: "Check your network, then try again. Cached content may still work in the PWA.",
+    goHome: "Go home",
   },
   bn: {
     appTitle: "ABO স্পোর্টস টিভি লাইভ",
@@ -85,6 +91,12 @@ export const translations: Record<
     liveNow: "এখন লাইভ",
     builtWith: "আধুনিক AI-চালিত আর্কিটেকচারে নির্মিত",
     footerTagline: "প্রিমিয়াম গ্লোবাল স্পোর্টস লাইভ টিভি স্ট্রিমিং",
+    filterAll: "সব",
+    showLess: "কম দেখান",
+    moreSuffix: "আরও",
+    offlineTitle: "অফলাইন",
+    offlineBody: "ইন্টারনেট যাচাই করুন। PWA-তে ক্যাশ করা কিছু কাজ করতে পারে।",
+    goHome: "হোমে যান",
   },
 };
 

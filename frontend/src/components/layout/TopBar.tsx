@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, User } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useAuthStore } from "@/store/authStore";
@@ -22,7 +23,9 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
   const user = useAuthStore((s) => s.user);
   const tier = useSubscriptionStore((s) => s.tier);
   const { toggleSidebar } = useUiStore();
+  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
   const searchFocusNonce = useUiStore((s) => s.searchFocusNonce);
+  const pathname = usePathname();
 
   useEffect(() => setMounted(true), []);
 
@@ -30,6 +33,22 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
     if (searchFocusNonce === 0) return;
     document.getElementById("gstv-search")?.focus({ preventScroll: true });
   }, [searchFocusNonce]);
+
+  // After router.push("/") from bottom nav "Search" on admin/offline etc.
+  useEffect(() => {
+    if (pathname !== "/") return;
+    try {
+      if (sessionStorage.getItem("gstv-focus-search") === "1") {
+        sessionStorage.removeItem("gstv-focus-search");
+        requestSearchFocus();
+        queueMicrotask(() => {
+          document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
+    } catch {
+      /* */
+    }
+  }, [pathname, requestSearchFocus]);
 
   return (
     <header
