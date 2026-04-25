@@ -109,6 +109,13 @@ function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
 /* ────────────────────────────────────────────────────────── Helpers ── */
 const HIDE_CONTROLS_AFTER_MS = 3500;
 
+/** Backend proxy endpoint — bypasses CORS and some geo-blocks for the player. */
+const PROXY_STREAM_PATH = "/api/v1/proxy/stream";
+
+function buildProxyUrl(streamUrl: string): string {
+  return `${PROXY_STREAM_PATH}?url=${encodeURIComponent(streamUrl)}`;
+}
+
 function formatQualityFromHeight(height: number): string {
   if (height >= 2160) return "4K";
   if (height >= 1080) return "1080p";
@@ -147,6 +154,11 @@ export default function PremiumPlayer({
   // Failover: index into [streamUrl, ...alternateUrls]
   const [urlIdx, setUrlIdx] = useState(0);
 
+  // Derive whether we are currently in proxy-fallback phase.
+  // directUrlCount = primary + any provided alternates.
+  const directUrlCount = 1 + (alternateUrls?.length ?? 0);
+  const isInProxyPhase = urlIdx >= directUrlCount;
+
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
   }, []);
@@ -178,8 +190,12 @@ export default function PremiumPlayer({
     setIsLoading(true);
     setHasError(false);
 
-    // Derive the effective URL: primary first, then alternates in order.
-    const allUrls = [streamUrl, ...(alternateUrls ?? [])];
+    // Build URL list: direct streams first, then proxy fallbacks.
+    // Proxy fallback routes each URL through the backend which can bypass
+    // CORS restrictions and some geo-blocks from the server's region.
+    const directUrls = [streamUrl, ...(alternateUrls ?? [])];
+    const proxyUrls = directUrls.map(buildProxyUrl);
+    const allUrls = [...directUrls, ...proxyUrls];
     const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
 
     if (Hls.isSupported()) {
@@ -217,10 +233,14 @@ export default function PremiumPlayer({
         if (data.fatal) {
           const nextIdx = urlIdx + 1;
           if (nextIdx < allUrls.length) {
-            // Try the next backup stream — show switching indicator.
             setIsSwitching(true);
             setIsLoading(true);
-            toast.info(`Switching to backup stream ${nextIdx} of ${allUrls.length - 1}…`);
+            // Notify user only on first proxy attempt or named backup switches
+            if (nextIdx === directUrls.length) {
+              toast.info("Trying proxy stream…");
+            } else if (nextIdx < directUrls.length) {
+              toast.info(`Switching to backup stream ${nextIdx} of ${directUrls.length - 1}…`);
+            }
             setUrlIdx(nextIdx);
           } else {
             setIsSwitching(false);
@@ -426,7 +446,11 @@ export default function PremiumPlayer({
               <Loader2 className="h-10 w-10 animate-spin" style={{ color: "var(--primary-accent)" }} />
             </div>
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.45)" }}>
-              {isSwitching ? "Switching stream…" : "Loading stream…"}
+              {isSwitching
+                ? isInProxyPhase
+                  ? "Trying via proxy…"
+                  : "Switching stream…"
+                : "Loading stream…"}
             </p>
           </motion.div>
         )}

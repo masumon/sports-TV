@@ -26,6 +26,9 @@ def _validate_one(url: str) -> bool:
     1. HTTP HEAD request  (fastest – no body transfer)
     2. If HEAD returns 405 or fails, fallback to byte-range GET
     3. Accept 200, 206 (partial), or 416 (range not satisfiable but URL alive)
+    4. Treat 401, 403, 407, 451 as "alive but geo-blocked/auth-restricted" —
+       these channels exist and should remain active in the DB so users can
+       attempt them via proxy or alternate streams.
     """
     try:
         with httpx.Client(
@@ -37,6 +40,9 @@ def _validate_one(url: str) -> bool:
             try:
                 resp = client.head(url)
                 if resp.status_code in (200, 206):
+                    return True
+                # Geo-blocked / auth-required / legal restriction — URL exists
+                if resp.status_code in (401, 403, 407, 451):
                     return True
                 if resp.status_code == 405:
                     # Method not allowed — fall through to GET
@@ -51,7 +57,7 @@ def _validate_one(url: str) -> bool:
             # ── 2. Byte-range GET (minimal bandwidth) ───────────────────────
             try:
                 resp = client.get(url, headers={"Range": "bytes=0-0"})
-                return resp.status_code in (200, 206, 416)
+                return resp.status_code in (200, 206, 401, 403, 407, 416, 451)
             except Exception:
                 return False
     except Exception:
