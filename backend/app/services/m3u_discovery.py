@@ -8,6 +8,7 @@ Results are cached to /tmp for 6 hours.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -116,7 +117,19 @@ def _save_cache(sources: list[str]) -> None:
 
 
 def _is_valid_m3u(url: str) -> bool:
-    """Return True if the URL responds with M3U content."""
+    """Return True if the URL responds with M3U content.
+
+    Redis dedup: if this URL was validated in the last 24 h we skip the
+    HTTP round-trip and return True immediately, saving bandwidth.
+    If Redis is down the HTTP check runs normally — no change in behaviour.
+    """
+    from app.core.redis_client import safe_exists, safe_set
+
+    dedup_key = "gstv:disc:" + hashlib.sha256(url.encode()).hexdigest()[:20]
+    if safe_exists(dedup_key):
+        logger.debug("Discovery: dedup skip (known valid) %s", url)
+        return True
+
     try:
         resp = requests.get(url, timeout=_VALIDATE_TIMEOUT, stream=True)
         if resp.status_code != 200:
@@ -128,7 +141,10 @@ def _is_valid_m3u(url: str) -> bool:
                 break
         resp.close()
         text = chunk.decode("utf-8", errors="ignore")
-        return "#EXTM3U" in text or "#EXTINF" in text
+        is_valid = "#EXTM3U" in text or "#EXTINF" in text
+        if is_valid:
+            safe_set(dedup_key, "1", ttl=86400)  # 24 h
+        return is_valid
     except Exception:
         return False
 

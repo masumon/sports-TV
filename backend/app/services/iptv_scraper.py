@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from collections.abc import Iterable
@@ -220,12 +221,26 @@ def fetch_sports_m3u(url: str | None = None) -> str:
 
 
 def _fetch_m3u_safe(url: str) -> str | None:
-    """Fetch a single M3U source; return None on any error (don't abort the whole sync)."""
+    """Fetch a single M3U source; return None on any error (don't abort the whole sync).
+
+    Redis cache: playlist text is cached for 25 min so back-to-back syncs
+    (e.g., manual + scheduled) do not hammer upstream servers.
+    If Redis is down the HTTP fetch runs normally — no change in behaviour.
+    """
+    from app.core.redis_client import safe_get, safe_set
+
+    cache_key = "gstv:m3u:" + hashlib.sha256(url.encode()).hexdigest()[:20]
+    cached = safe_get(cache_key)
+    if cached is not None:
+        logger.debug("M3U cache HIT: %s", url)
+        return cached
+
     try:
         response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
         response.raise_for_status()
         body = response.text
         if body.strip().startswith("#EXTM3U"):
+            safe_set(cache_key, body, ttl=1500)  # 25 min — slightly under sync interval
             return body
         logger.warning("Skipping non-M3U response from %s", url)
     except Exception as exc:
