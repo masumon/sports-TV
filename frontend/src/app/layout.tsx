@@ -49,7 +49,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="bn" suppressHydrationWarning>
       <body className="flex min-h-screen flex-col antialiased">
         <AppProviders>
-          <div className="flex flex-1 flex-col">{children}</div>
+          <a href="#main-content" className="skip-to-content">
+            Skip to main content
+          </a>
+          <div id="main-content" className="flex flex-1 flex-col outline-none" tabIndex={-1}>
+            {children}
+          </div>
           <SiteFooter />
         </AppProviders>
       </body>

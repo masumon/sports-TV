@@ -17,7 +17,7 @@ export function ChannelCard({ channel, active, onSelect, index }: Props) {
     <motion.button
       type="button"
       onClick={() => onSelect(channel)}
-      className="group relative w-full rounded-xl text-left transition-all"
+      className="interactive-card group relative w-full rounded-xl text-left transition-all"
       style={{
         background: active
           ? "linear-gradient(135deg, rgba(245,166,35,0.12) 0%, rgba(229,57,53,0.08) 100%)"

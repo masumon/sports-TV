@@ -45,9 +45,14 @@ export function MobileBottomNav() {
 
       <button
         type="button"
-        onClick={scrollToGrid}
+        onClick={() => {
+          const el = document.getElementById("gstv-search");
+          el?.focus({ preventScroll: true });
+          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }}
         className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
         style={{ color: "var(--text-muted)" }}
+        aria-label={t("search")}
       >
         <div className="flex h-7 w-7 items-center justify-center rounded-lg">
           <Search size={19} />
