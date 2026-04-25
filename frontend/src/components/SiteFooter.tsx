@@ -198,13 +198,19 @@ export function SiteFooter() {
               <div
                 className="mt-3 flex flex-wrap items-center justify-end gap-1.5"
                 role="list"
-                aria-label="Developer social links"
+                aria-label="Developer links"
               >
                 {[
-                  { href: DEVELOPER_LINKEDIN, icon: <Linkedin size={16} />, label: "LinkedIn" },
-                  { href: DEVELOPER_GITHUB, icon: <Github size={16} />, label: "GitHub" },
-                  { href: DEVELOPER_FIVERR, icon: <Briefcase size={16} />, label: "Fiverr" },
-                ].map(({ href, icon, label }) => (
+                  {
+                    href: DEVELOPER_URL,
+                    icon: <Globe size={16} />,
+                    label: "Portfolio — mumainsumon.netlify.app",
+                    title: "mumainsumon.netlify.app",
+                  },
+                  { href: DEVELOPER_LINKEDIN, icon: <Linkedin size={16} />, label: "LinkedIn", title: "LinkedIn" },
+                  { href: DEVELOPER_GITHUB, icon: <Github size={16} />, label: "GitHub", title: "GitHub" },
+                  { href: DEVELOPER_FIVERR, icon: <Briefcase size={16} />, label: "Fiverr", title: "Fiverr" },
+                ].map(({ href, icon, label, title }) => (
                   <a
                     key={label}
                     href={href}
@@ -214,24 +220,12 @@ export function SiteFooter() {
                     style={{ color: "var(--primary-accent)" }}
                     aria-label={label}
                     role="listitem"
-                    title={label}
+                    title={title}
                   >
                     {icon}
                   </a>
                 ))}
               </div>
-              <a
-                href={DEVELOPER_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2.5 flex items-center justify-end gap-1 text-[10px] font-medium transition hover:opacity-90"
-                style={{ color: "var(--primary-accent)" }}
-                aria-label="Developer portfolio: mumainsumon.netlify.app"
-              >
-                <Globe size={11} aria-hidden />
-                <span>mumainsumon.netlify.app</span>
-                <ExternalLink size={10} className="opacity-70" aria-hidden />
-              </a>
             </div>
 
             {/* SUMONIX AI card */}
