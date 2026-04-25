@@ -41,14 +41,14 @@ export default function manifest(): MetadataRoute.Manifest {
         short_name: "Sports",
         description: "বিশ্বের সকল স্পোর্টস চ্যানেল লাইভ",
         url: "/?module=sports",
-        icons: [{ src: "/icons/abo-logo.svg", sizes: "96x96" }],
+        icons: [{ src: "/icons/abo-logo.svg", sizes: "any" }],
       },
       {
         name: "🇧🇩 Bangladesh TV",
         short_name: "BD TV",
         description: "বাংলাদেশের সকল টিভি চ্যানেল লাইভ",
         url: "/?module=bangladesh",
-        icons: [{ src: "/icons/abo-logo.svg", sizes: "96x96" }],
+        icons: [{ src: "/icons/abo-logo.svg", sizes: "any" }],
       },
     ],
   };

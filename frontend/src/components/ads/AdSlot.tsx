@@ -24,8 +24,10 @@ export function AdSlot({ variant, className = "" }: Props) {
     if (!isConfigured) return;
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
-    } catch {
-      /* AdSense not yet loaded */
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[AdSlot] AdSense push failed — script may not be loaded yet:", err);
+      }
     }
   }, [isConfigured]);
 

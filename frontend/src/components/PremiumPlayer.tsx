@@ -543,7 +543,7 @@ export default function PremiumPlayer({
               </div>
 
               {/* Main controls */}
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none px-4 pb-3.5">
+              <div className="flex items-center gap-3 overflow-x-auto scrollbar-none px-4 pb-3.5">
                 <button className="control-btn shrink-0" type="button" onClick={() => void togglePlayPause()}
                   aria-label={isPlaying ? "Pause" : "Play"}
                   style={isPlaying ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "var(--primary-accent)" } : {}}>
@@ -556,7 +556,6 @@ export default function PremiumPlayer({
                   value={isMuted ? 0 : volume}
                   onChange={(e) => setVolumeLevel(Number(e.target.value))}
                   className="volume-slider w-16 sm:w-24 shrink-0" aria-label="Volume" />
-                <div className="w-3 shrink-0" />
                 <select className="quality-select shrink-0" value={selectedQuality}
                   onChange={(e) => changeQuality(Number(e.target.value))} aria-label="Quality">
                   {qualityOptions.map((opt) => (
