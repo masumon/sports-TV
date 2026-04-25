@@ -12,6 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#07080F",
     theme_color: "#F5A623",
     categories: ["entertainment", "sports"],
+    lang: "bn",
+    dir: "ltr",
+    prefer_related_applications: false,
     icons: [
       {
         src: "/icons/icon-192.svg",
@@ -32,6 +35,21 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "maskable",
       },
     ],
+    shortcuts: [
+      {
+        name: "🌍 Sports TV",
+        short_name: "Sports",
+        description: "বিশ্বের সকল স্পোর্টস চ্যানেল লাইভ",
+        url: "/?module=sports",
+        icons: [{ src: "/icons/abo-logo.svg", sizes: "96x96" }],
+      },
+      {
+        name: "🇧🇩 Bangladesh TV",
+        short_name: "BD TV",
+        description: "বাংলাদেশের সকল টিভি চ্যানেল লাইভ",
+        url: "/?module=bangladesh",
+        icons: [{ src: "/icons/abo-logo.svg", sizes: "96x96" }],
+      },
+    ],
   };
 }
-

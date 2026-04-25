@@ -543,34 +543,34 @@ export default function PremiumPlayer({
               </div>
 
               {/* Main controls */}
-              <div className="flex flex-wrap items-center gap-2 px-4 pb-3.5">
-                <button className="control-btn" type="button" onClick={() => void togglePlayPause()}
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none px-4 pb-3.5">
+                <button className="control-btn shrink-0" type="button" onClick={() => void togglePlayPause()}
                   aria-label={isPlaying ? "Pause" : "Play"}
                   style={isPlaying ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "var(--primary-accent)" } : {}}>
                   {isPlaying ? <Pause size={17} /> : <Play size={17} />}
                 </button>
-                <button className="control-btn" type="button" onClick={toggleMute} aria-label="Toggle mute">
+                <button className="control-btn shrink-0" type="button" onClick={toggleMute} aria-label="Toggle mute">
                   <VolumeIcon size={17} />
                 </button>
                 <input type="range" min={0} max={1} step={0.05}
                   value={isMuted ? 0 : volume}
                   onChange={(e) => setVolumeLevel(Number(e.target.value))}
-                  className="volume-slider w-16 sm:w-24" aria-label="Volume" />
-                <div className="flex-1" />
-                <select className="quality-select" value={selectedQuality}
+                  className="volume-slider w-16 sm:w-24 shrink-0" aria-label="Volume" />
+                <div className="w-3 shrink-0" />
+                <select className="quality-select shrink-0" value={selectedQuality}
                   onChange={(e) => changeQuality(Number(e.target.value))} aria-label="Quality">
                   {qualityOptions.map((opt) => (
                     <option key={`${opt.label}-${opt.value}`} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <button className="control-btn" type="button" onClick={() => void togglePictureInPicture()} aria-label="PiP" title="Picture-in-Picture">
+                <button className="control-btn shrink-0" type="button" onClick={() => void togglePictureInPicture()} aria-label="PiP" title="Picture-in-Picture">
                   <PictureInPicture2 size={17} />
                 </button>
-                <button className="control-btn" type="button" onClick={onToggleTheaterMode} aria-label="Theater mode" title="Theater (T)"
+                <button className="control-btn shrink-0" type="button" onClick={onToggleTheaterMode} aria-label="Theater mode" title="Theater (T)"
                   style={isTheaterMode ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "var(--primary-accent)" } : {}}>
                   <Tv size={17} />
                 </button>
-                <button className="control-btn" type="button" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title="Fullscreen (F)">
+                <button className="control-btn shrink-0" type="button" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title="Fullscreen (F)">
                   {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
                 </button>
               </div>
