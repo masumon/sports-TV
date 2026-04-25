@@ -537,7 +537,7 @@ export default function PremiumPlayer({
                     }}>
                     <Tv size={12} />
                     Players
-                    {showExternalPanel ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
+                    {showExternalPanel ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                   </button>
                 </div>
               </div>

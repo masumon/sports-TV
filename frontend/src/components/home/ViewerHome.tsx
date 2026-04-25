@@ -82,7 +82,16 @@ const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKey
   { id: "nfl",        label: "🏈 NFL",            leagueEmoji: "🏈", categoryKeys: ["nfl"] },
   { id: "cycling",    label: "🚴 Cycling",        leagueEmoji: "🚴", categoryKeys: ["cycling"] },
   { id: "horse",      label: "🏇 Horse Racing",   leagueEmoji: "🏇", categoryKeys: ["horse", "equid", "turf"] },
-  { id: "news",       label: "📺 News / General", leagueEmoji: "📺", categoryKeys: ["news", "general"] },
+  { id: "rugby",      label: "🏉 Rugby",           leagueEmoji: "🏉", categoryKeys: ["rugby"] },
+  { id: "volleyball", label: "🏐 Volleyball",      leagueEmoji: "🏐", categoryKeys: ["volleyball"] },
+  { id: "athletics",  label: "🏃 Athletics",       leagueEmoji: "🏃", categoryKeys: ["athletics", "track"] },
+  { id: "swimming",   label: "🏊 Swimming",        leagueEmoji: "🏊", categoryKeys: ["swimming", "aquatic"] },
+  { id: "table-tennis", label: "🏓 Table Tennis",  leagueEmoji: "🏓", categoryKeys: ["table tennis", "tabletennis", "ping pong"] },
+  { id: "badminton",  label: "🏸 Badminton",       leagueEmoji: "🏸", categoryKeys: ["badminton"] },
+  { id: "snooker",    label: "🎱 Snooker",         leagueEmoji: "🎱", categoryKeys: ["snooker", "billiard", "pool"] },
+  { id: "darts",      label: "🎯 Darts",           leagueEmoji: "🎯", categoryKeys: ["darts"] },
+  { id: "wrestling",  label: "🤼 Wrestling",       leagueEmoji: "🤼", categoryKeys: ["wrestling", "wwe", "aew"] },
+  { id: "news",       label: "📺 News / General",  leagueEmoji: "📺", categoryKeys: ["news", "general"] },
 ];
 
 const BD_CATEGORIES: Record<string, string> = {
@@ -112,6 +121,13 @@ const SPORT_ICONS: Record<string, string> = {
   racing: "🏎️",
   cycling: "🚴",
   athletics: "🏃",
+  volleyball: "🏐",
+  swimming: "🏊",
+  tabletennis: "🏓",
+  badminton: "🏸",
+  snooker: "🎱",
+  darts: "🎯",
+  wrestling: "🤼",
 };
 
 function categoryEmoji(category: string, module: string): string {
@@ -593,7 +609,7 @@ export function ViewerHome() {
             {activeChannel ? (
               <PremiumPlayer
                 streamUrl={currentStreamUrl}
-                alternateUrls={activeStreamUrl ? [] : altLinks}
+                alternateUrls={altLinks}
                 title={activeChannel.name}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}

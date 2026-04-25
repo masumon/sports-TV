@@ -5,7 +5,7 @@
 
 services:
   - type: web
-    name: sports-tv-api
+    name: gstv-backend
     runtime: python
     plan: free
     rootDir: backend

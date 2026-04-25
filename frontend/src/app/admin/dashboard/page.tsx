@@ -332,15 +332,46 @@ export default function AdminDashboardPage() {
         >
           <h2 className="mb-4 text-lg font-semibold text-white">নতুন চ্যানেল যোগ করুন</h2>
           <div className="grid gap-3">
-            {Object.entries(channelForm).map(([key, value]) => (
-              <input
-                key={key}
-                value={value}
-                onChange={(e) => setChannelForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
-                placeholder={key}
-              />
-            ))}
+            {(Object.keys(channelForm) as Array<keyof ChannelFormState>).map((key) => {
+              if (key === "module") {
+                return (
+                  <select
+                    key={key}
+                    value={channelForm.module}
+                    onChange={(e) => setChannelForm((prev) => ({ ...prev, module: e.target.value }))}
+                    className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                  >
+                    <option value="sports">sports</option>
+                    <option value="bangladesh">bangladesh</option>
+                  </select>
+                );
+              }
+              if (key === "quality_tag") {
+                return (
+                  <select
+                    key={key}
+                    value={channelForm.quality_tag}
+                    onChange={(e) => setChannelForm((prev) => ({ ...prev, quality_tag: e.target.value }))}
+                    className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                  >
+                    <option value="auto">auto</option>
+                    <option value="HD">HD</option>
+                    <option value="FHD">FHD</option>
+                    <option value="4K">4K</option>
+                    <option value="SD">SD</option>
+                  </select>
+                );
+              }
+              return (
+                <input
+                  key={key}
+                  value={channelForm[key]}
+                  onChange={(e) => setChannelForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                  className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                  placeholder={key}
+                />
+              );
+            })}
             <button
               type="button"
               onClick={() => void createChannel()}

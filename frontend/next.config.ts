@@ -10,6 +10,12 @@ const withPWA = withPWAInit({
   },
 });
 
+// Backend origin for the Next.js proxy rewrite.
+// Set BACKEND_URL in Vercel Environment Variables (no trailing slash, no /api path).
+// Example: https://gstv-backend.onrender.com
+// Falls back to the production Render service URL if not set.
+const BACKEND_URL = (process.env.BACKEND_URL ?? "https://gstv-backend.onrender.com").replace(/\/$/, "");
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
@@ -19,7 +25,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "https://gstv-backend.onrender.com/api/:path*",
+        destination: `${BACKEND_URL}/api/:path*`,
       },
     ];
   },

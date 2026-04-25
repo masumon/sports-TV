@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import distinct, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import cache_get_json, cache_set_json
@@ -130,19 +130,19 @@ async def get_filters(db: AsyncSession = Depends(get_db)) -> ChannelFiltersRespo
         except Exception:
             pass
 
-    base = select(Channel).where(Channel.is_active.is_(True))
+    active = Channel.is_active.is_(True)
 
     countries_q = await db.execute(
-        select(distinct(Channel.country)).select_from(base.subquery()).order_by(Channel.country)
+        select(Channel.country).where(active).distinct().order_by(Channel.country)
     )
     categories_q = await db.execute(
-        select(distinct(Channel.category)).select_from(base.subquery()).order_by(Channel.category)
+        select(Channel.category).where(active).distinct().order_by(Channel.category)
     )
     languages_q = await db.execute(
-        select(distinct(Channel.language)).select_from(base.subquery()).order_by(Channel.language)
+        select(Channel.language).where(active).distinct().order_by(Channel.language)
     )
     modules_q = await db.execute(
-        select(distinct(Channel.module)).select_from(base.subquery()).order_by(Channel.module)
+        select(Channel.module).where(active).distinct().order_by(Channel.module)
     )
 
     result = ChannelFiltersResponse(
