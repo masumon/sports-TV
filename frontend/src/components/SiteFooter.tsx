@@ -202,17 +202,17 @@ export function SiteFooter() {
               >
                 {[
                   {
+                    key: "portfolio",
                     href: DEVELOPER_URL,
                     icon: <Globe size={16} />,
-                    label: "Portfolio — mumainsumon.netlify.app",
-                    title: "mumainsumon.netlify.app",
+                    label: "Developer portfolio website",
                   },
-                  { href: DEVELOPER_LINKEDIN, icon: <Linkedin size={16} />, label: "LinkedIn", title: "LinkedIn" },
-                  { href: DEVELOPER_GITHUB, icon: <Github size={16} />, label: "GitHub", title: "GitHub" },
-                  { href: DEVELOPER_FIVERR, icon: <Briefcase size={16} />, label: "Fiverr", title: "Fiverr" },
-                ].map(({ href, icon, label, title }) => (
+                  { key: "linkedin", href: DEVELOPER_LINKEDIN, icon: <Linkedin size={16} />, label: "LinkedIn", title: "LinkedIn" },
+                  { key: "github", href: DEVELOPER_GITHUB, icon: <Github size={16} />, label: "GitHub", title: "GitHub" },
+                  { key: "fiverr", href: DEVELOPER_FIVERR, icon: <Briefcase size={16} />, label: "Fiverr", title: "Fiverr" },
+                ].map(({ key, href, icon, label, title }) => (
                   <a
-                    key={label}
+                    key={key}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -220,7 +220,7 @@ export function SiteFooter() {
                     style={{ color: "var(--primary-accent)" }}
                     aria-label={label}
                     role="listitem"
-                    title={title}
+                    {...(title !== undefined ? { title } : {})}
                   >
                     {icon}
                   </a>
