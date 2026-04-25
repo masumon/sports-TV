@@ -143,6 +143,7 @@ export default function PremiumPlayer({
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
   // Failover: index into [streamUrl, ...alternateUrls]
   const [urlIdx, setUrlIdx] = useState(0);
 
@@ -163,6 +164,7 @@ export default function PremiumPlayer({
   useEffect(() => {
     // Reset failover index whenever the primary stream URL changes (channel switch).
     setUrlIdx(0);
+    setIsSwitching(false);
   }, [streamUrl]);
 
   useEffect(() => {
@@ -181,7 +183,32 @@ export default function PremiumPlayer({
     const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        // Buffer tuning for low-latency live streaming
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 60 * 1000 * 1000,  // 60 MB
+        maxBufferHole: 0.5,
+        // Live stream sync settings
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 10,
+        liveDurationInfinity: true,
+        // ABR (adaptive bitrate) — prefer higher quality but allow fast switch
+        abrEwmaDefaultEstimate: 1_000_000,  // start with 1 Mbps estimate
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.7,
+        // Faster manifest fetching
+        manifestLoadingMaxRetry: 2,
+        manifestLoadingRetryDelay: 500,
+        levelLoadingMaxRetry: 2,
+        levelLoadingRetryDelay: 500,
+        fragLoadingMaxRetry: 3,
+        fragLoadingRetryDelay: 500,
+        // Start level: auto (let ABR decide)
+        startLevel: -1,
+      });
       hlsRef.current = hls;
       hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
@@ -190,10 +217,13 @@ export default function PremiumPlayer({
         if (data.fatal) {
           const nextIdx = urlIdx + 1;
           if (nextIdx < allUrls.length) {
-            // Try the next backup stream silently.
-            toast.error(`Stream failed — trying backup ${nextIdx} of ${allUrls.length - 1}…`);
+            // Try the next backup stream — show switching indicator.
+            setIsSwitching(true);
+            setIsLoading(true);
+            toast.info(`Switching to backup stream ${nextIdx} of ${allUrls.length - 1}…`);
             setUrlIdx(nextIdx);
           } else {
+            setIsSwitching(false);
             setHasError(true);
             setIsLoading(false);
             toast.error("All streams unavailable — try an external player or another channel");
@@ -204,6 +234,7 @@ export default function PremiumPlayer({
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
         setHasError(false);
+        setIsSwitching(false);
         void video.play().catch(() => {
           video.muted = true;
           void video.play().catch(() => {});
@@ -223,6 +254,7 @@ export default function PremiumPlayer({
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = effectiveUrl;
       setIsLoading(false);
+      setIsSwitching(false);
     }
 
     return cleanup;
@@ -378,9 +410,9 @@ export default function PremiumPlayer({
         />
       </div>
 
-      {/* Loading spinner */}
+      {/* Loading / Switching spinner */}
       <AnimatePresence>
-        {isLoading && !hasError && (
+        {(isLoading || isSwitching) && !hasError && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
@@ -394,7 +426,7 @@ export default function PremiumPlayer({
               <Loader2 className="h-10 w-10 animate-spin" style={{ color: "var(--primary-accent)" }} />
             </div>
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.45)" }}>
-              Loading stream…
+              {isSwitching ? "Switching stream…" : "Loading stream…"}
             </p>
           </motion.div>
         )}

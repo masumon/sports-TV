@@ -16,7 +16,8 @@ logger = logging.getLogger("app.sports_tv")
 
 router = APIRouter(prefix="/sports-tv", tags=["sports-tv"])
 
-CHANNELS_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 600)}, stale-while-revalidate=120"
+CHANNELS_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}, stale-while-revalidate=120"
+CDN_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}"
 
 
 @router.get("/channels", response_model=ChannelListResponse)
@@ -33,6 +34,7 @@ async def list_channels(
     db: AsyncSession = Depends(get_db),
 ) -> ChannelListResponse:
     response.headers["Cache-Control"] = CHANNELS_CACHE_HEADER
+    response.headers["CDN-Cache-Control"] = CDN_CACHE_HEADER
     response.headers["Vary"] = "Accept-Encoding"
 
     # Extract visitor country FIRST — used in both cache-hit and fresh-query paths.

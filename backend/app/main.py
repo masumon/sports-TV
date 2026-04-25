@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.routes import admin, auth, live_scores, sports_tv
+from app.api.routes import admin, auth, live_scores, proxy, sports_tv
 from app.core.cache import invalidate_list_caches
 from app.core.config import settings
 from app.core.security import get_password_hash
@@ -90,6 +90,9 @@ async def lifespan(app: FastAPI):
 
     if settings.scheduled_sync_interval_minutes > 0:
         from apscheduler.schedulers.background import BackgroundScheduler
+        from sqlalchemy import select as _select
+        from app.models.channel import Channel as _Channel
+        from app.services.stream_validator import validate_stream_urls
 
         def scheduled_m3u_sync() -> None:
             """Run every `scheduled_sync_interval_minutes` — fetch sources + cleanup."""
@@ -107,6 +110,47 @@ async def lifespan(app: FastAPI):
             if _success:
                 invalidate_list_caches()
                 mark_sync_success()
+
+        def scheduled_stream_validation() -> None:
+            """Validate a rotating sample of active channels; deactivate dead ones.
+
+            Runs every 2× sync interval so it doesn't compete with the main sync.
+            Validates up to 80 channels per run (fast with 20 workers).
+            Channels are sampled oldest-updated-first to ensure full rotation.
+            """
+            sdb = SessionLocal()
+            try:
+                # Pick the 80 active channels updated longest ago (oldest first).
+                rows = list(
+                    sdb.scalars(
+                        _select(_Channel)
+                        .where(_Channel.is_active.is_(True))
+                        .order_by(_Channel.updated_at.asc())
+                        .limit(80)
+                    ).all()
+                )
+                if not rows:
+                    return
+
+                url_map = {ch.stream_url: ch for ch in rows}
+                results = validate_stream_urls(list(url_map.keys()), max_workers=20)
+
+                # Default to False (dead) when validation result is absent — fail-safe.
+                dead = [ch for url, ch in url_map.items() if not results.get(url, False)]
+                if dead:
+                    for ch in dead:
+                        ch.is_active = False
+                    sdb.commit()
+                    invalidate_list_caches()
+                    logger.info(
+                        "Stream validation: deactivated %d dead stream(s) out of %d checked",
+                        len(dead),
+                        len(rows),
+                    )
+            except Exception:
+                logger.exception("Scheduled stream validation failed")
+            finally:
+                sdb.close()
 
         def scheduled_discovery() -> None:
             """Run every `source_discovery_interval_hours` — find new M3U sources."""
@@ -126,6 +170,19 @@ async def lifespan(app: FastAPI):
             coalesce=True,
         )
         logger.info("Scheduled M3U sync every %s min", settings.scheduled_sync_interval_minutes)
+
+        # Stream validation: runs every 2× the sync interval, offset by half a cycle
+        # so it doesn't fire at the same time as the main sync.
+        validation_interval = max(settings.scheduled_sync_interval_minutes * 2, 10)
+        SCHEDULER.add_job(
+            scheduled_stream_validation,
+            "interval",
+            minutes=validation_interval,
+            id="stream_validation",
+            max_instances=1,
+            coalesce=True,
+        )
+        logger.info("Scheduled stream validation every %s min", validation_interval)
 
         if settings.source_discovery_interval_hours > 0:
             SCHEDULER.add_job(
@@ -251,3 +308,4 @@ app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(sports_tv.router, prefix=settings.api_v1_prefix)
 app.include_router(live_scores.router, prefix=settings.api_v1_prefix)
 app.include_router(admin.router, prefix=settings.api_v1_prefix)
+app.include_router(proxy.router, prefix=settings.api_v1_prefix)

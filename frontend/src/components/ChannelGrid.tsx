@@ -41,7 +41,7 @@ export default function ChannelGrid({
               whileHover={{ y: -2, scale: 1.01 }}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.03, duration: 0.2 }}
+              transition={{ delay: Math.min(idx * 0.03, 0.3), duration: 0.2 }}
             >
               <div className="flex items-center gap-3">
                 {channel.logo_url ? (
