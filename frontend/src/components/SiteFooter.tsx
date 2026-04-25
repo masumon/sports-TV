@@ -4,11 +4,30 @@ import Image from "next/image";
 import {
   ExternalLink, Mail, Phone, Globe, Shield, FileText, BookOpen,
   Youtube, Facebook, Send, MessageCircle, Radio, Tv, Star,
-  Linkedin, Github, Briefcase, User2,
+  Linkedin, Github, Briefcase, User2, Sparkles,
 } from "lucide-react";
 
 const DEVELOPER_URL = "https://mumainsumon.netlify.app";
 const SUMONIX_AI    = "https://sumonix-ai.vercel.app";
+const DEVELOPER_LINKEDIN = "https://bd.linkedin.com/in/mumain-ahmed-907057211";
+const DEVELOPER_GITHUB   = "https://github.com/masumon";
+const DEVELOPER_FIVERR  = "https://www.fiverr.com/mumain_sumon";
+
+const LEGAL_PDF = {
+  privacy: "/legal/abo-sports-tv-privacy-policy.pdf",
+  terms: "/legal/abo-sports-tv-terms-of-service.pdf",
+  license: "/legal/abo-sports-tv-license.pdf",
+  international: "/legal/abo-sports-tv-international-use.pdf",
+} as const;
+
+function iconLinkClass(accent: "amber" | "blue") {
+  return [
+    "inline-flex h-9 w-9 items-center justify-center rounded-lg transition-all hover:scale-105",
+    accent === "amber"
+      ? "text-[var(--primary-accent)] hover:bg-white/10"
+      : "text-[var(--accent-blue)] hover:bg-white/10",
+  ].join(" ");
+}
 
 export function SiteFooter() {
   return (
@@ -155,11 +174,8 @@ export function SiteFooter() {
               Built By
             </p>
 
-            <a
-              href={DEVELOPER_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-xl p-4 transition-all hover:scale-[1.02]"
+            <div
+              className="rounded-xl p-4 transition-all hover:scale-[1.01]"
               style={{
                 background: "linear-gradient(135deg, rgba(245,166,35,0.1) 0%, rgba(229,57,53,0.05) 100%)",
                 border: "1px solid rgba(245,166,35,0.25)",
@@ -179,32 +195,37 @@ export function SiteFooter() {
               <p className="text-[10px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
                 Building modern digital platforms with AI-powered architecture.
               </p>
-              <div className="mt-2.5 flex flex-wrap gap-2">
+              <div
+                className="mt-3 flex flex-wrap items-center justify-end gap-1.5"
+                role="list"
+                aria-label="Developer links"
+              >
                 {[
-                  { icon: <Linkedin size={11} />, label: "LinkedIn", color: "#0A66C2" },
-                  { icon: <Github size={11} />, label: "GitHub", color: "#e6edf3" },
-                  { icon: <Briefcase size={11} />, label: "Fiverr", color: "#1dbf73" },
-                ].map(({ icon, label, color }) => (
-                  <span
+                  { href: DEVELOPER_URL, icon: <Globe size={16} />, label: "Developer website" },
+                  { href: DEVELOPER_LINKEDIN, icon: <Linkedin size={16} />, label: "LinkedIn" },
+                  { href: DEVELOPER_GITHUB, icon: <Github size={16} />, label: "GitHub" },
+                  { href: DEVELOPER_FIVERR, icon: <Briefcase size={16} />, label: "Fiverr" },
+                ].map(({ href, icon, label }) => (
+                  <a
                     key={label}
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold"
-                    style={{ background: "rgba(255,255,255,0.06)", color, border: "1px solid rgba(255,255,255,0.1)" }}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={iconLinkClass("amber")}
+                    style={{ color: "var(--primary-accent)" }}
+                    aria-label={label}
+                    role="listitem"
+                    title={label}
                   >
-                    {icon} {label}
-                  </span>
+                    {icon}
+                  </a>
                 ))}
               </div>
-              <div className="mt-2 flex items-center gap-1 text-[10px]" style={{ color: "var(--primary-accent)" }}>
-                <Globe size={10} /> mumainsumon.netlify.app <ExternalLink size={9} />
-              </div>
-            </a>
+            </div>
 
             {/* SUMONIX AI card */}
-            <a
-              href={SUMONIX_AI}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-xl p-3.5 transition-all hover:scale-[1.02]"
+            <div
+              className="rounded-xl p-3.5 transition-all hover:scale-[1.01]"
               style={{
                 background: "rgba(30,110,232,0.06)",
                 border: "1px solid rgba(30,110,232,0.2)",
@@ -213,16 +234,28 @@ export function SiteFooter() {
               <p className="text-[9px] font-semibold uppercase tracking-[0.15em] mb-1" style={{ color: "var(--text-muted)" }}>
                 Powered by
               </p>
-              <p className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--accent-blue)" }}>
-                SUMONIX AI
-              </p>
-              <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-                AI-driven architecture & intelligence
-              </p>
-              <div className="mt-1.5 flex items-center gap-1 text-[10px]" style={{ color: "var(--accent-blue)" }}>
-                <ExternalLink size={9} /> sumonix-ai.vercel.app
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--accent-blue)" }}>
+                    SUMONIX AI
+                  </p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                    AI-driven architecture & intelligence
+                  </p>
+                </div>
+                <a
+                  href={SUMONIX_AI}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={iconLinkClass("blue")}
+                  style={{ color: "var(--accent-blue)" }}
+                  aria-label="SUMONIX AI website"
+                  title="SUMONIX AI"
+                >
+                  <Sparkles size={18} />
+                </a>
               </div>
-            </a>
+            </div>
           </div>
 
         </div>
@@ -237,14 +270,16 @@ export function SiteFooter() {
           {/* Legal links */}
           <div className="flex flex-wrap items-center gap-3 text-[11px]" style={{ color: "var(--text-muted)" }}>
             {[
-              { icon: <Shield size={11} />, label: "Privacy Policy", href: "#" },
-              { icon: <FileText size={11} />, label: "Terms of Service", href: "#" },
-              { icon: <BookOpen size={11} />, label: "License", href: "#" },
-              { icon: <Globe size={11} />, label: "International Use", href: "#" },
+              { icon: <Shield size={11} />, label: "Privacy Policy", href: LEGAL_PDF.privacy },
+              { icon: <FileText size={11} />, label: "Terms of Service", href: LEGAL_PDF.terms },
+              { icon: <BookOpen size={11} />, label: "License", href: LEGAL_PDF.license },
+              { icon: <Globe size={11} />, label: "International Use", href: LEGAL_PDF.international },
             ].map(({ icon, label, href }) => (
               <a
                 key={label}
                 href={href}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-1 transition hover:opacity-80"
                 style={{ color: "var(--text-muted)" }}
               >
