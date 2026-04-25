@@ -61,6 +61,12 @@ body {
   transition: background 0.2s, color 0.2s;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

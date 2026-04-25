@@ -2,6 +2,9 @@
 # Docs: https://render.com/docs/blueprint-spec
 #
 # After deploy: set CORS_ORIGINS to your Vercel URL(s), comma-separated, no trailing slashes.
+# Include preview URLs too if the frontend calls the API with an absolute origin (e.g. direct Render URL
+# in NEXT_PUBLIC_API_BASE_URL). When the app uses same-origin /api (recommended), CORS is not needed
+# for viewer traffic, but admin/auth from another origin still needs a matching entry here.
 
 services:
   - type: web
