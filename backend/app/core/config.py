@@ -34,8 +34,13 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 300
     # POST /admin/channels/sync — minimum seconds between successful syncs per process (in-memory).
     sync_rate_limit_seconds: int = 60
-    # Background M3U sync interval (0 = disabled). Use one worker or expect duplicate work.
-    scheduled_sync_interval_minutes: int = 0
+    # Background M3U sync interval. Default 30 min for fully-automated mode.
+    # Set to 0 to disable. Use one worker (Render) to avoid duplicate work.
+    scheduled_sync_interval_minutes: int = 30
+    # Auto-discover new M3U sources every N hours (0 = disabled).
+    source_discovery_interval_hours: int = 6
+    # Deactivate iptv-org channels not refreshed for this many days.
+    channel_stale_days: int = 3
     # Engine pool (PostgreSQL). Keep low on free-tier DBs (e.g. Neon allows 25 connections).
     db_pool_size: int = 5
     db_max_overflow: int = 10

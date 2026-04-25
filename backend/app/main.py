@@ -19,7 +19,9 @@ from app.core.sync_rate_limit import mark_sync_success
 from app.db.ensure_schema import ensure_channel_columns, ensure_user_subscription_tier
 from app.db.session import ASYNC_URL, Base, SessionLocal, engine
 from app.models import Channel, User
+from app.services.channel_cleanup import run_full_cleanup
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
+from app.services.m3u_discovery import discover_new_sources, get_cached_discovered_sources
 
 if not logging.getLogger().handlers:
     logging.basicConfig(
@@ -89,15 +91,26 @@ async def lifespan(app: FastAPI):
         from apscheduler.schedulers.background import BackgroundScheduler
 
         def scheduled_m3u_sync() -> None:
+            """Run every `scheduled_sync_interval_minutes` — fetch sources + cleanup."""
             sdb = SessionLocal()
             try:
-                scrape_and_sync_sports_channels(sdb)
+                discovered = get_cached_discovered_sources()
+                scrape_and_sync_sports_channels(sdb, extra_urls=discovered or None)
+                run_full_cleanup(sdb, stale_days=settings.channel_stale_days)
             except Exception:
                 logger.exception("Scheduled M3U sync failed")
             finally:
                 sdb.close()
             invalidate_list_caches()
             mark_sync_success()
+
+        def scheduled_discovery() -> None:
+            """Run every `source_discovery_interval_hours` — find new M3U sources."""
+            try:
+                sources = discover_new_sources()
+                logger.info("Discovery scheduler: %d source(s) cached", len(sources))
+            except Exception:
+                logger.exception("Scheduled M3U discovery failed")
 
         SCHEDULER = BackgroundScheduler()
         SCHEDULER.add_job(
@@ -108,8 +121,24 @@ async def lifespan(app: FastAPI):
             max_instances=1,
             coalesce=True,
         )
-        SCHEDULER.start()
         logger.info("Scheduled M3U sync every %s min", settings.scheduled_sync_interval_minutes)
+
+        if settings.source_discovery_interval_hours > 0:
+            SCHEDULER.add_job(
+                scheduled_discovery,
+                "interval",
+                hours=settings.source_discovery_interval_hours,
+                id="m3u_discovery",
+                max_instances=1,
+                coalesce=True,
+            )
+            logger.info(
+                "Scheduled M3U discovery every %sh",
+                settings.source_discovery_interval_hours,
+            )
+
+        SCHEDULER.start()
+        logger.info("Background scheduler started")
 
     yield
 

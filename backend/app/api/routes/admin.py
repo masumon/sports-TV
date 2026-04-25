@@ -17,7 +17,9 @@ from app.models.user import User
 from app.schemas.admin import AdminStatsResponse
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
 from app.schemas.match_stats import MatchStatsCreate, MatchStatsRead, MatchStatsUpdate
+from app.services.channel_cleanup import run_full_cleanup
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
+from app.services.m3u_discovery import get_cached_discovered_sources
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -25,7 +27,10 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 def _sync_m3u_blocking() -> dict[str, int]:
     sdb = SessionLocal()
     try:
-        return scrape_and_sync_sports_channels(sdb)
+        discovered = get_cached_discovered_sources()
+        result = scrape_and_sync_sports_channels(sdb, extra_urls=discovered or None)
+        run_full_cleanup(sdb)
+        return result
     finally:
         sdb.close()
 

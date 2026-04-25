@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 import requests
 from sqlalchemy import select
@@ -278,6 +280,7 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
 
     created = 0
     updated = 0
+    _now = datetime.now(tz=timezone.utc).replace(tzinfo=None)  # naive UTC for DB
 
     for primary, alts in grouped:
         alt_json = json.dumps(alts) if alts else None
@@ -310,57 +313,97 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
             channel.module = primary.module
             channel.alternate_urls = alt_json
             channel.is_active = True
+            # Explicitly bump updated_at so the cleanup engine can detect stale channels.
+            # (onupdate fires only if SQLAlchemy detects a dirty column; this guarantees it.)
+            channel.updated_at = _now
             updated += 1
 
     db.commit()
     return {"created": created, "updated": updated, "total": created + updated}
 
 
-def scrape_and_sync_sports_channels(db: Session) -> dict[str, int]:
+def _fetch_sources_parallel(
+    url_flag_pairs: list[tuple[str, bool, str]],
+    max_workers: int = 8,
+) -> list[ParsedChannel]:
     """
-    Fetch all M3U sources and sync to DB:
-    - Category playlists: module=sports, no keyword filter
-    - Country playlists: module=sports, sports_only=True
-    - Bangladesh sources: module=bangladesh, no keyword filter (all channel types)
+    Fetch multiple M3U sources in parallel using a thread pool.
+
+    url_flag_pairs: list of (url, sports_only, module)
+    Returns combined list of ParsedChannel entries.
     """
-    all_entries: list[ParsedChannel] = []
-    sources_fetched = 0
+    results: list[ParsedChannel] = []
+
+    def _fetch_and_parse(url: str, sports_only: bool, module: str) -> list[ParsedChannel]:
+        playlist = _fetch_m3u_safe(url)
+        if not playlist:
+            return []
+        entries = parse_m3u_entries(playlist, sports_only=sports_only, module=module)
+        logger.info("Fetched %d entries from %s (sports_only=%s)", len(entries), url, sports_only)
+        return entries
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {
+            pool.submit(_fetch_and_parse, url, sports_only, module): url
+            for url, sports_only, module in url_flag_pairs
+        }
+        for fut in as_completed(futures):
+            url = futures[fut]
+            try:
+                entries = fut.result()
+                results.extend(entries)
+            except Exception as exc:
+                logger.warning("Parallel fetch error for %s: %s", url, exc)
+
+    return results
+
+
+def scrape_and_sync_sports_channels(
+    db: Session,
+    extra_urls: list[str] | None = None,
+) -> dict[str, int]:
+    """
+    Fetch all M3U sources in parallel and sync to DB.
+
+    - Category playlists  → module=sports, no keyword filter
+    - Country playlists   → module=sports, sports_only=True
+    - Bangladesh sources  → module=bangladesh, no filter
+    - extra_urls          → module=sports, sports_only=True (discovered sources)
+
+    extra_urls is backward-compatible (defaults to None = no extras).
+    """
     category_urls = set(SPORTS_CATEGORY_SOURCES)
 
-    # Sports sources
+    # Build list of (url, sports_only, module) tuples for parallel fetch
+    fetch_jobs: list[tuple[str, bool, str]] = []
+
     for url in DEFAULT_M3U_SOURCES:
-        playlist = _fetch_m3u_safe(url)
-        if not playlist:
-            continue
         sports_only = url not in category_urls
-        entries = parse_m3u_entries(playlist, sports_only=sports_only, module="sports")
-        all_entries.extend(entries)
-        sources_fetched += 1
-        logger.info("Fetched %d sports entries from %s", len(entries), url)
+        fetch_jobs.append((url, sports_only, "sports"))
 
-    # Bangladesh all-channel sources
     for url in BANGLADESH_SOURCES:
-        playlist = _fetch_m3u_safe(url)
-        if not playlist:
-            continue
-        entries = parse_m3u_entries(playlist, sports_only=False, module="bangladesh")
-        all_entries.extend(entries)
-        sources_fetched += 1
-        logger.info("Fetched %d Bangladesh entries from %s", len(entries), url)
+        fetch_jobs.append((url, False, "bangladesh"))
 
-    # Custom scraper_source_url from env
+    # Custom env URL
     if settings.scraper_source_url and settings.scraper_source_url not in DEFAULT_M3U_SOURCES:
-        playlist = _fetch_m3u_safe(settings.scraper_source_url)
-        if playlist:
-            all_entries.extend(parse_m3u_entries(playlist, sports_only=False, module="sports"))
-            sources_fetched += 1
+        fetch_jobs.append((settings.scraper_source_url, False, "sports"))
+
+    # Discovered sources from m3u_discovery (already deduplicated vs. main list)
+    if extra_urls:
+        known = {url for url, _, _ in fetch_jobs}
+        for url in extra_urls:
+            if url not in known:
+                fetch_jobs.append((url, True, "sports"))  # filter by sports keywords
+
+    logger.info("Sync: fetching %d M3U source(s) in parallel…", len(fetch_jobs))
+    all_entries = _fetch_sources_parallel(fetch_jobs, max_workers=8)
 
     if not all_entries:
         raise ValueError("No channels parsed from any M3U source.")
 
     logger.info(
-        "Total: %d entries from %d source(s) — syncing to DB",
+        "Sync total: %d entries from %d source(s) — writing to DB",
         len(all_entries),
-        sources_fetched,
+        len(fetch_jobs),
     )
     return sync_channels_from_entries(db, all_entries)

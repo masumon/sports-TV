@@ -28,6 +28,7 @@ type QualityOption = { label: string; value: number };
 
 export type PremiumPlayerProps = {
   streamUrl: string;
+  alternateUrls?: string[];
   title: string;
   isTheaterMode: boolean;
   onToggleTheaterMode: () => void;
@@ -119,6 +120,7 @@ function formatQualityFromHeight(height: number): string {
 /* ═══════════════════════════════════════════════════════ Component ═══ */
 export default function PremiumPlayer({
   streamUrl,
+  alternateUrls,
   title,
   isTheaterMode,
   onToggleTheaterMode,
@@ -141,6 +143,8 @@ export default function PremiumPlayer({
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
+  // Failover: index into [streamUrl, ...alternateUrls]
+  const [urlIdx, setUrlIdx] = useState(0);
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
@@ -157,6 +161,11 @@ export default function PremiumPlayer({
   }, [isPlaying, scheduleHideControls]);
 
   useEffect(() => {
+    // Reset failover index whenever the primary stream URL changes (channel switch).
+    setUrlIdx(0);
+  }, [streamUrl]);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const cleanup = () => { hlsRef.current?.destroy(); hlsRef.current = null; };
@@ -167,17 +176,28 @@ export default function PremiumPlayer({
     setIsLoading(true);
     setHasError(false);
 
+    // Derive the effective URL: primary first, then alternates in order.
+    const allUrls = [streamUrl, ...(alternateUrls ?? [])];
+    const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
+
     if (Hls.isSupported()) {
       const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
       hlsRef.current = hls;
-      hls.loadSource(streamUrl);
+      hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (data.fatal) {
-          setHasError(true);
-          setIsLoading(false);
-          toast.error("Stream error — try an external player or another channel");
+          const nextIdx = urlIdx + 1;
+          if (nextIdx < allUrls.length) {
+            // Try the next backup stream silently.
+            toast.error(`Stream failed — trying backup ${nextIdx} of ${allUrls.length - 1}…`);
+            setUrlIdx(nextIdx);
+          } else {
+            setHasError(true);
+            setIsLoading(false);
+            toast.error("All streams unavailable — try an external player or another channel");
+          }
         }
       });
 
@@ -201,12 +221,12 @@ export default function PremiumPlayer({
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => setSelectedQuality(data.level));
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = streamUrl;
+      video.src = effectiveUrl;
       setIsLoading(false);
     }
 
     return cleanup;
-  }, [streamUrl, retryKey]);
+  }, [streamUrl, retryKey, urlIdx, alternateUrls]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -297,6 +317,7 @@ export default function PremiumPlayer({
   const retryStream = useCallback(() => {
     setHasError(false);
     setIsLoading(true);
+    setUrlIdx(0);           // restart from primary stream
     setRetryKey((k) => k + 1);
   }, []);
 

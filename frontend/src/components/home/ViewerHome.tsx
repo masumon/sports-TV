@@ -433,6 +433,7 @@ export function ViewerHome() {
             {activeChannel ? (
               <PremiumPlayer
                 streamUrl={currentStreamUrl}
+                alternateUrls={activeStreamUrl ? [] : altLinks}
                 title={activeChannel.name}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}

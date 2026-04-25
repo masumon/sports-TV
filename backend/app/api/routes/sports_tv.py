@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,7 @@ CHANNELS_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 600)
 
 @router.get("/channels", response_model=ChannelListResponse)
 async def list_channels(
+    request: Request,
     response: Response,
     search: str | None = Query(default=None, min_length=1, max_length=120),
     country: str | None = Query(default=None, min_length=1, max_length=120),
@@ -78,12 +79,28 @@ async def list_channels(
         .all()
     )
 
+    # Detect visitor country from Cloudflare header (set by Vercel/CF CDN).
+    # Only used for soft-sorting within the current page — never for filtering.
+    cf_country = (
+        request.headers.get("CF-IPCountry")
+        or request.headers.get("X-Country")
+        or ""
+    ).upper()[:2]
+
     result = ChannelListResponse(
         total=total,
         page=page,
         page_size=page_size,
         items=[ChannelRead.model_validate(channel) for channel in channels],
     )
+
+    # Geo-sort: same-country channels float to top of the page (stable sort).
+    # Does NOT affect total count or pagination offsets.
+    if cf_country:
+        result.items.sort(
+            key=lambda c: 0 if c.country.upper()[:2] == cf_country else 1
+        )
+
     try:
         cache_set_json("channels", params, result.model_dump(mode="json"))
     except Exception as e:
