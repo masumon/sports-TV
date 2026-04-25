@@ -1,3 +1,6 @@
+# Diagnostic scripts that must never contain credentials
+check_neon.py
+
 # =========================
 # Global Monorepo Ignore
 # =========================
