@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # Engine pool (PostgreSQL). Keep low on free-tier DBs (e.g. Neon allows 25 connections).
     db_pool_size: int = 5
     db_max_overflow: int = 10
+    # Dynamic .m3u8 token refresh — how often to check for expiring streams (0 = disabled).
+    # Streams are re-extracted at T-15 minutes before their token expires.
+    m3u8_refresh_interval_minutes: int = 5
 
     model_config = SettingsConfigDict(
         env_file=(

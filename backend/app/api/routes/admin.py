@@ -12,10 +12,12 @@ from app.core.security import get_current_admin_user
 from app.core.sync_rate_limit import check_sync_allowed, get_last_sync_iso, mark_sync_success
 from app.db.session import SessionLocal, get_db
 from app.models.channel import Channel
+from app.models.dynamic_stream import DynamicStream
 from app.models.match_stats import MatchStats, MatchStatus, SportType
 from app.models.user import User
 from app.schemas.admin import AdminStatsResponse
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
+from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
 from app.schemas.match_stats import MatchStatsCreate, MatchStatsRead, MatchStatsUpdate
 from app.services.channel_cleanup import run_full_cleanup
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
@@ -241,3 +243,145 @@ async def admin_delete_score(
     await db.commit()
     invalidate_list_caches()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dynamic Stream Admin CRUD  (/api/v1/admin/dynamic-streams)
+# ─────────────────────────────────────────────────────────────────────────────
+# Manage DynamicStream records — the source pages Playwright scrapes to
+# obtain token-protected .m3u8 URLs.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.get("/dynamic-streams", response_model=list[DynamicStreamRead])
+async def admin_list_dynamic_streams(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> list[DynamicStreamRead]:
+    """Return all DynamicStream records, newest first."""
+    stmt = select(DynamicStream).order_by(DynamicStream.updated_at.desc())
+    rows = (await db.execute(stmt)).scalars().all()
+    return [DynamicStreamRead.model_validate(row) for row in rows]
+
+
+@router.post(
+    "/dynamic-streams",
+    response_model=DynamicStreamRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def admin_create_dynamic_stream(
+    payload: DynamicStreamCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> DynamicStreamRead:
+    """
+    Register a new streaming page for Playwright-based .m3u8 extraction.
+
+    The scheduler will automatically extract the first .m3u8 URL within the
+    next refresh cycle (configurable via M3U8_REFRESH_INTERVAL_MINUTES).
+    """
+    existing = (
+        await db.execute(
+            select(DynamicStream).where(
+                DynamicStream.source_page_url == payload.source_page_url
+            )
+        )
+    ).scalars().first()
+    if existing:
+        raise HTTPException(
+            status_code=400, detail="A stream for this source page already exists."
+        )
+
+    stream = DynamicStream(
+        name=payload.name.strip(),
+        source_page_url=payload.source_page_url.strip(),
+        token_ttl_seconds=payload.token_ttl_seconds,
+        is_active=payload.is_active,
+    )
+    db.add(stream)
+    await db.commit()
+    await db.refresh(stream)
+    return DynamicStreamRead.model_validate(stream)
+
+
+@router.put("/dynamic-streams/{stream_id}", response_model=DynamicStreamRead)
+async def admin_update_dynamic_stream(
+    stream_id: int,
+    payload: DynamicStreamUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> DynamicStreamRead:
+    """Update metadata for a DynamicStream record."""
+    stream: DynamicStream | None = await db.get(DynamicStream, stream_id)
+    if not stream:
+        raise HTTPException(status_code=404, detail="Dynamic stream not found.")
+
+    data = payload.model_dump(exclude_unset=True)
+    for field_name, value in data.items():
+        setattr(stream, field_name, value)
+
+    await db.commit()
+    await db.refresh(stream)
+    return DynamicStreamRead.model_validate(stream)
+
+
+@router.delete("/dynamic-streams/{stream_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_dynamic_stream(
+    stream_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> Response:
+    """Permanently delete a DynamicStream record."""
+    r = await db.execute(delete(DynamicStream).where(DynamicStream.id == stream_id))
+    if r.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Dynamic stream not found.")
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/dynamic-streams/{stream_id}/refresh", response_model=DynamicStreamRead)
+async def admin_trigger_m3u8_refresh(
+    stream_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> DynamicStreamRead:
+    """
+    Manually trigger an immediate .m3u8 re-extraction for the given stream.
+
+    Runs Playwright in a thread-pool so the HTTP response is not blocked.
+    Returns the updated record (or the unchanged record if extraction fails).
+    """
+    import json as _json
+    from datetime import datetime, timezone
+    from starlette.concurrency import run_in_threadpool
+    from app.services.playwright_extractor import extract_m3u8_from_page
+
+    stream: DynamicStream | None = await db.get(DynamicStream, stream_id)
+    if not stream:
+        raise HTTPException(status_code=404, detail="Dynamic stream not found.")
+
+    source_url = stream.source_page_url
+    token_ttl = stream.token_ttl_seconds
+
+    def _do_extract() -> object:
+        return extract_m3u8_from_page(
+            source_url,
+            token_ttl_seconds=token_ttl,
+            use_cache=False,  # force fresh extraction on manual trigger
+        )
+
+    result = await run_in_threadpool(_do_extract)
+
+    if result is not None:
+        # Promote current URL to fallback before overwriting.
+        if stream.m3u8_url:
+            stream.fallback_m3u8_url = stream.m3u8_url
+            stream.fallback_headers_json = stream.headers_json
+        stream.m3u8_url = result.m3u8_url
+        stream.headers_json = _json.dumps(result.headers)
+        stream.expires_at = result.expires_at
+        stream.last_refreshed_at = datetime.now(tz=timezone.utc)
+        await db.commit()
+        await db.refresh(stream)
+
+    return DynamicStreamRead.model_validate(stream)
