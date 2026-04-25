@@ -578,3 +578,35 @@ html.light .sports-cat-item.active {
   color: var(--primary-accent);
 }
 
+/* ── Admin pages — always force dark theme so Tailwind dark-only classes work ── */
+html.light [data-admin] {
+  background: #07080F;
+  color: #EEF0F7;
+  min-height: 100dvh;
+}
+/* ensure child elements inherit the dark background so white/opacity overlays work */
+html.light [data-admin] .rounded-2xl,
+html.light [data-admin] .rounded-xl,
+html.light [data-admin] .rounded-lg {
+  color: #EEF0F7;
+}
+/* stat card backgrounds — currently bg-white/5 — force them slightly visible */
+html.light [data-admin] .rounded-xl.border {
+  background: rgba(255,255,255,0.04);
+}
+/* input/select/textarea — keep them dark */
+html.light [data-admin] input,
+html.light [data-admin] select,
+html.light [data-admin] textarea {
+  background: rgba(0,0,0,0.35) !important;
+  color: #e4e4e7 !important;
+  border-color: rgba(255,255,255,0.18) !important;
+}
+html.light [data-admin] input::placeholder {
+  color: #71717a !important;
+}
+html.light [data-admin] select option {
+  background: #18181b;
+  color: #e4e4e7;
+}
+

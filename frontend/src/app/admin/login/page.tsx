@@ -39,17 +39,24 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-12">
+    <main data-admin className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-12">
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 p-6 shadow-2xl backdrop-blur-xl"
       >
-        <h1 className="text-2xl font-bold text-white">Admin Login</h1>
-        <p className="mt-2 text-sm text-zinc-400">Secure dashboard access for stream and score management.</p>
+        <div className="mb-5 flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/abo-logo.svg" alt="ABO" className="h-10 w-10 rounded-xl" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">Admin Login</h1>
+            <p className="text-xs text-zinc-400">ABO SPORTS TV LIVE</p>
+          </div>
+        </div>
+        <p className="mb-6 text-sm text-zinc-400">Secure dashboard access for stream and score management.</p>
 
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
             <span className="mb-2 inline-flex items-center gap-2 text-sm text-zinc-300">
               <Mail size={14} />

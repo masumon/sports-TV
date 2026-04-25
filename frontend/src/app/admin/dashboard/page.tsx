@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, Save, Trash2, Pencil, X, Check } from "lucide-react";
+import { RefreshCw, Save, Trash2, Pencil, X, Check, Settings2, Megaphone } from "lucide-react";
+import Image from "next/image";
 import { apiClient } from "@/lib/apiClient";
 import type { AdminStats, Channel, LiveScore } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
+import { useSiteSettingsStore } from "@/store/siteSettingsStore";
 
 type ChannelFormState = {
   name: string;
@@ -225,11 +227,14 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-8 p-6 lg:p-8">
+    <main data-admin className="mx-auto max-w-7xl space-y-8 p-6 lg:p-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-          <p className="text-sm text-zinc-400">চ্যানেল ও লাইভ স্কোর ম্যানেজ করুন</p>
+        <div className="flex items-center gap-3">
+          <Image src="/icons/abo-logo.svg" alt="ABO" width={36} height={36} className="rounded-xl" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+            <p className="text-sm text-zinc-400">চ্যানেল ও লাইভ স্কোর ম্যানেজ করুন · ABO SPORTS TV LIVE</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -590,6 +595,97 @@ export default function AdminDashboardPage() {
           )}
         </div>
       </section>
+
+      {/* ── Google AdSense Settings ── */}
+      <AdminAdsenseSection />
     </main>
+  );
+}
+
+/* ─── Isolated sub-component so it can use its own state ─── */
+function AdminAdsenseSection() {
+  const settings = useSiteSettingsStore();
+  const [form, setForm] = useState({
+    adsensePublisherId: settings.adsensePublisherId,
+    adsenseBannerSlot: settings.adsenseBannerSlot,
+    adsenseInlineSlot: settings.adsenseInlineSlot,
+    adsenseEnabled: settings.adsenseEnabled,
+  });
+  const [saved, setSaved] = useState(false);
+
+  function handleSave() {
+    settings.update(form);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-5"
+    >
+      <div className="mb-4 flex items-center gap-2">
+        <Megaphone size={18} className="text-amber-400" />
+        <h2 className="text-lg font-semibold text-white">Google AdSense Settings</h2>
+      </div>
+      <p className="mb-4 text-xs text-zinc-400">
+        আপনার Google AdSense Publisher ID এবং Slot IDs প্রদান করুন।
+        AdSense অ্যাকাউন্ট থেকে <strong className="text-zinc-300">ca-pub-XXXXXXXXXX</strong> ফরম্যাটের ID পাবেন।
+        Enabled করলে ব্যবহারকারীদের কাছে বিজ্ঞাপন দেখাবে (Premium ব্যবহারকারীরা ব্যতীত)।
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="col-span-full">
+          <label className="mb-1 block text-xs font-semibold text-zinc-400">Publisher ID (ca-pub-XXXXXXXXXX)</label>
+          <input
+            value={form.adsensePublisherId}
+            onChange={(e) => setForm((p) => ({ ...p, adsensePublisherId: e.target.value }))}
+            placeholder="ca-pub-1234567890123456"
+            className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-zinc-400">Banner Ad Slot ID (top bar)</label>
+          <input
+            value={form.adsenseBannerSlot}
+            onChange={(e) => setForm((p) => ({ ...p, adsenseBannerSlot: e.target.value }))}
+            placeholder="1234567890"
+            className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-zinc-400">Inline Ad Slot ID (sidebar)</label>
+          <input
+            value={form.adsenseInlineSlot}
+            onChange={(e) => setForm((p) => ({ ...p, adsenseInlineSlot: e.target.value }))}
+            placeholder="0987654321"
+            className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+          />
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-4">
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            checked={form.adsenseEnabled}
+            onChange={(e) => setForm((p) => ({ ...p, adsenseEnabled: e.target.checked }))}
+            className="h-4 w-4 accent-amber-400"
+          />
+          <span className="text-sm text-zinc-300">AdSense Enable করুন</span>
+        </label>
+        <button
+          type="button"
+          onClick={handleSave}
+          className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400"
+        >
+          <Settings2 size={15} />
+          {saved ? "✓ Saved!" : "Save AdSense Settings"}
+        </button>
+      </div>
+      <p className="mt-3 text-[10px] text-zinc-600">
+        Note: AdSense script is loaded lazily. Changes take effect on next page load.
+        Make sure your domain is approved in Google AdSense.
+      </p>
+    </motion.section>
   );
 }
