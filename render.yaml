@@ -50,6 +50,6 @@ services:
         sync: false
       - key: ADMIN_FULL_NAME
         sync: false
-      # Include all Vercel deployment URLs; update when domain changes.
+      # Required if browser uses NEXT_PUBLIC_API_BASE_URL=https://<render-host> (direct API from Vercel).
       - key: CORS_ORIGINS
         value: "https://sports-tv-lovat.vercel.app,http://localhost:3000"

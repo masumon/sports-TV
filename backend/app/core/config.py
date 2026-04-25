@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(default="replace-with-strong-secret")
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
+    # Admin password reset token (no email — token returned in API response; short TTL for security)
+    password_reset_token_ttl_minutes: int = 60
+    # Minimum seconds between password reset requests for the same email (abuse / DB load)
+    password_reset_rate_limit_seconds: int = 120
 
     admin_email: str = "admin@test.com"
     admin_password: str = "Admin12345!"

@@ -99,7 +99,12 @@ export default function AdminLoginPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-zinc-500">
+        <p className="mt-4 text-center text-sm">
+          <Link href="/admin/forgot-password" className="text-emerald-400 hover:text-emerald-300">
+            Forgot password?
+          </Link>
+        </p>
+        <p className="mt-4 text-center text-xs text-zinc-500">
           Return to{" "}
           <Link href="/" className="text-emerald-400 hover:text-emerald-300">
             viewer

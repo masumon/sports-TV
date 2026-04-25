@@ -55,3 +55,14 @@ def ensure_channel_columns(engine: Engine) -> None:
         engine, "channels", "alternate_urls",
         "TEXT"
     )
+
+
+def ensure_user_password_reset_columns(engine: Engine) -> None:
+    """Add optional password reset fields for users (admin reset flow)."""
+    dt_sql = "TIMESTAMP" if engine.dialect.name == "sqlite" else "TIMESTAMPTZ"
+    _add_column_if_missing(
+        engine, "users", "password_reset_token_hash", "VARCHAR(64) NULL"
+    )
+    _add_column_if_missing(
+        engine, "users", "password_reset_expires_at", f"{dt_sql} NULL"
+    )

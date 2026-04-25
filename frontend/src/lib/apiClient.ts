@@ -231,4 +231,27 @@ export const apiClient = {
   adminSyncChannels(token: string) {
     return apiRequest<Record<string, number>>("/admin/channels/sync", { method: "POST", authToken: token });
   },
+
+  /** No auth — only for admin accounts. Returns a one-time token in JSON (no email from server). */
+  requestAdminPasswordReset(email: string) {
+    return apiRequest<{
+      detail: string;
+      reset_token: string | null;
+      token_expires_in_minutes: number;
+    }>("/auth/admin/request-password-reset", {
+      method: "POST",
+      body: JSON.stringify({ email: email.trim() }),
+    });
+  },
+
+  adminResetPassword(email: string, token: string, newPassword: string) {
+    return apiRequest<{ detail: string }>("/auth/admin/reset-password", {
+      method: "POST",
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        token: token.trim(),
+        new_password: newPassword,
+      }),
+    });
+  },
 };

@@ -17,7 +17,11 @@ from starlette.concurrency import run_in_threadpool
 from app.api.routes import admin, auth, live_scores, proxy, sports_tv
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.db.ensure_schema import ensure_channel_columns, ensure_user_subscription_tier
+from app.db.ensure_schema import (
+    ensure_channel_columns,
+    ensure_user_password_reset_columns,
+    ensure_user_subscription_tier,
+)
 from app.db.session import ASYNC_URL, Base, SessionLocal, engine
 from app.models import Channel, User
 from app.services.automation import run_channel_health_check, run_channel_sync
@@ -86,6 +90,7 @@ async def lifespan(app: FastAPI):
     try:
         ensure_user_subscription_tier(engine)
         ensure_channel_columns(engine)
+        ensure_user_password_reset_columns(engine)
     except RuntimeError:
         logger.critical(
             "DB schema migration failed — login WILL return 500 until this is resolved. "

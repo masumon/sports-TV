@@ -16,8 +16,8 @@ This project is designed to run on **hobby / free** tiers. Follow these rules to
 
 | Variable | Example | Notes |
 |----------|---------|--------|
-| `NEXT_PUBLIC_API_BASE_URL` | `/api` | **Recommended.** Same-origin → no CORS for the viewer. Default in code is `/api` if unset. |
-| `BACKEND_URL` | `https://your-service.onrender.com` | No trailing slash, no `/api` path. Used only by server rewrites. |
+| `NEXT_PUBLIC_API_BASE_URL` | `/api` **or** `https://gstv-backend.onrender.com` | **`/api`** = browser calls same Vercel origin, Next.js rewrites to `BACKEND_URL` (CORS on Render not needed for those calls). **Absolute Render URL** = browser calls API directly; **add your Vercel site to `CORS_ORIGINS` on Render.** Default in app code: `/api` (after trim). |
+| `BACKEND_URL` | `https://gstv-backend.onrender.com` | Required for **rewrites** when `NEXT_PUBLIC_API_BASE_URL` is `/api` or empty. No trailing slash. |
 | `NEXT_PUBLIC_SITE_URL` | `https://your-app.vercel.app` | For metadata / OG. |
 
 ### Render (FastAPI `backend/`)
@@ -52,6 +52,12 @@ When using **same-origin** `NEXT_PUBLIC_API_BASE_URL=/api` on Vercel, the browse
 - Frontend: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` in `.env.local`  
 - Backend: `cp backend/.env.example backend/.env` and set `JWT_SECRET_KEY`, `DATABASE_URL` (or use SQLite for quick tests)  
 - **Local admin login (matches `backend/.env.example`):** `admin@test.com` / `Admin12345!` — same pair should be set in **Render** (`ADMIN_*`) for production parity with Vercel.
+
+## Admin password reset (no email server)
+
+- `POST /api/v1/auth/admin/request-password-reset` with `{ "email": "…" }` — response may include `reset_token` (copy it; it is not emailed).
+- `POST /api/v1/auth/admin/reset-password` with `email`, `token`, `new_password`.
+- UI: `/admin/forgot-password` on the Next.js app.
 
 ---
 
