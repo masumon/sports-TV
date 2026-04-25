@@ -441,15 +441,16 @@ export function ViewerHome() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Search bar */}
-            <div className="relative">
+            {/* Wide screens: second search (mobile uses TopBar #gstv-search only) */}
+            <div className="relative hidden min-w-[200px] flex-1 md:block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
               <input
                 ref={searchRef}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t("search")}
-                className="rounded-lg py-2 pl-9 pr-3 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2"
+                aria-label={t("search")}
+                className="search-input w-full rounded-lg py-2 pl-9 pr-3 text-sm placeholder:text-slate-500"
                 style={{
                   background: "var(--bg-card)",
                   border: "1px solid var(--border)",
@@ -460,12 +461,18 @@ export function ViewerHome() {
 
             <button
               type="button"
-              onClick={() => void loadChannels(true)}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)" }}
+              onClick={() => {
+                if (loading) {
+                  toast.info(t("refreshWait"));
+                  return;
+                }
+                void loadChannels(true);
+              }}
+              aria-busy={loading}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-opacity"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)", opacity: loading ? 0.75 : 1 }}
             >
-              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} aria-hidden />
               {t("refresh")}
             </button>
 

@@ -41,6 +41,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const { sidebarOpen, setSidebarOpen } = useUiStore();
+  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
   const activeModule = useUiStore((s) => s.activeModule);
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const activeCategory = useUiStore((s) => s.activeCategory);
@@ -165,6 +166,7 @@ export function Sidebar() {
               type="button"
               onClick={() => {
                 setSidebarOpen(false);
+                requestSearchFocus();
                 document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"

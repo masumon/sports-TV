@@ -155,16 +155,17 @@ export function SiteFooter() {
               Built By
             </p>
 
-            {/* Developer card — uses div to avoid nested <a> invalid HTML */}
-            <div
-              className="block rounded-xl p-4 transition-all hover:scale-[1.02] cursor-pointer"
+            <a
+              href={DEVELOPER_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-xl p-4 transition-all hover:scale-[1.02]"
               style={{
                 background: "linear-gradient(135deg, rgba(245,166,35,0.1) 0%, rgba(229,57,53,0.05) 100%)",
                 border: "1px solid rgba(245,166,35,0.25)",
               }}
-              onClick={() => window.open(DEVELOPER_URL, "_blank", "noopener,noreferrer")}
             >
-              <div className="flex items-center gap-2 mb-2">
+              <div className="mb-2 flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(245,166,35,0.15)" }}>
                   <User2 size={18} style={{ color: "var(--primary-accent)" }} />
                 </div>
@@ -180,23 +181,23 @@ export function SiteFooter() {
               </p>
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {[
-                  { icon: <Linkedin size={11} />, label: "LinkedIn", href: "https://bd.linkedin.com/in/mumain-ahmed-907057211", color: "#0A66C2" },
-                  { icon: <Github size={11} />, label: "GitHub", href: "https://github.com/masumon", color: "#e6edf3" },
-                  { icon: <Briefcase size={11} />, label: "Fiverr", href: "https://www.fiverr.com/mumain_sumon", color: "#1dbf73" },
-                ].map(({ icon, label, href, color }) => (
-                  <a key={label} href={href} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold transition hover:opacity-80"
+                  { icon: <Linkedin size={11} />, label: "LinkedIn", color: "#0A66C2" },
+                  { icon: <Github size={11} />, label: "GitHub", color: "#e6edf3" },
+                  { icon: <Briefcase size={11} />, label: "Fiverr", color: "#1dbf73" },
+                ].map(({ icon, label, color }) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold"
                     style={{ background: "rgba(255,255,255,0.06)", color, border: "1px solid rgba(255,255,255,0.1)" }}
-                    onClick={(e) => e.stopPropagation()}
                   >
                     {icon} {label}
-                  </a>
+                  </span>
                 ))}
               </div>
               <div className="mt-2 flex items-center gap-1 text-[10px]" style={{ color: "var(--primary-accent)" }}>
                 <Globe size={10} /> mumainsumon.netlify.app <ExternalLink size={9} />
               </div>
-            </div>
+            </a>
 
             {/* SUMONIX AI card */}
             <a

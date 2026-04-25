@@ -13,6 +13,7 @@ export function MobileBottomNav() {
   const isAdmin = useAuthStore((s) => s.user?.is_admin);
   const activeModule = useUiStore((s) => s.activeModule);
   const setActiveModule = useUiStore((s) => s.setActiveModule);
+  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
 
   const isHome = pathname === "/";
   const isAdminPage = pathname?.startsWith("/admin");
@@ -46,9 +47,8 @@ export function MobileBottomNav() {
       <button
         type="button"
         onClick={() => {
-          const el = document.getElementById("gstv-search");
-          el?.focus({ preventScroll: true });
-          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+          requestSearchFocus();
+          document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
         }}
         className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
         style={{ color: "var(--text-muted)" }}

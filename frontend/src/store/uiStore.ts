@@ -14,6 +14,9 @@ type UiState = {
   /** Active category filter — shared across Sidebar + ViewerHome */
   activeCategory: string;
   setActiveCategory: (c: string) => void;
+  /** Bumped when nav should focus the main search field (header + wide hero share state). */
+  searchFocusNonce: number;
+  requestSearchFocus: () => void;
 };
 
 export const useUiStore = create<UiState>()((set) => ({
@@ -26,4 +29,6 @@ export const useUiStore = create<UiState>()((set) => ({
   setActiveModule: (m) => set({ activeModule: m, activeCategory: "" }),
   activeCategory: "",
   setActiveCategory: (c) => set({ activeCategory: c }),
+  searchFocusNonce: 0,
+  requestSearchFocus: () => set((s) => ({ searchFocusNonce: s.searchFocusNonce + 1 })),
 }));

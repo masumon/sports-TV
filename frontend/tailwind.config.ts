@@ -5,6 +5,9 @@ const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
+      screens: {
+        xs: "480px",
+      },
       colors: {
         background: "#0A0F1C",
         surface: "#121826",

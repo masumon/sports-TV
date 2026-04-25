@@ -22,8 +22,14 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
   const user = useAuthStore((s) => s.user);
   const tier = useSubscriptionStore((s) => s.tier);
   const { toggleSidebar } = useUiStore();
+  const searchFocusNonce = useUiStore((s) => s.searchFocusNonce);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (searchFocusNonce === 0) return;
+    document.getElementById("gstv-search")?.focus({ preventScroll: true });
+  }, [searchFocusNonce]);
 
   return (
     <header
@@ -84,14 +90,15 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         </div>
 
         {/* Live badge */}
-        <div className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold sm:inline-flex" style={{ background: "rgba(229,57,53,0.12)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}>
-          <Radio size={11} className="animate-pulse" /> LIVE
+        <div className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[10px]" style={{ background: "rgba(229,57,53,0.12)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}>
+          <Radio size={11} className="shrink-0 animate-pulse" />
+          <span className="hidden min-[400px]:inline sm:inline">LIVE</span>
         </div>
 
         {/* Premium badge */}
         {tier === "premium" ? (
-          <span className="hidden items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold sm:inline-flex" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}>
-            <Sparkles size={11} /> {t("premium")}
+          <span className="inline-flex max-w-[7rem] shrink-0 items-center gap-0.5 overflow-hidden text-ellipsis rounded-full px-1.5 py-0.5 text-[9px] font-bold sm:max-w-none sm:gap-1 sm:px-2.5 sm:py-1 sm:text-[10px]" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }} title={t("premium")}>
+            <Sparkles size={11} className="shrink-0" /> <span className="min-w-0 truncate sm:whitespace-nowrap">{t("premium")}</span>
           </span>
         ) : null}
 
