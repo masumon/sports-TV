@@ -53,7 +53,8 @@ const nextConfig: NextConfig = {
       {
         source: "/api/v1/sports-tv/channels(.*)",
         headers: [
-          { key: "Cache-Control", value: "public, s-maxage=60, stale-while-revalidate=120" },
+          { key: "Cache-Control", value: "public, s-maxage=300, stale-while-revalidate=120" },
+          { key: "CDN-Cache-Control", value: "public, s-maxage=300" },
         ],
       },
       // Security headers for all pages

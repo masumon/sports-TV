@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
-  Home, LayoutGrid, Settings, X, Trophy, Tv, Globe, ChevronDown, ChevronUp,
+  Home, LayoutGrid, Settings, X, Tv, Globe, ChevronDown, ChevronUp,
   Zap, Star, Flame, Activity,
 } from "lucide-react";
 import { useState } from "react";
