@@ -7,19 +7,25 @@ Forwards IPTV stream content through the backend with:
 - low-latency forwarding
 - URL allow-list validation (no open proxy)
 
-Endpoint: GET /api/v1/proxy/stream?url=<encoded_stream_url>
+Endpoints:
+  GET /api/v1/proxy/stream?url=<encoded_stream_url>
+  GET /api/v1/proxy/m3u8?stream_id=<id>
 """
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import socket
 import urllib.parse
 from typing import AsyncGenerator
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
 
 logger = logging.getLogger("app.proxy")
 
@@ -225,3 +231,174 @@ async def proxy_stream_preflight() -> Response:
             "Access-Control-Allow-Headers": "Range, Accept, User-Agent",
         },
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dynamic M3U8 Proxy  (/api/v1/proxy/m3u8)
+# ─────────────────────────────────────────────────────────────────────────────
+# Retrieves the stored .m3u8 manifest for a DynamicStream record, rewrites
+# segment URLs to route through /proxy/stream, and returns the manifest with
+# full CORS headers.
+#
+# Zero-downtime guarantee:
+#   - Tries the current m3u8_url first.
+#   - Falls back to fallback_m3u8_url if the primary fails.
+#   - Returns 503 only when both are unavailable.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_M3U8_CONTENT_TYPE = "application/vnd.apple.mpegurl"
+_M3U8_CORS_HEADERS: dict[str, str] = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Range, Accept, User-Agent",
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+}
+_M3U8_FETCH_TIMEOUT = httpx.Timeout(connect=8.0, read=15.0, write=None, pool=None)
+
+
+def _rewrite_m3u8_segments(content: str, base_url: str, proxy_base: str) -> str:
+    """
+    Rewrite segment and chunk URLs inside an HLS manifest so that they are
+    fetched through /proxy/stream rather than directly from the origin.
+
+    Handles:
+    - Absolute URLs  (http://...)
+    - Protocol-relative URLs  (//...)
+    - Relative URLs  (segment.ts, ../path/seg.ts)
+
+    ``proxy_base`` should be the URL of the /proxy/stream endpoint, e.g.
+    ``https://api.example.com/api/v1/proxy/stream``.
+    """
+    parsed_base = urllib.parse.urlparse(base_url)
+    base_dir = base_url.rsplit("/", 1)[0] + "/"
+    lines = content.splitlines()
+    out: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            out.append(line)
+            continue
+
+        # Resolve the segment URL to an absolute URL.
+        if stripped.startswith("http://") or stripped.startswith("https://"):
+            absolute = stripped
+        elif stripped.startswith("//"):
+            absolute = parsed_base.scheme + ":" + stripped
+        else:
+            absolute = urllib.parse.urljoin(base_dir, stripped)
+
+        # Wrap through the proxy endpoint.
+        proxied = proxy_base + "?url=" + urllib.parse.quote(absolute, safe="")
+        out.append(proxied)
+
+    return "\n".join(out)
+
+
+async def _fetch_m3u8_manifest(
+    url: str,
+    headers: dict[str, str],
+) -> str | None:
+    """
+    Fetch an HLS manifest from ``url`` using ``headers``.
+    Returns the manifest text on success, None on any error.
+    """
+    try:
+        async with httpx.AsyncClient(verify=False, timeout=_M3U8_FETCH_TIMEOUT) as client:
+            resp = await client.get(url, headers=headers, follow_redirects=True)
+            if resp.status_code >= 400:
+                logger.warning("M3U8 fetch returned %d for %s", resp.status_code, url[:80])
+                return None
+            return resp.text
+    except Exception as exc:
+        logger.warning("M3U8 fetch error for %s: %s", url[:80], exc)
+        return None
+
+
+@router.get("/m3u8")
+async def proxy_m3u8(
+    request: Request,
+    stream_id: int = Query(..., description="DynamicStream.id to serve"),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """
+    Fetch and proxy a dynamic HLS manifest for the given DynamicStream record.
+
+    Behaviour:
+    1. Load the DynamicStream record from DB (uses Redis cache when available).
+    2. Try to fetch the manifest from the stored ``m3u8_url``.
+    3. On failure, fall back to ``fallback_m3u8_url``.
+    4. Rewrite all segment URLs to route through /proxy/stream.
+    5. Return the manifest with full CORS + no-cache headers.
+    """
+    from app.models.dynamic_stream import DynamicStream
+
+    stream: DynamicStream | None = await db.get(DynamicStream, stream_id)
+    if stream is None or not stream.is_active:
+        raise HTTPException(status_code=404, detail="Stream not found or inactive")
+
+    if not stream.m3u8_url and not stream.fallback_m3u8_url:
+        raise HTTPException(
+            status_code=503,
+            detail="Stream not yet extracted — try again in a few seconds",
+        )
+
+    # Build headers dict from stored JSON.
+    stored_headers: dict[str, str] = {}
+    if stream.headers_json:
+        try:
+            stored_headers = json.loads(stream.headers_json)
+        except Exception:
+            pass
+
+    fallback_headers: dict[str, str] = {}
+    if stream.fallback_headers_json:
+        try:
+            fallback_headers = json.loads(stream.fallback_headers_json)
+        except Exception:
+            pass
+
+    # Determine the proxy base URL for segment rewriting.
+    base_request_url = str(request.base_url).rstrip("/")
+    from app.core.config import settings
+    proxy_stream_url = f"{base_request_url}{settings.api_v1_prefix}/proxy/stream"
+
+    # Try primary then fallback.
+    manifest: str | None = None
+    manifest_source_url: str = ""
+
+    if stream.m3u8_url:
+        manifest = await _fetch_m3u8_manifest(stream.m3u8_url, stored_headers)
+        if manifest is not None:
+            manifest_source_url = stream.m3u8_url
+
+    if manifest is None and stream.fallback_m3u8_url:
+        logger.info(
+            "Primary m3u8 failed for stream %d — serving fallback", stream_id
+        )
+        manifest = await _fetch_m3u8_manifest(
+            stream.fallback_m3u8_url, fallback_headers
+        )
+        if manifest is not None:
+            manifest_source_url = stream.fallback_m3u8_url
+
+    if manifest is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Stream unavailable — both primary and fallback failed",
+        )
+
+    rewritten = _rewrite_m3u8_segments(manifest, manifest_source_url, proxy_stream_url)
+
+    return Response(
+        content=rewritten,
+        status_code=200,
+        media_type=_M3U8_CONTENT_TYPE,
+        headers=_M3U8_CORS_HEADERS,
+    )
+
+
+@router.options("/m3u8")
+async def proxy_m3u8_preflight() -> Response:
+    """Handle CORS preflight for the m3u8 proxy endpoint."""
+    return Response(status_code=204, headers=_M3U8_CORS_HEADERS)

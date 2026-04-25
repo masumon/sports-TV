@@ -19,7 +19,7 @@ from app.core.security import get_password_hash
 from app.core.sync_rate_limit import mark_sync_success
 from app.db.ensure_schema import ensure_channel_columns, ensure_user_subscription_tier
 from app.db.session import ASYNC_URL, Base, SessionLocal, engine
-from app.models import Channel, User
+from app.models import Channel, DynamicStream, User
 from app.services.channel_cleanup import run_full_cleanup
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
 from app.services.m3u_discovery import discover_new_sources, get_cached_discovered_sources
@@ -88,10 +88,16 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    if settings.scheduled_sync_interval_minutes > 0:
+    _needs_scheduler = (
+        settings.scheduled_sync_interval_minutes > 0
+        or settings.m3u8_refresh_interval_minutes > 0
+        or settings.source_discovery_interval_hours > 0
+    )
+    if _needs_scheduler:
         from apscheduler.schedulers.background import BackgroundScheduler
-        from sqlalchemy import select as _select
+        from sqlalchemy import select as _select, or_
         from app.models.channel import Channel as _Channel
+        from app.models.dynamic_stream import DynamicStream as _DS
         from app.services.stream_validator import validate_stream_urls
 
         def scheduled_m3u_sync() -> None:
@@ -160,29 +166,109 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logger.exception("Scheduled M3U discovery failed")
 
-        SCHEDULER = BackgroundScheduler()
-        SCHEDULER.add_job(
-            scheduled_m3u_sync,
-            "interval",
-            minutes=settings.scheduled_sync_interval_minutes,
-            id="m3u_sync",
-            max_instances=1,
-            coalesce=True,
-        )
-        logger.info("Scheduled M3U sync every %s min", settings.scheduled_sync_interval_minutes)
+        def scheduled_m3u8_refresh() -> None:
+            """Re-extract .m3u8 tokens for DynamicStream records expiring within 15 minutes.
 
-        # Stream validation: runs every 2× the sync interval, offset by half a cycle
-        # so it doesn't fire at the same time as the main sync.
-        validation_interval = max(settings.scheduled_sync_interval_minutes * 2, 10)
-        SCHEDULER.add_job(
-            scheduled_stream_validation,
-            "interval",
-            minutes=validation_interval,
-            id="stream_validation",
-            max_instances=1,
-            coalesce=True,
-        )
-        logger.info("Scheduled stream validation every %s min", validation_interval)
+            Runs every `m3u8_refresh_interval_minutes`.  For each active record
+            whose token is absent or expires within the 15-minute safety window
+            the Playwright engine is invoked.  The old URL is kept as a fallback
+            so the proxy always has a valid stream to serve.
+
+            Guarantees:
+            - Never crashes the worker (all exceptions are caught).
+            - Never leaves a stream with no URL (fallback preserved).
+            - Closes the browser and calls gc.collect() after every extraction.
+            """
+            import json as _json
+            from datetime import datetime, timedelta, timezone as _tz
+            from app.services.playwright_extractor import extract_m3u8_from_page
+
+            sdb = SessionLocal()
+            try:
+                refresh_window = datetime.now(tz=_tz.utc) + timedelta(minutes=15)
+                # Select active streams with no URL yet, or whose token expires soon.
+                stmt = _select(_DS).where(
+                    _DS.is_active.is_(True),
+                    or_(
+                        _DS.m3u8_url.is_(None),
+                        _DS.expires_at.is_(None),
+                        _DS.expires_at <= refresh_window,
+                    ),
+                )
+                streams = list(sdb.scalars(stmt).all())
+                if not streams:
+                    return
+
+                logger.info(
+                    "M3U8 refresh: %d stream(s) need re-extraction", len(streams)
+                )
+
+                for stream in streams:
+                    try:
+                        result = extract_m3u8_from_page(
+                            stream.source_page_url,
+                            token_ttl_seconds=stream.token_ttl_seconds,
+                        )
+                        if result is not None:
+                            # Preserve previous URL as fallback before overwriting.
+                            if stream.m3u8_url:
+                                stream.fallback_m3u8_url = stream.m3u8_url
+                                stream.fallback_headers_json = stream.headers_json
+                            stream.m3u8_url = result.m3u8_url
+                            stream.headers_json = _json.dumps(result.headers)
+                            stream.expires_at = result.expires_at
+                            stream.last_refreshed_at = datetime.now(tz=_tz.utc)
+                            sdb.commit()
+                            logger.info(
+                                "M3U8 refresh OK: stream_id=%d expires_at=%s",
+                                stream.id,
+                                result.expires_at.isoformat(),
+                            )
+                        else:
+                            logger.warning(
+                                "M3U8 refresh FAILED for stream_id=%d (%s) — "
+                                "fallback URL will be served",
+                                stream.id,
+                                stream.source_page_url[:80],
+                            )
+                    except Exception:
+                        logger.exception(
+                            "M3U8 refresh error for stream_id=%d", stream.id
+                        )
+                        try:
+                            sdb.rollback()
+                        except Exception:
+                            pass
+            except Exception:
+                logger.exception("Scheduled M3U8 refresh job failed")
+            finally:
+                sdb.close()
+
+        SCHEDULER = BackgroundScheduler()
+
+        if settings.scheduled_sync_interval_minutes > 0:
+            SCHEDULER.add_job(
+                scheduled_m3u_sync,
+                "interval",
+                minutes=settings.scheduled_sync_interval_minutes,
+                id="m3u_sync",
+                max_instances=1,
+                coalesce=True,
+            )
+            logger.info("Scheduled M3U sync every %s min", settings.scheduled_sync_interval_minutes)
+
+            # Stream validation: runs every 2× the sync interval, offset by half a cycle
+            # so it doesn't fire at the same time as the main sync.
+            validation_interval = max(settings.scheduled_sync_interval_minutes * 2, 10)
+            SCHEDULER.add_job(
+                scheduled_stream_validation,
+                "interval",
+                minutes=validation_interval,
+                id="stream_validation",
+                max_instances=1,
+                coalesce=True,
+            )
+            logger.info("Scheduled stream validation every %s min", validation_interval)
 
         if settings.source_discovery_interval_hours > 0:
             SCHEDULER.add_job(
@@ -196,6 +282,20 @@ async def lifespan(app: FastAPI):
             logger.info(
                 "Scheduled M3U discovery every %sh",
                 settings.source_discovery_interval_hours,
+            )
+
+        if settings.m3u8_refresh_interval_minutes > 0:
+            SCHEDULER.add_job(
+                scheduled_m3u8_refresh,
+                "interval",
+                minutes=settings.m3u8_refresh_interval_minutes,
+                id="m3u8_refresh",
+                max_instances=1,
+                coalesce=True,
+            )
+            logger.info(
+                "Scheduled dynamic m3u8 refresh every %s min",
+                settings.m3u8_refresh_interval_minutes,
             )
 
         SCHEDULER.start()
