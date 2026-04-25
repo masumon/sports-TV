@@ -30,6 +30,13 @@ def _build_client() -> Any | None:
     """
     raw_url = os.environ.get("REDIS_URL", "").strip()
     if not raw_url:
+        try:
+            from app.core.config import get_settings
+
+            raw_url = (get_settings().redis_url or "").strip()
+        except Exception:
+            raw_url = ""
+    if not raw_url:
         logger.debug("REDIS_URL not set — Redis cache disabled")
         return None
 
@@ -93,6 +100,11 @@ def _get_client() -> Any | None:
     _client = _build_client()
     _init_done = True
     return _client
+
+
+def get_shared_redis() -> Any | None:
+    """Use the same TLS-aware pool as the rest of the app (M3U dedup, sync state, list cache)."""
+    return _get_client()
 
 
 # ─── Safe public wrappers ─────────────────────────────────────────────────────

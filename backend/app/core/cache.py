@@ -8,36 +8,13 @@ import time
 from typing import Any
 
 from app.core.config import settings
+from app.core.redis_client import get_shared_redis
 
 logger = logging.getLogger("app.cache")
 
-_redis: Any = None
 _mem: dict[str, tuple[float, bytes]] = {}
 _mem_lock = threading.Lock()
 _cache_version = 0
-
-
-def _get_redis() -> Any:
-    global _redis
-    if _redis is False:
-        return None
-    if _redis is not None:
-        return _redis
-    url = settings.redis_url
-    if not url:
-        _redis = False
-        return None
-    try:
-        import redis as redis_mod
-
-        r = redis_mod.from_url(url, decode_responses=False, socket_connect_timeout=2.0)
-        r.ping()
-        _redis = r
-        logger.info("Redis cache connected")
-    except Exception as e:
-        logger.warning("Redis unavailable; caching disabled: %s", e)
-        _redis = False
-    return _redis if _redis not in (False, None) else None
 
 
 def _params_hash(params: dict[str, Any]) -> str:
@@ -73,7 +50,7 @@ _INVALIDATE_PREFIXES: tuple[str, ...] = (
 def invalidate_list_caches() -> None:
     """Invalidate channel, filter, and live-score list caches (after sync or admin writes)."""
     global _cache_version
-    r = _get_redis()
+    r = get_shared_redis()
     if r:
         try:
             for prefix in _INVALIDATE_PREFIXES:
@@ -89,26 +66,26 @@ def invalidate_list_caches() -> None:
             _mem.pop(k, None)
 
 
-def _raw_get(key: str) -> bytes | None:
-    r = _get_redis()
+def _raw_get(key: str) -> str | None:
+    r = get_shared_redis()
     if r:
-        v = r.get(key)
+        v: str | None = r.get(key)
         return v if v else None
     now = time.time()
     with _mem_lock:
         if key in _mem:
             exp, payload = _mem[key]
             if exp > now:
-                return payload
+                return payload.decode("utf-8", errors="replace")
             _mem.pop(key, None)
     return None
 
 
 def _raw_set(key: str, value: bytes, ttl: int) -> None:
-    r = _get_redis()
+    r = get_shared_redis()
     if r:
         try:
-            r.setex(key, ttl, value)
+            r.setex(key, ttl, value.decode("utf-8"))
         except Exception as e:
             logger.warning("redis set: %s", e)
         return

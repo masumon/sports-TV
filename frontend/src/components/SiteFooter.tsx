@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import {
   ExternalLink, Mail, Phone, Globe, Shield, FileText, BookOpen,
   Youtube, Facebook, Send, MessageCircle, Radio, Tv, Star,
@@ -69,7 +70,7 @@ export function SiteFooter() {
               বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং প্ল্যাটফর্ম
             </p>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-              World's premier free live sports streaming — All sports · All countries · 24/7
+              World{"'"}s premier free live sports streaming — All sports · All countries · 24/7
             </p>
           </div>
           <div className="sm:ml-auto flex items-center gap-2 shrink-0">
@@ -166,14 +167,14 @@ export function SiteFooter() {
                 </div>
               ))}
             </div>
-            <a
+            <Link
               href="/"
               className="inline-flex items-center gap-1.5 text-xs font-semibold transition hover:opacity-80"
               style={{ color: "var(--primary-accent)" }}
             >
               <Star size={12} fill="currentColor" />
               View all 300+ channels →
-            </a>
+            </Link>
           </div>
 
           {/* ── 4. CREDITS (DEVELOPER + TECH) — international layout, icon-only external links */}
@@ -318,9 +319,9 @@ export function SiteFooter() {
           <div className="text-[11px] text-center sm:text-right" style={{ color: "var(--text-muted)" }}>
             <p>
               © 2026{" "}
-              <a href="/" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
+              <Link href="/" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
                 ABO SPORTS TV LIVE
-              </a>
+              </Link>
               {" "}· All Rights Reserved
             </p>
             <p className="mt-0.5 text-[10px]">
