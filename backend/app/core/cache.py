@@ -63,12 +63,14 @@ def cache_set_json(prefix: str, params: dict[str, Any], data: Any, ttl: int | No
 
 
 def invalidate_list_caches() -> None:
-    """Invalidate channel and live-score list caches (after sync or admin writes)."""
+    """Invalidate channel, filter, and live-score list caches (after sync or admin writes)."""
     global _cache_version
     r = _get_redis()
     if r:
         try:
             for k in r.scan_iter("gstv:channels:*"):
+                r.delete(k)
+            for k in r.scan_iter("gstv:channel_filters:*"):
                 r.delete(k)
             for k in r.scan_iter("gstv:live-scores:*"):
                 r.delete(k)
@@ -77,7 +79,10 @@ def invalidate_list_caches() -> None:
     else:
         _cache_version += 1
     with _mem_lock:
-        drop = [k for k in _mem if "gstv:channels:" in k or "gstv:live-scores:" in k]
+        drop = [
+            k for k in _mem
+            if "gstv:channels:" in k or "gstv:channel_filters:" in k or "gstv:live-scores:" in k
+        ]
         for k in drop:
             _mem.pop(k, None)
 
