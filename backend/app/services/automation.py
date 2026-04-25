@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.core.cache import invalidate_list_caches
 from app.core.config import settings
@@ -21,6 +21,16 @@ logger = logging.getLogger("app.automation")
 T = TypeVar("T")
 SYNC_RETRY_DELAYS_SECONDS: tuple[int, ...] = (1, 2, 4, 8)
 MAX_SYNC_ATTEMPTS = 5
+DB_STATEMENT_TIMEOUT_MS = 60_000
+
+
+def _apply_db_statement_timeout(db) -> None:
+    """Best-effort PostgreSQL timeout guard; unsupported dialects skip safely."""
+    try:
+        if db.bind is not None and db.bind.dialect.name == "postgresql":
+            db.execute(text(f"SET statement_timeout = {DB_STATEMENT_TIMEOUT_MS}"))
+    except Exception:
+        logger.debug("DB statement timeout setup skipped", exc_info=True)
 
 
 def _retry(operation: Callable[[], T], *, operation_name: str) -> T:
@@ -59,8 +69,11 @@ def run_channel_sync(*, include_discovery: bool = True, source: str = "scheduler
 
     db = SessionLocal()
     try:
+        _apply_db_statement_timeout(db)
+
         def _do_sync() -> dict[str, int]:
             db.rollback()
+            _apply_db_statement_timeout(db)
             discovered = get_cached_discovered_sources() if include_discovery else []
             result = scrape_and_sync_sports_channels(db, extra_urls=discovered or None)
             cleanup = run_full_cleanup(db, stale_days=settings.channel_stale_days)
@@ -101,6 +114,7 @@ def run_channel_health_check(*, sample_limit: int = 80, max_workers: int = 20) -
     )
     db = SessionLocal()
     try:
+        _apply_db_statement_timeout(db)
         rows = list(
             db.scalars(
                 select(Channel)
