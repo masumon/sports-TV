@@ -50,6 +50,13 @@ export const translations: Record<
     offlineTitle: "You are offline",
     offlineBody: "Check your network, then try again. Cached content may still work in the PWA.",
     goHome: "Go home",
+    offlineStatusOnline: "Connection back",
+    offlineStatusOffline: "No connection",
+    offlineTipsTitle: "What you can do",
+    offlineTipNetwork: "Turn on Wi‑Fi or mobile data, or move to a better signal.",
+    offlineTipRetry: "Use “Try again” to reload the app when you are online.",
+    offlineTipPwa: "If you installed the app, the shell and some pages can open without a full load.",
+    offlineRetry: "Try again",
   },
   bn: {
     appTitle: "ABO স্পোর্টস টিভি লাইভ",
@@ -97,6 +104,13 @@ export const translations: Record<
     offlineTitle: "অফলাইন",
     offlineBody: "ইন্টারনেট যাচাই করুন। PWA-তে ক্যাশ করা কিছু কাজ করতে পারে।",
     goHome: "হোমে যান",
+    offlineStatusOnline: "কানেকশন ফিরেছে",
+    offlineStatusOffline: "কোনো কানেকশন নেই",
+    offlineTipsTitle: "কী করবেন",
+    offlineTipNetwork: "Wi‑Fi বা মোবাইল ডেটা চালু করুন, বা সিগনাল ভালো জায়গায় যান।",
+    offlineTipRetry: "অনলাইনে এলে “আবার চেষ্টা” বাটনে ট্যাপ করে অ্যাপ রিলোড করুন।",
+    offlineTipPwa: "অ্যাপ ইনস্টল থাকলে শেল এবং কিছু পেজ পূর্ণ লোড ছাড়াই খুলতে পারে।",
+    offlineRetry: "আবার চেষ্টা",
   },
 };
 

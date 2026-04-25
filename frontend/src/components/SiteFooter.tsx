@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   ExternalLink, Mail, Phone, Globe, Shield, FileText, BookOpen,
   Youtube, Facebook, Send, MessageCircle, Radio, Tv, Star,
@@ -39,6 +40,9 @@ function iconLinkClass(accent: "amber" | "blue") {
 }
 
 export function SiteFooter() {
+  const pathname = usePathname();
+  if (pathname === "/offline") return null;
+
   return (
     <footer
       className="mt-auto"
