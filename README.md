@@ -5,9 +5,9 @@ Next.js + FastAPI platform for live sports and Bangladesh TV channel discovery, 
 ## Architecture
 
 - `frontend/`: Next.js 15, React 19, TypeScript, Tailwind, Zustand, HLS.js, PWA.
-- `backend/`: FastAPI, SQLAlchemy, SQLite for local development, optional PostgreSQL/Redis/Playwright for production automation.
-- `render.yaml`: Render backend deployment blueprint.
-- `frontend/vercel.json`: Vercel frontend deployment metadata.
+- `backend/`: FastAPI, SQLAlchemy, SQLite for local development, optional PostgreSQL/Redis/Playwright automation.
+- `render.yaml`: Render backend service configuration.
+- `frontend/vercel.json`: Vercel frontend configuration.
 
 ## Local setup
 
@@ -56,7 +56,7 @@ The backend seeds one admin account on first startup from environment variables:
 - `ADMIN_PASSWORD`
 - `ADMIN_FULL_NAME`
 
-Local defaults are documented in `backend/.env.example`. Change production credentials before deployment.
+Local defaults are documented in `backend/.env.example` and use `admin@test.com` / `Admin12345!` for development.
 
 ## Validation checklist
 
@@ -75,11 +75,5 @@ Local defaults are documented in `backend/.env.example`. Change production crede
 - Backend `/health/db` no longer returns masked password suffixes or URL fragments.
 - Admin channel creation now preserves the selected module and validates form data before submitting.
 - Viewer empty/error states are clearer and provide retry/reset actions.
-- README now documents setup, run commands, validation, and deployment notes.
-
-## Deployment notes
-
-- Frontend: deploy `frontend/` to Vercel and set `NEXT_PUBLIC_API_BASE_URL=/api`, `BACKEND_URL=<backend-origin>`, and `NEXT_PUBLIC_SITE_URL=<frontend-origin>`.
-- Backend: deploy `backend/` via Render or equivalent and set `DATABASE_URL`, `JWT_SECRET_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `CORS_ORIGINS`.
-- Optional production automation: enable Redis and scheduled sync variables from `backend/.env.example` / `render.yaml`.
+- README now documents setup, run commands, validation, and project analysis.
 
