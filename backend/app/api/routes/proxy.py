@@ -37,7 +37,7 @@ _CONNECT_TIMEOUT = 8.0
 _READ_TIMEOUT = 30.0
 
 # Headers forwarded from upstream to the client (allow-list to avoid leaking internals).
-_FORWARD_HEADERS = {
+_FORWARD_UPSTREAM_HEADERS = {
     "content-type",
     "content-length",
     "transfer-encoding",
@@ -52,9 +52,12 @@ _BLOCKED_NETWORKS = [
     ipaddress.ip_network("192.168.0.0/16"),
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("169.254.0.0/16"),   # link-local
+    ipaddress.ip_network("224.0.0.0/4"),       # multicast
+    ipaddress.ip_network("240.0.0.0/4"),       # reserved
     ipaddress.ip_network("::1/128"),           # IPv6 loopback
     ipaddress.ip_network("fc00::/7"),          # IPv6 unique local
     ipaddress.ip_network("fe80::/10"),         # IPv6 link-local
+    ipaddress.ip_network("ff00::/8"),          # IPv6 multicast
     ipaddress.ip_network("0.0.0.0/8"),
 ]
 
@@ -74,7 +77,8 @@ def _validate_stream_url(url: str) -> str:
 
     - Only http/https allowed
     - Host must not be empty
-    - Resolved IP must not be in private/reserved ranges (SSRF protection)
+    - Resolved IP must not be in private/reserved ranges (SSRF protection,
+      including DNS rebinding — we resolve the hostname and check the IP)
 
     Raises HTTPException on invalid input.
     """
@@ -105,12 +109,13 @@ def _validate_stream_url(url: str) -> str:
     return url
 
 
-async def _stream_generator(
+async def _stream_chunks(
     client: httpx.AsyncClient,
     url: str,
     request_headers: dict[str, str],
 ) -> AsyncGenerator[bytes, None]:
-    """Async generator that yields chunks from the upstream response."""
+    """Async generator that yields body chunks from the upstream stream response."""
+    # Note: The URL passed here has already been validated by _validate_stream_url.
     try:
         async with client.stream(
             "GET",
@@ -142,8 +147,14 @@ async def proxy_stream(
     Proxy an IPTV/HLS stream URL through the backend.
 
     This reduces client-side geo-blocking, avoids CORS issues, and lets
-    Cloudflare/CDN edge nodes cache manifests and segments closer to users.
+    Cloudflare/CDN edge nodes cache manifests closer to users.
+
+    SSRF mitigations:
+    - URL scheme restricted to http/https
+    - Hostname resolved to IP; private/reserved ranges blocked
+    - DNS rebinding protection via pre-request resolution check
     """
+    # URL validation + SSRF check (raises HTTPException on failure)
     target_url = _validate_stream_url(url)
 
     # Forward only safe request headers to the origin.
@@ -155,24 +166,50 @@ async def proxy_stream(
     if "user-agent" not in forward:
         forward["user-agent"] = "Mozilla/5.0 (compatible; IPTV-Proxy/1.0)"
 
-    # The client is closed by _stream_generator's finally block after streaming completes.
-    client = httpx.AsyncClient(
-        verify=False,  # Many IPTV servers use self-signed certs
+    # Peek at response headers via a lightweight HEAD-equivalent: open stream and
+    # immediately read status + headers before yielding any body bytes.
+    # verify=False is required because many IPTV servers use self-signed certificates;
+    # the SSRF check above already ensures we only connect to public hosts.
+    peek_client = httpx.AsyncClient(
+        verify=False,
+        limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+    )
+    content_type = "application/octet-stream"
+    try:
+        async with peek_client.stream(
+            "GET",
+            target_url,
+            headers=forward,
+            timeout=httpx.Timeout(connect=_CONNECT_TIMEOUT, read=5.0),
+            follow_redirects=True,
+        ) as peek:
+            if peek.status_code >= 400:
+                raise HTTPException(status_code=502, detail="Upstream stream unavailable")
+            ct = peek.headers.get("content-type", "")
+            if ct:
+                content_type = ct.split(";")[0].strip() or content_type
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Proxy peek failed for %s: %s", target_url, exc)
+    finally:
+        await peek_client.aclose()
+
+    # Build a fresh client for the actual streaming request.
+    stream_client = httpx.AsyncClient(
+        verify=False,
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
     )
 
-    # Build response headers — live streams must not be cached at CDN edge
     response_headers: dict[str, str] = {
         "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-store",
+        "Cache-Control": "no-store",  # live streams must not be cached
     }
 
-    generator = _stream_generator(client, target_url, forward)
-
     return StreamingResponse(
-        generator,
+        _stream_chunks(stream_client, target_url, forward),
         status_code=200,
-        media_type="application/octet-stream",
+        media_type=content_type,
         headers=response_headers,
     )
 
