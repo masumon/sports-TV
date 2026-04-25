@@ -19,6 +19,7 @@ import {
   Volume1,
   Volume2,
   VolumeX,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -90,6 +91,7 @@ const EXTERNAL_PLAYERS = [
 ] as const;
 
 /* ─────────────────────────────────────── App-launch detection helper ── */
+/** Opens a custom `scheme:` URL to hand the stream to an external app. Android `intent:` passes through as-is. On desktop, if the app does not steal focus (window blur) within 1.5s, the install or store page opens. */
 function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
   if (schemeUrl.startsWith("intent:")) {
     window.location.href = schemeUrl;
@@ -512,7 +514,7 @@ export default function PremiumPlayer({
             transition={{ duration: 0.2 }}
             className="absolute inset-x-0 bottom-0 z-40"
           >
-            <div className="glass-panel mx-3 mb-3 overflow-hidden rounded-2xl">
+            <div className={`glass-panel mx-3 mb-3 rounded-2xl ${showExternalPanel ? "overflow-visible" : "overflow-hidden"}`}>
               {/* Now playing strip */}
               <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3.5">
                 <div className="min-w-0 flex-1">
@@ -584,41 +586,55 @@ export default function PremiumPlayer({
                     transition={{ duration: 0.22 }}
                     className="overflow-hidden"
                   >
-                    <div className="px-4 pb-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                      <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
-                        Open stream in external player — click to launch (or install if missing)
-                      </p>
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                    <div
+                      className="max-h-[min(52dvh,22rem)] overflow-y-auto overscroll-contain px-2 pb-3 pt-2 sm:max-h-none sm:px-4 sm:pb-4 sm:pt-3 sm:overflow-visible"
+                      style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+                    >
+                      <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3">
+                        <p className="pr-1 text-[9px] font-bold uppercase leading-snug tracking-[0.1em] sm:tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
+                          Open stream in external player — click to launch (or install if missing)
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowExternalPanel(false)}
+                          className="shrink-0 rounded-lg p-1.5 transition hover:bg-white/10"
+                          style={{ color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+                          aria-label="Close external players"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
                         {EXTERNAL_PLAYERS.map((player) => (
                           <button key={player.id} type="button"
                             onClick={() => tryLaunchPlayer(player.scheme(streamUrl), player.fallback)}
-                            className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-center transition hover:bg-white/10"
+                            className="flex min-h-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition hover:bg-white/10 sm:gap-1.5 sm:rounded-xl sm:px-2 sm:py-2.5"
                             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                             title={`${player.name} — ${player.desc}`}>
-                            <span className="text-xl leading-none">{player.emoji}</span>
-                            <span className="text-[11px] font-bold leading-none text-white">{player.name}</span>
-                            <span className="text-[9px] leading-tight" style={{ color: "var(--text-muted)" }}>{player.desc}</span>
+                            <span className="text-base leading-none sm:text-xl">{player.emoji}</span>
+                            <span className="w-full truncate text-[9px] font-bold leading-tight text-white sm:text-[11px] sm:leading-none">{player.name}</span>
+                            <span className="line-clamp-2 text-[7px] leading-tight sm:line-clamp-none sm:text-[9px]" style={{ color: "var(--text-muted)" }}>{player.desc}</span>
                           </button>
                         ))}
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
                         <button type="button"
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium transition hover:bg-white/10"
+                          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition hover:bg-white/10 sm:px-3 sm:py-1.5 sm:text-[11px]"
                           style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
                           onClick={async () => {
                             try { await navigator.clipboard.writeText(streamUrl); toast.success("Stream URL copied"); }
                             catch { toast.error("Could not copy"); }
                           }}>
-                          <Copy size={12} /> Copy stream URL
+                          <Copy size={12} className="shrink-0" /> <span>Copy stream URL</span>
                         </button>
                         <button type="button"
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium transition hover:bg-white/10"
+                          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition hover:bg-white/10 sm:px-3 sm:py-1.5 sm:text-[11px]"
                           style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
                           onClick={() => window.open(streamUrl, "_blank", "noopener,noreferrer")}>
-                          <ExternalLink size={12} /> Open in new tab
+                          <ExternalLink size={12} className="shrink-0" /> <span>Open in new tab</span>
                         </button>
                       </div>
-                      <p className="mt-2.5 text-[9px] tracking-wide" style={{ color: "rgba(123,128,154,0.55)" }}>
+                      <p className="mt-2 text-[8px] leading-relaxed tracking-wide sm:mt-2.5 sm:text-[9px]" style={{ color: "rgba(123,128,154,0.55)" }}>
                         Keys: Space Play/Pause · M Mute · F Fullscreen · T Theater · ↑↓ Volume
                       </p>
                     </div>
