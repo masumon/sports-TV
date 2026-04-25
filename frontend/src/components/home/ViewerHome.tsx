@@ -157,6 +157,7 @@ function FilterChips({
   allLabel,
   showLessLabel,
   moreLabel,
+  ariaLabel,
 }: {
   label: string;
   options: string[];
@@ -166,11 +167,12 @@ function FilterChips({
   allLabel: string;
   showLessLabel: string;
   moreLabel: string;
+  ariaLabel?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? options : options.slice(0, maxVisible);
   return (
-    <div>
+    <div role="group" aria-label={ariaLabel ?? label}>
       <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>{label}</p>
       <div className="flex flex-wrap gap-1.5">
         <button
@@ -219,7 +221,6 @@ export function ViewerHome() {
   const [filterCountry, setFilterCountry] = useState("");
   const [filterLanguage, setFilterLanguage] = useState("");
   const [filterLeague, setFilterLeague] = useState("");
-  const [filterSport, setFilterSport] = useState("");
   const [scores, setScores] = useState<LiveScore[]>([]);
   const [showAllFilters, setShowAllFilters] = useState(false);
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
@@ -269,7 +270,6 @@ export function ViewerHome() {
     setFilterCountry("");
     setFilterLanguage("");
     setFilterLeague("");
-    setFilterSport("");
     setActiveCategory("");
     setActiveStreamUrl(null);
     setShowAltLinks(false);
@@ -309,10 +309,9 @@ export function ViewerHome() {
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
 
     if (activeModule === "sports") {
-      // Sport type filter: local tab (filterSport) OR sidebar category (activeCategory)
-      const effectiveSport = filterSport || activeCategory;
-      if (effectiveSport) {
-        const sport = SPORT_TYPES.find((s) => s.id === effectiveSport);
+      // Sport type: hero tabs and sidebar both set activeCategory (single source of truth)
+      if (activeCategory) {
+        const sport = SPORT_TYPES.find((s) => s.id === activeCategory);
         if (sport) {
           list = list.filter((c) => {
             const catLower = c.category.toLowerCase();
@@ -321,8 +320,7 @@ export function ViewerHome() {
           });
         }
       }
-      // Sub-league filter (only active when a sport type is selected)
-      if (filterLeague && effectiveSport) {
+      if (filterLeague && activeCategory) {
         list = list.filter((c) => inferLeague(c.name) === filterLeague);
       }
     } else {
@@ -342,7 +340,7 @@ export function ViewerHome() {
       list = list.filter((c) => c.language.toLowerCase().includes(f));
     }
     return list;
-  }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, filterSport, activeModule]);
+  }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, activeModule]);
 
   const categoryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.category)), [moduleChannels]);
   const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
@@ -363,9 +361,8 @@ export function ViewerHome() {
 
   // Sub-leagues for the currently selected sport type (tab OR sidebar)
   const subLeagueOptions = useMemo(() => {
-    const effectiveSport = filterSport || (activeModule === "sports" ? activeCategory : "");
-    if (!effectiveSport || activeModule !== "sports") return [];
-    const sport = SPORT_TYPES.find((s) => s.id === effectiveSport);
+    if (activeModule !== "sports" || !activeCategory) return [];
+    const sport = SPORT_TYPES.find((s) => s.id === activeCategory);
     if (!sport) return [];
     const sportChans = moduleChannels.filter((c) => {
       const catLower = c.category.toLowerCase();
@@ -373,13 +370,40 @@ export function ViewerHome() {
       return sport.categoryKeys.some((k) => catLower.includes(k)) || league.startsWith(sport.leagueEmoji);
     });
     return uniqueSorted([...new Set(sportChans.map((c) => inferLeague(c.name)))]);
-  }, [filterSport, activeCategory, moduleChannels, activeModule]);
+  }, [activeCategory, moduleChannels, activeModule]);
 
   const liveScoresTicker = useMemo(() => {
     const live = scores.filter((s) => s.status === "live");
     if (live.length === 0) return null;
     return live.map((s) => `${s.team_home} ${s.score_home}–${s.score_away} ${s.team_away} (${s.league})`).join("   •   ");
   }, [scores]);
+
+  const nameMatchCount = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    if (!q) return 0;
+    return moduleChannels.filter((c) => c.name.toLowerCase().includes(q)).length;
+  }, [moduleChannels, deferredSearch]);
+
+  const hasActiveFilters = useMemo(
+    () =>
+      Boolean(
+        deferredSearch.trim() ||
+          (activeModule === "sports" && activeCategory) ||
+          (activeModule === "bangladesh" && activeCategory) ||
+          filterLeague ||
+          filterCountry ||
+          filterLanguage
+      ),
+    [deferredSearch, activeModule, activeCategory, filterLeague, filterCountry, filterLanguage]
+  );
+
+  const clearAllFilters = useCallback(() => {
+    setSearchQuery("");
+    setActiveCategory("");
+    setFilterLeague("");
+    setFilterCountry("");
+    setFilterLanguage("");
+  }, [setActiveCategory]);
 
   const currentStreamUrl = activeStreamUrl ?? activeChannel?.stream_url ?? "";
   const altLinks = activeChannel?.alternate_urls ?? [];
@@ -451,9 +475,30 @@ export function ViewerHome() {
             <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl" style={{ color: "var(--text-main)" }}>
               {activeModule === "bangladesh" ? "বাংলাদেশ টিভি চ্যানেল" : t("tagline")}
             </h1>
-            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              {loading ? t("loading") : error ? error : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}`}
-            </p>
+            <div className="mt-1 space-y-1.5">
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                {loading
+                  ? t("loading")
+                  : error
+                    ? error
+                    : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${
+                        deferredSearch.trim() ? ` · ${nameMatchCount} ${t("searchMatches")}` : ""
+                      }`}
+              </p>
+              {!loading && !error && hasActiveFilters && (
+                <div className="flex flex-wrap items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  <span style={{ color: "var(--primary-accent)" }}>{t("resultsSummary")}</span>
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="rounded-md px-2 py-0.5 font-semibold transition hover:bg-white/5"
+                    style={{ border: "1px solid rgba(245,166,35,0.35)", color: "var(--primary-accent)" }}
+                  >
+                    {t("clearFilters")}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -510,11 +555,13 @@ export function ViewerHome() {
         {/* ── Category / Sport-type tabs ── */}
         {activeModule === "sports" ? (
           /* Sports module: smart sport-type chips (auto-filtered, only non-empty) */
+          <div className="space-y-1.5">
+          <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             <button
               type="button"
-              className={`cat-tab${filterSport === "" ? " active" : ""}`}
-              onClick={() => { setFilterSport(""); setFilterLeague(""); }}
+              className={`cat-tab${activeCategory === "" ? " active" : ""}`}
+              onClick={() => { setActiveCategory(""); setFilterLeague(""); }}
             >
               📺 {t("filterAll")}
             </button>
@@ -522,16 +569,22 @@ export function ViewerHome() {
               <button
                 key={sport.id}
                 type="button"
-                className={`cat-tab${filterSport === sport.id ? " active" : ""}`}
-                onClick={() => { setFilterSport(filterSport === sport.id ? "" : sport.id); setFilterLeague(""); setActiveCategory(""); }}
+                className={`cat-tab${activeCategory === sport.id ? " active" : ""}`}
+                onClick={() => {
+                  setFilterLeague("");
+                  setActiveCategory(activeCategory === sport.id ? "" : sport.id);
+                }}
               >
                 {sport.label}
                 <span className="module-tab-badge">{sportChannelCount[sport.id]}</span>
               </button>
             ))}
           </div>
+          </div>
         ) : (
           /* Bangladesh module: category tabs from DB */
+          <div className="space-y-1.5">
+          <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             <button
               type="button"
@@ -551,17 +604,19 @@ export function ViewerHome() {
               </button>
             ))}
           </div>
+          </div>
         )}
 
         {/* ── Sub-league chips (shown when a sport type is selected via tab OR sidebar) ── */}
-        {activeModule === "sports" && (filterSport || activeCategory) && subLeagueOptions.length > 1 && (
+        {activeModule === "sports" && activeCategory && subLeagueOptions.length > 1 && (
           <div
             className="rounded-xl px-4 py-3"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
-            <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+            <p className="mb-0.5 text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               🏆 League / Competition
             </p>
+            <p className="mb-2 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("leagueFilterHint")}</p>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -586,16 +641,21 @@ export function ViewerHome() {
 
         {/* ── Filter chips ── */}
         <div>
-          <button
-            type="button"
-            onClick={() => setShowAllFilters((v) => !v)}
-            className="flex items-center gap-1.5 text-xs"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <Globe size={13} />
-            {showAllFilters ? t("hideFilters") : t("moreFilters")}
-            <ChevronRight size={13} className={`transition-transform ${showAllFilters ? "rotate-90" : ""}`} />
-          </button>
+          <div className="mb-0.5 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAllFilters((v) => !v)}
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <Globe size={13} />
+              {showAllFilters ? t("hideFilters") : t("moreFilters")}
+              <ChevronRight size={13} className={`transition-transform ${showAllFilters ? "rotate-90" : ""}`} />
+            </button>
+            {hasActiveFilters && (
+              <span className="text-[10px] hidden sm:inline" style={{ color: "var(--text-muted)" }}>{t("moreFiltersHint")}</span>
+            )}
+          </div>
           <AnimatePresence>
             {showAllFilters && (
               <motion.div
@@ -606,16 +666,17 @@ export function ViewerHome() {
               >
                 <div className="mt-3 flex flex-col gap-3 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                   <FilterChips
-                    label="Country"
+                    label={t("countryLabel")}
                     options={countryOptions}
                     value={filterCountry}
                     onChange={setFilterCountry}
                     allLabel={t("filterAll")}
                     showLessLabel={t("showLess")}
                     moreLabel={t("moreSuffix")}
+                    ariaLabel={t("countryLabel")}
                   />
                   <FilterChips
-                    label="Language"
+                    label={t("languageLabel")}
                     options={languageOptions}
                     value={filterLanguage}
                     onChange={setFilterLanguage}
@@ -623,6 +684,7 @@ export function ViewerHome() {
                     allLabel={t("filterAll")}
                     showLessLabel={t("showLess")}
                     moreLabel={t("moreSuffix")}
+                    ariaLabel={t("languageLabel")}
                   />
                 </div>
               </motion.div>
@@ -737,9 +799,29 @@ export function ViewerHome() {
 
             {/* Featured channels quick list */}
             <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("directory")}</h2>
-                <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("quickPicks")}</h2>
+                  <span className="text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
+                </div>
+                <p className="mt-0.5 text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>{t("quickPicksHint")}</p>
+                {!loading && (
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+                    <span>
+                      {t("showingFirst")} {Math.min(12, filtered.length)} {t("ofTotal")} {filtered.length}
+                    </span>
+                    {filtered.length > 12 && (
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                        className="font-semibold transition hover:underline"
+                        style={{ color: "var(--primary-accent)" }}
+                      >
+                        {t("scrollToGrid")} ↓
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div
                 className="max-h-[min(50dvh,26rem)] overflow-y-auto overscroll-y-contain divide-y sm:max-h-[min(55dvh,28rem)] md:max-h-[min(52dvh,26rem)] lg:max-h-[26.25rem]"
@@ -780,7 +862,7 @@ export function ViewerHome() {
                           {ch.name}
                         </p>
                         <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                          {flagFromCountryName(ch.country)} {ch.country} · {ch.quality_tag.toUpperCase()}
+                          {flagFromCountryName(ch.country)} {ch.country} · {ch.language} · {ch.quality_tag.toUpperCase()}
                         </p>
                       </div>
                       {activeChannel?.id === ch.id && (
@@ -803,8 +885,8 @@ export function ViewerHome() {
         <section id="channel-grid">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
-              {activeModule === "sports" && (filterSport || activeCategory)
-                ? SPORT_TYPES.find((s) => s.id === (filterSport || activeCategory))?.label ?? "🌐 " + t("directory")
+              {activeModule === "sports" && activeCategory
+                ? SPORT_TYPES.find((s) => s.id === activeCategory)?.label ?? "🌐 " + t("directory")
                 : activeModule === "bangladesh" && activeCategory
                   ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
                   : activeModule === "bangladesh"
@@ -887,7 +969,7 @@ function PremiumChannelCard({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }}>{channel.name}</p>
           <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: "var(--text-muted)" }}>
-            {flagFromCountryName(channel.country)} {channel.country}
+            {flagFromCountryName(channel.country)} {channel.country} · {channel.language}
           </p>
         </div>
         {active && <span className="pulse-dot mt-1 shrink-0" />}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, Save, Trash2, Pencil, X, Check, Settings2, Megaphone } from "lucide-react";
+import { RefreshCw, Save, Trash2, Pencil, X, Check, Settings2, Megaphone, Search, Filter } from "lucide-react";
 import Image from "next/image";
 import { apiClient } from "@/lib/apiClient";
 import type { AdminStats, Channel, LiveScore } from "@/lib/types";
@@ -74,8 +74,38 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [editingScoreId, setEditingScoreId] = useState<number | null>(null);
   const [editScoreData, setEditScoreData] = useState<EditScoreState>({ score_home: 0, score_away: 0, match_minute: "", status: "live" });
+  const [channelQuery, setChannelQuery] = useState("");
+  const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "sports" | "bangladesh">("all");
+  const [scoreQuery, setScoreQuery] = useState("");
 
   const authToken = token;
+
+  const filteredScores = useMemo(() => {
+    const q = scoreQuery.trim().toLowerCase();
+    if (!q) return scores;
+    return scores.filter(
+      (s) =>
+        s.league.toLowerCase().includes(q) ||
+        s.team_home.toLowerCase().includes(q) ||
+        s.team_away.toLowerCase().includes(q) ||
+        (s.sport_type && s.sport_type.toLowerCase().includes(q))
+    );
+  }, [scores, scoreQuery]);
+
+  const filteredAdminChannels = useMemo(() => {
+    const q = channelQuery.trim().toLowerCase();
+    return channels.filter((c) => {
+      if (channelModuleFilter !== "all" && c.module !== channelModuleFilter) return false;
+      if (!q) return true;
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.country.toLowerCase().includes(q) ||
+        c.category.toLowerCase().includes(q) ||
+        c.language.toLowerCase().includes(q) ||
+        c.stream_url.toLowerCase().includes(q)
+      );
+    });
+  }, [channels, channelQuery, channelModuleFilter]);
 
   const setFormError = (message: string) => {
     setError(message);
@@ -539,24 +569,62 @@ export default function AdminDashboardPage() {
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <h2 className="mb-4 text-lg font-semibold text-white">চ্যানেল তালিকা</h2>
+          <h2 className="mb-2 text-lg font-semibold text-white">চ্যানেল তালিকা</h2>
+          <p className="mb-3 text-xs text-zinc-500">নাম, দেশ, ক্যাটাগরি, ভাষা বা স্ট্রিম URL দিয়ে খুঁজুন — মডিউল দিয়ে সরিয়ে দেখুন।</p>
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+              <input
+                value={channelQuery}
+                onChange={(e) => setChannelQuery(e.target.value)}
+                placeholder="Search by name, country, category, URL…"
+                className="w-full rounded-lg border border-white/20 bg-black/30 py-2 pl-8 pr-3 text-sm text-white outline-none focus:border-emerald-400"
+                aria-label="Filter channel list"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Filter size={14} className="shrink-0 text-zinc-500" />
+              <select
+                value={channelModuleFilter}
+                onChange={(e) => setChannelModuleFilter(e.target.value as "all" | "sports" | "bangladesh")}
+                className="min-w-[8rem] rounded-lg border border-white/20 bg-black/30 px-2 py-2 text-sm text-white outline-none focus:border-emerald-400"
+              >
+                <option value="all">All modules</option>
+                <option value="sports">sports</option>
+                <option value="bangladesh">bangladesh</option>
+              </select>
+            </div>
+          </div>
           {loading ? (
             <p className="text-sm text-zinc-400">Loading...</p>
+          ) : channels.length === 0 ? (
+            <p className="rounded-lg border border-white/10 bg-black/20 p-4 text-sm text-zinc-400">No channels in the database yet. Add one using the form above, or run M3U sync.</p>
+          ) : filteredAdminChannels.length === 0 ? (
+            <p className="rounded-lg border border-white/10 bg-black/20 p-4 text-sm text-zinc-400">No channels match this search. Clear the filter or try different keywords.</p>
           ) : (
-            <div className="max-h-96 space-y-2 overflow-auto">
-              {channels.map((channel) => (
+            <p className="mb-2 text-xs text-zinc-500">Showing {filteredAdminChannels.length} of {channels.length} channels</p>
+          )}
+          {!loading && channels.length > 0 && filteredAdminChannels.length > 0 && (
+            <div className="max-h-96 space-y-2 overflow-auto pr-0.5">
+              {filteredAdminChannels.map((channel) => (
                 <div
                   key={channel.id}
-                  className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 p-3"
+                  className="flex items-start justify-between gap-2 rounded-lg border border-white/10 bg-black/30 p-3"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-white">{channel.name}</p>
-                    <p className="text-xs text-zinc-400">{channel.country}</p>
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      {channel.country} · {channel.module}
+                    </p>
+                    <p className="mt-0.5 line-clamp-2 break-all text-[11px] text-zinc-500">
+                      {channel.category} · {channel.language} · {channel.quality_tag}
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => void deleteChannel(channel.id)}
-                    className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
+                    className="shrink-0 rounded-lg border border-rose-300/30 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
+                    title="Delete channel"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -567,12 +635,29 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <h2 className="mb-4 text-lg font-semibold text-white">লাইভ স্কোর তালিকা</h2>
+          <h2 className="mb-2 text-lg font-semibold text-white">লাইভ স্কোর তালিকা</h2>
+          <div className="relative mb-3">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+            <input
+              value={scoreQuery}
+              onChange={(e) => setScoreQuery(e.target.value)}
+              placeholder="Filter by league or team…"
+              className="w-full rounded-lg border border-white/20 bg-black/30 py-2 pl-8 pr-3 text-sm text-white outline-none focus:border-emerald-400"
+              aria-label="Filter scores"
+            />
+          </div>
           {loading ? (
             <p className="text-sm text-zinc-400">Loading...</p>
+          ) : scores.length === 0 ? (
+            <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-zinc-400">No live scores yet. Add a match using the form on the left.</p>
+          ) : filteredScores.length === 0 ? (
+            <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-zinc-400">No scores match this filter. Clear the search or try a team or league name.</p>
           ) : (
-            <div className="max-h-96 space-y-2 overflow-auto">
-              {scores.map((score) => (
+            <p className="mb-2 text-xs text-zinc-500">Showing {filteredScores.length} of {scores.length} rows</p>
+          )}
+          {loading || scores.length === 0 ? null : (
+            <div className="max-h-96 space-y-2 overflow-auto pr-0.5">
+              {filteredScores.map((score) => (
                 editingScoreId === score.id ? (
                   <div key={score.id} className="rounded-lg border border-amber-400/30 bg-amber-500/5 p-3 space-y-2">
                     <p className="text-xs font-semibold text-zinc-300">
