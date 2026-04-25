@@ -68,6 +68,23 @@ function inferLeague(name: string): string {
   return "🌐 Other Sports";
 }
 
+// Top-level sport-type filter: matches by DB category field OR inferred league
+const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
+  { id: "football",   label: "⚽ Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
+  { id: "cricket",    label: "🏏 Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
+  { id: "basketball", label: "🏀 Basketball",    leagueEmoji: "🏀", categoryKeys: ["basketball", "nba"] },
+  { id: "tennis",     label: "🎾 Tennis",         leagueEmoji: "🎾", categoryKeys: ["tennis"] },
+  { id: "racing",     label: "🏎️ Racing / F1",    leagueEmoji: "🏎️", categoryKeys: ["racing", "formula", "f1"] },
+  { id: "golf",       label: "⛳ Golf",           leagueEmoji: "⛳", categoryKeys: ["golf"] },
+  { id: "boxing",     label: "🥊 Boxing / MMA",   leagueEmoji: "🥊", categoryKeys: ["boxing", "mma", "ufc", "fight"] },
+  { id: "hockey",     label: "🏒 Hockey",         leagueEmoji: "🏒", categoryKeys: ["hockey"] },
+  { id: "baseball",   label: "⚾ Baseball",       leagueEmoji: "⚾", categoryKeys: ["baseball"] },
+  { id: "nfl",        label: "🏈 NFL",            leagueEmoji: "🏈", categoryKeys: ["nfl"] },
+  { id: "cycling",    label: "🚴 Cycling",        leagueEmoji: "🚴", categoryKeys: ["cycling"] },
+  { id: "horse",      label: "🏇 Horse Racing",   leagueEmoji: "🏇", categoryKeys: ["horse", "equid", "turf"] },
+  { id: "news",       label: "📺 News / General", leagueEmoji: "📺", categoryKeys: ["news", "general"] },
+];
+
 const BD_CATEGORIES: Record<string, string> = {
   news: "📰",
   entertainment: "🎭",
@@ -178,6 +195,7 @@ export function ViewerHome() {
   const [filterCountry, setFilterCountry] = useState("");
   const [filterLanguage, setFilterLanguage] = useState("");
   const [filterLeague, setFilterLeague] = useState("");
+  const [filterSport, setFilterSport] = useState("");
   const [scores, setScores] = useState<LiveScore[]>([]);
   const [showAllFilters, setShowAllFilters] = useState(false);
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
@@ -219,9 +237,11 @@ export function ViewerHome() {
     setFilterCountry("");
     setFilterLanguage("");
     setFilterLeague("");
+    setFilterSport("");
+    setActiveCategory("");
     setActiveStreamUrl(null);
     setShowAltLinks(false);
-  }, [activeModule]);
+  }, [activeModule, setActiveCategory]);
 
   // Reset active stream URL when channel changes
   useEffect(() => {
@@ -255,9 +275,21 @@ export function ViewerHome() {
     let list = moduleChannels;
     const q = deferredSearch.trim().toLowerCase();
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
-    if (activeCategory) {
+    // Bangladesh module: filter by category from DB
+    if (activeCategory && activeModule !== "sports") {
       const f = activeCategory.toLowerCase();
       list = list.filter((c) => c.category.toLowerCase().includes(f));
+    }
+    // Sports module: smart sport type filter (DB category + inferLeague)
+    if (filterSport && activeModule === "sports") {
+      const sport = SPORT_TYPES.find((s) => s.id === filterSport);
+      if (sport) {
+        list = list.filter((c) => {
+          const catLower = c.category.toLowerCase();
+          const league = inferLeague(c.name);
+          return sport.categoryKeys.some((k) => catLower.includes(k)) || league.startsWith(sport.leagueEmoji);
+        });
+      }
     }
     if (filterCountry) {
       const f = filterCountry.toLowerCase();
@@ -267,19 +299,42 @@ export function ViewerHome() {
       const f = filterLanguage.toLowerCase();
       list = list.filter((c) => c.language.toLowerCase().includes(f));
     }
-    if (filterLeague && activeModule === "sports") {
+    // Sub-league filter (only when a sport type is also selected)
+    if (filterLeague && filterSport && activeModule === "sports") {
       list = list.filter((c) => inferLeague(c.name) === filterLeague);
     }
     return list;
-  }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, activeModule]);
+  }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, filterSport, activeModule]);
 
   const categoryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.category)), [moduleChannels]);
   const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
   const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
-  const leagueOptions = useMemo(() => {
-    if (activeModule !== "sports") return [];
-    return uniqueSorted([...new Set(moduleChannels.map((c) => inferLeague(c.name)))]);
+  // Count channels per sport type (only render chips that have channels)
+  const sportChannelCount = useMemo<Record<string, number>>(() => {
+    if (activeModule !== "sports") return {};
+    const counts: Record<string, number> = {};
+    for (const sport of SPORT_TYPES) {
+      counts[sport.id] = moduleChannels.filter((c) => {
+        const catLower = c.category.toLowerCase();
+        const league = inferLeague(c.name);
+        return sport.categoryKeys.some((k) => catLower.includes(k)) || league.startsWith(sport.leagueEmoji);
+      }).length;
+    }
+    return counts;
   }, [moduleChannels, activeModule]);
+
+  // Sub-leagues for the currently selected sport type
+  const subLeagueOptions = useMemo(() => {
+    if (!filterSport || activeModule !== "sports") return [];
+    const sport = SPORT_TYPES.find((s) => s.id === filterSport);
+    if (!sport) return [];
+    const sportChans = moduleChannels.filter((c) => {
+      const catLower = c.category.toLowerCase();
+      const league = inferLeague(c.name);
+      return sport.categoryKeys.some((k) => catLower.includes(k)) || league.startsWith(sport.leagueEmoji);
+    });
+    return uniqueSorted([...new Set(sportChans.map((c) => inferLeague(c.name)))]);
+  }, [filterSport, moduleChannels, activeModule]);
 
   const liveScoresTicker = useMemo(() => {
     const live = scores.filter((s) => s.status === "live");
@@ -406,35 +461,60 @@ export function ViewerHome() {
         {/* ── AdSlot banner ── */}
         {tier === "free" && <AdSlot variant="banner" />}
 
-        {/* ── Category tabs ── */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          <button
-            type="button"
-            className={`cat-tab${activeCategory === "" ? " active" : ""}`}
-            onClick={() => setActiveCategory("")}
-          >
-            📺 All
-          </button>
-          {categoryOptions.map((cat) => (
+        {/* ── Category / Sport-type tabs ── */}
+        {activeModule === "sports" ? (
+          /* Sports module: smart sport-type chips (auto-filtered, only non-empty) */
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             <button
-              key={cat}
               type="button"
-              className={`cat-tab${activeCategory === cat ? " active" : ""}`}
-              onClick={() => setActiveCategory(activeCategory === cat ? "" : cat)}
+              className={`cat-tab${filterSport === "" ? " active" : ""}`}
+              onClick={() => { setFilterSport(""); setFilterLeague(""); }}
             >
-              {categoryEmoji(cat, activeModule)} {cat}
+              📺 All
             </button>
-          ))}
-        </div>
+            {SPORT_TYPES.filter((s) => (sportChannelCount[s.id] ?? 0) > 0).map((sport) => (
+              <button
+                key={sport.id}
+                type="button"
+                className={`cat-tab${filterSport === sport.id ? " active" : ""}`}
+                onClick={() => { setFilterSport(filterSport === sport.id ? "" : sport.id); setFilterLeague(""); }}
+              >
+                {sport.label}
+                <span className="module-tab-badge">{sportChannelCount[sport.id]}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          /* Bangladesh module: category tabs from DB */
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              type="button"
+              className={`cat-tab${activeCategory === "" ? " active" : ""}`}
+              onClick={() => setActiveCategory("")}
+            >
+              📺 All
+            </button>
+            {categoryOptions.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className={`cat-tab${activeCategory === cat ? " active" : ""}`}
+                onClick={() => setActiveCategory(activeCategory === cat ? "" : cat)}
+              >
+                {categoryEmoji(cat, activeModule)} {cat}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* ── League / Sport filter chips (sports module only) ── */}
-        {activeModule === "sports" && leagueOptions.length > 0 && (
+        {/* ── Sub-league chips (shown when a sport type is selected) ── */}
+        {activeModule === "sports" && filterSport && subLeagueOptions.length > 1 && (
           <div
             className="rounded-xl px-4 py-3"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
             <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
-              🏆 League / Sport Type
+              🏆 League / Competition
             </p>
             <div className="flex flex-wrap gap-1.5">
               <button
@@ -444,7 +524,7 @@ export function ViewerHome() {
               >
                 All
               </button>
-              {leagueOptions.map((lg) => (
+              {subLeagueOptions.map((lg) => (
                 <button
                   key={lg}
                   type="button"
@@ -668,11 +748,13 @@ export function ViewerHome() {
         <section id="channel-grid">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
-              {activeCategory
-                ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
-                : activeModule === "bangladesh"
-                  ? "🇧🇩 Bangladesh TV Channels"
-                  : "🌐 " + t("directory")}
+              {activeModule === "sports" && filterSport
+                ? SPORT_TYPES.find((s) => s.id === filterSport)?.label ?? "🌐 " + t("directory")
+                : activeCategory
+                  ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
+                  : activeModule === "bangladesh"
+                    ? "🇧🇩 Bangladesh TV Channels"
+                    : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>
               {filtered.length} / {moduleChannels.length} channels
