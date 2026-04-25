@@ -2,7 +2,7 @@ import type { AdminStats, Channel, ChannelListResponse, LiveScore, TokenResponse
 import { useAuthStore } from "@/store/authStore";
 
 /** Default `/api` matches Vercel rewrites → Render (same-origin, no CORS). Override for local direct backend. */
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api").replace(/\/$/, "");
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "/api").replace(/\/$/, "");
 /**
  * Avoids .../api/api/... when the base URL already ends with "/api":
  *  - relative proxy path: /api  → API_V1 = /v1   → full path = /api/v1/...
