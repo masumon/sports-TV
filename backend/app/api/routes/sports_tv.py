@@ -35,6 +35,14 @@ async def list_channels(
     response.headers["Cache-Control"] = CHANNELS_CACHE_HEADER
     response.headers["Vary"] = "Accept-Encoding"
 
+    # Extract visitor country FIRST — used in both cache-hit and fresh-query paths.
+    # Cloudflare header injected by Vercel CDN; fallback header for other proxies.
+    cf_country = (
+        request.headers.get("CF-IPCountry")
+        or request.headers.get("X-Country")
+        or ""
+    ).upper()[:2]
+
     params = {
         "search": search,
         "country": country,
@@ -85,14 +93,6 @@ async def list_channels(
         .scalars()
         .all()
     )
-
-    # Detect visitor country from Cloudflare header (set by Vercel/CF CDN).
-    # Only used for soft-sorting within the current page — never for filtering.
-    cf_country = (
-        request.headers.get("CF-IPCountry")
-        or request.headers.get("X-Country")
-        or ""
-    ).upper()[:2]
 
     result = ChannelListResponse(
         total=total,
