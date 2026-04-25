@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Home, Search, Tv, Trophy, User } from "lucide-react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useAuthStore } from "@/store/authStore";
@@ -9,6 +9,7 @@ import { useUiStore } from "@/store/uiStore";
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useI18n();
   const isAdmin = useAuthStore((s) => s.user?.is_admin);
   const activeModule = useUiStore((s) => s.activeModule);
@@ -47,6 +48,15 @@ export function MobileBottomNav() {
       <button
         type="button"
         onClick={() => {
+          if (pathname !== "/") {
+            try {
+              sessionStorage.setItem("gstv-focus-search", "1");
+            } catch {
+              /* */
+            }
+            router.push("/");
+            return;
+          }
           requestSearchFocus();
           document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
         }}

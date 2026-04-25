@@ -13,6 +13,7 @@ import {
   Link2,
 } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
@@ -153,12 +154,18 @@ function FilterChips({
   value,
   onChange,
   maxVisible = 8,
+  allLabel,
+  showLessLabel,
+  moreLabel,
 }: {
   label: string;
   options: string[];
   value: string;
   onChange: (v: string) => void;
   maxVisible?: number;
+  allLabel: string;
+  showLessLabel: string;
+  moreLabel: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? options : options.slice(0, maxVisible);
@@ -171,7 +178,7 @@ function FilterChips({
           className={`filter-chip${value === "" ? " active" : ""}`}
           onClick={() => onChange("")}
         >
-          All
+          {allLabel}
         </button>
         {visible.map((opt) => (
           <button
@@ -189,7 +196,7 @@ function FilterChips({
             className="filter-chip"
             onClick={() => setExpanded((v) => !v)}
           >
-            {expanded ? "Show less" : `+${options.length - maxVisible} more`}
+            {expanded ? showLessLabel : `+${options.length - maxVisible} ${moreLabel}`}
           </button>
         )}
       </div>
@@ -199,6 +206,7 @@ function FilterChips({
 
 export function ViewerHome() {
   const { t } = useI18n();
+  const searchParams = useSearchParams();
   const [allChannels, setAllChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -247,6 +255,14 @@ export function ViewerHome() {
     const id = setInterval(() => void loadChannels(false, true), 5 * 60_000); // 5 min silent refresh
     return () => clearInterval(id);
   }, [loadChannels]);
+
+  // Deep link: /?module=bangladesh|sports (e.g. manifest shortcuts, README)
+  useEffect(() => {
+    const m = searchParams.get("module")?.toLowerCase().trim();
+    if (m === "bangladesh" || m === "sports") {
+      setActiveModule(m);
+    }
+  }, [searchParams, setActiveModule]);
 
   // Reset local filters when module changes
   useEffect(() => {
@@ -500,7 +516,7 @@ export function ViewerHome() {
               className={`cat-tab${filterSport === "" ? " active" : ""}`}
               onClick={() => { setFilterSport(""); setFilterLeague(""); }}
             >
-              📺 All
+              📺 {t("filterAll")}
             </button>
             {SPORT_TYPES.filter((s) => (sportChannelCount[s.id] ?? 0) > 0).map((sport) => (
               <button
@@ -522,7 +538,7 @@ export function ViewerHome() {
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
               onClick={() => setActiveCategory("")}
             >
-              📺 All
+              📺 {t("filterAll")}
             </button>
             {categoryOptions.map((cat) => (
               <button
@@ -552,7 +568,7 @@ export function ViewerHome() {
                 className={`filter-chip${filterLeague === "" ? " active" : ""}`}
                 onClick={() => setFilterLeague("")}
               >
-                All
+                {t("filterAll")}
               </button>
               {subLeagueOptions.map((lg) => (
                 <button
@@ -594,6 +610,9 @@ export function ViewerHome() {
                     options={countryOptions}
                     value={filterCountry}
                     onChange={setFilterCountry}
+                    allLabel={t("filterAll")}
+                    showLessLabel={t("showLess")}
+                    moreLabel={t("moreSuffix")}
                   />
                   <FilterChips
                     label="Language"
@@ -601,6 +620,9 @@ export function ViewerHome() {
                     value={filterLanguage}
                     onChange={setFilterLanguage}
                     maxVisible={10}
+                    allLabel={t("filterAll")}
+                    showLessLabel={t("showLess")}
+                    moreLabel={t("moreSuffix")}
                   />
                 </div>
               </motion.div>
