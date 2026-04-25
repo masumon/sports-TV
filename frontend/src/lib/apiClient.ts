@@ -212,6 +212,14 @@ export const apiClient = {
     return apiRequest<void>(`/admin/channels/${id}`, { method: "DELETE", authToken: token });
   },
 
+  adminUpdateScore(token: string, id: number, body: Partial<AdminScoreCreateBody>) {
+    return apiRequest<LiveScore>(`/admin/scores/${id}`, {
+      method: "PUT",
+      authToken: token,
+      body: JSON.stringify(body),
+    });
+  },
+
   adminDeleteScore(token: string, id: number) {
     return apiRequest<void>(`/admin/scores/${id}`, { method: "DELETE", authToken: token });
   },

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, Save, Trash2 } from "lucide-react";
+import { RefreshCw, Save, Trash2, Pencil, X, Check } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import type { AdminStats, Channel, LiveScore } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
@@ -28,6 +28,13 @@ type ScoreFormState = {
   match_minute: string;
   status: "live" | "upcoming" | "finished";
   extra_data: string;
+};
+
+type EditScoreState = {
+  score_home: number;
+  score_away: number;
+  match_minute: string;
+  status: "live" | "upcoming" | "finished";
 };
 
 const initialChannelForm: ChannelFormState = {
@@ -63,6 +70,8 @@ export default function AdminDashboardPage() {
   const [channelForm, setChannelForm] = useState<ChannelFormState>(initialChannelForm);
   const [scoreForm, setScoreForm] = useState<ScoreFormState>(initialScoreForm);
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [editingScoreId, setEditingScoreId] = useState<number | null>(null);
+  const [editScoreData, setEditScoreData] = useState<EditScoreState>({ score_home: 0, score_away: 0, match_minute: "", status: "live" });
 
   const authToken = token;
 
@@ -182,9 +191,27 @@ export default function AdminDashboardPage() {
     if (!authToken) return;
     try {
       await apiClient.adminDeleteScore(authToken, id);
+      if (editingScoreId === id) setEditingScoreId(null);
       await fetchAdminData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "স্কোর ডিলিট ব্যর্থ");
+    }
+  };
+
+  const updateScore = async (id: number) => {
+    if (!authToken) return;
+    setError(null);
+    try {
+      await apiClient.adminUpdateScore(authToken, id, {
+        score_home: editScoreData.score_home,
+        score_away: editScoreData.score_away,
+        match_minute: editScoreData.match_minute || null,
+        status: editScoreData.status,
+      });
+      setEditingScoreId(null);
+      await fetchAdminData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "স্কোর আপডেট ব্যর্থ");
     }
   };
 
@@ -476,6 +503,48 @@ export default function AdminDashboardPage() {
           ) : (
             <div className="max-h-96 space-y-2 overflow-auto">
               {scores.map((score) => (
+                editingScoreId === score.id ? (
+                  <div key={score.id} className="rounded-lg border border-amber-400/30 bg-amber-500/5 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-zinc-300">
+                      {score.team_home} vs {score.team_away}
+                      <span className="ml-1 text-zinc-500">· {score.league}</span>
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="number" value={editScoreData.score_home}
+                        onChange={(e) => setEditScoreData((p) => ({ ...p, score_home: Number(e.target.value) }))}
+                        className="rounded border border-white/20 bg-black/40 px-2 py-1 text-sm text-white" placeholder="Home" />
+                      <input type="number" value={editScoreData.score_away}
+                        onChange={(e) => setEditScoreData((p) => ({ ...p, score_away: Number(e.target.value) }))}
+                        className="rounded border border-white/20 bg-black/40 px-2 py-1 text-sm text-white" placeholder="Away" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={editScoreData.match_minute}
+                        onChange={(e) => setEditScoreData((p) => ({ ...p, match_minute: e.target.value }))}
+                        className="rounded border border-white/20 bg-black/40 px-2 py-1 text-sm text-white" placeholder="Minute / Over" />
+                      <select value={editScoreData.status}
+                        onChange={(e) => setEditScoreData((p) => ({ ...p, status: e.target.value as EditScoreState["status"] }))}
+                        className="rounded border border-white/20 bg-black/40 px-2 py-1 text-sm text-white">
+                        <option value="live">🔴 Live</option>
+                        <option value="upcoming">🕐 Upcoming</option>
+                        <option value="finished">✅ Finished</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => void updateScore(score.id)}
+                        className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-500">
+                        <Check size={12} /> Save
+                      </button>
+                      <button type="button" onClick={() => setEditingScoreId(null)}
+                        className="inline-flex items-center gap-1 rounded bg-zinc-700 px-2.5 py-1 text-xs text-white hover:bg-zinc-600">
+                        <X size={12} /> Cancel
+                      </button>
+                      <button type="button" onClick={() => void deleteScore(score.id)}
+                        className="ml-auto rounded border border-rose-300/30 bg-rose-500/10 p-1 text-rose-200 hover:bg-rose-500/20">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                 <div
                   key={score.id}
                   className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 p-3"
@@ -485,17 +554,28 @@ export default function AdminDashboardPage() {
                       {score.team_home} {score.score_home} - {score.score_away} {score.team_away}
                     </p>
                     <p className="text-xs text-zinc-400">
-                      {score.league} • {score.status}
+                      {score.league} · <span className={score.status === "live" ? "text-red-400" : score.status === "upcoming" ? "text-sky-400" : "text-zinc-500"}>{score.status}</span>
+                      {score.match_minute ? ` · ${score.match_minute}` : ""}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void deleteScore(score.id)}
-                    className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => { setEditingScoreId(score.id); setEditScoreData({ score_home: score.score_home, score_away: score.score_away, match_minute: score.match_minute ?? "", status: score.status }); }}
+                      className="rounded-lg border border-amber-300/30 bg-amber-500/10 p-2 text-amber-200 hover:bg-amber-500/20"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteScore(score.id)}
+                      className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
+                )
               ))}
             </div>
           )}

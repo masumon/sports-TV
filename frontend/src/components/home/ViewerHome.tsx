@@ -35,6 +35,39 @@ function uniqueSorted(values: string[]): string[] {
   return [...new Set(values.map((v) => v.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
+// League / sport groupings inferred from channel names
+const LEAGUE_GROUPS: { label: string; keywords: string[] }[] = [
+  { label: "⚽ Premier League",    keywords: ["premier league", "sky sports"] },
+  { label: "⚽ La Liga",           keywords: ["laliga", "la liga", "teledeporte"] },
+  { label: "⚽ Champions League",  keywords: ["champions league", "ucl"] },
+  { label: "⚽ Serie A",           keywords: ["serie a", "sport italia", "sportitalia", "rai sport"] },
+  { label: "⚽ Bundesliga",        keywords: ["bundesliga", "sportdigital"] },
+  { label: "⚽ Ligue 1",          keywords: ["ligue 1", "l'equipe", "l1 max"] },
+  { label: "⚽ Club TV",          keywords: ["barca", "realmadrid", "mutv", "canal do inter", "premiere fc"] },
+  { label: "⚽ FIFA / Copa",      keywords: ["fifa", "copa"] },
+  { label: "⚽ General Football", keywords: ["football", "futbol", "fussball", "soccer", "gol ", "goal"] },
+  { label: "🏏 Cricket",          keywords: ["cricket", "willow", "ten sports", "ptv sports", "sony sports", "star sports", "t sports", "dd sports"] },
+  { label: "🏀 NBA / Basketball", keywords: ["nba", "basketball"] },
+  { label: "🎾 Tennis",           keywords: ["tennis", "tennis channel"] },
+  { label: "🏎️ Formula 1 / Racing", keywords: ["formula 1", "f1 channel", "racer", "racing", "nhra"] },
+  { label: "⛳ Golf",             keywords: ["golf", "pga", "lpga"] },
+  { label: "🥊 Boxing / MMA",    keywords: ["boxing", "mma", "ufc", "fight", "combat", "bellator", "glory", "kickbox"] },
+  { label: "🏒 Hockey / NHL",    keywords: ["hockey", "nhl", "khl"] },
+  { label: "⚾ Baseball / MLB",   keywords: ["baseball", "mlb"] },
+  { label: "🏈 NFL",              keywords: ["nfl"] },
+  { label: "🚴 Cycling",         keywords: ["cycling"] },
+  { label: "🏇 Horse Racing",    keywords: ["horse", "racing.com", "equidia", "atg", "teletrak", "turf"] },
+  { label: "📺 News / General",  keywords: ["news", "rtv", "sangsad", "somoy", "channel 24", "jamuna", "boishakhi"] },
+];
+
+function inferLeague(name: string): string {
+  const lower = name.toLowerCase();
+  for (const g of LEAGUE_GROUPS) {
+    if (g.keywords.some((kw) => lower.includes(kw))) return g.label;
+  }
+  return "🌐 Other Sports";
+}
+
 const BD_CATEGORIES: Record<string, string> = {
   news: "📰",
   entertainment: "🎭",
@@ -144,6 +177,7 @@ export function ViewerHome() {
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
   const [filterCountry, setFilterCountry] = useState("");
   const [filterLanguage, setFilterLanguage] = useState("");
+  const [filterLeague, setFilterLeague] = useState("");
   const [scores, setScores] = useState<LiveScore[]>([]);
   const [showAllFilters, setShowAllFilters] = useState(false);
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
@@ -184,6 +218,7 @@ export function ViewerHome() {
   useEffect(() => {
     setFilterCountry("");
     setFilterLanguage("");
+    setFilterLeague("");
     setActiveStreamUrl(null);
     setShowAltLinks(false);
   }, [activeModule]);
@@ -232,12 +267,19 @@ export function ViewerHome() {
       const f = filterLanguage.toLowerCase();
       list = list.filter((c) => c.language.toLowerCase().includes(f));
     }
+    if (filterLeague && activeModule === "sports") {
+      list = list.filter((c) => inferLeague(c.name) === filterLeague);
+    }
     return list;
-  }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage]);
+  }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, activeModule]);
 
   const categoryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.category)), [moduleChannels]);
   const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
   const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
+  const leagueOptions = useMemo(() => {
+    if (activeModule !== "sports") return [];
+    return uniqueSorted([...new Set(moduleChannels.map((c) => inferLeague(c.name)))]);
+  }, [moduleChannels, activeModule]);
 
   const liveScoresTicker = useMemo(() => {
     const live = scores.filter((s) => s.status === "live");
@@ -384,6 +426,37 @@ export function ViewerHome() {
             </button>
           ))}
         </div>
+
+        {/* ── League / Sport filter chips (sports module only) ── */}
+        {activeModule === "sports" && leagueOptions.length > 0 && (
+          <div
+            className="rounded-xl px-4 py-3"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+              🏆 League / Sport Type
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                className={`filter-chip${filterLeague === "" ? " active" : ""}`}
+                onClick={() => setFilterLeague("")}
+              >
+                All
+              </button>
+              {leagueOptions.map((lg) => (
+                <button
+                  key={lg}
+                  type="button"
+                  className={`filter-chip${filterLeague === lg ? " active" : ""}`}
+                  onClick={() => setFilterLeague(filterLeague === lg ? "" : lg)}
+                >
+                  {lg}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Filter chips ── */}
         <div>

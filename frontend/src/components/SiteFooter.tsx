@@ -2,10 +2,11 @@ import Image from "next/image";
 import {
   ExternalLink, Mail, Phone, Globe, Shield, FileText, BookOpen,
   Youtube, Facebook, Send, MessageCircle, Radio, Tv, Star,
+  Linkedin, Github, Briefcase, User2,
 } from "lucide-react";
 
-const ABO_NETLIFY = "https://aboenterprise.netlify.app/";
-const SUMONIX_AI  = "https://sumonix.netlify.app/";
+const DEVELOPER_URL = "https://mumainsumon.netlify.app";
+const SUMONIX_AI    = "https://sumonix-ai.vercel.app";
 
 export function SiteFooter() {
   return (
@@ -93,42 +94,15 @@ export function SiteFooter() {
             </p>
             <div className="space-y-2">
               {[
-                {
-                  icon: <Facebook size={15} />,
-                  label: "Facebook",
-                  href: "https://facebook.com/aboenterprise",
-                  color: "#1877F2",
-                },
-                {
-                  icon: <Send size={15} />,
-                  label: "Telegram",
-                  href: "https://t.me/aboenterprise",
-                  color: "#2AABEE",
-                },
-                {
-                  icon: <MessageCircle size={15} />,
-                  label: "WhatsApp",
-                  href: "https://wa.me/message/aboenterprise",
-                  color: "#25D366",
-                },
-                {
-                  icon: <Youtube size={15} />,
-                  label: "YouTube",
-                  href: "https://youtube.com/@aboenterprise",
-                  color: "#FF0000",
-                },
-                {
-                  icon: <Mail size={15} />,
-                  label: "Email Us",
-                  href: "mailto:contact@aboenterprise.com",
-                  color: "var(--primary-accent)",
-                },
-                {
-                  icon: <Phone size={15} />,
-                  label: "Support",
-                  href: "tel:+8801XXXXXXXXX",
-                  color: "var(--accent-green)",
-                },
+                { icon: <Facebook size={15} />, label: "ABO Enterprise", href: "https://www.facebook.com/abo.enterprise", color: "#1877F2" },
+                { icon: <Facebook size={15} />, label: "Sumon (Personal)", href: "https://www.facebook.com/sumon.mumain", color: "#1877F2" },
+                { icon: <Send size={15} />, label: "Telegram", href: "https://t.me/01825007977", color: "#2AABEE" },
+                { icon: <MessageCircle size={15} />, label: "WhatsApp", href: "https://wa.me/8801825007977", color: "#25D366" },
+                { icon: <Youtube size={15} />, label: "YouTube", href: "https://www.youtube.com/@aboenterprise", color: "#FF0000" },
+                { icon: <Briefcase size={15} />, label: "Fiverr", href: "https://www.fiverr.com/mumain_sumon", color: "#1dbf73" },
+                { icon: <Mail size={15} />, label: "Business Email", href: "mailto:contact@aboenterprise.com", color: "var(--primary-accent)" },
+                { icon: <Mail size={15} />, label: "Personal Email", href: "mailto:m.a.sumon92@gmail.com", color: "var(--text-muted)" },
+                { icon: <Phone size={15} />, label: "+880 1825-007977", href: "tel:+8801825007977", color: "var(--accent-green)" },
               ].map(({ icon, label, href, color }) => (
                 <a
                   key={label}
@@ -179,9 +153,9 @@ export function SiteFooter() {
               Built By
             </p>
 
-            {/* ABO ENTERPRISE card */}
+            {/* Developer card */}
             <a
-              href={ABO_NETLIFY}
+              href={DEVELOPER_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded-xl p-4 transition-all hover:scale-[1.02]"
@@ -192,20 +166,35 @@ export function SiteFooter() {
             >
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(245,166,35,0.15)" }}>
-                  <Image src="/icons/abo-logo.svg" alt="ABO" width={24} height={24} />
+                  <User2 size={18} style={{ color: "var(--primary-accent)" }} />
                 </div>
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--primary-accent)" }}>
-                    ABO ENTERPRISE
+                    Mumain Ahmed
                   </p>
-                  <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>Simple Solutions</p>
+                  <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>Full-Stack Developer · ABO Enterprise</p>
                 </div>
               </div>
               <p className="text-[10px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                Innovative technology solutions for the modern digital world.
+                Building modern digital platforms with AI-powered architecture.
               </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {[
+                  { icon: <Linkedin size={11} />, label: "LinkedIn", href: "https://bd.linkedin.com/in/mumain-ahmed-907057211", color: "#0A66C2" },
+                  { icon: <Github size={11} />, label: "GitHub", href: "https://github.com/masumon", color: "#e6edf3" },
+                  { icon: <Briefcase size={11} />, label: "Fiverr", href: "https://www.fiverr.com/mumain_sumon", color: "#1dbf73" },
+                ].map(({ icon, label, href, color }) => (
+                  <a key={label} href={href} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold transition hover:opacity-80"
+                    style={{ background: "rgba(255,255,255,0.06)", color, border: "1px solid rgba(255,255,255,0.1)" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {icon} {label}
+                  </a>
+                ))}
+              </div>
               <div className="mt-2 flex items-center gap-1 text-[10px]" style={{ color: "var(--primary-accent)" }}>
-                <Globe size={10} /> Visit website <ExternalLink size={9} />
+                <Globe size={10} /> mumainsumon.netlify.app <ExternalLink size={9} />
               </div>
             </a>
 
@@ -230,7 +219,7 @@ export function SiteFooter() {
                 AI-driven architecture & intelligence
               </p>
               <div className="mt-1.5 flex items-center gap-1 text-[10px]" style={{ color: "var(--accent-blue)" }}>
-                <ExternalLink size={9} /> sumonix.netlify.app
+                <ExternalLink size={9} /> sumonix-ai.vercel.app
               </div>
             </a>
           </div>
@@ -267,7 +256,7 @@ export function SiteFooter() {
           <div className="text-[11px] text-center sm:text-right" style={{ color: "var(--text-muted)" }}>
             <p>
               © 2026{" "}
-              <a href={ABO_NETLIFY} target="_blank" rel="noreferrer" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
+              <a href={DEVELOPER_URL} target="_blank" rel="noreferrer" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
                 ABO SPORTS TV LIVE
               </a>
               {" "}· All Rights Reserved
