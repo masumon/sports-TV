@@ -45,7 +45,7 @@ services:
       - key: JWT_SECRET_KEY
         sync: false
       - key: ADMIN_EMAIL
-        value: admin@gstv.tv
+        value: admin@test.com
       - key: ADMIN_PASSWORD
         sync: false
       - key: ADMIN_FULL_NAME

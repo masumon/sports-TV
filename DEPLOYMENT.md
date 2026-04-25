@@ -29,7 +29,7 @@ This project is designed to run on **hobby / free** tiers. Follow these rules to
 | `DATABASE_URL` | Neon (or other Postgres) — **set in dashboard**, not committed |
 | `JWT_SECRET_KEY` | Long random string (required in production) |
 | `CORS_ORIGINS` | Comma-separated frontend origins, **no trailing slash** (include Vercel production and preview URLs if the browser calls the API with an absolute origin) |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Change after first deploy in production |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Defaults in repo/blueprint: `admin@test.com` / `Admin12345!` — **set the same in Render (and rotate in production if needed)**. |
 | `REDIS_URL` | Optional; Upstash `rediss://` works |
 
 When using **same-origin** `NEXT_PUBLIC_API_BASE_URL=/api` on Vercel, the browser does not need CORS for public reads; CORS still matters for **admin / auth** from a different origin or for tools hitting Render directly.
@@ -50,7 +50,8 @@ When using **same-origin** `NEXT_PUBLIC_API_BASE_URL=/api` on Vercel, the browse
 ## Local development
 
 - Frontend: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` in `.env.local`  
-- Backend: `cp backend/.env.example backend/.env` and set `JWT_SECRET_KEY`, `DATABASE_URL` (or use SQLite for quick tests)
+- Backend: `cp backend/.env.example backend/.env` and set `JWT_SECRET_KEY`, `DATABASE_URL` (or use SQLite for quick tests)  
+- **Local admin login (matches `backend/.env.example`):** `admin@test.com` / `Admin12345!` — same pair should be set in **Render** (`ADMIN_*`) for production parity with Vercel.
 
 ---
 

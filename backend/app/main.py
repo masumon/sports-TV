@@ -43,6 +43,22 @@ def ensure_admin_seed(db: Session) -> None:
         db.commit()
         logger.info("Migrated legacy admin email -> %s", settings.admin_email)
 
+    # Many deployments still have the old seeded account admin@gstv.tv; merge into settings.admin_email.
+    if settings.admin_email and settings.admin_email not in ("admin@gstv.tv", "admin@gstv.local"):
+        legacy_gstv = db.scalar(select(User).where(User.email == "admin@gstv.tv"))
+        if legacy_gstv:
+            target = db.scalar(select(User).where(User.email == settings.admin_email))
+            if target is None:
+                legacy_gstv.email = settings.admin_email
+                legacy_gstv.is_admin = True
+                legacy_gstv.password_hash = get_password_hash(settings.admin_password)
+                db.commit()
+                logger.info("Migrated admin@gstv.tv -> %s (password from ADMIN_PASSWORD env)", settings.admin_email)
+            elif target.id != legacy_gstv.id:
+                db.delete(legacy_gstv)
+                db.commit()
+                logger.info("Removed stale admin@gstv.tv; use existing %s", settings.admin_email)
+
     admin = db.scalar(select(User).where(User.email == settings.admin_email))
     if admin:
         return

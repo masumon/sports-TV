@@ -56,7 +56,7 @@ The backend seeds one admin account on first startup from environment variables:
 - `ADMIN_PASSWORD`
 - `ADMIN_FULL_NAME`
 
-Local defaults are documented in `backend/.env.example` (e.g. `admin@gstv.tv` / `Admin12345!` — change in production).
+Local defaults are documented in `backend/.env.example`: **admin@test.com** / **Admin12345!** (set the same `ADMIN_EMAIL` / `ADMIN_PASSWORD` on Render; Vercel does not store these).
 
 ## Validation checklist
 
