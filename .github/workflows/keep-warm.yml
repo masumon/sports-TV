@@ -1,0 +1,18 @@
+# Free-tier: Render sleeps after idle; optional wake + health checks (public URLs only).
+# Enable in repo Settings → Actions; edit URLs if you change deployment domains.
+name: keep-warm
+on:
+  schedule:
+    - cron: "*/12 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Render API health
+        run: curl -sS -f --max-time 30 "https://gstv-backend.onrender.com/health" | head -c 200
+      - name: Vercel app + API proxy
+        run: |
+          curl -sS -f --max-time 60 -o /dev/null -w "home:%{http_code}\n" "https://sports-tv-lovat.vercel.app/"
+          curl -sS -f --max-time 90 "https://sports-tv-lovat.vercel.app/api/v1/sports-tv/channels?page=1&page_size=1" -o /dev/null -w "ch:%{http_code}\n"

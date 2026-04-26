@@ -12,7 +12,7 @@ import {
   Star,
   Link2,
 } from "lucide-react";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
@@ -20,6 +20,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
 import { fetchAllChannels, apiClient } from "@/lib/apiClient";
+import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import type { Channel, LiveScore } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
@@ -236,11 +237,15 @@ export function ViewerHome() {
   const toggleTheaterMode = usePlayerStore((state) => state.toggleTheaterMode);
 
   const loadChannels = useCallback(async (showToast = false, silent = false) => {
-    if (!silent) setLoading(true);
+    const hasCache = (getChannelListCache()?.length ?? 0) > 0;
+    if (!silent && (!hasCache || showToast)) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const data = await fetchAllChannels();
       setAllChannels(data);
+      setChannelListCache(data);
       if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
     } catch (e) {
       if (silent) return;
@@ -249,6 +254,15 @@ export function ViewerHome() {
       toast.error(msg);
     } finally {
       if (!silent) setLoading(false);
+    }
+  }, []);
+
+  /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
+  useLayoutEffect(() => {
+    const c = getChannelListCache();
+    if (c?.length) {
+      setAllChannels(c);
+      setLoading(false);
     }
   }, []);
 

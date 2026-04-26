@@ -127,17 +127,21 @@ export async function fetchAllChannels(
   filters: Omit<ChannelListParams, "page" | "page_size"> = {}
 ): Promise<Channel[]> {
   const pageSize = 500;
-  let page = 1;
-  const all: Channel[] = [];
-  let total = 0;
-  for (;;) {
-    const res: ChannelListResponse = await apiClient.getChannels({ ...filters, page, page_size: pageSize });
-    total = res.total;
-    all.push(...res.items);
-    if (res.items.length < pageSize || all.length >= total) break;
-    page += 1;
+  const first: ChannelListResponse = await apiClient.getChannels({ ...filters, page: 1, page_size: pageSize });
+  const { total, items: firstItems } = first;
+  if (firstItems.length === 0 || firstItems.length >= total) {
+    return firstItems;
   }
-  return all;
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) {
+    return firstItems;
+  }
+  const rest = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, i) =>
+      apiClient.getChannels({ ...filters, page: i + 2, page_size: pageSize })
+    )
+  );
+  return firstItems.concat(...rest.map((r) => r.items));
 }
 
 export const apiClient = {
