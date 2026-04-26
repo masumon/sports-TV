@@ -217,6 +217,22 @@ html.light .glass-panel {
   animation: pulse-live 1.35s infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot,
+  .loading-spin {
+    animation: none;
+  }
+  .marquee-track {
+    animation: none;
+  }
+  .reduce-motion-pause {
+    transition: none !important;
+  }
+  .animate-pulse {
+    animation: none;
+  }
+}
+
 .loading-spin {
   width: 42px;
   height: 42px;
@@ -735,6 +751,34 @@ html.light [data-admin] select option {
 [data-admin] :is(button, a):focus-visible {
   outline: 2px solid rgb(16 185 129 / 80%);
   outline-offset: 2px;
+}
+
+/* Admin — layout shell (viewer uses --bg-dark; admin gets depth + gold wash) */
+.admin-shell {
+  min-height: 100dvh;
+  background: radial-gradient(ellipse 100% 55% at 50% -8%, rgba(245, 166, 35, 0.09), transparent 50%),
+    linear-gradient(180deg, #03040a 0%, #0a0b14 40%, #07080f 100%);
+}
+.admin-glass {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.06) 0%, rgba(10, 12, 22, 0.92) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+}
+.admin-stat {
+  position: relative;
+  overflow: hidden;
+}
+.admin-stat::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 0.75rem 0.75rem 0 0;
+  background: linear-gradient(90deg, var(--c1, #f59e0b), var(--c2, #d97706));
+  opacity: 0.9;
 }
 
 /* ── Mobile / tablet touch: larger tap areas (coarse pointer) ── */

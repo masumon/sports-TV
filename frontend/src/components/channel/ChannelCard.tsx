@@ -68,10 +68,14 @@ export function ChannelCard({ channel, active, onSelect, index }: Props) {
         )}
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }}>
+          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name}>
             {channel.name}
           </p>
-          <p className="flex items-center gap-1.5 truncate text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+          <p
+            className="mt-0.5 flex items-center gap-1.5 truncate text-xs"
+            style={{ color: "var(--text-muted)" }}
+            title={`${channel.country} · ${channel.language}`}
+          >
             <span className="shrink-0" aria-hidden>
               {flagFromCountryName(channel.country)}
             </span>

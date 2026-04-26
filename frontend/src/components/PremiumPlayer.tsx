@@ -24,6 +24,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/apiClient";
+import { shouldPreferServerRelay } from "@/lib/streamRelay";
+import { useVpnStore } from "@/store/vpnStore";
 
 /* ─────────────────────────────────────────────────────────── Types ── */
 type QualityOption = { label: string; value: number };
@@ -32,6 +34,8 @@ export type PremiumPlayerProps = {
   streamUrl: string;
   alternateUrls?: string[];
   title: string;
+  /** For relay/VPN heuristics (not used as playback URL; primary channel metadata). */
+  relayMeta?: { name: string; category: string; stream_url: string } | null;
   isTheaterMode: boolean;
   onToggleTheaterMode: () => void;
   overlay?: React.ReactNode;
@@ -128,6 +132,11 @@ function buildProxyUrl(streamUrl: string): string {
   return `${buildApiUrl("/proxy/stream")}?url=${encodeURIComponent(streamUrl)}`;
 }
 
+function buildOrderedStreamUrls(preferRelay: boolean, directUrls: string[]): string[] {
+  const proxyUrls = directUrls.map(buildProxyUrl);
+  return preferRelay ? [...proxyUrls, ...directUrls] : [...directUrls, ...proxyUrls];
+}
+
 function formatQualityFromHeight(height: number): string {
   if (height >= 2160) return "4K";
   if (height >= 1080) return "1080p";
@@ -141,6 +150,7 @@ export default function PremiumPlayer({
   streamUrl,
   alternateUrls,
   title,
+  relayMeta,
   isTheaterMode,
   onToggleTheaterMode,
   overlay,
@@ -163,13 +173,20 @@ export default function PremiumPlayer({
   const [retryKey, setRetryKey] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
-  // Failover: index into [streamUrl, ...alternateUrls]
+  // Failover: index into ordered direct + proxy list
   const [urlIdx, setUrlIdx] = useState(0);
 
-  // Derive whether we are currently in proxy-fallback phase.
-  // directUrlCount = primary + any provided alternates.
-  const directUrlCount = 1 + (alternateUrls?.length ?? 0);
-  const isInProxyPhase = urlIdx >= directUrlCount;
+  const vpnMode = useVpnStore((s) => s.mode);
+  const directUrls = useMemo(() => [streamUrl, ...(alternateUrls ?? [])], [streamUrl, alternateUrls]);
+  const preferRelay = useMemo(
+    () => shouldPreferServerRelay(vpnMode, relayMeta ?? { name: title, category: "", stream_url: streamUrl }),
+    [vpnMode, relayMeta, title, streamUrl]
+  );
+  const allUrlsList = useMemo(
+    () => buildOrderedStreamUrls(preferRelay, directUrls),
+    [preferRelay, directUrls]
+  );
+  const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
@@ -186,10 +203,9 @@ export default function PremiumPlayer({
   }, [isPlaying, scheduleHideControls]);
 
   useEffect(() => {
-    // Reset failover index whenever the primary stream URL changes (channel switch).
     setUrlIdx(0);
     setIsSwitching(false);
-  }, [streamUrl]);
+  }, [streamUrl, preferRelay]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -202,12 +218,9 @@ export default function PremiumPlayer({
     setIsLoading(true);
     setHasError(false);
 
-    // Build URL list: direct streams first, then proxy fallbacks.
-    // Proxy fallback routes each URL through the backend which can bypass
-    // CORS restrictions and some geo-blocks from the server's region.
-    const directUrls = [streamUrl, ...(alternateUrls ?? [])];
-    const proxyUrls = directUrls.map(buildProxyUrl);
-    const allUrls = [...directUrls, ...proxyUrls];
+    // Order: VPN "on" = relay (server) first; "smart" / "off" = direct first unless
+    // channelSuggestsServerRelay, then relay first. Same paths as allUrlsList.
+    const allUrls = buildOrderedStreamUrls(preferRelay, directUrls);
     const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
 
     const lightNet = isConstrainedNetwork();
@@ -244,11 +257,11 @@ export default function PremiumPlayer({
           if (nextIdx < allUrls.length) {
             setIsSwitching(true);
             setIsLoading(true);
-            // Notify user only on first proxy attempt or named backup switches
-            if (nextIdx === directUrls.length) {
-              toast.info("Trying proxy stream…");
-            } else if (nextIdx < directUrls.length) {
-              toast.info(`Switching to backup stream ${nextIdx} of ${directUrls.length - 1}…`);
+            const nextU = allUrls[nextIdx] ?? "";
+            if (nextU.includes("/proxy/stream")) {
+              toast.info("Trying server relay (VPN)…");
+            } else {
+              toast.info("Trying another source…");
             }
             setUrlIdx(nextIdx);
           } else {
@@ -293,7 +306,7 @@ export default function PremiumPlayer({
     }
 
     return cleanup;
-  }, [streamUrl, retryKey, urlIdx, alternateUrls]);
+  }, [streamUrl, retryKey, urlIdx, alternateUrls, preferRelay, directUrls]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -462,10 +475,8 @@ export default function PremiumPlayer({
             </div>
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.45)" }}>
               {isSwitching
-                ? isInProxyPhase
-                  ? "Trying via proxy…"
-                  : "Switching stream…"
-                : "Loading stream…"}
+                ? (isCurrentRelay ? "Server relay (VPN)…" : "Switching stream…")
+                : (isCurrentRelay ? "Server relay (VPN)…" : "Loading stream…")}
             </p>
           </motion.div>
         )}
@@ -505,13 +516,25 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* LIVE badge */}
-      <div className="pointer-events-none absolute left-3 top-3 z-40">
+      {/* LIVE + relay (VPN) badge */}
+      <div className="pointer-events-none absolute left-3 top-3 z-40 flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
         <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-white"
           style={{ background: "rgba(229,57,53,0.88)", border: "1px solid rgba(255,82,82,0.5)", boxShadow: "0 0 16px rgba(229,57,53,0.45)" }}>
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
           LIVE
         </span>
+        {isCurrentRelay && (
+          <span
+            className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+            style={{
+              background: "rgba(16,185,129,0.2)",
+              border: "1px solid rgba(16,185,129,0.5)",
+              color: "#6ee7b7",
+            }}
+          >
+            VPN
+          </span>
+        )}
       </div>
 
       {/* Custom overlay */}

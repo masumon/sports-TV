@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, KeyRound, Lock, Mail } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { toast } from "sonner";
 
@@ -57,18 +58,18 @@ export default function AdminForgotPasswordPage() {
   }
 
   return (
-    <main data-admin className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-12">
+    <main data-admin className="admin-shell flex min-h-0 items-center justify-center px-4 py-12 sm:px-6">
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 p-6 shadow-2xl backdrop-blur-xl"
+        className="admin-glass w-full max-w-md rounded-2xl p-6 sm:p-8"
       >
         <div className="mb-5 flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/abo-logo.svg" alt="ABO" className="h-10 w-10 rounded-xl" />
+          <Image src="/icons/abo-logo.svg" alt="" width={40} height={40} className="h-10 w-10 rounded-xl ring-1 ring-white/10" />
           <div>
-            <h1 className="text-2xl font-bold text-white">Admin password</h1>
-            <p className="text-xs text-zinc-400">Reset (no email — use token from response)</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>
+            <h1 className="text-2xl font-bold tracking-tight text-white">Password reset</h1>
+            <p className="text-xs text-zinc-500">Token from response (no email sent)</p>
           </div>
         </div>
 
@@ -89,7 +90,7 @@ export default function AdminForgotPasswordPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
+                className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
                 placeholder="admin@test.com"
                 autoComplete="email"
               />
@@ -97,7 +98,7 @@ export default function AdminForgotPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-black shadow-lg shadow-emerald-900/30 transition hover:from-emerald-400 hover:to-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <KeyRound size={16} />
               {loading ? "Requesting…" : "Get reset token"}
@@ -112,7 +113,7 @@ export default function AdminForgotPasswordPage() {
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 rows={3}
-                className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-3 py-2 font-mono text-xs text-zinc-200 outline-none focus:border-emerald-500"
+                className="w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 font-mono text-xs text-zinc-200 outline-none focus:border-emerald-500"
                 autoComplete="off"
               />
             </label>
@@ -127,7 +128,7 @@ export default function AdminForgotPasswordPage() {
                 minLength={8}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
+                className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
                 autoComplete="new-password"
               />
             </label>
@@ -139,7 +140,7 @@ export default function AdminForgotPasswordPage() {
                 minLength={8}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
+                className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
                 autoComplete="new-password"
               />
             </label>
@@ -154,7 +155,7 @@ export default function AdminForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:opacity-60"
+                className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-2.5 text-sm font-semibold text-black shadow-md shadow-emerald-900/25 transition hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-60"
               >
                 {loading ? "Saving…" : "Save new password"}
               </button>

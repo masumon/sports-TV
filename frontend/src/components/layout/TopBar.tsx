@@ -10,6 +10,7 @@ import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useAuthStore } from "@/store/authStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
+import { VpnModeToggle } from "@/components/VpnModeToggle";
 
 type TopBarProps = {
   onSearch: (q: string) => void;
@@ -116,6 +117,8 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           <Radio size={11} className="shrink-0 animate-pulse" />
           <span className="hidden min-[400px]:inline sm:inline">LIVE</span>
         </div>
+
+        <VpnModeToggle />
 
         {/* Premium badge */}
         {tier === "premium" ? (

@@ -1,8 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, Save, Trash2, Pencil, X, Check, Settings2, Megaphone, Search, Filter } from "lucide-react";
+import Link from "next/link";
+import {
+  Activity,
+  Check,
+  Clock,
+  Database,
+  Filter,
+  Home,
+  LineChart,
+  LogOut,
+  Megaphone,
+  Pencil,
+  Radio,
+  RefreshCw,
+  Search,
+  Settings2,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import Image from "next/image";
 import { apiClient } from "@/lib/apiClient";
 import type { AdminStats, Channel, LiveScore } from "@/lib/types";
@@ -67,6 +86,8 @@ export default function AdminDashboardPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [scores, setScores] = useState<LiveScore[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const initialFetchDone = useRef(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelForm, setChannelForm] = useState<ChannelFormState>(initialChannelForm);
@@ -138,7 +159,11 @@ export default function AdminDashboardPage() {
 
   const fetchAdminData = async () => {
     if (!authToken) return;
-    setLoading(true);
+    if (!initialFetchDone.current) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     setError(null);
     try {
       const [channelRes, scoreRes] = await Promise.all([
@@ -151,6 +176,8 @@ export default function AdminDashboardPage() {
       setError(err instanceof Error ? err.message : "ডেটা লোড করা যায়নি");
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      initialFetchDone.current = true;
     }
   };
 
@@ -236,6 +263,9 @@ export default function AdminDashboardPage() {
 
   const deleteChannel = async (id: number) => {
     if (!authToken) return;
+    if (typeof window !== "undefined" && !window.confirm("Delete this channel permanently? / এই চ্যানেল স্থায়ীভাবে মুছে ফেলবেন?")) {
+      return;
+    }
     try {
       await apiClient.adminDeleteChannel(authToken, id);
       await fetchAdminData();
@@ -246,6 +276,9 @@ export default function AdminDashboardPage() {
 
   const deleteScore = async (id: number) => {
     if (!authToken) return;
+    if (typeof window !== "undefined" && !window.confirm("Delete this live score row? / এই লাইভ স্কোর মুছে ফেলবেন?")) {
+      return;
+    }
     try {
       await apiClient.adminDeleteScore(authToken, id);
       if (editingScoreId === id) setEditingScoreId(null);
@@ -289,12 +322,12 @@ export default function AdminDashboardPage() {
 
   if (!authToken || !user?.is_admin) {
     return (
-      <main className="mx-auto max-w-3xl p-8">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
+      <main data-admin className="admin-shell flex min-h-dvh items-center justify-center p-6">
+        <div className="admin-glass max-w-md rounded-2xl p-6 text-center">
           <p className="mb-4 text-zinc-200">অ্যাডমিন অ্যাক্সেস প্রয়োজন। আগে লগইন করুন।</p>
           <a
             href="/admin/login"
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400"
+            className="inline-flex rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2.5 text-sm font-semibold text-black shadow-lg shadow-emerald-900/30 transition hover:from-emerald-400 hover:to-emerald-500"
           >
             Admin Login
           </a>
@@ -304,113 +337,169 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <main data-admin className="mx-auto max-w-7xl space-y-8 p-6 lg:p-8">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Image src="/icons/abo-logo.svg" alt="ABO" width={36} height={36} className="rounded-xl" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-            <p className="text-sm text-zinc-400">চ্যানেল ও লাইভ স্কোর ম্যানেজ করুন · ABO SPORTS TV LIVE</p>
+    <main data-admin className="admin-shell">
+      <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <header className="sticky top-0 z-20 -mx-4 mb-2 border-b border-white/[0.06] bg-[#07080f]/90 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+              <Image src="/icons/abo-logo.svg" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl ring-1 ring-white/10" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>
+                <h1 className="truncate text-xl font-bold tracking-tight text-white sm:text-2xl">Control center</h1>
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  {user?.email ? <span className="text-zinc-400">{user.email}</span> : null}
+                  <span className="mx-2 text-zinc-600">·</span>
+                  <span>Channels, scores &amp; sync</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <Link
+                href="/"
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-medium text-zinc-200 transition hover:border-white/25 hover:bg-white/10"
+              >
+                <Home size={16} className="opacity-80" />
+                <span className="hidden sm:inline">Viewer</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  void fetchAdminData();
+                  void fetchStats();
+                }}
+                disabled={loading || refreshing}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 text-sm text-white transition hover:bg-white/10 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={loading || refreshing ? "animate-spin" : ""} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void syncM3u()}
+                disabled={syncing}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 text-sm font-semibold text-black shadow-lg shadow-emerald-900/30 transition hover:from-emerald-400 hover:to-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Activity size={16} />
+                {syncing ? "Syncing…" : "M3U sync"}
+              </button>
+              <button
+                type="button"
+                onClick={clearSession}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 text-sm text-rose-100 transition hover:bg-rose-500/20"
+              >
+                <LogOut size={16} />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              void fetchAdminData();
-              void fetchStats();
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
-          >
-            <RefreshCw size={16} />
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => void syncM3u()}
-            disabled={syncing}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400 disabled:opacity-60"
-          >
-            <Save size={16} />
-            {syncing ? "Syncing..." : "Sync IPTV M3U"}
-          </button>
-          <button
-            type="button"
-            onClick={clearSession}
-            className="rounded-lg border border-rose-300/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-200 hover:bg-rose-500/20"
-          >
-            Logout
-          </button>
-        </div>
-      </header>
+        </header>
 
-      {stats ? (
-        <>
+        {refreshing ? (
+          <p className="text-center text-xs text-emerald-400/90">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" aria-hidden />
+              তালিকা হালনাগাদ হচ্ছে…
+            </span>
+          </p>
+        ) : null}
+
+        {stats ? (
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs text-zinc-500">Users</p>
-              <p className="text-2xl font-bold text-white">{stats.users}</p>
+            <div
+              className="admin-stat rounded-2xl p-4 pl-4 pr-3 pt-5 ring-1 ring-white/10"
+              style={{ "--c1": "#0ea5e9", "--c2": "#38bdf8" } as CSSProperties}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Users</p>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 text-sky-300">
+                  <Users size={16} />
+                </span>
+              </div>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.users}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs text-zinc-500">Channels (all)</p>
-              <p className="text-2xl font-bold text-white">{stats.channels}</p>
+            <div
+              className="admin-stat rounded-2xl p-4 pl-4 pr-3 pt-5 ring-1 ring-white/10"
+              style={{ "--c1": "#8b5cf6", "--c2": "#a78bfa" } as CSSProperties}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Total channels</p>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/15 text-violet-200">
+                  <Database size={16} />
+                </span>
+              </div>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.channels}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs text-zinc-500">Active channels</p>
-              <p className="text-2xl font-bold text-white">{stats.active_channels}</p>
+            <div
+              className="admin-stat rounded-2xl p-4 pl-4 pr-3 pt-5 ring-1 ring-white/10"
+              style={{ "--c1": "#10b981", "--c2": "#34d399" } as CSSProperties}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Active</p>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-200">
+                  <Radio size={16} />
+                </span>
+              </div>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.active_channels}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs text-zinc-500">Live scores</p>
-              <p className="text-2xl font-bold text-white">{stats.live_scores}</p>
+            <div
+              className="admin-stat rounded-2xl p-4 pl-4 pr-3 pt-5 ring-1 ring-white/10"
+              style={{ "--c1": "#f59e0b", "--c2": "#fbbf24" } as CSSProperties}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Live scores</p>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-200">
+                  <LineChart size={16} />
+                </span>
+              </div>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.live_scores}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs text-zinc-500">Cache / job / last sync</p>
-              <p className="text-sm text-zinc-200">
-                {stats.cache_ttl_seconds}s · {stats.scheduled_sync_minutes || "off"}m
+            <div
+              className="admin-stat sm:col-span-2 lg:col-span-1 rounded-2xl p-4 pl-4 pr-3 pt-5 ring-1 ring-white/10"
+              style={{ "--c1": "#64748b", "--c2": "#94a3b8" } as CSSProperties}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Cache &amp; job</p>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-500/15 text-slate-200">
+                  <Clock size={16} />
+                </span>
+              </div>
+              <p className="mt-1 text-sm leading-snug text-zinc-200">
+                <span className="text-white">{stats.cache_ttl_seconds}s</span> cache
+                <br />
+                <span className="text-zinc-400">Sync every {stats.scheduled_sync_minutes || "off"}m</span>
                 {stats.last_sync_at ? (
                   <>
                     <br />
-                    <span className="text-xs text-zinc-500">{new Date(stats.last_sync_at).toLocaleString()}</span>
+                    <span className="text-[11px] text-zinc-500">{new Date(stats.last_sync_at).toLocaleString()}</span>
                   </>
                 ) : null}
               </p>
             </div>
           </section>
-          <div className="flex flex-wrap gap-4">
-            {[
-              { label: "Users", n: stats.users, color: "from-sky-500/80" },
-              { label: "Channels", n: stats.channels, color: "from-violet-500/80" },
-              { label: "Active", n: stats.active_channels, color: "from-emerald-500/80" },
-              { label: "Scores", n: stats.live_scores, color: "from-amber-500/80" },
-            ].map((m) => {
-              const max = Math.max(1, stats.users, stats.channels, stats.active_channels, stats.live_scores);
-              return (
-                <div key={m.label} className="min-w-[100px] flex-1">
-                  <p className="mb-1 text-[10px] text-zinc-500">{m.label}</p>
-                  <div className="flex h-24 items-end overflow-hidden rounded-md bg-zinc-800/50">
-                    <div
-                      className={`w-full min-h-[2px] rounded-t bg-gradient-to-t ${m.color} to-transparent/10`}
-                      style={{ height: `${(m.n / max) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+        ) : null}
+
+        {error && (
+          <div
+            role="alert"
+            className="flex items-start justify-between gap-3 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100"
+          >
+            <p className="min-w-0 flex-1 leading-relaxed">{error}</p>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="shrink-0 rounded-lg p-1.5 text-rose-200/80 transition hover:bg-rose-500/20"
+              aria-label="Dismiss"
+            >
+              <X size={16} />
+            </button>
           </div>
-        </>
-      ) : null}
+        )}
 
-      {error && (
-        <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-3 text-sm text-rose-200">
-          {error}
-        </div>
-      )}
-
-      <section className="grid gap-6 lg:grid-cols-2">
+        <section className="grid gap-6 lg:grid-cols-2">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-white/10 bg-white/5 p-5"
+          className="admin-glass rounded-2xl p-5"
         >
           <h2 className="mb-1 text-lg font-semibold text-white">নতুন চ্যানেল যোগ করুন</h2>
           <p className="mb-4 text-xs text-zinc-500">Required fields are validated before the backend call.</p>
@@ -472,7 +561,7 @@ export default function AdminDashboardPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="rounded-2xl border border-white/10 bg-white/5 p-5"
+          className="admin-glass rounded-2xl p-5"
         >
           <h2 className="mb-1 text-lg font-semibold text-white">নতুন লাইভ স্কোর</h2>
           <p className="mb-4 text-xs text-zinc-500">League and team names are required.</p>
@@ -566,10 +655,16 @@ export default function AdminDashboardPage() {
             </button>
           </div>
         </motion.div>
-      </section>
+        </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <section className="grid gap-6 lg:grid-cols-2">
+        <div className="admin-glass relative rounded-2xl p-5">
+          {refreshing && channels.length > 0 ? (
+            <div
+              className="pointer-events-none absolute inset-0 z-[1] rounded-2xl bg-[#07080f]/25 backdrop-blur-[1px]"
+              aria-hidden
+            />
+          ) : null}
           <h2 className="mb-2 text-lg font-semibold text-white">চ্যানেল তালিকা</h2>
           <p className="mb-3 text-xs text-zinc-500">নাম, দেশ, ক্যাটাগরি, ভাষা বা স্ট্রিম URL দিয়ে খুঁজুন — মডিউল দিয়ে সরিয়ে দেখুন।</p>
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -597,8 +692,8 @@ export default function AdminDashboardPage() {
               </select>
             </div>
           </div>
-          {loading ? (
-            <p className="text-sm text-zinc-400">Loading...</p>
+          {loading && channels.length === 0 ? (
+            <p className="text-sm text-zinc-400">Loading…</p>
           ) : channels.length === 0 ? (
             <p className="rounded-lg border border-white/10 bg-black/20 p-4 text-sm text-zinc-400">No channels in the database yet. Add one using the form above, or run M3U sync.</p>
           ) : filteredAdminChannels.length === 0 ? (
@@ -606,7 +701,7 @@ export default function AdminDashboardPage() {
           ) : (
             <p className="mb-2 text-xs text-zinc-500">Showing {filteredAdminChannels.length} of {channels.length} channels</p>
           )}
-          {!loading && channels.length > 0 && filteredAdminChannels.length > 0 && (
+          {channels.length > 0 && filteredAdminChannels.length > 0 && (
             <div className="max-h-96 space-y-2 overflow-auto pr-0.5">
               {filteredAdminChannels.map((channel) => (
                 <div
@@ -636,7 +731,13 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="admin-glass relative rounded-2xl p-5">
+          {refreshing && scores.length > 0 ? (
+            <div
+              className="pointer-events-none absolute inset-0 z-[1] rounded-2xl bg-[#07080f]/25 backdrop-blur-[1px]"
+              aria-hidden
+            />
+          ) : null}
           <h2 className="mb-2 text-lg font-semibold text-white">লাইভ স্কোর তালিকা</h2>
           <div className="relative mb-3">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
@@ -648,8 +749,8 @@ export default function AdminDashboardPage() {
               aria-label="Filter scores"
             />
           </div>
-          {loading ? (
-            <p className="text-sm text-zinc-400">Loading...</p>
+          {loading && scores.length === 0 ? (
+            <p className="text-sm text-zinc-400">Loading…</p>
           ) : scores.length === 0 ? (
             <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-zinc-400">No live scores yet. Add a match using the form on the left.</p>
           ) : filteredScores.length === 0 ? (
@@ -657,7 +758,7 @@ export default function AdminDashboardPage() {
           ) : (
             <p className="mb-2 text-xs text-zinc-500">Showing {filteredScores.length} of {scores.length} rows</p>
           )}
-          {loading || scores.length === 0 ? null : (
+          {filteredScores.length > 0 ? (
             <div className="max-h-96 space-y-2 overflow-auto pr-0.5">
               {filteredScores.map((score) => (
                 editingScoreId === score.id ? (
@@ -735,12 +836,13 @@ export default function AdminDashboardPage() {
                 )
               ))}
             </div>
-          )}
+          ) : null}
         </div>
-      </section>
+        </section>
 
-      {/* ── Google AdSense Settings ── */}
-      <AdminAdsenseSection />
+        {/* ── Google AdSense Settings ── */}
+        <AdminAdsenseSection />
+      </div>
     </main>
   );
 }
@@ -766,7 +868,7 @@ function AdminAdsenseSection() {
     <motion.section
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-5"
+      className="admin-glass rounded-2xl border border-amber-400/20 p-5 ring-1 ring-amber-500/10"
     >
       <div className="mb-4 flex items-center gap-2">
         <Megaphone size={18} className="text-amber-400" />

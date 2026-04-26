@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AppProviders } from "@/components/providers/AppProviders";
+import { SkipToContentLink } from "@/components/SkipToContentLink";
 import { SiteFooter } from "@/components/SiteFooter";
 import "./globals.css";
 
@@ -56,9 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="bn" className={inter.variable} suppressHydrationWarning>
       <body className={`flex min-h-screen flex-col antialiased font-sans ${inter.className}`}>
         <AppProviders>
-          <a href="#main-content" className="skip-to-content">
-            Skip to main content
-          </a>
+          <SkipToContentLink />
           <div id="main-content" className="flex flex-1 flex-col outline-none" tabIndex={-1}>
             {children}
           </div>

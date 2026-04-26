@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Globe,
   RefreshCw,
@@ -225,6 +225,8 @@ export function ViewerHome() {
   const [showAllFilters, setShowAllFilters] = useState(false);
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
   const [showAltLinks, setShowAltLinks] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const reduceM = useReducedMotion();
   const tier = useSubscriptionStore((s) => s.tier);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -251,6 +253,16 @@ export function ViewerHome() {
   }, []);
 
   useEffect(() => { void loadChannels(false); }, [loadChannels]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (localStorage.getItem("gstv-welcome-hint") === "1") return;
+    } catch {
+      return;
+    }
+    setWelcomeOpen(true);
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => void loadChannels(false, true), 5 * 60_000); // 5 min silent refresh
@@ -405,6 +417,15 @@ export function ViewerHome() {
     setFilterLanguage("");
   }, [setActiveCategory]);
 
+  const dismissWelcome = useCallback(() => {
+    try {
+      localStorage.setItem("gstv-welcome-hint", "1");
+    } catch {
+      /* */
+    }
+    setWelcomeOpen(false);
+  }, []);
+
   const currentStreamUrl = activeStreamUrl ?? activeChannel?.stream_url ?? "";
   const altLinks = activeChannel?.alternate_urls ?? [];
 
@@ -415,6 +436,26 @@ export function ViewerHome() {
   return (
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
+        {welcomeOpen ? (
+          <div
+            role="region"
+            aria-label={t("usageTips")}
+            className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+            style={{ background: "rgba(245,166,35,0.08)", borderColor: "rgba(245,166,35,0.25)" }}
+          >
+            <p className="text-left text-sm leading-relaxed" style={{ color: "var(--text-main)" }}>
+              {t("welcomeHint")}
+            </p>
+            <button
+              type="button"
+              onClick={dismissWelcome}
+              className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+              style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
+            >
+              {t("welcomeDismiss")}
+            </button>
+          </div>
+        ) : null}
 
         {/* ── Live Scores Ticker ── */}
         {liveScoresTicker && (
@@ -469,8 +510,9 @@ export function ViewerHome() {
 
         {/* ── Hero header ── */}
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={reduceM ? false : { opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={reduceM ? { duration: 0 } : { duration: 0.35 }}
           className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div>
@@ -677,9 +719,10 @@ export function ViewerHome() {
           <AnimatePresence>
             {showAllFilters && (
               <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+                initial={reduceM ? false : { height: 0, opacity: 0 }}
+                animate={reduceM ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+                exit={reduceM ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                transition={reduceM ? { duration: 0 } : { duration: 0.25 }}
                 className="overflow-hidden"
               >
                 <div className="mt-3 flex flex-col gap-3 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -720,6 +763,11 @@ export function ViewerHome() {
                 streamUrl={currentStreamUrl}
                 alternateUrls={altLinks}
                 title={activeChannel.name}
+                relayMeta={{
+                  name: activeChannel.name,
+                  category: activeChannel.category,
+                  stream_url: activeChannel.stream_url,
+                }}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}
                 overlay={<LiveScoreOverlay scores={scores} />}
@@ -734,8 +782,9 @@ export function ViewerHome() {
             {activeChannel && (
               <motion.div
                 key={activeChannel.id}
-                initial={{ opacity: 0, y: 6 }}
+                initial={reduceM ? false : { opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
+                transition={reduceM ? { duration: 0 } : { duration: 0.2 }}
                 className="mt-3 rounded-xl px-4 py-3"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
@@ -777,9 +826,10 @@ export function ViewerHome() {
                     <AnimatePresence>
                       {showAltLinks && (
                         <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
+                          initial={reduceM ? false : { height: 0, opacity: 0 }}
+                          animate={reduceM ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+                          exit={reduceM ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                          transition={reduceM ? { duration: 0 } : { duration: 0.2 }}
                           className="overflow-hidden"
                         >
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -876,10 +926,14 @@ export function ViewerHome() {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium" style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }}>
+                        <p
+                          className="truncate text-sm font-medium"
+                          style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }}
+                          title={ch.name}
+                        >
                           {ch.name}
                         </p>
-                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${ch.country} · ${ch.language}`}>
                           {flagFromCountryName(ch.country)} {ch.country} · {ch.language} · {ch.quality_tag.toUpperCase()}
                         </p>
                       </div>
@@ -920,10 +974,24 @@ export function ViewerHome() {
 
           {loading ? (
             <ChannelSkeletonGrid count={18} />
+          ) : moduleChannels.length === 0 ? (
+            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
+              <p className="text-sm" style={{ color: "var(--text-main)" }}>{t("emptyModule")}</p>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
               <p className="text-sm" style={{ color: "var(--text-main)" }}>{t("noResults")}</p>
               <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{t("tryAdjust")}</p>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="mt-4 inline-flex rounded-lg px-4 py-2 text-sm font-semibold transition hover:opacity-90"
+                  style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
+                >
+                  {t("noResultsCta")}
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
@@ -959,14 +1027,15 @@ function PremiumChannelCard({
   index: number;
   activeModule: ActiveModule;
 }) {
+  const cardReduceM = useReducedMotion();
   return (
     <motion.button
       type="button"
       onClick={() => onSelect(channel)}
       className={`ch-card group w-full p-3 text-left${active ? " active" : ""}`}
-      initial={{ opacity: 0, y: 10 }}
+      initial={cardReduceM ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.01, 0.3), duration: 0.2 }}
+      transition={cardReduceM ? { duration: 0 } : { delay: Math.min(index * 0.01, 0.3), duration: 0.2 }}
     >
       <div className="flex items-start gap-3">
         {channel.logo_url ? (
@@ -987,8 +1056,10 @@ function PremiumChannelCard({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }}>{channel.name}</p>
-          <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name}>
+            {channel.name}
+          </p>
+          <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${channel.country} · ${channel.language}`}>
             {flagFromCountryName(channel.country)} {channel.country} · {channel.language}
           </p>
         </div>

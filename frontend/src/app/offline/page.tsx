@@ -18,8 +18,8 @@ export default function OfflinePage() {
       </p>
       <Link
         href="/"
-        className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold transition hover:bg-cyan-400"
-        style={{ color: "#0c0d12" }}
+        className="rounded-xl px-5 py-2.5 text-sm font-semibold transition hover:opacity-90"
+        style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
       >
         {t("goHome")}
       </Link>

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 
 import { apiClient } from "@/lib/apiClient";
@@ -39,22 +40,22 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main data-admin className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-12">
+    <main data-admin className="admin-shell flex items-center justify-center px-4 py-12 sm:px-6">
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 p-6 shadow-2xl backdrop-blur-xl"
+        className="admin-glass w-full max-w-md rounded-2xl p-6 sm:p-8"
       >
         <div className="mb-5 flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/abo-logo.svg" alt="ABO" className="h-10 w-10 rounded-xl" />
+          <Image src="/icons/abo-logo.svg" alt="" width={40} height={40} className="h-10 w-10 rounded-xl ring-1 ring-white/10" />
           <div>
-            <h1 className="text-2xl font-bold text-white">Admin Login</h1>
-            <p className="text-xs text-zinc-400">ABO SPORTS TV LIVE</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>
+            <h1 className="text-2xl font-bold tracking-tight text-white">Sign in</h1>
+            <p className="text-xs text-zinc-500">ABO SPORTS TV LIVE</p>
           </div>
         </div>
-        <p className="mb-6 text-sm text-zinc-400">Secure dashboard access for stream and score management.</p>
+        <p className="mb-6 text-sm leading-relaxed text-zinc-400">Secure access for stream and score management.</p>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
@@ -67,7 +68,7 @@ export default function AdminLoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
+              className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
               placeholder="admin@test.com"
             />
           </label>
@@ -83,19 +84,23 @@ export default function AdminLoginPage() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
+              className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-500"
               placeholder="••••••••"
             />
           </label>
 
-          {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+          {error ? (
+            <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200" role="alert">
+              {error}
+            </p>
+          ) : null}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-black shadow-lg shadow-emerald-900/30 transition hover:from-emerald-400 hover:to-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
 
