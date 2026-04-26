@@ -24,8 +24,12 @@ import {
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { buildApiUrl } from "@/lib/apiClient";
-import { shouldPreferServerRelay } from "@/lib/streamRelay";
+import {
+  buildProxyM3U8RequestUrl,
+  buildProxyStreamUrl,
+  parseDynamicM3U8IdFromStreamUrl,
+  shouldPreferServerRelay,
+} from "@/lib/streamRelay";
 import { useVpnStore } from "@/store/vpnStore";
 
 /* ─────────────────────────────────────────────────────────── Types ── */
@@ -141,13 +145,18 @@ function isConstrainedNetwork(): boolean {
   return t === "slow-2g" || t === "2g";
 }
 
-/** Backend proxy — same base as `apiRequest` (use query on path, not inside path segment). */
-function buildProxyUrl(streamUrl: string): string {
-  return `${buildApiUrl("/proxy/stream")}?url=${encodeURIComponent(streamUrl)}`;
-}
-
-function buildOrderedStreamUrls(preferRelay: boolean, directUrls: string[]): string[] {
-  const proxyUrls = directUrls.map(buildProxyUrl);
+/**
+ * Backend proxy URLs for each direct URL. When a channel uses
+ * `/proxy/m3u8?stream_id=…`, the same `stream_id` is passed so the server
+ * can attach DB-captured headers to segment requests.
+ */
+function buildOrderedStreamUrls(
+  preferRelay: boolean,
+  directUrls: string[],
+  dynamicM3U8Id: number | null
+): string[] {
+  const opt = dynamicM3U8Id == null ? undefined : { dynamicM3U8Id };
+  const proxyUrls = directUrls.map((u) => buildProxyStreamUrl(u, opt));
   return preferRelay ? [...proxyUrls, ...directUrls] : [...directUrls, ...proxyUrls];
 }
 
@@ -278,14 +287,25 @@ export default function PremiumPlayer({
   const [urlIdx, setUrlIdx] = useState(0);
 
   const vpnMode = useVpnStore((s) => s.mode);
-  const directUrls = useMemo(() => [streamUrl, ...(alternateUrls ?? [])], [streamUrl, alternateUrls]);
+  const dynamicM3U8Id = useMemo(() => {
+    for (const u of [streamUrl, ...(alternateUrls ?? [])]) {
+      const id = parseDynamicM3U8IdFromStreamUrl(u);
+      if (id != null) return id;
+    }
+    return null;
+  }, [streamUrl, alternateUrls]);
+  const directUrls = useMemo(() => {
+    const base = [streamUrl, ...(alternateUrls ?? [])];
+    if (dynamicM3U8Id == null) return base;
+    return base.map((u) => buildProxyM3U8RequestUrl(u, dynamicM3U8Id));
+  }, [streamUrl, alternateUrls, dynamicM3U8Id]);
   const preferRelay = useMemo(
     () => shouldPreferServerRelay(vpnMode, relayMeta ?? { name: title, category: "", stream_url: streamUrl }),
     [vpnMode, relayMeta, title, streamUrl]
   );
   const allUrlsList = useMemo(
-    () => buildOrderedStreamUrls(preferRelay, directUrls),
-    [preferRelay, directUrls]
+    () => buildOrderedStreamUrls(preferRelay, directUrls, dynamicM3U8Id),
+    [preferRelay, directUrls, dynamicM3U8Id]
   );
   const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
 
@@ -321,7 +341,7 @@ export default function PremiumPlayer({
 
     // Order: VPN "on" = relay (server) first; "smart" / "off" = direct first unless
     // channelSuggestsServerRelay, then relay first. Same paths as allUrlsList.
-    const allUrls = buildOrderedStreamUrls(preferRelay, directUrls);
+    const allUrls = buildOrderedStreamUrls(preferRelay, directUrls, dynamicM3U8Id);
     const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
 
     const lightNet = isConstrainedNetwork();
@@ -407,7 +427,7 @@ export default function PremiumPlayer({
     }
 
     return cleanup;
-  }, [streamUrl, retryKey, urlIdx, alternateUrls, preferRelay, directUrls]);
+  }, [streamUrl, retryKey, urlIdx, alternateUrls, preferRelay, directUrls, dynamicM3U8Id]);
 
   useEffect(() => {
     const video = videoRef.current;
