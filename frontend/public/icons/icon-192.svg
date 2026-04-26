@@ -1,5 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
-  <rect width="192" height="192" rx="40" fill="#020617"/>
-  <rect x="36" y="52" width="120" height="88" rx="12" stroke="#38bdf8" stroke-width="6"/>
-  <path d="M78 96 L78 116 L108 106 Z" fill="#7dd3fc"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="ABO Sports TV">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D0F1C"/>
+      <stop offset="100%" stop-color="#07080F"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#g)"/>
+  <rect x="24" y="24" width="144" height="144" rx="32" fill="none" stroke="#F5A623" stroke-width="4" opacity="0.35"/>
+  <circle cx="96" cy="80" r="8" fill="#E53935"/>
+  <rect x="56" y="100" width="80" height="52" rx="10" fill="none" stroke="#F5A623" stroke-width="5"/>
+  <path d="M84 120 L84 140 L110 128 Z" fill="#F5A623"/>
+  <text x="96" y="176" text-anchor="middle" font-size="10" font-family="system-ui,Segoe UI,sans-serif" font-weight="800" fill="#7B809A" letter-spacing="0.2em">LIVE</text>
 </svg>

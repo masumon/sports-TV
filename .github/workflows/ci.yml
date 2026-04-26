@@ -27,6 +27,9 @@ jobs:
         run: |
           python3 -m compileall -q app
           python3 -c "from app.main import app; assert app.title"
+      - name: M3U seed URLs (smoke)
+        working-directory: ${{ github.workspace }}
+        run: python3 scripts/check_m3u_sources.py
 
   frontend:
     name: Frontend (Next.js)

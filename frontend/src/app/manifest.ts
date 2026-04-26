@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "ABO SPORTS TV LIVE",
     short_name: "ABO Sports",
-    description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং — ABO ENTERPRISE",
+    description: "Global live sports, India & Bangladesh TV. Fast, PWA-ready streaming.",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -41,21 +41,21 @@ export default function manifest(): MetadataRoute.Manifest {
         short_name: "Sports",
         description: "বিশ্বের সকল স্পোর্টস চ্যানেল লাইভ",
         url: "/?module=sports",
-        icons: [{ src: "/icons/abo-logo.svg", sizes: "any" }],
+        icons: [{ src: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" }],
       },
       {
         name: "🇮🇳 India TV",
         short_name: "India",
         description: "India — all types of live channels",
         url: "/?module=india",
-        icons: [{ src: "/icons/abo-logo.svg", sizes: "any" }],
+        icons: [{ src: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" }],
       },
       {
         name: "🇧🇩 Bangladesh TV",
         short_name: "BD TV",
         description: "বাংলাদেশের সকল টিভি চ্যানেল লাইভ",
         url: "/?module=bangladesh",
-        icons: [{ src: "/icons/abo-logo.svg", sizes: "any" }],
+        icons: [{ src: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" }],
       },
     ],
   };

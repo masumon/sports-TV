@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" fill="#020617"/>
-  <rect x="112" y="152" width="288" height="208" rx="28" stroke="#38bdf8" stroke-width="14"/>
-  <path d="M220 256 L220 300 L288 278 Z" fill="#7dd3fc"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ABO Sports TV">
+  <!-- Safe area: content centered for maskable icons -->
+  <rect width="512" height="512" fill="#07080F"/>
+  <rect x="96" y="96" width="320" height="320" rx="64" fill="none" stroke="#F5A623" stroke-width="8" opacity="0.28"/>
+  <circle cx="256" cy="200" r="20" fill="#E53935"/>
+  <rect x="156" y="252" width="200" height="120" rx="20" fill="none" stroke="#F5A623" stroke-width="10"/>
+  <path d="M220 290 L220 330 L280 308 Z" fill="#F5A623"/>
 </svg>

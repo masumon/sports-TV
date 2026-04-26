@@ -36,12 +36,9 @@ _REDISCOVER_INTERVAL = 6 * 3600  # 6 hours
 # ─────────────────────────────────────────────────────────────────────────────
 # Multi-source seeds (GitHub raw + community). Validated at runtime; keep list focused
 # so discovery stays fast. Scraped M3U pages may surface Reddit/Google-linked URLs as text.
+# Validated HTTP 200 + M3U magic; avoid dead raw paths (iptv-org repo layout changes).
 _EXTRA_SPORTS_SEEDS: list[str] = [
     "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/int.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/categories/sports.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/categories/football.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/categories/cricket.m3u",
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/in.m3u",
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/bd.m3u",
     "https://raw.githubusercontent.com/byte-capsule/Toffee-Channels-Link-Headers/main/toffee_OTT_Navigator.m3u",

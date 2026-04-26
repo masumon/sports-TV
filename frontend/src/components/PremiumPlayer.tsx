@@ -112,6 +112,17 @@ function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
 /* ────────────────────────────────────────────────────────── Helpers ── */
 const HIDE_CONTROLS_AFTER_MS = 3500;
 
+type NetConn = { saveData?: boolean; effectiveType?: string };
+
+function isConstrainedNetwork(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const c = (navigator as Navigator & { connection?: NetConn }).connection;
+  if (!c) return false;
+  if (c.saveData) return true;
+  const t = c.effectiveType;
+  return t === "slow-2g" || t === "2g";
+}
+
 /** Backend proxy — same base as `apiRequest` (use query on path, not inside path segment). */
 function buildProxyUrl(streamUrl: string): string {
   return `${buildApiUrl("/proxy/stream")}?url=${encodeURIComponent(streamUrl)}`;
@@ -199,32 +210,29 @@ export default function PremiumPlayer({
     const allUrls = [...directUrls, ...proxyUrls];
     const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
 
+    const lightNet = isConstrainedNetwork();
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        // Buffer tuning for low-latency live streaming
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 60 * 1000 * 1000,  // 60 MB
+        lowLatencyMode: !lightNet,
+        maxBufferLength: lightNet ? 12 : 30,
+        maxMaxBufferLength: lightNet ? 25 : 60,
+        maxBufferSize: lightNet ? 25 * 1000 * 1000 : 60 * 1000 * 1000,
         maxBufferHole: 0.5,
-        // Live stream sync settings
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 10,
+        liveSyncDurationCount: lightNet ? 2 : 3,
+        liveMaxLatencyDurationCount: lightNet ? 6 : 10,
         liveDurationInfinity: true,
-        // ABR (adaptive bitrate) — prefer higher quality but allow fast switch
-        abrEwmaDefaultEstimate: 1_000_000,  // start with 1 Mbps estimate
-        abrBandWidthFactor: 0.95,
-        abrBandWidthUpFactor: 0.7,
-        // Faster manifest fetching
+        abrEwmaDefaultEstimate: lightNet ? 400_000 : 1_000_000,
+        abrBandWidthFactor: lightNet ? 0.9 : 0.95,
+        abrBandWidthUpFactor: lightNet ? 0.55 : 0.7,
         manifestLoadingMaxRetry: 2,
-        manifestLoadingRetryDelay: 500,
+        manifestLoadingRetryDelay: lightNet ? 800 : 500,
         levelLoadingMaxRetry: 2,
-        levelLoadingRetryDelay: 500,
+        levelLoadingRetryDelay: lightNet ? 800 : 500,
         fragLoadingMaxRetry: 3,
-        fragLoadingRetryDelay: 500,
-        // Start level: auto (let ABR decide)
+        fragLoadingRetryDelay: lightNet ? 800 : 500,
         startLevel: -1,
+        capLevelToPlayerSize: true,
       });
       hlsRef.current = hls;
       hls.loadSource(effectiveUrl);
@@ -253,6 +261,12 @@ export default function PremiumPlayer({
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (lightNet && hls.levels.length) {
+          const underSd = hls.levels
+            .map((level, idx) => (level.height && level.height <= 480 ? idx : -1))
+            .filter((idx) => idx >= 0);
+          if (underSd.length > 0) hls.autoLevelCapping = Math.max(...underSd);
+        }
         setIsLoading(false);
         setHasError(false);
         setIsSwitching(false);

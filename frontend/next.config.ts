@@ -23,6 +23,14 @@ const BACKEND_URL = (process.env.BACKEND_URL ?? DEFAULT_BACKEND_URL).replace(/\/
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
+  images: {
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200],
+    imageSizes: [32, 48, 64, 96],
+  },
+  experimental: {
+    optimizePackageImports: ["lucide-react", "framer-motion"],
+  },
   // Proxy all /api/* requests to the Render backend so the frontend never
   // needs to hardcode an absolute URL and avoids CORS preflight issues.
   async rewrites() {
