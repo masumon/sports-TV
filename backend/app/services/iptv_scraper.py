@@ -54,92 +54,18 @@ SPORTS_CATEGORY_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/categories/wrestling.m3u",
 ]
 
-# Country playlists — mixed channels; filtered by sports keywords
-SPORTS_COUNTRY_SOURCES: list[str] = [
-    # Asia
+# India — full iptv-org country list (all genres; module=india for UI)
+INDIA_FULL_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/countries/in.m3u",
-    "https://iptv-org.github.io/iptv/countries/pk.m3u",
-    "https://iptv-org.github.io/iptv/countries/lk.m3u",
-    "https://iptv-org.github.io/iptv/countries/my.m3u",
-    "https://iptv-org.github.io/iptv/countries/sg.m3u",
-    "https://iptv-org.github.io/iptv/countries/th.m3u",
-    "https://iptv-org.github.io/iptv/countries/id.m3u",
-    "https://iptv-org.github.io/iptv/countries/ph.m3u",
-    "https://iptv-org.github.io/iptv/countries/vn.m3u",
-    "https://iptv-org.github.io/iptv/countries/cn.m3u",
-    "https://iptv-org.github.io/iptv/countries/jp.m3u",
-    "https://iptv-org.github.io/iptv/countries/kr.m3u",
-    "https://iptv-org.github.io/iptv/countries/np.m3u",
-    "https://iptv-org.github.io/iptv/countries/af.m3u",
-    # Middle East
-    "https://iptv-org.github.io/iptv/countries/sa.m3u",
-    "https://iptv-org.github.io/iptv/countries/ae.m3u",
-    "https://iptv-org.github.io/iptv/countries/tr.m3u",
-    "https://iptv-org.github.io/iptv/countries/qa.m3u",
-    "https://iptv-org.github.io/iptv/countries/kw.m3u",
-    "https://iptv-org.github.io/iptv/countries/ir.m3u",
-    "https://iptv-org.github.io/iptv/countries/iq.m3u",
-    "https://iptv-org.github.io/iptv/countries/jo.m3u",
-    # Europe
-    "https://iptv-org.github.io/iptv/countries/gb.m3u",
-    "https://iptv-org.github.io/iptv/countries/es.m3u",
-    "https://iptv-org.github.io/iptv/countries/de.m3u",
-    "https://iptv-org.github.io/iptv/countries/fr.m3u",
-    "https://iptv-org.github.io/iptv/countries/it.m3u",
-    "https://iptv-org.github.io/iptv/countries/nl.m3u",
-    "https://iptv-org.github.io/iptv/countries/pt.m3u",
-    "https://iptv-org.github.io/iptv/countries/ru.m3u",
-    "https://iptv-org.github.io/iptv/countries/pl.m3u",
-    "https://iptv-org.github.io/iptv/countries/ro.m3u",
-    "https://iptv-org.github.io/iptv/countries/gr.m3u",
-    "https://iptv-org.github.io/iptv/countries/at.m3u",
-    "https://iptv-org.github.io/iptv/countries/be.m3u",
-    "https://iptv-org.github.io/iptv/countries/ch.m3u",
-    "https://iptv-org.github.io/iptv/countries/cz.m3u",
-    "https://iptv-org.github.io/iptv/countries/dk.m3u",
-    "https://iptv-org.github.io/iptv/countries/fi.m3u",
-    "https://iptv-org.github.io/iptv/countries/hu.m3u",
-    "https://iptv-org.github.io/iptv/countries/ie.m3u",
-    "https://iptv-org.github.io/iptv/countries/no.m3u",
-    "https://iptv-org.github.io/iptv/countries/se.m3u",
-    "https://iptv-org.github.io/iptv/countries/hr.m3u",
-    "https://iptv-org.github.io/iptv/countries/rs.m3u",
-    "https://iptv-org.github.io/iptv/countries/ua.m3u",
-    # Americas
-    "https://iptv-org.github.io/iptv/countries/us.m3u",
-    "https://iptv-org.github.io/iptv/countries/ca.m3u",
-    "https://iptv-org.github.io/iptv/countries/br.m3u",
-    "https://iptv-org.github.io/iptv/countries/ar.m3u",
-    "https://iptv-org.github.io/iptv/countries/mx.m3u",
-    "https://iptv-org.github.io/iptv/countries/cl.m3u",
-    "https://iptv-org.github.io/iptv/countries/co.m3u",
-    "https://iptv-org.github.io/iptv/countries/pe.m3u",
-    "https://iptv-org.github.io/iptv/countries/uy.m3u",
-    "https://iptv-org.github.io/iptv/countries/ec.m3u",
-    "https://iptv-org.github.io/iptv/countries/ve.m3u",
-    # Africa
-    "https://iptv-org.github.io/iptv/countries/za.m3u",
-    "https://iptv-org.github.io/iptv/countries/ng.m3u",
-    "https://iptv-org.github.io/iptv/countries/gh.m3u",
-    "https://iptv-org.github.io/iptv/countries/ke.m3u",
-    "https://iptv-org.github.io/iptv/countries/eg.m3u",
-    "https://iptv-org.github.io/iptv/countries/ma.m3u",
-    "https://iptv-org.github.io/iptv/countries/tn.m3u",
-    "https://iptv-org.github.io/iptv/countries/dz.m3u",
-    "https://iptv-org.github.io/iptv/countries/et.m3u",
-    "https://iptv-org.github.io/iptv/countries/cm.m3u",
-    # Oceania
-    "https://iptv-org.github.io/iptv/countries/au.m3u",
-    "https://iptv-org.github.io/iptv/countries/nz.m3u",
 ]
 
-# Bangladesh — ALL channels (news, entertainment, sports, drama, etc.)
+# Bangladesh — full country list (all genres; module=bangladesh)
 BANGLADESH_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/countries/bd.m3u",
 ]
 
-# Combined sports sources for backward compat
-DEFAULT_M3U_SOURCES: list[str] = SPORTS_CATEGORY_SOURCES + SPORTS_COUNTRY_SOURCES
+# World sports: category playlists only (no mixed country lists to avoid bloat)
+DEFAULT_M3U_SOURCES: list[str] = SPORTS_CATEGORY_SOURCES
 SPORTS_M3U_URL = SPORTS_CATEGORY_SOURCES[0]
 
 # Sports keyword filter (applied to mixed country playlists)
@@ -157,6 +83,21 @@ SPORTS_KEYWORDS: frozenset[str] = frozenset({
     "eleven sport", "setanta", "star sport", "sony sport", "willow",
     "ten sport", "geo super", "ptv sport", "rcb", "csk",
 })
+
+# If the same stream_url appears in multiple jobs, keep the highest-priority module
+# (regional full-lineup lists win over the global sports pool).
+_MODULE_URL_PRIORITY: dict[str, int] = {"bangladesh": 3, "india": 2, "sports": 1}
+
+
+def _dedupe_entries_by_stream_url_priority(entries: list[ParsedChannel]) -> list[ParsedChannel]:
+    pri = _MODULE_URL_PRIORITY
+    by_url: dict[str, ParsedChannel] = {}
+    for e in entries:
+        p = pri.get(e.module, 0)
+        ex = by_url.get(e.stream_url)
+        if ex is None or p > pri.get(ex.module, 0):
+            by_url[e.stream_url] = e
+    return list(by_url.values())
 
 
 @dataclass(slots=True)
@@ -287,7 +228,10 @@ def _fetch_m3u_safe(url: str) -> str | None:
 
 def fetch_all_sports_m3u(extra_urls: list[str] | None = None) -> list[str]:
     """Fetch all configured M3U sources; returns list of valid playlist texts."""
-    sources = list(DEFAULT_M3U_SOURCES)
+    sources: list[str] = []
+    sources.extend(DEFAULT_M3U_SOURCES)
+    sources.extend(INDIA_FULL_SOURCES)
+    sources.extend(BANGLADESH_SOURCES)
     if settings.scraper_source_url and settings.scraper_source_url not in sources:
         sources.insert(0, settings.scraper_source_url)
     if extra_urls:
@@ -345,7 +289,10 @@ def _group_entries_by_name(
 
 
 def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) -> dict[str, int]:
-    all_entries = list(entries)
+    raw = list(entries)
+    all_entries = _dedupe_entries_by_stream_url_priority(raw)
+    if len(all_entries) < len(raw):
+        logger.info("Stream URL dedupe: %d -> %d rows", len(raw), len(all_entries))
     grouped = _group_entries_by_name(all_entries)
 
     created = 0
@@ -456,12 +403,12 @@ def scrape_and_sync_sports_channels(
     """
     Fetch all M3U sources in parallel and sync to DB.
 
-    - Category playlists  → module=sports, no keyword filter
-    - Country playlists   → module=sports, sports_only=True
-    - Bangladesh sources  → module=bangladesh, no filter
-    - extra_urls          → module=sports, sports_only=True (discovered sources)
+    - Category playlists (sports, football, …) → module=sports, no keyword filter
+    - India full country M3U                      → module=india, all channels
+    - Bangladesh full country M3U                 → module=bangladesh, all channels
+    - extra_urls (discovery)                        → module=sports, sports_only=True
 
-    extra_urls is backward-compatible (defaults to None = no extras).
+    Same stream_url in multiple jobs is resolved: bangladesh > india > sports.
     """
     category_urls = set(SPORTS_CATEGORY_SOURCES)
 
@@ -472,11 +419,15 @@ def scrape_and_sync_sports_channels(
         sports_only = url not in category_urls
         fetch_jobs.append((url, sports_only, "sports"))
 
+    for url in INDIA_FULL_SOURCES:
+        fetch_jobs.append((url, False, "india"))
+
     for url in BANGLADESH_SOURCES:
         fetch_jobs.append((url, False, "bangladesh"))
 
     # Custom env URL
-    if settings.scraper_source_url and settings.scraper_source_url not in DEFAULT_M3U_SOURCES:
+    all_seed_urls = set(DEFAULT_M3U_SOURCES) | set(INDIA_FULL_SOURCES) | set(BANGLADESH_SOURCES)
+    if settings.scraper_source_url and settings.scraper_source_url not in all_seed_urls:
         fetch_jobs.append((settings.scraper_source_url, False, "sports"))
 
     # Discovered sources from m3u_discovery (already deduplicated vs. main list)

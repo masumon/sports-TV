@@ -133,7 +133,7 @@ const SPORT_ICONS: Record<string, string> = {
 
 function categoryEmoji(category: string, module: string): string {
   const key = category.toLowerCase();
-  if (module === "bangladesh") {
+  if (module === "bangladesh" || module === "india") {
     for (const [k, v] of Object.entries(BD_CATEGORIES)) {
       if (key.includes(k)) return v;
     }
@@ -145,7 +145,7 @@ function categoryEmoji(category: string, module: string): string {
   return "📺";
 }
 
-type ActiveModule = "sports" | "bangladesh";
+type ActiveModule = "sports" | "india" | "bangladesh";
 
 /* ── Chip filter component ── */
 function FilterChips({
@@ -260,7 +260,7 @@ export function ViewerHome() {
   // Deep link: /?module=bangladesh|sports (e.g. manifest shortcuts, README)
   useEffect(() => {
     const m = searchParams.get("module")?.toLowerCase().trim();
-    if (m === "bangladesh" || m === "sports") {
+    if (m === "bangladesh" || m === "sports" || m === "india") {
       setActiveModule(m);
     }
   }, [searchParams, setActiveModule]);
@@ -324,7 +324,7 @@ export function ViewerHome() {
         list = list.filter((c) => inferLeague(c.name) === filterLeague);
       }
     } else {
-      // Bangladesh module: filter by DB category field
+      // India / Bangladesh: filter by DB category
       if (activeCategory) {
         const f = activeCategory.toLowerCase();
         list = list.filter((c) => c.category.toLowerCase().includes(f));
@@ -389,7 +389,7 @@ export function ViewerHome() {
       Boolean(
         deferredSearch.trim() ||
           (activeModule === "sports" && activeCategory) ||
-          (activeModule === "bangladesh" && activeCategory) ||
+          ((activeModule === "bangladesh" || activeModule === "india") && activeCategory) ||
           filterLeague ||
           filterCountry ||
           filterLanguage
@@ -409,6 +409,7 @@ export function ViewerHome() {
   const altLinks = activeChannel?.alternate_urls ?? [];
 
   const bdCount = allChannels.filter((c) => c.module === "bangladesh").length;
+  const inCount = allChannels.filter((c) => c.module === "india").length;
   const sportsCount = allChannels.filter((c) => c.module === "sports").length;
 
   return (
@@ -447,6 +448,15 @@ export function ViewerHome() {
           </button>
           <button
             type="button"
+            onClick={() => setActiveModule("india")}
+            className={`module-tab${activeModule === "india" ? " active" : ""}`}
+            style={activeModule === "india" ? { borderColor: "rgba(99,102,241,0.5)", color: "rgb(199 210 254)" } : undefined}
+          >
+            🇮🇳 India TV
+            {inCount > 0 && <span className="module-tab-badge">{inCount}</span>}
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveModule("bangladesh")}
             className={`module-tab${activeModule === "bangladesh" ? " active bd" : ""}`}
           >
@@ -469,11 +479,19 @@ export function ViewerHome() {
                 <Tv2 className="h-4 w-4" style={{ color: "var(--primary-accent)" }} />
               </div>
               <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>
-                {activeModule === "bangladesh" ? "BANGLADESH TV" : "ABO SPORTS TV LIVE"}
+                {activeModule === "bangladesh"
+                  ? "BANGLADESH TV"
+                  : activeModule === "india"
+                    ? "INDIA TV"
+                    : "ABO SPORTS TV LIVE"}
               </span>
             </div>
             <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl" style={{ color: "var(--text-main)" }}>
-              {activeModule === "bangladesh" ? "বাংলাদেশ টিভি চ্যানেল" : t("tagline")}
+              {activeModule === "bangladesh"
+                ? "বাংলাদেশ টিভি চ্যানেল"
+                : activeModule === "india"
+                  ? "भारत — सभी प्रकार के चैनल"
+                  : t("tagline")}
             </h1>
             <div className="mt-1 space-y-1.5">
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -582,7 +600,7 @@ export function ViewerHome() {
           </div>
           </div>
         ) : (
-          /* Bangladesh module: category tabs from DB */
+          /* India / Bangladesh: category tabs from DB */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -887,11 +905,13 @@ export function ViewerHome() {
             <h2 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
               {activeModule === "sports" && activeCategory
                 ? SPORT_TYPES.find((s) => s.id === activeCategory)?.label ?? "🌐 " + t("directory")
-                : activeModule === "bangladesh" && activeCategory
+                : (activeModule === "bangladesh" || activeModule === "india") && activeCategory
                   ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
                   : activeModule === "bangladesh"
                     ? "🇧🇩 Bangladesh TV Channels"
-                    : "🌐 " + t("directory")}
+                    : activeModule === "india"
+                      ? "🇮🇳 India TV Channels"
+                      : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>
               {filtered.length} / {moduleChannels.length} channels

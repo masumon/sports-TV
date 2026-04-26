@@ -50,7 +50,6 @@ export function Sidebar() {
   const visibleCats = showAllCats ? SPORTS_CATEGORIES : SPORTS_CATEGORIES.slice(0, 8);
 
   function handleCategoryClick(key: string) {
-    // If on bangladesh module, switch to sports first
     if (activeModule !== "sports") setActiveModule("sports");
     setActiveCategory(activeCategory === key ? "" : key);
     setSidebarOpen(false);
@@ -62,6 +61,12 @@ export function Sidebar() {
 
   function handleBangladeshClick() {
     setActiveModule("bangladesh");
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleIndiaClick() {
+    setActiveModule("india");
     setSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -144,6 +149,20 @@ export function Sidebar() {
               <Home size={17} />
               {t("home")} — 🌍 Sports TV
             </Link>
+
+            <button
+              type="button"
+              onClick={handleIndiaClick}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: activeModule === "india" ? "rgba(99,102,241,0.12)" : "transparent",
+                color: activeModule === "india" ? "rgb(199 210 254)" : "var(--text-muted)",
+                borderLeft: activeModule === "india" ? "2px solid rgb(99 102 241)" : "2px solid transparent",
+              }}
+            >
+              <Globe size={17} />
+              🇮🇳 India TV
+            </button>
 
             {/* Bangladesh TV */}
             <button

@@ -8,9 +8,9 @@ type UiState = {
   toggleSidebar: () => void;
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (v: boolean) => void;
-  /** Active module: "sports" | "bangladesh" — shared across Sidebar + ViewerHome */
-  activeModule: "sports" | "bangladesh";
-  setActiveModule: (m: "sports" | "bangladesh") => void;
+  /** Active module — shared across Sidebar + ViewerHome */
+  activeModule: "sports" | "india" | "bangladesh";
+  setActiveModule: (m: "sports" | "india" | "bangladesh") => void;
   /** Active category filter — shared across Sidebar + ViewerHome */
   activeCategory: string;
   setActiveCategory: (c: string) => void;

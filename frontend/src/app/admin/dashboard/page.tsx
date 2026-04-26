@@ -75,7 +75,7 @@ export default function AdminDashboardPage() {
   const [editingScoreId, setEditingScoreId] = useState<number | null>(null);
   const [editScoreData, setEditScoreData] = useState<EditScoreState>({ score_home: 0, score_away: 0, match_minute: "", status: "live" });
   const [channelQuery, setChannelQuery] = useState("");
-  const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "sports" | "bangladesh">("all");
+  const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "sports" | "india" | "bangladesh">("all");
   const [scoreQuery, setScoreQuery] = useState("");
 
   const authToken = token;
@@ -425,6 +425,7 @@ export default function AdminDashboardPage() {
                     className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
                   >
                     <option value="sports">sports</option>
+                    <option value="india">india</option>
                     <option value="bangladesh">bangladesh</option>
                   </select>
                 );
@@ -586,11 +587,12 @@ export default function AdminDashboardPage() {
               <Filter size={14} className="shrink-0 text-zinc-500" />
               <select
                 value={channelModuleFilter}
-                onChange={(e) => setChannelModuleFilter(e.target.value as "all" | "sports" | "bangladesh")}
+                onChange={(e) => setChannelModuleFilter(e.target.value as "all" | "sports" | "india" | "bangladesh")}
                 className="min-w-[8rem] rounded-lg border border-white/20 bg-black/30 px-2 py-2 text-sm text-white outline-none focus:border-emerald-400"
               >
                 <option value="all">All modules</option>
                 <option value="sports">sports</option>
+                <option value="india">india</option>
                 <option value="bangladesh">bangladesh</option>
               </select>
             </div>

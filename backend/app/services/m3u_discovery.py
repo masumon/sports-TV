@@ -34,37 +34,17 @@ _REDISCOVER_INTERVAL = 6 * 3600  # 6 hours
 # Static extra seed sources beyond the iptv-org categories/countries already
 # in iptv_scraper.py.  All are publicly accessible, free, no auth required.
 # ─────────────────────────────────────────────────────────────────────────────
+# Multi-source seeds (GitHub raw + community). Validated at runtime; keep list focused
+# so discovery stays fast. Scraped M3U pages may surface Reddit/Google-linked URLs as text.
 _EXTRA_SPORTS_SEEDS: list[str] = [
-    # Free-TV community playlist
     "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
-    # iptv-org streams (direct stream files, not aggregated)
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/int.m3u",
-    # Sports-specific GitHub playlists
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/categories/sports.m3u",
-    # BeIN / sports aggregator mirrors
-    "https://raw.githubusercontent.com/byte-capsule/Toffee-Channels-Link-Headers/main/toffee_OTT_Navigator.m3u",
-    # Global sports public list
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/gb.m3u",
+    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/categories/football.m3u",
+    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/categories/cricket.m3u",
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/in.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/pk.m3u",
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/bd.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/sa.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ae.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/tr.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/br.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ar.m3u",
-    # Additional aggregator lists known to work
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/de.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/fr.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/es.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/it.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ru.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/za.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ng.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/eg.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/au.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/mx.m3u",
+    "https://raw.githubusercontent.com/byte-capsule/Toffee-Channels-Link-Headers/main/toffee_OTT_Navigator.m3u",
 ]
 
 # ─── Pages to crawl for embedded M3U URLs ────────────────────────────────────

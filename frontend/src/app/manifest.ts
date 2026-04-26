@@ -44,6 +44,13 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icons/abo-logo.svg", sizes: "any" }],
       },
       {
+        name: "🇮🇳 India TV",
+        short_name: "India",
+        description: "India — all types of live channels",
+        url: "/?module=india",
+        icons: [{ src: "/icons/abo-logo.svg", sizes: "any" }],
+      },
+      {
         name: "🇧🇩 Bangladesh TV",
         short_name: "BD TV",
         description: "বাংলাদেশের সকল টিভি চ্যানেল লাইভ",

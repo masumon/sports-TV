@@ -19,10 +19,6 @@ export function MobileBottomNav() {
   const isHome = pathname === "/";
   const isAdminPage = pathname?.startsWith("/admin");
 
-  function scrollToGrid() {
-    document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-30 flex h-16 items-stretch justify-around pb-[env(safe-area-inset-bottom,0px)] md:hidden"
@@ -73,6 +69,21 @@ export function MobileBottomNav() {
       <button
         type="button"
         onClick={() => {
+          setActiveModule("india");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+        className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
+        style={{ color: activeModule === "india" ? "rgb(199 210 254)" : "var(--text-muted)" }}
+      >
+        <div className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${activeModule === "india" ? "bg-[rgba(99,102,241,0.2)]" : ""}`}>
+          <Trophy size={19} />
+        </div>
+        🇮🇳 IN
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
           setActiveModule("bangladesh");
           window.scrollTo({ top: 0, behavior: "smooth" });
         }}
@@ -82,22 +93,7 @@ export function MobileBottomNav() {
         <div className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${activeModule === "bangladesh" ? "bg-[rgba(16,185,129,0.15)]" : ""}`}>
           <Tv size={19} />
         </div>
-        🇧🇩 BD TV
-      </button>
-
-      <button
-        type="button"
-        onClick={() => {
-          setActiveModule("sports");
-          scrollToGrid();
-        }}
-        className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
-        style={{ color: activeModule === "sports" ? "var(--primary-accent)" : "var(--text-muted)" }}
-      >
-        <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${activeModule === "sports" && isHome ? "bg-[rgba(245,166,35,0.15)]" : ""}`}>
-          <Trophy size={19} />
-        </div>
-        Sports
+        🇧🇩 BD
       </button>
 
       <Link
