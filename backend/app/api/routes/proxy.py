@@ -31,6 +31,59 @@ logger = logging.getLogger("app.proxy")
 
 router = APIRouter(prefix="/proxy", tags=["proxy"])
 
+# Upstream request headers: merge DB-captured (Playwright) and incoming request (priority below).
+# Lower-case names match httpx/Starlette.
+_FORWARD_UPSTREAM_REQUEST_HEADER_NAMES: tuple[str, ...] = (
+    "referer",
+    "origin",
+    "user-agent",
+    "cookie",
+    "authorization",
+    "range",
+    "accept",
+    "accept-encoding",
+    "icy-metadata",
+)
+_DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; IPTV-Proxy/1.0)"
+
+
+def _normalize_header_map(obj: object) -> dict[str, str]:
+    """Build a str→str map with lower-case header names (JSON from DB may use any casing)."""
+    if not isinstance(obj, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in obj.items():
+        if v is None:
+            continue
+        s = v if isinstance(v, str) else str(v)
+        if s.strip() == "":
+            continue
+        out[str(k).lower()] = s
+    return out
+
+
+def _merge_stream_forward_headers(
+    request: Request,
+    db_headers: dict[str, str] | None,
+) -> dict[str, str]:
+    """
+    Per-header priority: (1) DB / Playwright-stored, (2) this HTTP request, (3) default UA.
+    No hardcoded origin/referer — only defaults when still missing.
+    """
+    base_db = db_headers or {}
+    out: dict[str, str] = {}
+    for name in _FORWARD_UPSTREAM_REQUEST_HEADER_NAMES:
+        d_val = base_db.get(name)
+        in_val = request.headers.get(name)
+        if d_val and d_val.strip():
+            out[name] = d_val.strip()
+        elif in_val and in_val.strip():
+            out[name] = in_val.strip()
+    if not out.get("user-agent", "").strip():
+        out["user-agent"] = _DEFAULT_USER_AGENT
+    return out
+
+
 # Chunk size for streaming — 64 KB gives good throughput without high memory usage.
 _CHUNK_SIZE = 64 * 1024  # 64 KB
 
@@ -148,6 +201,11 @@ async def _stream_chunks(
 async def proxy_stream(
     request: Request,
     url: str = Query(..., min_length=7, max_length=2048, description="Encoded stream URL to proxy"),
+    stream_id: int | None = Query(
+        default=None,
+        description="Optional DynamicStream id — DB headers apply when the target URL matches that stream's m3u8 or fallback URL",
+    ),
+    db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """
     Proxy an IPTV/HLS stream URL through the backend.
@@ -163,14 +221,24 @@ async def proxy_stream(
     # URL validation + SSRF check (raises HTTPException on failure)
     target_url = _validate_stream_url(url)
 
-    # Forward only safe request headers to the origin.
-    forward: dict[str, str] = {}
-    for header in ("user-agent", "range", "accept", "accept-encoding", "icy-metadata"):
-        val = request.headers.get(header)
-        if val:
-            forward[header] = val
-    if "user-agent" not in forward:
-        forward["user-agent"] = "Mozilla/5.0 (compatible; IPTV-Proxy/1.0)"
+    db_headers: dict[str, str] = {}
+    if stream_id is not None:
+        from app.models.dynamic_stream import DynamicStream
+
+        ds: DynamicStream | None = await db.get(DynamicStream, stream_id)
+        if ds is not None and ds.is_active:
+            if ds.m3u8_url and target_url == ds.m3u8_url and ds.headers_json:
+                try:
+                    db_headers = _normalize_header_map(json.loads(ds.headers_json))
+                except Exception:
+                    db_headers = {}
+            elif ds.fallback_m3u8_url and target_url == ds.fallback_m3u8_url and ds.fallback_headers_json:
+                try:
+                    db_headers = _normalize_header_map(json.loads(ds.fallback_headers_json))
+                except Exception:
+                    db_headers = {}
+
+    forward = _merge_stream_forward_headers(request, db_headers or None)
 
     # Peek at response headers via a lightweight HEAD-equivalent: open stream and
     # immediately read status + headers before yielding any body bytes.
@@ -228,7 +296,9 @@ async def proxy_stream_preflight() -> Response:
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Range, Accept, User-Agent",
+            "Access-Control-Allow-Headers": (
+                "Range, Accept, Accept-Encoding, User-Agent, Referer, Origin, Cookie, Authorization"
+            ),
         },
     )
 
@@ -250,16 +320,20 @@ _M3U8_CONTENT_TYPE = "application/vnd.apple.mpegurl"
 _M3U8_CORS_HEADERS: dict[str, str] = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Range, Accept, User-Agent",
+    "Access-Control-Allow-Headers": (
+        "Range, Accept, Accept-Encoding, User-Agent, Referer, Origin, Cookie, Authorization"
+    ),
     "Cache-Control": "no-store, no-cache, must-revalidate",
 }
 _M3U8_FETCH_TIMEOUT = httpx.Timeout(connect=8.0, read=15.0, write=None, pool=None)
 
 
-def _rewrite_m3u8_segments(content: str, base_url: str, proxy_base: str) -> str:
+def _rewrite_m3u8_segments(content: str, base_url: str, proxy_base: str, stream_id: int) -> str:
     """
     Rewrite segment and chunk URLs inside an HLS manifest so that they are
     fetched through /proxy/stream rather than directly from the origin.
+    Each segment URL includes ``stream_id`` so the proxy can attach DB-captured
+    auth headers (Referer, Origin, Cookie, etc.) to every segment request.
 
     Handles:
     - Absolute URLs  (http://...)
@@ -288,8 +362,9 @@ def _rewrite_m3u8_segments(content: str, base_url: str, proxy_base: str) -> str:
         else:
             absolute = urllib.parse.urljoin(base_dir, stripped)
 
-        # Wrap through the proxy endpoint.
-        proxied = proxy_base + "?url=" + urllib.parse.quote(absolute, safe="")
+        # Wrap through the proxy endpoint (stream_id → DB header context for segments).
+        q = "url=" + urllib.parse.quote(absolute, safe="") + f"&stream_id={stream_id}"
+        proxied = proxy_base + "?" + q
         out.append(proxied)
 
     return "\n".join(out)
@@ -343,18 +418,18 @@ async def proxy_m3u8(
             detail="Stream not yet extracted — try again in a few seconds",
         )
 
-    # Build headers dict from stored JSON.
+    # Build headers from stored JSON (Playwright) — normalized; merged with request below.
     stored_headers: dict[str, str] = {}
     if stream.headers_json:
         try:
-            stored_headers = json.loads(stream.headers_json)
+            stored_headers = _normalize_header_map(json.loads(stream.headers_json))
         except Exception:
             pass
 
     fallback_headers: dict[str, str] = {}
     if stream.fallback_headers_json:
         try:
-            fallback_headers = json.loads(stream.fallback_headers_json)
+            fallback_headers = _normalize_header_map(json.loads(stream.fallback_headers_json))
         except Exception:
             pass
 
@@ -368,7 +443,10 @@ async def proxy_m3u8(
     manifest_source_url: str = ""
 
     if stream.m3u8_url:
-        manifest = await _fetch_m3u8_manifest(stream.m3u8_url, stored_headers)
+        mhdr = _merge_stream_forward_headers(
+            request, stored_headers if stored_headers else None
+        )
+        manifest = await _fetch_m3u8_manifest(stream.m3u8_url, mhdr)
         if manifest is not None:
             manifest_source_url = stream.m3u8_url
 
@@ -376,8 +454,11 @@ async def proxy_m3u8(
         logger.info(
             "Primary m3u8 failed for stream %d — serving fallback", stream_id
         )
+        fhdr = _merge_stream_forward_headers(
+            request, fallback_headers if fallback_headers else None
+        )
         manifest = await _fetch_m3u8_manifest(
-            stream.fallback_m3u8_url, fallback_headers
+            stream.fallback_m3u8_url, fhdr
         )
         if manifest is not None:
             manifest_source_url = stream.fallback_m3u8_url
@@ -388,7 +469,9 @@ async def proxy_m3u8(
             detail="Stream unavailable — both primary and fallback failed",
         )
 
-    rewritten = _rewrite_m3u8_segments(manifest, manifest_source_url, proxy_stream_url)
+    rewritten = _rewrite_m3u8_segments(
+        manifest, manifest_source_url, proxy_stream_url, stream_id
+    )
 
     return Response(
         content=rewritten,
