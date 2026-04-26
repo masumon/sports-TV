@@ -150,14 +150,18 @@ function isConstrainedNetwork(): boolean {
  * `/proxy/m3u8?stream_id=…`, the same `stream_id` is passed so the server
  * can attach DB-captured headers to segment requests.
  */
+/**
+ * In-browser playback always uses the API proxy (never loads HLS/keys from the origin
+ * — avoids lost Referer/Cookie, CORS, and geo client blocks). Mirror failover is
+ * the ordered list; each item is a proxy URL.
+ */
 function buildOrderedStreamUrls(
-  preferRelay: boolean,
+  _preferRelay: boolean,
   directUrls: string[],
   dynamicM3U8Id: number | null
 ): string[] {
   const opt = dynamicM3U8Id == null ? undefined : { dynamicM3U8Id };
-  const proxyUrls = directUrls.map((u) => buildProxyStreamUrl(u, opt));
-  return preferRelay ? [...proxyUrls, ...directUrls] : [...directUrls, ...proxyUrls];
+  return directUrls.map((u) => buildProxyStreamUrl(u, opt));
 }
 
 function formatQualityFromHeight(height: number): string {
@@ -379,11 +383,11 @@ export default function PremiumPlayer({
             setIsSwitching(true);
             setIsLoading(true);
             const nextU = allUrls[nextIdx] ?? "";
-            if (nextU.includes("/proxy/stream")) {
-              toast.info("Trying server relay (VPN)…");
-            } else {
-              toast.info("Trying another source…");
-            }
+            toast.info(
+              nextU.includes("/proxy/stream") && !(allUrls[nextIdx - 1] ?? "").includes("/proxy/stream")
+                ? "Switching to server relay…"
+                : "Switching stream…"
+            );
             setUrlIdx(nextIdx);
           } else {
             setIsSwitching(false);
