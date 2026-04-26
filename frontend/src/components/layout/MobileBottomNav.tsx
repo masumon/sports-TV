@@ -31,7 +31,10 @@ export function MobileBottomNav() {
     >
       <Link
         href="/"
-        onClick={() => setActiveModule("sports")}
+        onClick={() => {
+          setActiveModule("sports");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
         className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
         style={{ color: isHome && activeModule === "sports" ? "var(--primary-accent)" : "var(--text-muted)" }}
       >

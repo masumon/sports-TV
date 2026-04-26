@@ -55,7 +55,7 @@ export default function AdminLoginPage() {
             <p className="text-xs text-zinc-500">ABO SPORTS TV LIVE</p>
           </div>
         </div>
-        <p className="mb-6 text-sm leading-relaxed text-zinc-400">Secure access for stream and score management.</p>
+        <p className="mb-6 text-sm leading-relaxed text-zinc-400">Secure access for channel sync and stream management.</p>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">

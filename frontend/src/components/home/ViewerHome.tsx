@@ -19,15 +19,14 @@ import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
-import { fetchAllChannels, apiClient } from "@/lib/apiClient";
+import { fetchAllChannels } from "@/lib/apiClient";
 import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
-import type { Channel, LiveScore } from "@/lib/types";
+import type { Channel } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
 
-const LiveScoreOverlay = dynamic(() => import("@/components/LiveScoreOverlay"), { ssr: false });
 const PremiumPlayer = dynamic(
   () => import("@/components/PremiumPlayer").then((m) => m.default),
   { ssr: false, loading: () => <div className="player-shell aspect-video animate-pulse" style={{ background: "var(--bg-card)" }} /> }
@@ -222,7 +221,6 @@ export function ViewerHome() {
   const [filterCountry, setFilterCountry] = useState("");
   const [filterLanguage, setFilterLanguage] = useState("");
   const [filterLeague, setFilterLeague] = useState("");
-  const [scores, setScores] = useState<LiveScore[]>([]);
   const [showAllFilters, setShowAllFilters] = useState(false);
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
   const [showAltLinks, setShowAltLinks] = useState(false);
@@ -307,22 +305,19 @@ export function ViewerHome() {
     setShowAltLinks(false);
   }, [activeChannel?.id]);
 
-  // Auto-select first channel of active module
+  // Auto-select first channel of active module; clear selection if this module has no rows (e.g. India not synced)
   useEffect(() => {
     const moduleChannels = allChannels.filter((c) => c.module === activeModule);
-    if (moduleChannels.length > 0 && (!activeChannel || activeChannel.module !== activeModule)) {
+    if (moduleChannels.length === 0) {
+      if (activeChannel && activeChannel.module !== activeModule) {
+        setActiveChannel(null);
+      }
+      return;
+    }
+    if (!activeChannel || activeChannel.module !== activeModule) {
       setActiveChannel(moduleChannels[0]);
     }
   }, [allChannels, activeModule, activeChannel, setActiveChannel]);
-
-  useEffect(() => {
-    const tick = async () => {
-      try { setScores(await apiClient.getLiveScores(undefined, 10)); } catch { /* optional */ }
-    };
-    void tick();
-    const id = setInterval(() => void tick(), 15_000);
-    return () => clearInterval(id);
-  }, []);
 
   const moduleChannels = useMemo(
     () => allChannels.filter((c) => c.module === activeModule),
@@ -398,12 +393,6 @@ export function ViewerHome() {
     return uniqueSorted([...new Set(sportChans.map((c) => inferLeague(c.name)))]);
   }, [activeCategory, moduleChannels, activeModule]);
 
-  const liveScoresTicker = useMemo(() => {
-    const live = scores.filter((s) => s.status === "live");
-    if (live.length === 0) return null;
-    return live.map((s) => `${s.team_home} ${s.score_home}–${s.score_away} ${s.team_away} (${s.league})`).join("   •   ");
-  }, [scores]);
-
   const nameMatchCount = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     if (!q) return 0;
@@ -471,30 +460,12 @@ export function ViewerHome() {
           </div>
         ) : null}
 
-        {/* ── Live Scores Ticker ── */}
-        {liveScoresTicker && (
-          <div
-            className="flex items-center gap-3 overflow-hidden rounded-xl px-4 py-2.5"
-            style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.25)" }}
-          >
-            <span className="flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>
-              <span className="pulse-dot" />
-              LIVE
-            </span>
-            <div className="marquee-wrap flex-1">
-              <span className="marquee-track text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                {liveScoresTicker}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{liveScoresTicker}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* ── Module tabs ── */}
-        <div className="flex items-center gap-2">
+        {/* ── Module tabs (scroll on narrow screens) ── */}
+        <div className="-mx-1 flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:mx-0 sm:flex-wrap sm:overflow-visible">
           <button
             type="button"
             onClick={() => setActiveModule("sports")}
-            className={`module-tab${activeModule === "sports" ? " active" : ""}`}
+            className={`module-tab shrink-0 snap-start${activeModule === "sports" ? " active" : ""}`}
           >
             🌍 Sports TV
             {sportsCount > 0 && (
@@ -504,7 +475,7 @@ export function ViewerHome() {
           <button
             type="button"
             onClick={() => setActiveModule("india")}
-            className={`module-tab${activeModule === "india" ? " active" : ""}`}
+            className={`module-tab shrink-0 snap-start${activeModule === "india" ? " active" : ""}`}
             style={activeModule === "india" ? { borderColor: "rgba(99,102,241,0.5)", color: "rgb(199 210 254)" } : undefined}
           >
             🇮🇳 India TV
@@ -513,7 +484,7 @@ export function ViewerHome() {
           <button
             type="button"
             onClick={() => setActiveModule("bangladesh")}
-            className={`module-tab${activeModule === "bangladesh" ? " active bd" : ""}`}
+            className={`module-tab shrink-0 snap-start${activeModule === "bangladesh" ? " active bd" : ""}`}
           >
             🇧🇩 Bangladesh TV
             {bdCount > 0 && (
@@ -585,6 +556,7 @@ export function ViewerHome() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t("search")}
                 aria-label={t("search")}
+                autoComplete="off"
                 className="search-input w-full rounded-lg py-2 pl-9 pr-3 text-sm placeholder:text-slate-500"
                 style={{
                   background: "var(--bg-card)",
@@ -611,8 +583,11 @@ export function ViewerHome() {
               {t("refresh")}
             </button>
 
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold" style={{ background: "rgba(229,57,53,0.1)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}>
-              <Signal size={12} /> {t("hlsLive")}
+            <div
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-bold"
+              style={{ background: "rgba(229,57,53,0.1)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}
+            >
+              <Signal size={12} className="shrink-0" /> {t("hlsLive")}
             </div>
 
             {tier === "premium" && (
@@ -784,7 +759,6 @@ export function ViewerHome() {
                 }}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}
-                overlay={<LiveScoreOverlay scores={scores} />}
               />
             ) : (
               <div className="player-shell flex aspect-video items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>

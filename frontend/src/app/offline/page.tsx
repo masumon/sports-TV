@@ -7,7 +7,7 @@ export default function OfflinePage() {
   const { t } = useI18n();
   return (
     <main
-      className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center"
+      className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-4 py-8 text-center safe-pb"
       style={{ background: "var(--bg-dark)" }}
     >
       <h1 className="text-2xl font-bold" style={{ color: "var(--text-main)" }}>

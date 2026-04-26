@@ -1,4 +1,4 @@
-import type { AdminStats, Channel, ChannelListResponse, LiveScore, TokenResponse, UserRead } from "@/lib/types";
+import type { AdminStats, Channel, ChannelListResponse, TokenResponse, UserRead } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
 /** Default `/api` matches Vercel rewrites → Render (same-origin, no CORS). Override for local direct backend. */
@@ -111,18 +111,6 @@ type AdminChannelCreateBody = {
   is_active: boolean;
 };
 
-type AdminScoreCreateBody = {
-  sport_type: "football" | "cricket";
-  league: string;
-  team_home: string;
-  team_away: string;
-  score_home: number;
-  score_away: number;
-  match_minute: string | null;
-  status: "live" | "upcoming" | "finished";
-  extra_data: string | null;
-};
-
 export async function fetchAllChannels(
   filters: Omit<ChannelListParams, "page" | "page_size"> = {}
 ): Promise<Channel[]> {
@@ -162,14 +150,6 @@ export const apiClient = {
     return apiRequest<ChannelFilters>("/sports-tv/filters");
   },
 
-  getLiveScores(sportType?: string, limit?: number) {
-    const sp = new URLSearchParams();
-    if (sportType) sp.set("sport_type", sportType);
-    if (limit != null) sp.set("limit", String(limit));
-    const q = sp.toString();
-    return apiRequest<LiveScore[]>(`/live-scores${q ? `?${q}` : ""}`);
-  },
-
   register(fullName: string, email: string, password: string) {
     return apiRequest<TokenResponse>("/auth/register", {
       method: "POST",
@@ -196,10 +176,6 @@ export const apiClient = {
     return apiRequest<Channel[]>("/admin/channels", { method: "GET", authToken: token });
   },
 
-  adminListScores(token: string) {
-    return apiRequest<LiveScore[]>("/admin/scores", { method: "GET", authToken: token });
-  },
-
   adminCreateChannel(token: string, body: AdminChannelCreateBody) {
     return apiRequest<Channel>("/admin/channels", {
       method: "POST",
@@ -208,28 +184,8 @@ export const apiClient = {
     });
   },
 
-  adminCreateScore(token: string, body: AdminScoreCreateBody) {
-    return apiRequest<LiveScore>("/admin/scores", {
-      method: "POST",
-      authToken: token,
-      body: JSON.stringify(body),
-    });
-  },
-
   adminDeleteChannel(token: string, id: number) {
     return apiRequest<void>(`/admin/channels/${id}`, { method: "DELETE", authToken: token });
-  },
-
-  adminUpdateScore(token: string, id: number, body: Partial<AdminScoreCreateBody>) {
-    return apiRequest<LiveScore>(`/admin/scores/${id}`, {
-      method: "PUT",
-      authToken: token,
-      body: JSON.stringify(body),
-    });
-  },
-
-  adminDeleteScore(token: string, id: number) {
-    return apiRequest<void>(`/admin/scores/${id}`, { method: "DELETE", authToken: token });
   },
 
   adminSyncChannels(token: string) {

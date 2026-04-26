@@ -425,11 +425,14 @@ html.light .ch-card {
   border-color: rgba(0,0,0,0.07);
 }
 
-.ch-card:hover {
-  background: var(--bg-hover);
-  border-color: rgba(245,166,35,0.35);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.3), 0 0 0 1px rgba(245,166,35,0.1);
+/* Hover lift only on real pointers — avoids “sticky” hover on touch */
+@media (hover: hover) and (pointer: fine) {
+  .ch-card:hover {
+    background: var(--bg-hover);
+    border-color: rgba(245,166,35,0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.3), 0 0 0 1px rgba(245,166,35,0.1);
+  }
 }
 
 .ch-card.active {

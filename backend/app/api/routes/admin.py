@@ -15,12 +15,10 @@ from app.core.sync_rate_limit import check_sync_allowed, get_last_sync_iso
 from app.db.session import get_db
 from app.models.channel import Channel
 from app.models.dynamic_stream import DynamicStream
-from app.models.match_stats import MatchStats, MatchStatus, SportType
 from app.models.user import User
 from app.schemas.admin import AdminStatsResponse
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
-from app.schemas.match_stats import MatchStatsCreate, MatchStatsRead, MatchStatsUpdate
 from app.services.automation import run_channel_sync
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -37,14 +35,12 @@ async def admin_stats(
 ) -> AdminStatsResponse:
     u = (await db.execute(select(func.count()).select_from(User.__table__))).scalar() or 0
     c = (await db.execute(select(func.count()).select_from(Channel.__table__))).scalar() or 0
-    s = (await db.execute(select(func.count()).select_from(MatchStats.__table__))).scalar() or 0
     active = (
         await db.execute(select(func.count()).select_from(Channel).where(Channel.is_active.is_(True)))
     ).scalar() or 0
     return AdminStatsResponse(
         users=int(u),
         channels=int(c),
-        live_scores=int(s),
         active_channels=int(active),
         cache_ttl_seconds=settings.cache_ttl_seconds,
         scheduled_sync_minutes=settings.scheduled_sync_interval_minutes,
@@ -145,101 +141,6 @@ async def admin_delete_channel(
     r = await db.execute(delete(Channel).where(Channel.id == channel_id))
     if r.rowcount == 0:
         raise HTTPException(status_code=404, detail="Channel not found.")
-    await db.commit()
-    invalidate_list_caches()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-def _parse_sport(value: str) -> SportType:
-    normalized = value.lower().strip()
-    if normalized == "football":
-        return SportType.football
-    if normalized == "cricket":
-        return SportType.cricket
-    raise HTTPException(status_code=400, detail="sport_type must be football or cricket.")
-
-
-def _parse_status(value: str) -> MatchStatus:
-    normalized = value.lower().strip()
-    if normalized == "live":
-        return MatchStatus.live
-    if normalized == "upcoming":
-        return MatchStatus.upcoming
-    if normalized == "finished":
-        return MatchStatus.finished
-    raise HTTPException(status_code=400, detail="status must be live, upcoming, or finished.")
-
-
-@router.get("/scores", response_model=list[MatchStatsRead])
-async def admin_list_scores(
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin_user),
-) -> list[MatchStatsRead]:
-    stmt = select(MatchStats).order_by(MatchStats.updated_at.desc())
-    r = await db.execute(stmt)
-    return [MatchStatsRead.model_validate(s) for s in r.scalars().all()]
-
-
-@router.post("/scores", response_model=MatchStatsRead, status_code=status.HTTP_201_CREATED)
-async def admin_create_score(
-    payload: MatchStatsCreate,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin_user),
-) -> MatchStats:
-    score = MatchStats(
-        sport_type=_parse_sport(payload.sport_type),
-        league=payload.league,
-        team_home=payload.team_home,
-        team_away=payload.team_away,
-        score_home=payload.score_home,
-        score_away=payload.score_away,
-        match_minute=payload.match_minute,
-        status=_parse_status(payload.status),
-        extra_data=payload.extra_data,
-    )
-    db.add(score)
-    await db.commit()
-    await db.refresh(score)
-    invalidate_list_caches()
-    return score
-
-
-@router.put("/scores/{score_id}", response_model=MatchStatsRead)
-async def admin_update_score(
-    score_id: int,
-    payload: MatchStatsUpdate,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin_user),
-) -> MatchStats:
-    score = await db.get(MatchStats, score_id)
-    if not score:
-        raise HTTPException(status_code=404, detail="Live score not found.")
-
-    data = payload.model_dump(exclude_unset=True)
-    for field, value in data.items():
-        if field == "sport_type" and value is not None:
-            score.sport_type = _parse_sport(value)
-            continue
-        if field == "status" and value is not None:
-            score.status = _parse_status(value)
-            continue
-        setattr(score, field, value)
-
-    await db.commit()
-    await db.refresh(score)
-    invalidate_list_caches()
-    return score
-
-
-@router.delete("/scores/{score_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def admin_delete_score(
-    score_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin_user),
-) -> Response:
-    r = await db.execute(delete(MatchStats).where(MatchStats.id == score_id))
-    if r.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Live score not found.")
     await db.commit()
     invalidate_list_caches()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

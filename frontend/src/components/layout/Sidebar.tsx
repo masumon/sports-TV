@@ -85,7 +85,7 @@ export function Sidebar() {
           sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={() => setSidebarOpen(false)}
-        aria-hidden
+        aria-hidden={!sidebarOpen}
       />
 
       <aside
@@ -248,12 +248,12 @@ export function Sidebar() {
               Platform Features
             </p>
             {[
-              { icon: <Zap size={12} />, label: "HLS Live Streaming" },
-              { icon: <Activity size={12} />, label: "Real-time Scores" },
-              { icon: <Globe size={12} />, label: "All Countries" },
-              { icon: <Star size={12} />, label: "HD Quality" },
-              { icon: <Flame size={12} />, label: "300+ Channels" },
-              { icon: <Tv size={12} />, label: "PWA Support" },
+              { icon: <Zap size={12} />, label: "HLS live streaming" },
+              { icon: <Activity size={12} />, label: "Backup & relay streams" },
+              { icon: <Globe size={12} />, label: "Sports, India & BD" },
+              { icon: <Star size={12} />, label: "Quality selector" },
+              { icon: <Flame size={12} />, label: "Large channel catalog" },
+              { icon: <Tv size={12} />, label: "PWA install" },
             ].map(({ icon, label }) => (
               <div key={label} className="flex items-center gap-2 py-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                 <span style={{ color: "var(--primary-accent)" }}>{icon}</span>

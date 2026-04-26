@@ -6,7 +6,7 @@ import { Channel } from "@/lib/types";
 type PlayerState = {
   activeChannel: Channel | null;
   isTheaterMode: boolean;
-  setActiveChannel: (channel: Channel) => void;
+  setActiveChannel: (channel: Channel | null) => void;
   toggleTheaterMode: () => void;
 };
 

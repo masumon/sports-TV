@@ -84,7 +84,7 @@ export function SiteFooter() {
               </span>
             </div>
             <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              HLS player, PWA install, real-time scores. Optimized for smooth playback on mobile networks.
+              HLS player, backup streams, server relay for tricky sources, PWA install. Tuned for mobile networks.
             </p>
             <div className="flex flex-wrap gap-1.5 text-[10px]">
               {["HLS", "PWA", "Multi-region", "HD"].map((tag) => (

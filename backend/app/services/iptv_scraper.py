@@ -55,13 +55,16 @@ SPORTS_CATEGORY_SOURCES: list[str] = [
 ]
 
 # India — full iptv-org country list (all genres; module=india for UI)
+# Two mirrors: GitHub Pages can occasionally timeout on some edge networks; raw.githubusercontent is a reliable fallback.
 INDIA_FULL_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/countries/in.m3u",
+    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/in.m3u",
 ]
 
 # Bangladesh — full country list (all genres; module=bangladesh)
 BANGLADESH_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/countries/bd.m3u",
+    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/bd.m3u",
 ]
 
 # World sports: category playlists only (no mixed country lists to avoid bloat)

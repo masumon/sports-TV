@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     scraper_source_url: str = "https://iptv-org.github.io/iptv/categories/sports.m3u"
     auto_sync_channels_on_startup: bool = False
-    # Optional Redis for response caching (GET /channels, GET /live-scores). If unset, caching is disabled.
+    # Optional Redis for response caching (GET /sports-tv/channels, filters). If unset, caching is disabled.
     redis_url: str | None = None
     cache_ttl_seconds: int = 300
     # POST /admin/channels/sync — minimum seconds between successful syncs per process (in-memory).

@@ -1,3 +1,3 @@
-from app.api.routes import admin, auth, live_scores, sports_tv
+from app.api.routes import admin, auth, sports_tv
 
-__all__ = ["admin", "auth", "live_scores", "sports_tv"]
+__all__ = ["admin", "auth", "sports_tv"]

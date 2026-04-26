@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s · ABO SPORTS TV LIVE",
   },
   description:
-    "ABO Sports TV Live — বিশ্বের সকল দেশের সব ধরনের খেলাধুলার চ্যানেল লাইভ স্ট্রিমিং। Real-time live scores, HD quality, PWA support.",
+    "ABO Sports TV Live — বিশ্বের সকল দেশের সব ধরনের খেলাধুলার চ্যানেল লাইভ স্ট্রিমিং। HD quality, PWA support.",
   applicationName: "ABO SPORTS TV LIVE",
   authors: [{ name: "ABO ENTERPRISE", url: "https://aboenterprise.netlify.app/" }],
   keywords: ["sports", "live tv", "streaming", "HLS", "football", "cricket", "basketball", "tennis", "ABO SPORTS TV LIVE", "ABO Enterprise", "Next.js", "PWA", "global sports"],
@@ -55,7 +55,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="bn" className={inter.variable} suppressHydrationWarning>
-      <body className={`flex min-h-screen flex-col antialiased font-sans ${inter.className}`}>
+      <body className={`flex min-h-dvh min-h-screen flex-col antialiased font-sans ${inter.className}`}>
         <AppProviders>
           <SkipToContentLink />
           <div id="main-content" className="flex flex-1 flex-col outline-none" tabIndex={-1}>

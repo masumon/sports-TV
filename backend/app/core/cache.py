@@ -43,12 +43,11 @@ def cache_set_json(prefix: str, params: dict[str, Any], data: Any, ttl: int | No
 _INVALIDATE_PREFIXES: tuple[str, ...] = (
     "gstv:channels:",
     "gstv:channel_filters:",
-    "gstv:live-scores:",
 )
 
 
 def invalidate_list_caches() -> None:
-    """Invalidate channel, filter, and live-score list caches (after sync or admin writes)."""
+    """Invalidate channel and filter list caches (after sync or admin writes)."""
     global _cache_version
     r = get_shared_redis()
     if r:

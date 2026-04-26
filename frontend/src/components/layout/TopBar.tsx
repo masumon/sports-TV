@@ -101,6 +101,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
             placeholder={t("search")}
+            aria-label={t("search")}
             inputMode="search"
             autoComplete="off"
             autoCorrect="off"
@@ -113,9 +114,14 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         </div>
 
         {/* Live badge */}
-        <div className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[10px]" style={{ background: "rgba(229,57,53,0.12)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}>
-          <Radio size={11} className="shrink-0 animate-pulse" />
-          <span className="hidden min-[400px]:inline sm:inline">LIVE</span>
+        <div
+          role="status"
+          aria-label="Live HLS"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[10px]"
+          style={{ background: "rgba(229,57,53,0.12)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}
+        >
+          <Radio size={11} className="shrink-0 animate-pulse" aria-hidden />
+          <span className="hidden min-[400px]:inline">LIVE</span>
         </div>
 
         <VpnModeToggle />

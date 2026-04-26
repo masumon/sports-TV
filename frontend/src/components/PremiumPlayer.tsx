@@ -21,7 +21,8 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { buildApiUrl } from "@/lib/apiClient";
 import { shouldPreferServerRelay } from "@/lib/streamRelay";
@@ -94,6 +95,19 @@ const EXTERNAL_PLAYERS = [
   },
 ] as const;
 
+function useMatchMediaQuery(query: string, defaultValue = false): boolean {
+  const [matches, setMatches] = useState(defaultValue);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const m = window.matchMedia(query);
+    const on = () => setMatches(m.matches);
+    on();
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, [query]);
+  return matches;
+}
+
 /* ─────────────────────────────────────── App-launch detection helper ── */
 /** Opens a custom `scheme:` URL to hand the stream to an external app. Android `intent:` passes through as-is. On desktop, if the app does not steal focus (window blur) within 1.5s, the install or store page opens. */
 function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
@@ -145,6 +159,91 @@ function formatQualityFromHeight(height: number): string {
   return `${height}p`;
 }
 
+function ExternalPlayerPicker({
+  streamUrl,
+  onClose,
+  idPrefix,
+}: {
+  streamUrl: string;
+  onClose: () => void;
+  idPrefix: string;
+}) {
+  return (
+    <div
+      className="flex min-h-0 flex-col"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3">
+        <p
+          id={`${idPrefix}-ext-title`}
+          className="pr-1 text-[9px] font-bold uppercase leading-snug tracking-[0.1em] sm:tracking-[0.12em]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Open in external app — tap a player (or install if prompted)
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-lg p-1.5 transition hover:bg-white/10"
+          style={{ color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
+          aria-label="Close external players"
+        >
+          <X size={18} />
+        </button>
+      </div>
+      <div className="grid max-h-[min(44dvh,18rem)] grid-cols-2 gap-2 overflow-y-auto overscroll-contain pr-0.5 sm:max-h-none sm:grid-cols-3 md:grid-cols-6">
+        {EXTERNAL_PLAYERS.map((player) => (
+          <button
+            key={player.id}
+            type="button"
+            onClick={() => {
+              tryLaunchPlayer(player.scheme(streamUrl), player.fallback);
+              onClose();
+            }}
+            className="flex min-h-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-white/10"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+            title={`${player.name} — ${player.desc}`}
+          >
+            <span className="text-lg leading-none sm:text-2xl">{player.emoji}</span>
+            <span className="w-full truncate text-[10px] font-bold leading-tight text-white sm:text-[11px]">{player.name}</span>
+            <span className="line-clamp-2 text-center text-[8px] leading-tight sm:text-[9px]" style={{ color: "var(--text-muted)" }}>{player.desc}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition hover:bg-white/10 sm:px-3 sm:text-[11px]"
+          style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(streamUrl);
+              toast.success("Stream URL copied");
+            } catch {
+              toast.error("Could not copy");
+            }
+          }}
+        >
+          <Copy size={12} className="shrink-0" />
+          <span>Copy URL</span>
+        </button>
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition hover:bg-white/10 sm:px-3 sm:text-[11px]"
+          style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
+          onClick={() => window.open(streamUrl, "_blank", "noopener,noreferrer")}
+        >
+          <ExternalLink size={12} className="shrink-0" />
+          <span>Open in tab</span>
+        </button>
+      </div>
+      <p className="mt-2.5 text-[8px] leading-relaxed tracking-wide sm:text-[9px]" style={{ color: "rgba(123,128,154,0.55)" }}>
+        Keys: Space · M · F · T · ↑↓
+      </p>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════ Component ═══ */
 export default function PremiumPlayer({
   streamUrl,
@@ -173,6 +272,8 @@ export default function PremiumPlayer({
   const [retryKey, setRetryKey] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const isMobileSheet = useMatchMediaQuery("(max-width: 639px)");
+  const externalPanelTitleId = useId();
   // Failover: index into ordered direct + proxy list
   const [urlIdx, setUrlIdx] = useState(0);
 
@@ -352,6 +453,15 @@ export default function PremiumPlayer({
 
   useEffect(() => () => { clearHideTimer(); hlsRef.current?.destroy(); }, [clearHideTimer]);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (showExternalPanel && isMobileSheet) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [showExternalPanel, isMobileSheet]);
+
   const togglePlayPause = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
@@ -425,13 +535,22 @@ export default function PremiumPlayer({
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
+  const handlePlayerPointerLeave = useCallback(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
+    if (isPlaying) setShowControls(false);
+  }, [isPlaying]);
+
   return (
     <motion.div
       ref={containerRef}
-      className={`player-shell relative overflow-hidden ${isTheaterMode ? "h-[75vh]" : "aspect-video"}`}
+      className={`player-shell relative isolate overflow-hidden ${isTheaterMode ? "h-[75vh] min-h-[200px]" : "aspect-video"}`}
       onMouseMove={showControlsTemporarily}
       onMouseEnter={() => setShowControls(true)}
-      onMouseLeave={() => { if (isPlaying) setShowControls(false); }}
+      onMouseLeave={handlePlayerPointerLeave}
+      onTouchStart={() => {
+        setShowControls(true);
+        if (isPlaying) scheduleHideControls();
+      }}
       initial={{ opacity: 0, scale: 0.995 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
@@ -516,19 +635,30 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* LIVE + relay (VPN) badge */}
-      <div className="pointer-events-none absolute left-3 top-3 z-40 flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-        <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-white"
-          style={{ background: "rgba(229,57,53,0.88)", border: "1px solid rgba(255,82,82,0.5)", boxShadow: "0 0 16px rgba(229,57,53,0.45)" }}>
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+      {/* LIVE + relay (VPN) — top inset locked (safe area); avoids “jumping” when bottom panel opens on mobile */}
+      <div
+        className="pointer-events-none absolute left-0 right-0 z-40 flex flex-wrap items-center gap-2 px-3 sm:left-3 sm:right-auto"
+        style={{
+          top: "max(0.75rem, env(safe-area-inset-top, 0px))",
+        }}
+      >
+        <span
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white sm:text-[11px]"
+          style={{
+            background: "rgba(229,57,53,0.9)",
+            border: "1px solid rgba(255,82,82,0.45)",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.35)",
+          }}
+        >
+          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-white" />
           LIVE
         </span>
         {isCurrentRelay && (
           <span
-            className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest sm:text-[10px]"
             style={{
-              background: "rgba(16,185,129,0.2)",
-              border: "1px solid rgba(16,185,129,0.5)",
+              background: "rgba(16,185,129,0.22)",
+              border: "1px solid rgba(16,185,129,0.45)",
               color: "#6ee7b7",
             }}
           >
@@ -551,37 +681,46 @@ export default function PremiumPlayer({
             transition={{ duration: 0.2 }}
             className="absolute inset-x-0 bottom-0 z-40"
           >
-            <div className={`glass-panel mx-3 mb-3 rounded-2xl ${showExternalPanel ? "overflow-visible" : "overflow-hidden"}`}>
-              {/* Now playing strip */}
-              <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] font-black uppercase tracking-[0.22em]" style={{ color: "var(--primary-accent)" }}>
-                    ● NOW PLAYING
-                  </p>
-                  <p className="mt-0.5 truncate text-sm font-bold text-white">{title}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="rounded-md px-2 py-0.5 text-[10px] font-bold"
-                    style={{ background: "rgba(245,166,35,0.15)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.3)" }}>
-                    {currentQualityLabel}
-                  </span>
-                  <button type="button"
-                    onClick={() => setShowExternalPanel((v) => !v)}
-                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition"
-                    style={{
-                      background: showExternalPanel ? "rgba(245,166,35,0.15)" : "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      color: showExternalPanel ? "var(--primary-accent)" : "var(--text-muted)",
-                    }}>
-                    <Tv size={12} />
-                    Players
-                    {showExternalPanel ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                  </button>
+            <div className="glass-panel mx-2 mb-2 overflow-hidden rounded-2xl sm:mx-3 sm:mb-3">
+              {/* Now playing — subtle top gradient */}
+              <div
+                className="border-b border-white/[0.06] px-3.5 pb-2.5 pt-3.5 sm:px-4"
+                style={{ background: "linear-gradient(180deg, rgba(245,166,35,0.08) 0%, transparent 100%)" }}
+              >
+                <div className="flex items-center justify-between gap-2 sm:gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[8px] font-black uppercase tracking-[0.2em] sm:text-[9px] sm:tracking-[0.22em]" style={{ color: "var(--primary-accent)" }}>
+                      Now playing
+                    </p>
+                    <p className="mt-0.5 truncate text-sm font-bold leading-tight text-white">{title}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                    <span
+                      className="rounded-md px-2 py-0.5 text-[9px] font-bold tabular-nums sm:text-[10px]"
+                      style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.28)" }}
+                    >
+                      {currentQualityLabel}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowExternalPanel((v) => !v)}
+                      className="flex min-h-9 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide sm:px-2.5 sm:text-[10px]"
+                      style={{
+                        background: showExternalPanel ? "rgba(245,166,35,0.15)" : "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        color: showExternalPanel ? "var(--primary-accent)" : "var(--text-muted)",
+                      }}
+                    >
+                      <Tv size={12} className="shrink-0" />
+                      <span className="hidden min-[400px]:inline">Players</span>
+                      {showExternalPanel ? <ChevronUp size={11} className="shrink-0" /> : <ChevronDown size={11} className="shrink-0" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Main controls */}
-              <div className="flex items-center gap-3 overflow-x-auto scrollbar-none px-4 pb-3.5">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none px-3 pb-3 pt-1 sm:gap-3 sm:px-4 sm:pb-3.5 sm:pt-0">
                 <button className="control-btn shrink-0" type="button" onClick={() => void togglePlayPause()}
                   aria-label={isPlaying ? "Pause" : "Play"}
                   style={isPlaying ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "var(--primary-accent)" } : {}}>
@@ -612,76 +751,63 @@ export default function PremiumPlayer({
                 </button>
               </div>
 
-              {/* External Players panel */}
-              <AnimatePresence>
-                {showExternalPanel && (
-                  <motion.div
-                    key="ext"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.22 }}
-                    className="overflow-hidden"
-                  >
-                    <div
-                      className="max-h-[min(52dvh,22rem)] overflow-y-auto overscroll-contain px-2 pb-3 pt-2 sm:max-h-none sm:px-4 sm:pb-4 sm:pt-3 sm:overflow-visible"
-                      style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
-                    >
-                      <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3">
-                        <p className="pr-1 text-[9px] font-bold uppercase leading-snug tracking-[0.1em] sm:tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
-                          Open stream in external player — click to launch (or install if missing)
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setShowExternalPanel(false)}
-                          className="shrink-0 rounded-lg p-1.5 transition hover:bg-white/10"
-                          style={{ color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}
-                          aria-label="Close external players"
-                        >
-                          <X size={18} />
-                        </button>
+              {/* External players: bottom sheet on mobile (no in-player height jump). Inline on sm+ */}
+              {!isMobileSheet && (
+                <div
+                  className="grid border-t border-white/[0.07] transition-[grid-template-rows] duration-200 ease-out"
+                  style={{ gridTemplateRows: showExternalPanel ? "1fr" : "0fr" }}
+                >
+                  <div className="min-h-0 overflow-hidden">
+                    {showExternalPanel && (
+                      <div className="px-2 pb-3 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3">
+                        <ExternalPlayerPicker
+                          idPrefix={externalPanelTitleId}
+                          streamUrl={streamUrl}
+                          onClose={() => setShowExternalPanel(false)}
+                        />
                       </div>
-                      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
-                        {EXTERNAL_PLAYERS.map((player) => (
-                          <button key={player.id} type="button"
-                            onClick={() => tryLaunchPlayer(player.scheme(streamUrl), player.fallback)}
-                            className="flex min-h-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition hover:bg-white/10 sm:gap-1.5 sm:rounded-xl sm:px-2 sm:py-2.5"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                            title={`${player.name} — ${player.desc}`}>
-                            <span className="text-base leading-none sm:text-xl">{player.emoji}</span>
-                            <span className="w-full truncate text-[9px] font-bold leading-tight text-white sm:text-[11px] sm:leading-none">{player.name}</span>
-                            <span className="line-clamp-2 text-[7px] leading-tight sm:line-clamp-none sm:text-[9px]" style={{ color: "var(--text-muted)" }}>{player.desc}</span>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
-                        <button type="button"
-                          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition hover:bg-white/10 sm:px-3 sm:py-1.5 sm:text-[11px]"
-                          style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
-                          onClick={async () => {
-                            try { await navigator.clipboard.writeText(streamUrl); toast.success("Stream URL copied"); }
-                            catch { toast.error("Could not copy"); }
-                          }}>
-                          <Copy size={12} className="shrink-0" /> <span>Copy stream URL</span>
-                        </button>
-                        <button type="button"
-                          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition hover:bg-white/10 sm:px-3 sm:py-1.5 sm:text-[11px]"
-                          style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
-                          onClick={() => window.open(streamUrl, "_blank", "noopener,noreferrer")}>
-                          <ExternalLink size={12} className="shrink-0" /> <span>Open in new tab</span>
-                        </button>
-                      </div>
-                      <p className="mt-2 text-[8px] leading-relaxed tracking-wide sm:mt-2.5 sm:text-[9px]" style={{ color: "rgba(123,128,154,0.55)" }}>
-                        Keys: Space Play/Pause · M Mute · F Fullscreen · T Theater · ↑↓ Volume
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {typeof document !== "undefined" && isMobileSheet && showExternalPanel
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`${externalPanelTitleId}-ext-title`}
+              className="fixed inset-0 z-[200] flex flex-col justify-end sm:hidden"
+            >
+              <button
+                type="button"
+                className="absolute inset-0 z-0 border-0 bg-black/70 backdrop-blur-sm"
+                aria-label="Close player picker"
+                onClick={() => setShowExternalPanel(false)}
+              />
+              <div
+                className="relative z-10 max-h-[min(70dvh,32rem)] overflow-hidden rounded-t-2xl border border-white/10 bg-[#080910] shadow-2xl"
+                style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
+              >
+                <div className="flex justify-center pt-2" aria-hidden>
+                  <div className="h-1 w-10 rounded-full bg-white/20" />
+                </div>
+                <div className="max-h-[min(65dvh,30rem)] overflow-y-auto overflow-x-hidden px-3 pt-1 pb-1">
+                  <ExternalPlayerPicker
+                    idPrefix={externalPanelTitleId}
+                    streamUrl={streamUrl}
+                    onClose={() => setShowExternalPanel(false)}
+                  />
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </motion.div>
   );
 }

@@ -21,21 +21,6 @@ export type ChannelListResponse = {
   items: Channel[];
 };
 
-export type LiveScore = {
-  id: number;
-  sport_type: "football" | "cricket";
-  league: string;
-  team_home: string;
-  team_away: string;
-  score_home: number;
-  score_away: number;
-  match_minute: string | null;
-  status: "live" | "upcoming" | "finished";
-  extra_data: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
 export type SubscriptionTier = "free" | "premium";
 
 export type AuthUser = {
@@ -57,7 +42,6 @@ export type TokenResponse = {
 export type AdminStats = {
   users: number;
   channels: number;
-  live_scores: number;
   active_channels: number;
   cache_ttl_seconds: number;
   scheduled_sync_minutes: number;
