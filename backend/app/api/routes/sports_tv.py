@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import cache_get_json, cache_set_json
+from app.core.cache import cache_get_json, cache_set_json, invalidate_list_caches
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.channel import Channel
@@ -156,6 +156,18 @@ async def get_filters(db: AsyncSession = Depends(get_db)) -> ChannelFiltersRespo
     except Exception as e:
         logger.debug("filter cache set failed: %s", e)
     return result
+
+
+@router.post("/invalidate-cache")
+async def invalidate_sports_tv_cache() -> dict[str, str]:
+    """
+    Public: flush server-side list caches (Redis) for /channels and /filters.
+
+    Safe: does not require auth. Call after re-deploy or to bust stale list data.
+    Vercel/CDN may still cache briefly — use a hard browser refresh or wait for s-maxage.
+    """
+    invalidate_list_caches()
+    return {"detail": "ok", "message": "Channel and filter list caches cleared"}
 
 
 @router.get("/channels/{channel_id}", response_model=ChannelRead)

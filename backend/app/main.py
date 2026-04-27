@@ -100,11 +100,10 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         ensure_admin_seed(db)
-        needs_startup_sync = False
-        if settings.auto_sync_channels_on_startup:
-            existing_count = db.scalar(select(func.count()).select_from(Channel)) or 0
-            if existing_count == 0:
-                needs_startup_sync = True
+        # Fresh/empty DB: always run one M3U sync so first deploy is not empty
+        # (AUTO_SYNC_CHANNELS_ON_STARTUP alone was too easy to leave false in production).
+        existing_count = db.scalar(select(func.count()).select_from(Channel)) or 0
+        needs_startup_sync = existing_count == 0
     finally:
         db.close()
 
