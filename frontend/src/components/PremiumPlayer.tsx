@@ -1,5 +1,6 @@
 "use client";
 
+import * as dashjs from "dashjs";
 import Hls from "hls.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -27,6 +28,7 @@ import { toast } from "sonner";
 import {
   buildProxyM3U8RequestUrl,
   buildProxyStreamUrl,
+  isDashProxiedStreamUrl,
   parseDynamicM3U8IdFromStreamUrl,
   shouldPreferServerRelay,
 } from "@/lib/streamRelay";
@@ -271,6 +273,7 @@ export default function PremiumPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const dashRef = useRef<ReturnType<ReturnType<typeof dashjs.MediaPlayer>["create"]> | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -335,7 +338,18 @@ export default function PremiumPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const cleanup = () => { hlsRef.current?.destroy(); hlsRef.current = null; };
+    const cleanup = () => {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      if (dashRef.current) {
+        try {
+          dashRef.current.reset();
+        } catch {
+          /* */
+        }
+        dashRef.current = null;
+      }
+    };
     cleanup();
     setQualityOptions([{ label: "Auto", value: -1 }]);
     setSelectedQuality(-1);
@@ -347,8 +361,44 @@ export default function PremiumPlayer({
     // channelSuggestsServerRelay, then relay first. Same paths as allUrlsList.
     const allUrls = buildOrderedStreamUrls(preferRelay, directUrls, dynamicM3U8Id);
     const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
+    const isDash = isDashProxiedStreamUrl(effectiveUrl);
 
     const lightNet = isConstrainedNetwork();
+    if (isDash) {
+      const player = dashjs.MediaPlayer().create();
+      dashRef.current = player;
+      player.updateSettings({
+        streaming: { buffer: { bufferTimeAtTopQuality: lightNet ? 8 : 12 } },
+      });
+      player.initialize(video, effectiveUrl, true);
+      const onError = () => {
+        const nextIdx = urlIdx + 1;
+        if (nextIdx < allUrls.length) {
+          setIsSwitching(true);
+          setIsLoading(true);
+          toast.info("Switching stream…");
+          setUrlIdx(nextIdx);
+        } else {
+          setIsSwitching(false);
+          setHasError(true);
+          setIsLoading(false);
+          toast.error("All streams unavailable — try an external player or another channel");
+        }
+      };
+      player.on(dashjs.MediaPlayer.events.ERROR, onError);
+      const onStreamInitialized = () => {
+        setIsLoading(false);
+        setHasError(false);
+        setIsSwitching(false);
+        void video.play().catch(() => {
+          video.muted = true;
+          void video.play().catch(() => {});
+        });
+      };
+      player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, onStreamInitialized);
+      return cleanup;
+    }
+
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,

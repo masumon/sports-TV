@@ -92,3 +92,21 @@ export function buildProxyStreamUrl(
   if (id == null) return base;
   return `${base}&stream_id=${id}`;
 }
+
+/** True when the proxied URL targets an MPEG-DASH manifest (``.mpd``) — HLS.js cannot play these. */
+export function isDashProxiedStreamUrl(proxiedUrl: string): boolean {
+  if (!proxiedUrl.includes("proxy/stream") && !proxiedUrl.includes("proxy%2Fstream")) {
+    return false;
+  }
+  try {
+    const u = new URL(
+      proxiedUrl,
+      typeof window !== "undefined" ? window.location.origin : "https://localhost"
+    );
+    const inner = u.searchParams.get("url");
+    if (!inner) return false;
+    return inner.split("?")[0]!.toLowerCase().endsWith(".mpd");
+  } catch {
+    return false;
+  }
+}
