@@ -44,6 +44,8 @@ services:
         sync: false
       - key: JWT_SECRET_KEY
         sync: false
+      - key: INTERNAL_SYNC_SECRET
+        sync: false
       - key: ADMIN_EMAIL
         value: admin@test.com
       - key: ADMIN_PASSWORD
