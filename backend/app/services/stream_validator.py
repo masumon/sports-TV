@@ -46,6 +46,7 @@ def _validate_one(url: str) -> bool:
             timeout=_STREAM_TIMEOUT,
             follow_redirects=True,
             verify=False,   # Many IPTV servers use self-signed certs
+            trust_env=False,  # Do not route checks through HTTP(S)_PROXY
         ) as client:
             if hls:
                 # ── HLS: avoid false negatives from HEAD-only (404 on HEAD, 200 on GET) ─

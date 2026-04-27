@@ -122,6 +122,13 @@ _ALLOWED_SCHEMES = {"http", "https"}
 _CONNECT_TIMEOUT = 8.0
 # Read timeout: how long to wait between received chunks (long for live streams).
 _READ_TIMEOUT = 30.0
+# Upstream "peek" before streaming: some CDNs take several seconds to emit the first
+# HLS byte; 5s read timeouts produced false 502s. httpx: trust_env=False — never
+# send IPTV fetches through HTTP(S)_PROXY (misconfigured build envs break all streams).
+_PEEK_READ_TIMEOUT = 25.0
+# httpx >=0.28 requires all four timeout parts when using keyword args (no implicit default).
+_WRITE_TIMEOUT = 30.0
+_POOL_TIMEOUT = 8.0
 # Upstream may block a region; try alternate host / header set (primary vs fallback) before failing.
 _GEO_BLOCK_STATUS = (401, 403, 451)
 
@@ -235,6 +242,15 @@ def _validate_stream_url(url: str) -> str:
     return url
 
 
+# Do not use platform HTTP(S)_PROXY for stream relay — a bad build env var breaks every channel.
+def _http_stream_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        verify=False,
+        trust_env=False,
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+    )
+
+
 async def _stream_body_from_upstream(
     client: httpx.AsyncClient,
     url: str,
@@ -249,7 +265,12 @@ async def _stream_body_from_upstream(
             "GET",
             url,
             headers=request_headers,
-            timeout=httpx.Timeout(connect=_CONNECT_TIMEOUT, read=_READ_TIMEOUT, write=None, pool=None),
+            timeout=httpx.Timeout(
+                connect=_CONNECT_TIMEOUT,
+                read=_READ_TIMEOUT,
+                write=_WRITE_TIMEOUT,
+                pool=_POOL_TIMEOUT,
+            ),
             follow_redirects=True,
         ) as upstream:
             if upstream.status_code >= 400:
@@ -268,6 +289,7 @@ async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, st
     """Return (status_code, content-type) from the start of a GET; body not consumed."""
     client = httpx.AsyncClient(
         verify=False,
+        trust_env=False,
         limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
     )
     try:
@@ -275,7 +297,12 @@ async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, st
             "GET",
             url,
             headers=headers,
-            timeout=httpx.Timeout(connect=_CONNECT_TIMEOUT, read=5.0),
+            timeout=httpx.Timeout(
+                connect=_CONNECT_TIMEOUT,
+                read=_PEEK_READ_TIMEOUT,
+                write=_PEEK_READ_TIMEOUT,
+                pool=_POOL_TIMEOUT,
+            ),
             follow_redirects=True,
         ) as resp:
             st = resp.status_code
@@ -366,10 +393,7 @@ async def proxy_stream(
     if st >= 400:
         raise HTTPException(status_code=502, detail="Upstream stream unavailable")
 
-    stream_client = httpx.AsyncClient(
-        verify=False,
-        limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
-    )
+    stream_client = _http_stream_client()
     response_headers: dict[str, str] = {
         "Access-Control-Allow-Origin": "*",
         "Cache-Control": "no-store",  # live streams must not be cached
@@ -429,7 +453,7 @@ _M3U8_CORS_HEADERS: dict[str, str] = {
     ),
     "Cache-Control": "no-store, no-cache, must-revalidate",
 }
-_M3U8_FETCH_TIMEOUT = httpx.Timeout(connect=8.0, read=15.0, write=None, pool=None)
+_M3U8_FETCH_TIMEOUT = httpx.Timeout(connect=8.0, read=15.0, write=15.0, pool=8.0)
 # Tag attributes: URI="..." or URI='...' (HLS keys, X-MEDIA, etc.)
 _HLS_URI_IN_TAG = re.compile(r"URI=(['\"])([^'\"]+)\1", re.IGNORECASE)
 
@@ -508,7 +532,9 @@ async def _fetch_m3u8_manifest(
     Returns the manifest text on success, None on any error.
     """
     try:
-        async with httpx.AsyncClient(verify=False, timeout=_M3U8_FETCH_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            verify=False, trust_env=False, timeout=_M3U8_FETCH_TIMEOUT
+        ) as client:
             resp = await client.get(url, headers=headers, follow_redirects=True)
             if resp.status_code >= 400:
                 logger.warning("M3U8 fetch returned %d for %s", resp.status_code, url[:80])

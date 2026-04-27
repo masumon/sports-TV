@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+import urllib.parse
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -263,6 +264,44 @@ def _normalize_channel_name(name: str) -> str:
     return _display_channel_name(name).lower().strip()
 
 
+def _url_looks_hls(u: str) -> bool:
+    try:
+        p = urllib.parse.urlparse(u).path.lower()
+        return p.endswith(".m3u8")
+    except Exception:
+        return False
+
+
+def _prefer_hls_url_as_primary(
+    primary: ParsedChannel, alternates: list[str]
+) -> tuple[ParsedChannel, list[str]]:
+    """
+    If the same logical channel was merged with a DASH (``.mpd``) primary but an
+    HLS mirror exists, serve HLS as stream_url and demote the rest. Browsers
+    work best with HLS; DASH is still available when no HLS exists.
+    """
+    all_urls = [primary.stream_url, *alternates]
+    hls = [u for u in all_urls if _url_looks_hls(u)]
+    if not hls:
+        return primary, alternates
+    pick = hls[0]
+    if pick == primary.stream_url:
+        return primary, alternates
+    rest = [u for u in all_urls if u != pick]
+    return (
+        ParsedChannel(
+            name=primary.name,
+            stream_url=pick,
+            logo_url=primary.logo_url,
+            category=primary.category,
+            country=primary.country,
+            language=primary.language,
+            module=primary.module,
+        ),
+        rest,
+    )
+
+
 def _group_entries_by_name(
     entries: list[ParsedChannel],
 ) -> list[tuple[ParsedChannel, list[str]]]:
@@ -296,7 +335,9 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
     all_entries = _dedupe_entries_by_stream_url_priority(raw)
     if len(all_entries) < len(raw):
         logger.info("Stream URL dedupe: %d -> %d rows", len(raw), len(all_entries))
-    grouped = _group_entries_by_name(all_entries)
+    grouped = [
+        _prefer_hls_url_as_primary(primary, alts) for primary, alts in _group_entries_by_name(all_entries)
+    ]
 
     created = 0
     updated = 0
