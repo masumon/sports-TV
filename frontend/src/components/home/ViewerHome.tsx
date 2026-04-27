@@ -348,6 +348,11 @@ export function ViewerHome() {
   }, [refreshLiveMatchesOnly]);
 
   // Deep link: /?module=…
+  const qParam = searchParams.get("q")?.trim() ?? "";
+  useEffect(() => {
+    if (qParam) setSearchQuery(qParam);
+  }, [qParam]);
+
   useEffect(() => {
     let m = searchParams.get("module")?.toLowerCase().trim();
     if (m === "sports") m = "global_sports";
@@ -532,6 +537,30 @@ export function ViewerHome() {
 
   const currentStreamUrl = activeStreamUrl ?? activeChannel?.stream_url ?? "";
   const altLinks = activeChannel?.alternate_urls ?? [];
+
+  const playbackUrls = useMemo(() => {
+    if (!activeChannel) return [];
+    const raw = [activeChannel.stream_url, ...(activeChannel.alternate_urls ?? [])].filter(
+      (u): u is string => Boolean(u && typeof u === "string" && u.trim().startsWith("http"))
+    );
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const u of raw) {
+      try {
+        const x = new URL(u.trim());
+        x.hash = "";
+        const k = x.toString();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(u.trim());
+      } catch {
+        if (seen.has(u.trim())) continue;
+        seen.add(u.trim());
+        out.push(u.trim());
+      }
+    }
+    return out;
+  }, [activeChannel]);
 
   const { gsCount, inCount, bdCount, fastCount, liveCount } = useMemo(() => {
     let gs = 0;
@@ -906,8 +935,9 @@ export function ViewerHome() {
           <section className="min-w-0 md:col-span-7 lg:col-span-8">
             {activeChannel ? (
               <PremiumPlayer
-                streamUrl={currentStreamUrl}
-                alternateUrls={altLinks}
+                streamUrl={playbackUrls[0] ?? currentStreamUrl}
+                streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
+                alternateUrls={playbackUrls.length > 1 ? playbackUrls.slice(1) : altLinks}
                 title={activeChannel.name}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}

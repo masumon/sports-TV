@@ -47,7 +47,13 @@ export function parseM3UPlaylist(text: string): ParsedM3UEntry[] {
     if (line.startsWith("#")) continue;
     if (!pending) continue;
     const streamUrl = line;
-    if (streamUrl.startsWith("http://") || streamUrl.startsWith("https://")) {
+    const isProxiedPath =
+      streamUrl.startsWith("/api/v1/proxy/stream") || streamUrl.startsWith("/api/proxy/");
+    if (
+      streamUrl.startsWith("http://") ||
+      streamUrl.startsWith("https://") ||
+      isProxiedPath
+    ) {
       out.push({
         name: pending.name,
         streamUrl,

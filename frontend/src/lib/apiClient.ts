@@ -1,4 +1,11 @@
-import type { AdminStats, Channel, ChannelListResponse, TokenResponse, UserRead } from "@/lib/types";
+import type {
+  AdminStats,
+  Channel,
+  ChannelListResponse,
+  StreamProbeItem,
+  TokenResponse,
+  UserRead,
+} from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
 /** Default `/api` matches Vercel rewrites → Render (same-origin, no CORS). Override for local direct backend. */
@@ -197,6 +204,14 @@ export const apiClient = {
 
   adminSyncChannels(token: string) {
     return apiRequest<Record<string, number>>("/admin/channels/sync", { method: "POST", authToken: token });
+  },
+
+  adminProbeStreams(token: string, urls: string[]) {
+    return apiRequest<{ results: StreamProbeItem[] }>("/admin/proxy/probe", {
+      method: "POST",
+      authToken: token,
+      body: JSON.stringify({ urls }),
+    });
   },
 
   /** No auth — only for admin accounts. Returns a one-time token in JSON (no email from server). */

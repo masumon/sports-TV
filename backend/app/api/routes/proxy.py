@@ -17,6 +17,7 @@ import hashlib
 import ipaddress
 import json
 import logging
+import random
 import re
 import socket
 import time
@@ -212,6 +213,42 @@ def _apply_header_profile(forward: dict[str, str], profile: str | None) -> dict[
     return out
 
 
+def _upstream_httpx_base_kwargs() -> dict[str, object]:
+    """Shared httpx kwargs: no env proxy trust (explicit STREAM_UPSTREAM_HTTP_PROXY only)."""
+    out: dict[str, object] = {"verify": False, "trust_env": False}
+    p = (getattr(settings, "stream_upstream_http_proxy", None) or "").strip()
+    if p:
+        out["proxy"] = p
+    return out
+
+
+def _random_public_egress_ip() -> str:
+    """Plausible public IPv4 for X-Forwarded-For / X-Real-IP (best-effort)."""
+    if random.randint(0, 1) == 0:
+        return f"49.{random.randint(32, 47)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    return f"104.{random.randint(16, 31)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+
+
+def _apply_upstream_geo_bypass_headers(forward: dict[str, str]) -> dict[str, str]:
+    if not getattr(settings, "stream_geo_bypass_enabled", True):
+        return forward
+    h = dict(forward)
+    ip = _random_public_egress_ip()
+    h["x-forwarded-for"] = ip
+    h["x-real-ip"] = ip
+    if not h.get("user-agent", "").strip():
+        h["user-agent"] = _DEFAULT_USER_AGENT
+    return h
+
+
+def _is_hls_manifest_text_for_rewrite(text: str) -> bool:
+    """True for HLS master/media playlists; IPTV channel .m3u lists omit #EXT-X-* tags."""
+    s = text.lstrip("\ufeff").lstrip()
+    if not s.startswith("#EXTM3U"):
+        return False
+    return "#EXT-X-" in text
+
+
 # Raw IPTV playlist fetch (not HLS manifest rewrite) — max body size.
 _MAX_PLAYLIST_RAW_BYTES = 20 * 1024 * 1024
 # In-process fallback when Redis is absent (bounded; avoids free-tier RAM spikes).
@@ -380,9 +417,8 @@ def _validate_stream_url(url: str) -> str:
 # Do not use platform HTTP(S)_PROXY for stream relay — a bad build env var breaks every channel.
 def _http_stream_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
-        verify=False,
-        trust_env=False,
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+        **_upstream_httpx_base_kwargs(),
     )
 
 
@@ -391,9 +427,8 @@ async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, st
     Short GET to learn status + Content-Type; body is closed without buffering video-sized payloads.
     """
     client = httpx.AsyncClient(
-        verify=False,
-        trust_env=False,
         limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        **_upstream_httpx_base_kwargs(),
     )
     try:
         async with client.stream(
@@ -495,7 +530,7 @@ async def _build_chunked_streaming_response(
 
     async def _body() -> AsyncGenerator[bytes, None]:
         try:
-            async for chunk in resp.aiter_bytes(chunk_size=_CHUNK_SIZE):
+            async for chunk in resp.aiter_raw():
                 if chunk:
                     yield chunk
         except (
@@ -627,6 +662,63 @@ def _rewrite_hls_playlist_text(
     return "\n".join(out_lines) + trailing
 
 
+def _rewrite_hls_manifest_with_m3u8(
+    body: str,
+    manifest_url: str,
+    stream_id: int | None,
+    header_profile: str | None,
+) -> str | None:
+    """Parse HLS with the ``m3u8`` package and rewrite segment / variant / key URIs to /proxy/stream."""
+    try:
+        import m3u8  # type: ignore[import-untyped]
+    except ImportError:
+        logger.warning("m3u8 package missing — install m3u8 or use line-based rewriter fallback")
+        return None
+    try:
+        pl = m3u8.loads(body, uri=manifest_url)
+    except Exception as exc:
+        logger.debug("m3u8 parse failed: %s", exc)
+        return None
+    base = pl.base_uri or manifest_url
+
+    def proxify(abs_u: str) -> str:
+        try:
+            v = _validate_stream_url(abs_u)
+        except HTTPException:
+            return abs_u
+        return _relative_proxy_stream_path(v, stream_id, header_profile)
+
+    try:
+        for child in getattr(pl, "playlists", []) or []:
+            if getattr(child, "uri", None):
+                u = urllib.parse.urljoin(base, child.uri)
+                child.uri = proxify(u)
+        for seg in getattr(pl, "segments", []) or []:
+            if getattr(seg, "uri", None):
+                u = urllib.parse.urljoin(base, seg.uri)
+                seg.uri = proxify(u)
+            ini = getattr(seg, "init_section", None)
+            if ini is not None and getattr(ini, "uri", None):
+                u = urllib.parse.urljoin(base, ini.uri)
+                ini.uri = proxify(u)
+            key = getattr(seg, "key", None)
+            if key is not None and getattr(key, "uri", None):
+                u = urllib.parse.urljoin(base, key.uri)
+                key.uri = proxify(u)
+        for media in getattr(pl, "media", []) or []:
+            if getattr(media, "uri", None):
+                u = urllib.parse.urljoin(base, media.uri)
+                media.uri = proxify(u)
+        for key in getattr(pl, "keys", []) or []:
+            if getattr(key, "uri", None):
+                u = urllib.parse.urljoin(base, key.uri)
+                key.uri = proxify(u)
+        return pl.dumps()
+    except Exception as exc:
+        logger.warning("m3u8 rewrite failed: %s", exc)
+        return None
+
+
 async def _fetch_manifest_text(
     url: str, headers: dict[str, str], max_bytes: int
 ) -> tuple[str | None, str]:
@@ -635,9 +727,8 @@ async def _fetch_manifest_text(
     for correct relative URL resolution.
     """
     async with httpx.AsyncClient(
-        verify=False,
-        trust_env=False,
         limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        **_upstream_httpx_base_kwargs(),
     ) as client:
         try:
             r = await client.get(
@@ -764,6 +855,7 @@ async def proxy_stream(
                             effective_url = _validate_stream_url(r)
 
         forward = _apply_header_profile(forward, header_profile_q)
+        forward = _apply_upstream_geo_bypass_headers(forward)
 
         # .m3u8/.m3u: one buffered manifest fetch (no peek) — avoids double upstream hits and Vercel/edge stalls.
         if _url_looks_like_m3u8_path(effective_url):
@@ -791,13 +883,17 @@ async def proxy_stream(
             lead = mtext.lstrip("\ufeff").lstrip()
             if not lead.startswith("#EXTM3U"):
                 return _proxy_error_response(502)
-            try:
-                rewritten = _rewrite_hls_playlist_text(
-                    mtext, manifest_base, stream_id, header_profile_q
-                )
-            except Exception as rew_exc:
-                logger.warning("HLS rewrite failed: %s", rew_exc)
-                return _proxy_error_response(502)
+            rewritten = _rewrite_hls_manifest_with_m3u8(
+                mtext, manifest_base, stream_id, header_profile_q
+            )
+            if rewritten is None:
+                try:
+                    rewritten = _rewrite_hls_playlist_text(
+                        mtext, manifest_base, stream_id, header_profile_q
+                    )
+                except Exception as rew_exc:
+                    logger.warning("HLS rewrite failed: %s", rew_exc)
+                    return _proxy_error_response(502)
             return Response(
                 content=rewritten,
                 media_type=_M3U8_CONTENT_TYPE,
@@ -846,13 +942,18 @@ async def proxy_stream(
                 if mtext:
                     lead = mtext.lstrip("\ufeff").lstrip()
                     if lead.startswith("#EXTM3U"):
-                        try:
-                            rewritten = _rewrite_hls_playlist_text(
-                                mtext, manifest_base, stream_id, header_profile_q
-                            )
-                        except Exception as rew_exc:
-                            logger.warning("HLS rewrite failed: %s", rew_exc)
-                        else:
+                        rewritten = _rewrite_hls_manifest_with_m3u8(
+                            mtext, manifest_base, stream_id, header_profile_q
+                        )
+                        if rewritten is None:
+                            try:
+                                rewritten = _rewrite_hls_playlist_text(
+                                    mtext, manifest_base, stream_id, header_profile_q
+                                )
+                            except Exception as rew_exc:
+                                logger.warning("HLS rewrite failed: %s", rew_exc)
+                                rewritten = None
+                        if rewritten is not None:
                             return Response(
                                 content=rewritten,
                                 media_type=_M3U8_CONTENT_TYPE,
@@ -881,10 +982,13 @@ async def proxy_playlist_raw(
     ),
 ) -> Response | JSONResponse:
     """
-    Fetch an M3U / text playlist without HLS URL rewriting — used by the app to parse channel lists.
+    Fetch raw M3U channel lists or HLS manifests.
 
-    Responses are cached in Redis (if REDIS_URL is set) and a small in-process LRU to limit
-    upstream refetches and CPU on free-tier hosts. TTL from settings.proxy_playlist_cache_ttl_seconds.
+    IPTV ``.m3u`` (no ``#EXT-X-*`` tags) is returned unchanged for client-side parsing.
+    HLS master/media playlists are rewritten so segments and child manifests route through
+    ``/api/v1/proxy/stream`` (``m3u8`` parse + fallback line rewriter).
+
+    Cached in Redis + small in-process LRU; TTL from ``proxy_playlist_cache_ttl_seconds``.
     """
     try:
         target_url = _validate_stream_url(url)
@@ -909,19 +1013,17 @@ async def proxy_playlist_raw(
                 headers=dict(_STREAM_PROXY_RESPONSE_HEADERS),
             )
 
-        forward = _apply_header_profile(
-            _merge_stream_forward_headers(request, None),
-            hp,
+        base_forward = _apply_upstream_geo_bypass_headers(
+            _apply_header_profile(_merge_stream_forward_headers(request, None), hp)
         )
         async with httpx.AsyncClient(
-            verify=False,
-            trust_env=False,
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+            **_upstream_httpx_base_kwargs(),
         ) as client:
             try:
                 r = await client.get(
                     target_url,
-                    headers=forward,
+                    headers=base_forward,
                     timeout=httpx.Timeout(
                         connect=_CONNECT_TIMEOUT,
                         read=_MANIFEST_PEEK_READ_TIMEOUT,
@@ -934,6 +1036,29 @@ async def proxy_playlist_raw(
                 logger.warning("Playlist fetch failed for %s: %s", target_url[:80], exc)
                 return _proxy_error_response(502)
         if r.status_code in _GEO_BLOCK_STATUS:
+            retry_fwd = _apply_upstream_geo_bypass_headers(
+                _apply_header_profile(_merge_stream_forward_headers(request, None), hp)
+            )
+            try:
+                async with httpx.AsyncClient(
+                    limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+                    **_upstream_httpx_base_kwargs(),
+                ) as client2:
+                    r = await client2.get(
+                        target_url,
+                        headers=retry_fwd,
+                        timeout=httpx.Timeout(
+                            connect=_CONNECT_TIMEOUT,
+                            read=_MANIFEST_PEEK_READ_TIMEOUT,
+                            write=_WRITE_TIMEOUT,
+                            pool=_POOL_TIMEOUT,
+                        ),
+                        follow_redirects=True,
+                    )
+            except Exception as exc:
+                logger.warning("Playlist geo-retry failed for %s: %s", target_url[:80], exc)
+                return _proxy_error_response(502)
+        if r.status_code in _GEO_BLOCK_STATUS:
             return _proxy_error_response(
                 403,
                 "This premium content is geo-restricted.",
@@ -944,6 +1069,16 @@ async def proxy_playlist_raw(
         if len(r.content) > _MAX_PLAYLIST_RAW_BYTES:
             return _proxy_error_response(413, "Playlist too large to buffer")
         body = r.text
+        final_url = str(r.url)
+        if _is_hls_manifest_text_for_rewrite(body):
+            rewritten = _rewrite_hls_manifest_with_m3u8(body, final_url, None, hp)
+            if rewritten is None:
+                try:
+                    rewritten = _rewrite_hls_playlist_text(body, final_url, None, hp)
+                except Exception as rew_exc:
+                    logger.warning("Playlist HLS line rewrite failed: %s", rew_exc)
+                    rewritten = body
+            body = rewritten
         safe_set(cache_key, body, ttl)
         _playlist_mem_set(cache_key, body, ttl)
         return Response(
@@ -1091,7 +1226,8 @@ async def _fetch_m3u8_manifest(
     """
     try:
         async with httpx.AsyncClient(
-            verify=False, trust_env=False, timeout=_M3U8_FETCH_TIMEOUT
+            timeout=_M3U8_FETCH_TIMEOUT,
+            **_upstream_httpx_base_kwargs(),
         ) as client:
             resp = await client.get(url, headers=headers, follow_redirects=True)
             if resp.status_code >= 400:

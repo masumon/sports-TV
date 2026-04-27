@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -21,7 +27,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { apiClient } from "@/lib/apiClient";
-import type { AdminStats, Channel } from "@/lib/types";
+import type { AdminStats, Channel, StreamProbeItem, StreamProbeStatus } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
 
@@ -35,6 +41,44 @@ type ChannelFormState = {
   quality_tag: string;
   module: string;
 };
+
+function normProbeKey(u: string): string {
+  try {
+    const x = new URL(u.trim());
+    x.hash = "";
+    return x.toString();
+  } catch {
+    return u.trim();
+  }
+}
+
+function aggregateProbeStatus(
+  channel: Channel,
+  probeByUrl: Record<string, StreamProbeItem>
+): StreamProbeStatus | "unknown" {
+  const urls = [channel.stream_url, ...(channel.alternate_urls ?? [])].filter(
+    (x): x is string => Boolean(x && String(x).trim().startsWith("http"))
+  );
+  let alive = false;
+  let geo = false;
+  let dead = false;
+  let anyChecked = false;
+  for (const u of urls) {
+    const p = probeByUrl[normProbeKey(u)];
+    if (!p) continue;
+    anyChecked = true;
+    if (p.status === "alive") alive = true;
+    if (p.status === "geo_blocked") geo = true;
+    if (p.status === "dead") dead = true;
+  }
+  if (!anyChecked) return "unknown";
+  if (alive) return "alive";
+  if (geo) return "geo_blocked";
+  if (dead) return "dead";
+  return "unknown";
+}
+
+const columnHelper = createColumnHelper<Channel>();
 
 const initialChannelForm: ChannelFormState = {
   name: "",
@@ -59,6 +103,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [channelQuery, setChannelQuery] = useState("");
   const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "sports" | "india" | "bangladesh">("all");
+  const [probeByUrl, setProbeByUrl] = useState<Record<string, StreamProbeItem>>({});
 
   const authToken = token;
 
@@ -76,6 +121,43 @@ export default function AdminDashboardPage() {
       );
     });
   }, [channels, channelQuery, channelModuleFilter]);
+
+  useEffect(() => {
+    if (!authToken || channels.length === 0) {
+      setProbeByUrl({});
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      const uniq = new Set<string>();
+      for (const c of channels) {
+        for (const u of [c.stream_url, ...(c.alternate_urls ?? [])]) {
+          const s = (u || "").trim();
+          if (s.startsWith("http")) uniq.add(s);
+        }
+      }
+      const list = [...uniq];
+      const map: Record<string, StreamProbeItem> = {};
+      const batch = 24;
+      try {
+        for (let i = 0; i < list.length; i += batch) {
+          const slice = list.slice(i, i + batch);
+          const res = await apiClient.adminProbeStreams(authToken, slice);
+          if (cancelled) return;
+          for (const r of res.results) {
+            map[normProbeKey(r.url)] = r;
+          }
+        }
+        if (!cancelled) setProbeByUrl(map);
+      } catch {
+        if (!cancelled) setProbeByUrl({});
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, channels]);
 
   const setFormError = (message: string) => {
     setError(message);
@@ -195,6 +277,76 @@ export default function AdminDashboardPage() {
       setError(err instanceof Error ? err.message : "চ্যানেল ডিলিট ব্যর্থ");
     }
   };
+
+  const adminColumns = useMemo(
+    () => [
+      columnHelper.display({
+        id: "probe",
+        header: "Health",
+        cell: (info) => {
+          const st = aggregateProbeStatus(info.row.original, probeByUrl);
+          if (st === "alive") {
+            return (
+              <span className="whitespace-nowrap text-lg" title="Active">
+                🟢 <span className="sr-only">Active</span>
+              </span>
+            );
+          }
+          if (st === "geo_blocked") {
+            return (
+              <span className="whitespace-nowrap text-lg" title="Bypassed / proxied playback">
+                🟡 <span className="sr-only">Bypassed or proxied</span>
+              </span>
+            );
+          }
+          if (st === "dead") {
+            return (
+              <span className="whitespace-nowrap text-lg" title="Dead / unreachable">
+                🔴 <span className="sr-only">Dead</span>
+              </span>
+            );
+          }
+          return <span className="text-zinc-500">—</span>;
+        },
+      }),
+      columnHelper.accessor("name", {
+        header: "Channel",
+        cell: (info) => <span className="font-medium text-white">{info.getValue()}</span>,
+      }),
+      columnHelper.accessor("module", { header: "Module" }),
+      columnHelper.accessor("country", { header: "Country" }),
+      columnHelper.accessor("stream_url", {
+        header: "Stream URL",
+        cell: (info) => (
+          <span className="line-clamp-2 max-w-[14rem] break-all text-[11px] text-zinc-400 sm:max-w-xs">
+            {info.getValue()}
+          </span>
+        ),
+      }),
+      columnHelper.display({
+        id: "actions",
+        header: "",
+        cell: (info) => (
+          <button
+            type="button"
+            onClick={() => void deleteChannel(info.row.original.id)}
+            className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
+            title="Delete channel"
+          >
+            <Trash2 size={14} />
+          </button>
+        ),
+      }),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deleteChannel closes over latest fetchAdminData
+    [probeByUrl]
+  );
+
+  const adminTable = useReactTable({
+    data: filteredAdminChannels,
+    columns: adminColumns,
+    getCoreRowModel: getCoreRowModel(),
+  });
 
   const syncM3u = async () => {
     if (!authToken) return;
@@ -482,31 +634,37 @@ export default function AdminDashboardPage() {
             <p className="mb-2 text-xs text-zinc-500">Showing {filteredAdminChannels.length} of {channels.length} channels</p>
           )}
           {channels.length > 0 && filteredAdminChannels.length > 0 && (
-            <div className="max-h-96 space-y-2 overflow-auto pr-0.5">
-              {filteredAdminChannels.map((channel) => (
-                <div
-                  key={channel.id}
-                  className="flex items-start justify-between gap-2 rounded-lg border border-white/10 bg-black/30 p-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-white">{channel.name}</p>
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      {channel.country} · {channel.module}
-                    </p>
-                    <p className="mt-0.5 line-clamp-2 break-all text-[11px] text-zinc-500">
-                      {channel.category} · {channel.language} · {channel.quality_tag}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void deleteChannel(channel.id)}
-                    className="shrink-0 rounded-lg border border-rose-300/30 bg-rose-500/10 p-2 text-rose-200 hover:bg-rose-500/20"
-                    title="Delete channel"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
+            <div className="max-h-[28rem] overflow-auto rounded-lg border border-white/10">
+              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                <thead className="sticky top-0 z-[1] bg-[#0c0e14]">
+                  {adminTable.getHeaderGroups().map((hg) => (
+                    <tr key={hg.id} className="border-b border-white/10">
+                      {hg.headers.map((h) => (
+                        <th
+                          key={h.id}
+                          className="whitespace-nowrap px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400"
+                        >
+                          {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {adminTable.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-white/[0.06] bg-black/20 transition hover:bg-white/[0.03]"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className="align-top px-3 py-2.5 text-zinc-300">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

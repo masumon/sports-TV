@@ -6,16 +6,32 @@ export type ViewerModule =
   | "fast_tv"
   | "live_matches";
 
+/** Config-only alias for premium rows targeting the Bangladesh tab. */
+export type PremiumDirectModule = ViewerModule | "bangladesh_and_bdix";
+
 /** Direct stream rows merged into the catalog (not fetched as M3U playlists). */
 export type PremiumDirectSportEntry = {
   name: string;
-  stream_url: string;
-  module: ViewerModule;
+  /** Ordered failover URLs; first is primary `stream_url` on `Channel`. */
+  stream_urls: readonly string[];
+  module: PremiumDirectModule;
   category?: string;
   country?: string;
   logo_url?: string | null;
-  alternate_urls?: readonly string[];
   geo_hint?: boolean;
+  /** @deprecated use `stream_urls` */
+  stream_url?: string;
+  alternate_urls?: readonly string[];
+};
+
+/** Admin stream probe (`POST /admin/probe`). */
+export type StreamProbeStatus = "alive" | "geo_blocked" | "dead";
+
+export type StreamProbeItem = {
+  url: string;
+  status: StreamProbeStatus;
+  http_status: number | null;
+  cached: boolean;
 };
 
 export type Channel = {

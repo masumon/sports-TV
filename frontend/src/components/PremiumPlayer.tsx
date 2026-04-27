@@ -38,6 +38,8 @@ type QualityOption = { label: string; value: number };
 
 export type PremiumPlayerProps = {
   streamUrl: string;
+  /** When set, ordered direct URLs for playback + failover (overrides streamUrl/alternate ordering). */
+  streamUrls?: string[];
   alternateUrls?: string[];
   title: string;
   isTheaterMode: boolean;
@@ -299,6 +301,7 @@ function ExternalPlayerPicker({
 /* ═══════════════════════════════════════════════════════ Component ═══ */
 export default function PremiumPlayer({
   streamUrl,
+  streamUrls,
   alternateUrls,
   title,
   isTheaterMode,
@@ -329,27 +332,38 @@ export default function PremiumPlayer({
   const [geoRestricted, setGeoRestricted] = useState(false);
   const isMobileSheet = useMatchMediaQuery("(max-width: 639px)");
   const externalPanelTitleId = useId();
-  // Failover: index into ordered direct + proxy list
+  /** Index into ordered proxy URL list (UI + external players); advanced via HLS loadSource failover. */
   const [urlIdx, setUrlIdx] = useState(0);
+  const urlPlayIndexRef = useRef(0);
   const linkRetryRef = useRef(0);
   const linkRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const resolvedDirect = useMemo(() => {
+    if (streamUrls?.length) {
+      return streamUrls.filter((u) => typeof u === "string" && u.trim().startsWith("http"));
+    }
+    return [streamUrl, ...(alternateUrls ?? [])].filter((u) => u && u.trim().startsWith("http"));
+  }, [streamUrls, streamUrl, alternateUrls]);
+
+  const streamIdentity = useMemo(() => resolvedDirect.join("\0"), [resolvedDirect]);
+
   const dynamicM3U8Id = useMemo(() => {
-    for (const u of [streamUrl, ...(alternateUrls ?? [])]) {
+    for (const u of resolvedDirect) {
       const id = parseDynamicM3U8IdFromStreamUrl(u);
       if (id != null) return id;
     }
     return null;
-  }, [streamUrl, alternateUrls]);
+  }, [resolvedDirect]);
   const directUrls = useMemo(() => {
-    const base = [streamUrl, ...(alternateUrls ?? [])];
+    const base = resolvedDirect;
     if (dynamicM3U8Id == null) return base;
     return base.map((u) => buildProxyM3U8RequestUrl(u, dynamicM3U8Id));
-  }, [streamUrl, alternateUrls, dynamicM3U8Id]);
+  }, [resolvedDirect, dynamicM3U8Id]);
   const allUrlsList = useMemo(
     () => buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile),
     [directUrls, dynamicM3U8Id, headerProfile]
   );
+  const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
   const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
 
   const clearHideTimer = useCallback(() => {
@@ -367,6 +381,7 @@ export default function PremiumPlayer({
   }, [isPlaying, scheduleHideControls]);
 
   useEffect(() => {
+    urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setIsSwitching(false);
     setGeoRestricted(false);
@@ -375,11 +390,7 @@ export default function PremiumPlayer({
       clearTimeout(linkRetryTimerRef.current);
       linkRetryTimerRef.current = null;
     }
-  }, [streamUrl]);
-
-  useEffect(() => {
-    linkRetryRef.current = 0;
-  }, [urlIdx]);
+  }, [streamIdentity]);
 
   useEffect(
     () => () => {
@@ -412,7 +423,15 @@ export default function PremiumPlayer({
     setGeoRestricted(false);
 
     const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
-    const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
+    if (!allUrls.length) {
+      setIsLoading(false);
+      setHasError(true);
+      return cleanup;
+    }
+    const bounded = Math.min(Math.max(0, urlPlayIndexRef.current), allUrls.length - 1);
+    urlPlayIndexRef.current = bounded;
+    setUrlIdx(bounded);
+    const effectiveUrl = allUrls[bounded] ?? allUrls[0]!;
     const isDash = isDashProxiedStreamUrl(effectiveUrl);
 
     const lightNet = isConstrainedNetwork();
@@ -424,12 +443,16 @@ export default function PremiumPlayer({
       });
       player.initialize(video, effectiveUrl, true);
       const onError = () => {
-        const nextIdx = urlIdx + 1;
+        const cur = urlPlayIndexRef.current;
+        const nextIdx = cur + 1;
         if (nextIdx < allUrls.length) {
+          urlPlayIndexRef.current = nextIdx;
+          setUrlIdx(nextIdx);
           setIsSwitching(true);
           setIsLoading(true);
-          toast.info("Switching stream…");
-          setUrlIdx(nextIdx);
+          toast.info("Switching to backup source…");
+          /* dash.js typings omit in-place source swap; remount via retryKey like HLS destroy path */
+          setRetryKey((k) => k + 1);
         } else {
           setIsSwitching(false);
           setHasError(true);
@@ -481,13 +504,29 @@ export default function PremiumPlayer({
           }
           const onEnd = () => {
             xhr.removeEventListener("loadend", onEnd);
-            if (parseGeoFromXhr(xhr)) {
-              setGeoRestricted(true);
-              setIsLoading(false);
-              setIsSwitching(false);
-              hlsInstance?.destroy();
-              if (hlsRef.current === hlsInstance) hlsRef.current = null;
+            if (!parseGeoFromXhr(xhr)) return;
+            const cur = urlPlayIndexRef.current;
+            const nextIdx = cur + 1;
+            if (nextIdx < allUrls.length && hlsInstance) {
+              urlPlayIndexRef.current = nextIdx;
+              setUrlIdx(nextIdx);
+              setGeoRestricted(false);
+              toast.info("Switching to backup source…");
+              try {
+                hlsInstance.loadSource(allUrls[nextIdx]!);
+                hlsInstance.startLoad(-1);
+              } catch {
+                setGeoRestricted(true);
+                setIsLoading(false);
+                setIsSwitching(false);
+              }
+              return;
             }
+            setGeoRestricted(true);
+            setIsLoading(false);
+            setIsSwitching(false);
+            hlsInstance?.destroy();
+            if (hlsRef.current === hlsInstance) hlsRef.current = null;
           };
           xhr.addEventListener("loadend", onEnd);
         },
@@ -501,13 +540,53 @@ export default function PremiumPlayer({
         if (!data.fatal) return;
         const resp = (data as { response?: { code?: number } }).response;
         const httpCode = resp?.code;
+
+        const tryFailover = (): boolean => {
+          const cur = urlPlayIndexRef.current;
+          const nextIdx = cur + 1;
+          if (nextIdx >= allUrls.length) return false;
+          urlPlayIndexRef.current = nextIdx;
+          setUrlIdx(nextIdx);
+          setIsSwitching(true);
+          setIsLoading(true);
+          const nextU = allUrls[nextIdx] ?? "";
+          toast.info(
+            nextU.includes("/proxy/stream") && !(allUrls[cur] ?? "").includes("/proxy/stream")
+              ? "Switching to server relay…"
+              : "Stream unstable, switching to backup server…"
+          );
+          try {
+            hls.loadSource(allUrls[nextIdx]!);
+            hls.startLoad(-1);
+          } catch {
+            setIsSwitching(false);
+            setHasError(true);
+            setIsLoading(false);
+            return false;
+          }
+          return true;
+        };
+
         if (httpCode === 403 || httpCode === 401) {
+          if (tryFailover()) return;
           setGeoRestricted(true);
           setIsLoading(false);
           setIsSwitching(false);
           return;
         }
-        const nextIdx = urlIdx + 1;
+
+        const isNet = data.type === Hls.ErrorTypes.NETWORK_ERROR;
+        const isManifest =
+          data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+          data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR;
+        const isFrag =
+          data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+          data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR;
+
+        if (isNet || isManifest || isFrag) {
+          if (tryFailover()) return;
+        }
+
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           const retries = linkRetryRef.current;
           if (retries < LINK_RETRY_ATTEMPTS - 1) {
@@ -521,23 +600,14 @@ export default function PremiumPlayer({
             return;
           }
         }
+
         linkRetryRef.current = 0;
-        if (nextIdx < allUrls.length) {
-          setIsSwitching(true);
-          setIsLoading(true);
-          const nextU = allUrls[nextIdx] ?? "";
-          toast.info(
-            nextU.includes("/proxy/stream") && !(allUrls[nextIdx - 1] ?? "").includes("/proxy/stream")
-              ? "Switching to server relay…"
-              : "Switching stream…"
-          );
-          setUrlIdx(nextIdx);
-        } else {
-          setIsSwitching(false);
-          setHasError(true);
-          setIsLoading(false);
-          toast.error("All streams unavailable — try an external player or another channel");
-        }
+        if (tryFailover()) return;
+
+        setIsSwitching(false);
+        setHasError(true);
+        setIsLoading(false);
+        toast.error("All streams unavailable — try an external player or another channel");
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -574,7 +644,7 @@ export default function PremiumPlayer({
     }
 
     return cleanup;
-  }, [streamUrl, retryKey, urlIdx, alternateUrls, directUrls, dynamicM3U8Id, headerProfile]);
+  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -676,7 +746,8 @@ export default function PremiumPlayer({
     setGeoRestricted(false);
     setIsLoading(true);
     linkRetryRef.current = 0;
-    setUrlIdx(0);           // restart from primary stream
+    urlPlayIndexRef.current = 0;
+    setUrlIdx(0);
     setRetryKey((k) => k + 1);
   }, []);
 
@@ -826,7 +897,7 @@ export default function PremiumPlayer({
                 style={{ background: "rgba(245,166,35,0.18)", border: "1px solid rgba(245,166,35,0.4)" }}>
                 <RefreshCw size={13} /> Retry
               </button>
-              <button type="button" onClick={() => window.open(streamUrl, "_blank", "noopener,noreferrer")}
+              <button type="button" onClick={() => window.open(sharePlaybackUrl, "_blank", "noopener,noreferrer")}
                 className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition hover:bg-white/10"
                 style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--text-muted)" }}>
                 <ExternalLink size={13} /> Open in tab
@@ -963,7 +1034,7 @@ export default function PremiumPlayer({
                       <div className="px-2 pb-3 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3">
                         <ExternalPlayerPicker
                           idPrefix={externalPanelTitleId}
-                          streamUrl={streamUrl}
+                          streamUrl={sharePlaybackUrl}
                           onClose={() => setShowExternalPanel(false)}
                         />
                       </div>
@@ -1000,7 +1071,7 @@ export default function PremiumPlayer({
                 <div className="max-h-[min(65dvh,30rem)] overflow-y-auto overflow-x-hidden px-3 pt-1 pb-1">
                   <ExternalPlayerPicker
                     idPrefix={externalPanelTitleId}
-                    streamUrl={streamUrl}
+                    streamUrl={sharePlaybackUrl}
                     onClose={() => setShowExternalPanel(false)}
                   />
                 </div>

@@ -61,6 +61,14 @@ class Settings(BaseSettings):
     # Env: PROXY_PLAYLIST_CACHE_TTL_SECONDS (default 5400 = 90 min, within 60–120m guidance).
     proxy_playlist_cache_ttl_seconds: int = 5400
 
+    # Upstream geo: spoof client-egress hints (datacenter bypass is best-effort; use proxy below if needed).
+    stream_geo_bypass_enabled: bool = True
+    # Optional HTTP(S) proxy for all upstream httpx calls in proxy.py (Webshare, Proxyium, etc.).
+    stream_upstream_http_proxy: str | None = Field(
+        default=None,
+        description="e.g. http://user:pass@host:port — applied to playlist + stream fetches",
+    )
+
     # Allowlisted preset for /proxy/stream?header_profile=tsports — merged server-side only (see proxy.py).
     # Env: STREAM_PROFILE_TSPORTS_COOKIE, STREAM_PROFILE_TSPORTS_USER_AGENT
     stream_profile_tsports_cookie: str | None = Field(

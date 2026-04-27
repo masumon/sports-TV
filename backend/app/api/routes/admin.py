@@ -16,7 +16,9 @@ from app.db.session import get_db
 from app.models.channel import Channel
 from app.models.dynamic_stream import DynamicStream
 from app.models.user import User
-from app.schemas.admin import AdminStatsResponse
+from app.api.routes.proxy import _validate_stream_url
+from app.schemas.admin import AdminStatsResponse, StreamProbeRequest, StreamProbeResponse
+from app.services.stream_probe import run_probe_batch
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
 from app.services.automation import run_channel_sync
@@ -46,6 +48,29 @@ async def admin_stats(
         scheduled_sync_minutes=settings.scheduled_sync_interval_minutes,
         last_sync_at=get_last_sync_iso(),
     )
+
+
+@router.post("/proxy/probe", response_model=StreamProbeResponse)
+async def admin_stream_probe(
+    payload: StreamProbeRequest,
+    _: User = Depends(get_current_admin_user),
+) -> StreamProbeResponse:
+    """
+    Check stream URL reachability (HEAD, then tiny Range GET if needed).
+    Results cached 10 minutes in Redis. SSRF-safe URL validation matches /proxy/stream.
+    """
+    seen: set[str] = set()
+    unique: list[str] = []
+    for u in payload.urls:
+        s = (u or "").strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        unique.append(s)
+    if not unique:
+        return StreamProbeResponse(results=[])
+    results = await run_probe_batch(unique, _validate_stream_url)
+    return StreamProbeResponse(results=results)
 
 
 @router.post("/channels/sync", response_model=dict[str, int])

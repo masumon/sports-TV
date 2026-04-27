@@ -6,7 +6,7 @@ import { useTheme } from "next-themes";
 import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, User, Eraser } from "lucide-react";
 import { toast } from "sonner";
 import { clearAppCache } from "@/lib/appCache";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useAuthStore } from "@/store/authStore";
@@ -29,6 +29,13 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
   const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
   const searchFocusNonce = useUiStore((s) => s.searchFocusNonce);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const commitSearchNavigation = () => {
+    const q = searchQuery.trim();
+    onSearch(q);
+    router.push(q ? `/?q=${encodeURIComponent(q)}` : "/", { scroll: false });
+  };
 
   useEffect(() => setMounted(true), []);
 
@@ -92,27 +99,48 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative min-w-0 flex-1 mx-1 md:mx-2">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-            style={{ color: "var(--text-muted)" }}
-          />
-          <input
-            id="gstv-search"
-            value={searchQuery}
-            onChange={(e) => onSearch(e.target.value)}
-            placeholder={t("search")}
-            aria-label={t("search")}
-            inputMode="search"
-            autoComplete="off"
-            autoCorrect="off"
-            className="search-input min-h-11 w-full rounded-xl py-2.5 pl-9 pr-3 text-[15px] text-white placeholder:text-slate-500 focus:outline-none sm:text-sm md:min-h-10 md:py-2"
+        {/* Search + Go */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 mx-1 md:mx-2">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <input
+              id="gstv-search"
+              value={searchQuery}
+              onChange={(e) => onSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitSearchNavigation();
+                }
+              }}
+              placeholder={t("search")}
+              aria-label={t("search")}
+              inputMode="search"
+              autoComplete="off"
+              autoCorrect="off"
+              className="search-input min-h-11 w-full rounded-xl py-2.5 pl-9 pr-3 text-[15px] text-white placeholder:text-slate-500 focus:outline-none sm:text-sm md:min-h-10 md:py-2"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid rgba(255,255,255,0.09)",
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={commitSearchNavigation}
+            className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold transition hover:opacity-90 min-h-11 md:min-h-10"
             style={{
-              background: "var(--bg-card)",
-              border: "1px solid rgba(255,255,255,0.09)",
+              background: "var(--primary-accent)",
+              color: "#0a0a0f",
+              border: "1px solid rgba(255,255,255,0.08)",
             }}
-          />
+            aria-label={t("searchGo")}
+          >
+            {t("searchGo")}
+          </button>
         </div>
 
         {/* Live badge */}

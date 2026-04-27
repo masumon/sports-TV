@@ -2,7 +2,7 @@ import { APP_STREAM_CONFIG } from "@/lib/appStreamConfig";
 import { fetchFanCodeLiveChannels } from "@/lib/fancodeLive";
 import { parseM3UPlaylist } from "@/lib/m3uParser";
 import { fetchPlaylistText } from "@/lib/playlistFetch";
-import type { Channel, ViewerModule } from "@/lib/types";
+import type { Channel, PremiumDirectModule, ViewerModule } from "@/lib/types";
 
 /** Caps concurrent `/proxy/playlist` calls so Render free tier is not hit with 10+ upstream fetches at once. */
 function createConcurrencyLimit(maxConcurrent: number) {
@@ -101,19 +101,35 @@ async function ingestPlaylistUrls(
   }
 }
 
+function resolvePremiumModule(mod: PremiumDirectModule): ViewerModule {
+  if (mod === "bangladesh_and_bdix") return "bangladesh";
+  return mod;
+}
+
 function mergePremiumDirectSports(seen: Set<string>, out: Channel[]): void {
   const raw = APP_STREAM_CONFIG.premium_direct_sports;
   if (!raw?.length) return;
 
   const emptyTs = { created_at: "", updated_at: "" };
   for (const p of raw) {
-    const url = (p.stream_url || "").trim();
-    if (!url.startsWith("http")) continue;
-    const k = normKey(url);
+    const collected: string[] = [];
+    const keySeen = new Set<string>();
+    for (const u of [...(p.stream_urls ?? []), ...(p.stream_url ? [p.stream_url] : []), ...(p.alternate_urls ?? [])]) {
+      const t = (u || "").trim();
+      if (!t.startsWith("http")) continue;
+      const nk = normKey(t);
+      if (keySeen.has(nk)) continue;
+      keySeen.add(nk);
+      collected.push(t);
+    }
+    if (!collected.length) continue;
+
+    const primary = collected[0]!;
+    const k = normKey(primary);
     if (seen.has(k)) continue;
     seen.add(k);
 
-    const mod = p.module;
+    const mod = resolvePremiumModule(p.module);
     const country =
       p.country?.trim() ||
       (mod === "bangladesh" ? "Bangladesh" : mod === "india" ? "India" : "Global");
@@ -125,8 +141,8 @@ function mergePremiumDirectSports(seen: Set<string>, out: Channel[]): void {
       category: p.category?.trim() || "Sports",
       language: "multi",
       logo_url: p.logo_url ?? null,
-      stream_url: url,
-      alternate_urls: [...(p.alternate_urls ?? [])].filter((u) => u.startsWith("http")),
+      stream_url: primary,
+      alternate_urls: collected.slice(1),
       quality_tag: "live",
       module: mod,
       is_active: true,
