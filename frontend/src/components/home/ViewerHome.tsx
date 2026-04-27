@@ -12,7 +12,17 @@ import {
   Star,
   Link2,
 } from "lucide-react";
-import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
@@ -234,6 +244,32 @@ export function ViewerHome() {
   const setActiveChannel = usePlayerStore((state) => state.setActiveChannel);
   const toggleTheaterMode = usePlayerStore((state) => state.toggleTheaterMode);
 
+  /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
+  const selectChannel = useCallback(
+    (ch: Channel) => {
+      startTransition(() => {
+        setActiveChannel(ch);
+      });
+    },
+    [setActiveChannel]
+  );
+  const transitionSetActiveModule = useCallback(
+    (m: ActiveModule) => {
+      startTransition(() => {
+        setActiveModule(m);
+      });
+    },
+    [setActiveModule]
+  );
+  const transitionSetActiveCategory = useCallback(
+    (c: string) => {
+      startTransition(() => {
+        setActiveCategory(c);
+      });
+    },
+    [setActiveCategory]
+  );
+
   const loadChannels = useCallback(async (showToast = false, silent = false) => {
     const hasCache = (getChannelListCache()?.length ?? 0) > 0;
     if (!silent && (!hasCache || showToast)) {
@@ -285,18 +321,22 @@ export function ViewerHome() {
   useEffect(() => {
     const m = searchParams.get("module")?.toLowerCase().trim();
     if (m === "bangladesh" || m === "sports" || m === "india") {
-      setActiveModule(m);
+      startTransition(() => {
+        setActiveModule(m);
+      });
     }
   }, [searchParams, setActiveModule]);
 
-  // Reset local filters when module changes
+  // Reset local filters when module changes (deferred: avoids blocking the tab click)
   useEffect(() => {
-    setFilterCountry("");
-    setFilterLanguage("");
-    setFilterLeague("");
-    setActiveCategory("");
-    setActiveStreamUrl(null);
-    setShowAltLinks(false);
+    startTransition(() => {
+      setFilterCountry("");
+      setFilterLanguage("");
+      setFilterLeague("");
+      setActiveCategory("");
+      setActiveStreamUrl(null);
+      setShowAltLinks(false);
+    });
   }, [activeModule, setActiveCategory]);
 
   // Reset active stream URL when channel changes
@@ -307,15 +347,19 @@ export function ViewerHome() {
 
   // Auto-select first channel of active module; clear selection if this module has no rows (e.g. India not synced)
   useEffect(() => {
-    const moduleChannels = allChannels.filter((c) => c.module === activeModule);
-    if (moduleChannels.length === 0) {
+    const moduleChans = allChannels.filter((c) => c.module === activeModule);
+    if (moduleChans.length === 0) {
       if (activeChannel && activeChannel.module !== activeModule) {
-        setActiveChannel(null);
+        startTransition(() => {
+          setActiveChannel(null);
+        });
       }
       return;
     }
     if (!activeChannel || activeChannel.module !== activeModule) {
-      setActiveChannel(moduleChannels[0]);
+      startTransition(() => {
+        setActiveChannel(moduleChans[0]);
+      });
     }
   }, [allChannels, activeModule, activeChannel, setActiveChannel]);
 
@@ -413,12 +457,30 @@ export function ViewerHome() {
   );
 
   const clearAllFilters = useCallback(() => {
-    setSearchQuery("");
-    setActiveCategory("");
-    setFilterLeague("");
-    setFilterCountry("");
-    setFilterLanguage("");
+    startTransition(() => {
+      setSearchQuery("");
+      setActiveCategory("");
+      setFilterLeague("");
+      setFilterCountry("");
+      setFilterLanguage("");
+    });
   }, [setActiveCategory]);
+
+  const setFilterCountryT = useCallback((v: string) => {
+    startTransition(() => {
+      setFilterCountry(v);
+    });
+  }, []);
+  const setFilterLanguageT = useCallback((v: string) => {
+    startTransition(() => {
+      setFilterLanguage(v);
+    });
+  }, []);
+  const setFilterLeagueT = useCallback((v: string) => {
+    startTransition(() => {
+      setFilterLeague(v);
+    });
+  }, []);
 
   const dismissWelcome = useCallback(() => {
     try {
@@ -432,9 +494,17 @@ export function ViewerHome() {
   const currentStreamUrl = activeStreamUrl ?? activeChannel?.stream_url ?? "";
   const altLinks = activeChannel?.alternate_urls ?? [];
 
-  const bdCount = allChannels.filter((c) => c.module === "bangladesh").length;
-  const inCount = allChannels.filter((c) => c.module === "india").length;
-  const sportsCount = allChannels.filter((c) => c.module === "sports").length;
+  const { sportsCount, inCount, bdCount } = useMemo(() => {
+    let s = 0;
+    let i = 0;
+    let b = 0;
+    for (const c of allChannels) {
+      if (c.module === "sports") s += 1;
+      else if (c.module === "india") i += 1;
+      else if (c.module === "bangladesh") b += 1;
+    }
+    return { sportsCount: s, inCount: i, bdCount: b };
+  }, [allChannels]);
 
   return (
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
@@ -464,7 +534,9 @@ export function ViewerHome() {
         <div className="-mx-1 flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:mx-0 sm:flex-wrap sm:overflow-visible">
           <button
             type="button"
-            onClick={() => setActiveModule("sports")}
+            onClick={() => {
+              transitionSetActiveModule("sports");
+            }}
             className={`module-tab shrink-0 snap-start${activeModule === "sports" ? " active" : ""}`}
           >
             🌍 Sports TV
@@ -474,7 +546,9 @@ export function ViewerHome() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveModule("india")}
+            onClick={() => {
+              transitionSetActiveModule("india");
+            }}
             className={`module-tab shrink-0 snap-start${activeModule === "india" ? " active" : ""}`}
             style={activeModule === "india" ? { borderColor: "rgba(99,102,241,0.5)", color: "rgb(199 210 254)" } : undefined}
           >
@@ -483,7 +557,9 @@ export function ViewerHome() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveModule("bangladesh")}
+            onClick={() => {
+              transitionSetActiveModule("bangladesh");
+            }}
             className={`module-tab shrink-0 snap-start${activeModule === "bangladesh" ? " active bd" : ""}`}
           >
             🇧🇩 Bangladesh TV
@@ -494,12 +570,7 @@ export function ViewerHome() {
         </div>
 
         {/* ── Hero header ── */}
-        <motion.div
-          initial={reduceM ? false : { opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={reduceM ? { duration: 0 } : { duration: 0.35 }}
-          className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-        >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "rgba(245,166,35,0.15)" }}>
@@ -596,7 +667,7 @@ export function ViewerHome() {
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
 
         {/* ── AdSlot banner ── */}
         {tier === "free" && <AdSlot variant="banner" />}
@@ -610,7 +681,12 @@ export function ViewerHome() {
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
-              onClick={() => { setActiveCategory(""); setFilterLeague(""); }}
+              onClick={() => {
+                startTransition(() => {
+                  setFilterLeague("");
+                  setActiveCategory("");
+                });
+              }}
             >
               📺 {t("filterAll")}
             </button>
@@ -620,8 +696,10 @@ export function ViewerHome() {
                 type="button"
                 className={`cat-tab${activeCategory === sport.id ? " active" : ""}`}
                 onClick={() => {
-                  setFilterLeague("");
-                  setActiveCategory(activeCategory === sport.id ? "" : sport.id);
+                  startTransition(() => {
+                    setFilterLeague("");
+                    setActiveCategory(activeCategory === sport.id ? "" : sport.id);
+                  });
                 }}
               >
                 {sport.label}
@@ -638,7 +716,9 @@ export function ViewerHome() {
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
-              onClick={() => setActiveCategory("")}
+              onClick={() => {
+                transitionSetActiveCategory("");
+              }}
             >
               📺 {t("filterAll")}
             </button>
@@ -647,7 +727,9 @@ export function ViewerHome() {
                 key={cat}
                 type="button"
                 className={`cat-tab${activeCategory === cat ? " active" : ""}`}
-                onClick={() => setActiveCategory(activeCategory === cat ? "" : cat)}
+                onClick={() => {
+                  transitionSetActiveCategory(activeCategory === cat ? "" : cat);
+                }}
               >
                 {categoryEmoji(cat, activeModule)} {cat}
               </button>
@@ -670,7 +752,9 @@ export function ViewerHome() {
               <button
                 type="button"
                 className={`filter-chip${filterLeague === "" ? " active" : ""}`}
-                onClick={() => setFilterLeague("")}
+                onClick={() => {
+                  setFilterLeagueT("");
+                }}
               >
                 {t("filterAll")}
               </button>
@@ -679,7 +763,9 @@ export function ViewerHome() {
                   key={lg}
                   type="button"
                   className={`filter-chip${filterLeague === lg ? " active" : ""}`}
-                  onClick={() => setFilterLeague(filterLeague === lg ? "" : lg)}
+                  onClick={() => {
+                    setFilterLeagueT(filterLeague === lg ? "" : lg);
+                  }}
                 >
                   {lg}
                 </button>
@@ -693,7 +779,11 @@ export function ViewerHome() {
           <div className="mb-0.5 flex items-center justify-between gap-2">
             <button
               type="button"
-              onClick={() => setShowAllFilters((v) => !v)}
+              onClick={() => {
+                startTransition(() => {
+                  setShowAllFilters((v) => !v);
+                });
+              }}
               className="flex items-center gap-1.5 text-xs"
               style={{ color: "var(--text-muted)" }}
             >
@@ -719,7 +809,7 @@ export function ViewerHome() {
                     label={t("countryLabel")}
                     options={countryOptions}
                     value={filterCountry}
-                    onChange={setFilterCountry}
+                    onChange={setFilterCountryT}
                     allLabel={t("filterAll")}
                     showLessLabel={t("showLess")}
                     moreLabel={t("moreSuffix")}
@@ -729,7 +819,7 @@ export function ViewerHome() {
                     label={t("languageLabel")}
                     options={languageOptions}
                     value={filterLanguage}
-                    onChange={setFilterLanguage}
+                    onChange={setFilterLanguageT}
                     maxVisible={10}
                     allLabel={t("filterAll")}
                     showLessLabel={t("showLess")}
@@ -763,11 +853,8 @@ export function ViewerHome() {
 
             {/* Now playing info strip */}
             {activeChannel && (
-              <motion.div
+              <div
                 key={activeChannel.id}
-                initial={reduceM ? false : { opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={reduceM ? { duration: 0 } : { duration: 0.2 }}
                 className="mt-3 rounded-xl px-4 py-3"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
@@ -819,7 +906,11 @@ export function ViewerHome() {
                             {/* Primary link */}
                             <button
                               type="button"
-                              onClick={() => setActiveStreamUrl(null)}
+                              onClick={() => {
+                                startTransition(() => {
+                                  setActiveStreamUrl(null);
+                                });
+                              }}
                               className={`alt-link-btn${!activeStreamUrl ? " active" : ""}`}
                             >
                               Primary
@@ -828,7 +919,11 @@ export function ViewerHome() {
                               <button
                                 key={url}
                                 type="button"
-                                onClick={() => setActiveStreamUrl(url)}
+                                onClick={() => {
+                                  startTransition(() => {
+                                    setActiveStreamUrl(url);
+                                  });
+                                }}
                                 className={`alt-link-btn${activeStreamUrl === url ? " active" : ""}`}
                               >
                                 Backup {i + 1}
@@ -840,7 +935,7 @@ export function ViewerHome() {
                     </AnimatePresence>
                   </div>
                 )}
-              </motion.div>
+              </div>
             )}
           </section>
 
@@ -893,7 +988,9 @@ export function ViewerHome() {
                     <button
                       key={ch.id}
                       type="button"
-                      onClick={() => setActiveChannel(ch)}
+                      onClick={() => {
+                        selectChannel(ch);
+                      }}
                       className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
                       style={{
                         background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
@@ -978,13 +1075,12 @@ export function ViewerHome() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
-              {filtered.map((ch, i) => (
+              {filtered.map((ch) => (
                 <PremiumChannelCard
                   key={ch.id}
                   channel={ch}
                   active={activeChannel?.id === ch.id}
-                  onSelect={setActiveChannel}
-                  index={i}
+                  onSelect={selectChannel}
                   activeModule={activeModule}
                 />
               ))}
@@ -996,29 +1092,25 @@ export function ViewerHome() {
   );
 }
 
-/* ── Premium Channel Card ── */
-function PremiumChannelCard({
+/* ── Premium Channel Card (plain button: avoids N× framer + stagger on large grids → better INP) ── */
+const PremiumChannelCard = memo(function PremiumChannelCard({
   channel,
   active,
   onSelect,
-  index,
   activeModule,
 }: {
   channel: Channel;
   active: boolean;
   onSelect: (c: Channel) => void;
-  index: number;
   activeModule: ActiveModule;
 }) {
-  const cardReduceM = useReducedMotion();
   return (
-    <motion.button
+    <button
       type="button"
-      onClick={() => onSelect(channel)}
-      className={`ch-card group w-full p-3 text-left${active ? " active" : ""}`}
-      initial={cardReduceM ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={cardReduceM ? { duration: 0 } : { delay: Math.min(index * 0.01, 0.3), duration: 0.2 }}
+      onClick={() => {
+        onSelect(channel);
+      }}
+      className={`ch-card group w-full p-3 text-left transition-[transform,box-shadow] duration-150 will-change-transform active:scale-[0.99]${active ? " active" : ""}`}
     >
       <div className="flex items-start gap-3">
         {channel.logo_url ? (
@@ -1071,8 +1163,8 @@ function PremiumChannelCard({
           </span>
         )}
       </div>
-    </motion.button>
+    </button>
   );
-}
+});
 
 
