@@ -322,6 +322,19 @@ async def _unhandled_error_handler(request, exc: Exception) -> JSONResponse:
     )
 
 
+@app.get("/", tags=["meta"], include_in_schema=True)
+def root() -> dict[str, str]:
+    """Landing response when the API base URL is opened in a browser (e.g. Render)."""
+    return {
+        "service": settings.app_name,
+        "status": "ok",
+        "message": "Use /docs for OpenAPI, /health for readiness.",
+        "docs": "/docs",
+        "health": "/health",
+        "api": settings.api_v1_prefix,
+    }
+
+
 @app.get("/health", tags=["health"])
 def health() -> dict[str, str]:
     return {"status": "ok", "env": settings.app_env, "version": "asyncpg-async-v11"}
