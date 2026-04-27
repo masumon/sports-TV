@@ -1,6 +1,16 @@
 {
   "headers": [
     {
+      "source": "/api/v1/proxy/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, no-cache, must-revalidate, max-age=0"
+        },
+        { "key": "CDN-Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
       "source": "/api/v1/sports-tv/channels(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, s-maxage=300, stale-while-revalidate=120" },
@@ -17,7 +27,11 @@
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, s-maxage=60, stale-while-revalidate=120" }
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, no-cache, must-revalidate, max-age=0"
+        },
+        { "key": "CDN-Cache-Control", "value": "no-store" }
       ]
     },
     {

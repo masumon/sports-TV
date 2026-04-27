@@ -31,6 +31,10 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  icons: {
+    icon: [{ url: "/icons/icon-192.svg", type: "image/svg+xml", sizes: "192x192" }],
+    apple: [{ url: "/icons/icon-192.svg", type: "image/svg+xml" }],
+  },
   metadataBase: new URL(siteUrl),
   openGraph: {
     type: "website",

@@ -43,21 +43,13 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
-      // Cache static assets aggressively
       {
-        source: "/(icons|images|fonts)/(.*)",
+        source: "/api/v1/proxy/:path*",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "Cache-Control", value: "private, no-store, no-cache, must-revalidate, max-age=0" },
+          { key: "CDN-Cache-Control", value: "no-store" },
         ],
       },
-      // Cache PWA manifest
-      {
-        source: "/manifest.webmanifest",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=3600" },
-        ],
-      },
-      // API proxy — short cache with stale-while-revalidate for channels
       {
         source: "/api/v1/sports-tv/channels(.*)",
         headers: [
@@ -65,7 +57,32 @@ const nextConfig: NextConfig = {
           { key: "CDN-Cache-Control", value: "public, s-maxage=300" },
         ],
       },
-      // Security headers for all pages
+      {
+        source: "/api/v1/sports-tv/filters",
+        headers: [
+          { key: "Cache-Control", value: "public, s-maxage=600, stale-while-revalidate=300" },
+          { key: "CDN-Cache-Control", value: "public, s-maxage=600" },
+        ],
+      },
+      {
+        source: "/api/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, no-cache, must-revalidate, max-age=0" },
+          { key: "CDN-Cache-Control", value: "no-store" },
+        ],
+      },
+      {
+        source: "/(icons|images|fonts)/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/manifest.webmanifest",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=3600" },
+        ],
+      },
       {
         source: "/(.*)",
         headers: [
