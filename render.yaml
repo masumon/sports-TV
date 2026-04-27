@@ -44,12 +44,15 @@ services:
         sync: false
       - key: JWT_SECRET_KEY
         sync: false
+      # Required for POST /internal/sync in production (e.g. cron with X-Sync-Secret). Set in Render dashboard.
+      - key: INTERNAL_SYNC_SECRET
+        sync: false
       - key: ADMIN_EMAIL
         value: admin@test.com
       - key: ADMIN_PASSWORD
         sync: false
       - key: ADMIN_FULL_NAME
         sync: false
-      # Required if browser uses NEXT_PUBLIC_API_BASE_URL=https://<render-host> (direct API from Vercel).
+      # See backend app/main.py: allow_origin_regex also permits https://*.vercel.app (Preview).
       - key: CORS_ORIGINS
         value: "https://sports-tv-lovat.vercel.app,http://localhost:3000"

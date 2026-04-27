@@ -296,6 +296,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    # Vercel Preview deploys use https://<project>-<hash>-<scope>.vercel.app — list them in CORS_ORIGINS
+    # for custom domains, or rely on this regex (still requires HTTPS + .vercel.app).
+    allow_origin_regex=r"^https://[a-zA-Z0-9-]+\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -345,12 +348,23 @@ async def health_db() -> dict:
 async def internal_sync(request: Request) -> dict[str, object]:
     """Internal endpoint for scheduler/webhook triggered M3U sync.
 
-    Protected by X-Sync-Secret header when INTERNAL_SYNC_SECRET env var is set.
+    In production, requires X-Sync-Secret matching INTERNAL_SYNC_SECRET.
+    Set INTERNAL_SYNC_SECRET on Render (e.g. openssl rand -hex 32).
     """
     import hmac as _hmac
 
     secret = os.environ.get("INTERNAL_SYNC_SECRET", "").strip()
-    if secret:
+    is_prod = (settings.app_env or "").lower() in {"production", "prod"}
+    if is_prod:
+        if not secret:
+            raise HTTPException(
+                status_code=503,
+                detail="INTERNAL_SYNC_SECRET is not configured for this environment",
+            )
+        provided = request.headers.get("X-Sync-Secret", "")
+        if not _hmac.compare_digest(provided.encode(), secret.encode()):
+            raise HTTPException(status_code=403, detail="Forbidden")
+    elif secret:
         provided = request.headers.get("X-Sync-Secret", "")
         if not _hmac.compare_digest(provided.encode(), secret.encode()):
             raise HTTPException(status_code=403, detail="Forbidden")

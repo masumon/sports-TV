@@ -18,7 +18,8 @@ const DEFAULT_BACKEND_URL =
   process.env.NODE_ENV === "production"
     ? "https://gstv-backend.onrender.com"
     : "http://localhost:8000";
-const BACKEND_URL = (process.env.BACKEND_URL ?? DEFAULT_BACKEND_URL).replace(/\/$/, "");
+// Treat "" as unset so a blank Vercel env row still uses the default backend.
+const BACKEND_URL = (process.env.BACKEND_URL?.trim() || DEFAULT_BACKEND_URL).replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

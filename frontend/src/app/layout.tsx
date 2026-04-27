@@ -11,7 +11,18 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sports-tv-lovat.vercel.app";
+// Preview: prefer deployment URL so metadataBase/OG are not the production domain.
+const siteUrl = (() => {
+  if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, "")}`;
+  }
+  const fromPublic = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (fromPublic) return fromPublic;
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, "")}`;
+  }
+  return "https://sports-tv-lovat.vercel.app";
+})();
 
 export const metadata: Metadata = {
   title: {
