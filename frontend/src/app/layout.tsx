@@ -11,7 +11,8 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sports-tv-lovat.vercel.app";
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://sports-tv-lovat.vercel.app";
 
 export const metadata: Metadata = {
   title: {
