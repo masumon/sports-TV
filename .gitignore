@@ -30,6 +30,7 @@ pnpm-debug.log*
 # =========================
 # Node.js / Frontend
 # =========================
+**/.vercel/
 node_modules/
 .next/
 out/
