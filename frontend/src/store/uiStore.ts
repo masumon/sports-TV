@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import type { ViewerModule } from "@/lib/types";
 
 type UiState = {
   sidebarOpen: boolean;
@@ -9,8 +10,8 @@ type UiState = {
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (v: boolean) => void;
   /** Active module — shared across Sidebar + ViewerHome */
-  activeModule: "sports" | "india" | "bangladesh";
-  setActiveModule: (m: "sports" | "india" | "bangladesh") => void;
+  activeModule: ViewerModule;
+  setActiveModule: (m: ViewerModule) => void;
   /** Active category filter — shared across Sidebar + ViewerHome */
   activeCategory: string;
   setActiveCategory: (c: string) => void;
@@ -25,7 +26,7 @@ export const useUiStore = create<UiState>()((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   mobileMenuOpen: false,
   setMobileMenuOpen: (v) => set({ mobileMenuOpen: v }),
-  activeModule: "sports",
+  activeModule: "global_sports",
   setActiveModule: (m) => set({ activeModule: m, activeCategory: "" }),
   activeCategory: "",
   setActiveCategory: (c) => set({ activeCategory: c }),

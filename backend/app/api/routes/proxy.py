@@ -13,12 +13,16 @@ Endpoints:
 """
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import json
 import logging
 import re
 import socket
+import time
 import urllib.parse
+from collections import OrderedDict
+from threading import Lock
 from typing import AsyncGenerator
 
 import httpx
@@ -26,6 +30,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.redis_client import safe_get, safe_set
 from app.db.session import get_db
 from app.models.dynamic_stream import DynamicStream
 
@@ -160,13 +166,92 @@ _STREAM_PROXY_RESPONSE_HEADERS: dict[str, str] = {
 }
 
 
-def _proxy_error_response(status_code: int, message: str = "Stream fetch failed") -> JSONResponse:
+def _proxy_error_response(
+    status_code: int,
+    message: str = "Stream fetch failed",
+    *,
+    code: str | None = None,
+) -> JSONResponse:
     """JSON error + CORS so the browser never hides failures behind opaque network errors."""
+    body: dict[str, object] = {"error": message, "status": status_code, "detail": message}
+    if code:
+        body["code"] = code
     return JSONResponse(
         status_code=status_code,
-        content={"error": message, "status": status_code, "detail": message},
+        content=body,
         headers={**_STREAM_PROXY_RESPONSE_HEADERS},
     )
+
+
+def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
+    """Server-side allowlisted presets only (no arbitrary client-supplied headers)."""
+    if not name:
+        return {}
+    key = name.strip().lower()
+    if key == "tsports":
+        ua = (settings.stream_profile_tsports_user_agent or "").strip()
+        cookie = (settings.stream_profile_tsports_cookie or "").strip()
+        h: dict[str, str] = {
+            "host": "live-cdn.tsports.com",
+            "user-agent": ua if ua else "(Linux;Android 14)",
+        }
+        if cookie:
+            h["cookie"] = cookie
+        return h
+    return {}
+
+
+def _apply_header_profile(forward: dict[str, str], profile: str | None) -> dict[str, str]:
+    extra = _headers_for_allowlisted_profile(profile)
+    if not extra:
+        return forward
+    out = dict(forward)
+    for k, v in extra.items():
+        if v and str(v).strip():
+            out[str(k).lower()] = str(v).strip()
+    return out
+
+
+# Raw IPTV playlist fetch (not HLS manifest rewrite) — max body size.
+_MAX_PLAYLIST_RAW_BYTES = 20 * 1024 * 1024
+# In-process fallback when Redis is absent (bounded; avoids free-tier RAM spikes).
+_PLAYLIST_MEM_MAX_ENTRIES = 16
+_PLAYLIST_MEM_MAX_BODY_BYTES = 2 * 1024 * 1024
+_playlist_mem_cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
+_playlist_mem_lock = Lock()
+
+
+def _playlist_cache_key(url: str, header_profile: str | None) -> str:
+    raw = f"v1\0{url}\0{header_profile or ''}".encode()
+    return "m3upl:" + hashlib.sha256(raw).hexdigest()
+
+
+def _playlist_mem_get(key: str) -> str | None:
+    now = time.time()
+    with _playlist_mem_lock:
+        item = _playlist_mem_cache.get(key)
+        if item is None:
+            return None
+        expires_at, body = item
+        if expires_at <= now:
+            try:
+                del _playlist_mem_cache[key]
+            except KeyError:
+                pass
+            return None
+        _playlist_mem_cache.move_to_end(key)
+        return body
+
+
+def _playlist_mem_set(key: str, body: str, ttl_sec: int) -> None:
+    if len(body.encode("utf-8")) > _PLAYLIST_MEM_MAX_BODY_BYTES:
+        return
+    with _playlist_mem_lock:
+        if key in _playlist_mem_cache:
+            del _playlist_mem_cache[key]
+        while len(_playlist_mem_cache) >= _PLAYLIST_MEM_MAX_ENTRIES:
+            _playlist_mem_cache.popitem(last=False)
+        _playlist_mem_cache[key] = (time.time() + max(60, ttl_sec), body)
 
 
 def _merge_stream_client_headers(upstream_safe: dict[str, str]) -> dict[str, str]:
@@ -385,6 +470,12 @@ async def _build_chunked_streaming_response(
             pass
         await resp.aclose()
         await client.aclose()
+        if resp.status_code in _GEO_BLOCK_STATUS:
+            return _proxy_error_response(
+                403,
+                "This premium content is geo-restricted.",
+                code="GEO_RESTRICTED",
+            )
         return _proxy_error_response(502)
 
     ct = (
@@ -435,12 +526,18 @@ async def _build_chunked_streaming_response(
     )
 
 
-def _relative_proxy_stream_path(target_url: str, stream_id: int | None) -> str:
+def _relative_proxy_stream_path(
+    target_url: str,
+    stream_id: int | None,
+    header_profile: str | None = None,
+) -> str:
     """Root-relative URL so the browser (Vercel or any host) resolves it on the current origin."""
     q = urllib.parse.quote(target_url, safe="")
     out = f"/api/v1/proxy/stream?url={q}"
     if stream_id is not None:
         out += f"&stream_id={stream_id}"
+    if header_profile:
+        out += f"&header_profile={urllib.parse.quote(header_profile, safe='')}"
     return out
 
 
@@ -462,7 +559,12 @@ _URI_IN_TAG = re.compile(r"URI=(['\"])([^'\"]+)\1", re.IGNORECASE)
 _URI_IN_TAG_BARE = re.compile(r"\bURI=([^\"',\s]+)", re.IGNORECASE)
 
 
-def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | None) -> str:
+def _rewrite_hls_playlist_text(
+    body: str,
+    manifest_url: str,
+    stream_id: int | None,
+    header_profile: str | None = None,
+) -> str:
     """Rewrite resource URLs to same-origin proxy paths (fixes HTTPS page + HTTP upstream mixed content)."""
 
     def absolutize(line: str) -> str:
@@ -479,7 +581,7 @@ def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | No
             _validate_stream_url(abs_u)
         except HTTPException:
             return line
-        return _relative_proxy_stream_path(abs_u, stream_id)
+        return _relative_proxy_stream_path(abs_u, stream_id, header_profile)
 
     def repl_uri(m: re.Match[str]) -> str:
         q = m.group(1)
@@ -493,7 +595,7 @@ def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | No
             _validate_stream_url(abs_u)
         except HTTPException:
             return m.group(0)
-        return f"URI={q}{_relative_proxy_stream_path(abs_u, stream_id)}{q}"
+        return f"URI={q}{_relative_proxy_stream_path(abs_u, stream_id, header_profile)}{q}"
 
     def repl_uri_bare(m: re.Match[str]) -> str:
         inner = m.group(1).strip()
@@ -506,7 +608,7 @@ def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | No
             _validate_stream_url(abs_u)
         except HTTPException:
             return m.group(0)
-        p = _relative_proxy_stream_path(abs_u, stream_id)
+        p = _relative_proxy_stream_path(abs_u, stream_id, header_profile)
         return f'URI="{p}"'
 
     out_lines: list[str] = []
@@ -620,6 +722,7 @@ async def proxy_stream(
     try:
         target_url = _validate_stream_url(url)
         m3u8_src = _m3u8_src_param(request)
+        header_profile_q = (request.query_params.get("header_profile") or "").strip() or None
 
         forward = _merge_stream_forward_headers(request, None)
         effective_url = target_url
@@ -660,6 +763,8 @@ async def proxy_stream(
                         if r and r != target_url:
                             effective_url = _validate_stream_url(r)
 
+        forward = _apply_header_profile(forward, header_profile_q)
+
         # .m3u8/.m3u: one buffered manifest fetch (no peek) — avoids double upstream hits and Vercel/edge stalls.
         if _url_looks_like_m3u8_path(effective_url):
             try:
@@ -675,12 +780,21 @@ async def proxy_stream(
                 logger.warning("Manifest fetch error: %s", man_exc)
                 return _proxy_error_response(502)
             if not mtext:
+                st_peek, _, _ = await _async_peek_stream(effective_url, forward)
+                if st_peek in _GEO_BLOCK_STATUS:
+                    return _proxy_error_response(
+                        403,
+                        "This premium content is geo-restricted.",
+                        code="GEO_RESTRICTED",
+                    )
                 return _proxy_error_response(502)
             lead = mtext.lstrip("\ufeff").lstrip()
             if not lead.startswith("#EXTM3U"):
                 return _proxy_error_response(502)
             try:
-                rewritten = _rewrite_hls_playlist_text(mtext, manifest_base, stream_id)
+                rewritten = _rewrite_hls_playlist_text(
+                    mtext, manifest_base, stream_id, header_profile_q
+                )
             except Exception as rew_exc:
                 logger.warning("HLS rewrite failed: %s", rew_exc)
                 return _proxy_error_response(502)
@@ -711,6 +825,12 @@ async def proxy_stream(
                     forward = h_fb
 
         if st >= 400:
+            if st in _GEO_BLOCK_STATUS:
+                return _proxy_error_response(
+                    403,
+                    "This premium content is geo-restricted.",
+                    code="GEO_RESTRICTED",
+                )
             return _proxy_error_response(502)
 
         if _content_type_suggests_hls_playlist(content_type):
@@ -727,7 +847,9 @@ async def proxy_stream(
                     lead = mtext.lstrip("\ufeff").lstrip()
                     if lead.startswith("#EXTM3U"):
                         try:
-                            rewritten = _rewrite_hls_playlist_text(mtext, manifest_base, stream_id)
+                            rewritten = _rewrite_hls_playlist_text(
+                                mtext, manifest_base, stream_id, header_profile_q
+                            )
                         except Exception as rew_exc:
                             logger.warning("HLS rewrite failed: %s", rew_exc)
                         else:
@@ -747,6 +869,109 @@ async def proxy_stream(
     except Exception as exc:
         logger.exception("proxy/stream fatal: %s", exc)
         return _proxy_error_response(502)
+
+
+@router.get("/playlist", response_model=None)
+async def proxy_playlist_raw(
+    request: Request,
+    url: str = Query(..., min_length=7, max_length=2048, description="M3U / playlist URL to fetch as raw text"),
+    header_profile: str | None = Query(
+        default=None,
+        description="Optional allowlisted preset (e.g. tsports) for upstream headers",
+    ),
+) -> Response | JSONResponse:
+    """
+    Fetch an M3U / text playlist without HLS URL rewriting — used by the app to parse channel lists.
+
+    Responses are cached in Redis (if REDIS_URL is set) and a small in-process LRU to limit
+    upstream refetches and CPU on free-tier hosts. TTL from settings.proxy_playlist_cache_ttl_seconds.
+    """
+    try:
+        target_url = _validate_stream_url(url)
+        hp = (header_profile or "").strip() or None
+        cache_key = _playlist_cache_key(target_url, hp)
+        ttl = max(60, int(getattr(settings, "proxy_playlist_cache_ttl_seconds", 5400) or 5400))
+
+        cached_redis = safe_get(cache_key)
+        if cached_redis is not None:
+            return Response(
+                content=cached_redis,
+                status_code=200,
+                media_type="text/plain; charset=utf-8",
+                headers=dict(_STREAM_PROXY_RESPONSE_HEADERS),
+            )
+        mem_hit = _playlist_mem_get(cache_key)
+        if mem_hit is not None:
+            return Response(
+                content=mem_hit,
+                status_code=200,
+                media_type="text/plain; charset=utf-8",
+                headers=dict(_STREAM_PROXY_RESPONSE_HEADERS),
+            )
+
+        forward = _apply_header_profile(
+            _merge_stream_forward_headers(request, None),
+            hp,
+        )
+        async with httpx.AsyncClient(
+            verify=False,
+            trust_env=False,
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        ) as client:
+            try:
+                r = await client.get(
+                    target_url,
+                    headers=forward,
+                    timeout=httpx.Timeout(
+                        connect=_CONNECT_TIMEOUT,
+                        read=_MANIFEST_PEEK_READ_TIMEOUT,
+                        write=_WRITE_TIMEOUT,
+                        pool=_POOL_TIMEOUT,
+                    ),
+                    follow_redirects=True,
+                )
+            except Exception as exc:
+                logger.warning("Playlist fetch failed for %s: %s", target_url[:80], exc)
+                return _proxy_error_response(502)
+        if r.status_code in _GEO_BLOCK_STATUS:
+            return _proxy_error_response(
+                403,
+                "This premium content is geo-restricted.",
+                code="GEO_RESTRICTED",
+            )
+        if r.status_code >= 400:
+            return _proxy_error_response(502)
+        if len(r.content) > _MAX_PLAYLIST_RAW_BYTES:
+            return _proxy_error_response(413, "Playlist too large to buffer")
+        body = r.text
+        safe_set(cache_key, body, ttl)
+        _playlist_mem_set(cache_key, body, ttl)
+        return Response(
+            content=body,
+            status_code=200,
+            media_type="text/plain; charset=utf-8",
+            headers=dict(_STREAM_PROXY_RESPONSE_HEADERS),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("proxy/playlist fatal: %s", exc)
+        return _proxy_error_response(502)
+
+
+@router.options("/playlist")
+async def proxy_playlist_preflight() -> Response:
+    return Response(
+        status_code=200,
+        content="",
+        media_type="text/plain",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        },
+    )
 
 
 @router.options("/stream")
@@ -908,7 +1133,6 @@ async def proxy_m3u8(
 
     # Determine the proxy base URL for segment rewriting.
     base_request_url = str(request.base_url).rstrip("/")
-    from app.core.config import settings
     proxy_stream_url = f"{base_request_url}{settings.api_v1_prefix}/proxy/stream"
 
     # Try primary then fallback.

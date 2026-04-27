@@ -29,10 +29,14 @@ import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
-import { fetchAllChannels } from "@/lib/apiClient";
 import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
+import { fetchFanCodeLiveChannels } from "@/lib/fancodeLive";
 import { useI18n } from "@/lib/i18n/LocaleContext";
-import type { Channel } from "@/lib/types";
+import {
+  loadFullCatalogWithLive,
+  replaceLiveMatches,
+} from "@/lib/streamCatalog";
+import type { Channel, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
@@ -149,13 +153,13 @@ function categoryEmoji(category: string, module: string): string {
     }
     return "📺";
   }
+  if (module === "fast_tv") return "⚡";
+  if (module === "live_matches") return "🔴";
   for (const [k, v] of Object.entries(SPORT_ICONS)) {
     if (key.includes(k)) return v;
   }
   return "📺";
 }
-
-type ActiveModule = "sports" | "india" | "bangladesh";
 
 /* ── Chip filter component ── */
 function FilterChips({
@@ -254,7 +258,7 @@ export function ViewerHome() {
     [setActiveChannel]
   );
   const transitionSetActiveModule = useCallback(
-    (m: ActiveModule) => {
+    (m: ViewerModule) => {
       startTransition(() => {
         setActiveModule(m);
       });
@@ -277,7 +281,7 @@ export function ViewerHome() {
     }
     setError(null);
     try {
-      const data = await fetchAllChannels();
+      const data = await loadFullCatalogWithLive();
       setAllChannels(data);
       setChannelListCache(data);
       if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
@@ -288,6 +292,15 @@ export function ViewerHome() {
       toast.error(msg);
     } finally {
       if (!silent) setLoading(false);
+    }
+  }, []);
+
+  const refreshLiveMatchesOnly = useCallback(async () => {
+    try {
+      const live = await fetchFanCodeLiveChannels();
+      setAllChannels((prev) => replaceLiveMatches(prev, live));
+    } catch {
+      /* silent background refresh */
     }
   }, []);
 
@@ -313,16 +326,24 @@ export function ViewerHome() {
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => void loadChannels(false, true), 5 * 60_000); // 5 min silent refresh
+    const id = setInterval(() => void refreshLiveMatchesOnly(), 30 * 60_000);
     return () => clearInterval(id);
-  }, [loadChannels]);
+  }, [refreshLiveMatchesOnly]);
 
-  // Deep link: /?module=bangladesh|sports (e.g. manifest shortcuts, README)
+  // Deep link: /?module=…
   useEffect(() => {
-    const m = searchParams.get("module")?.toLowerCase().trim();
-    if (m === "bangladesh" || m === "sports" || m === "india") {
+    let m = searchParams.get("module")?.toLowerCase().trim();
+    if (m === "sports") m = "global_sports";
+    const allowed: ViewerModule[] = [
+      "bangladesh",
+      "global_sports",
+      "india",
+      "fast_tv",
+      "live_matches",
+    ];
+    if (m && allowed.includes(m as ViewerModule)) {
       startTransition(() => {
-        setActiveModule(m);
+        setActiveModule(m as ViewerModule);
       });
     }
   }, [searchParams, setActiveModule]);
@@ -373,7 +394,7 @@ export function ViewerHome() {
     const q = deferredSearch.trim().toLowerCase();
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
 
-    if (activeModule === "sports") {
+    if (activeModule === "global_sports") {
       // Sport type: hero tabs and sidebar both set activeCategory (single source of truth)
       if (activeCategory) {
         const sport = SPORT_TYPES.find((s) => s.id === activeCategory);
@@ -412,7 +433,7 @@ export function ViewerHome() {
   const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
   // Count channels per sport type (only render chips that have channels)
   const sportChannelCount = useMemo<Record<string, number>>(() => {
-    if (activeModule !== "sports") return {};
+    if (activeModule !== "global_sports") return {};
     const counts: Record<string, number> = {};
     for (const sport of SPORT_TYPES) {
       counts[sport.id] = moduleChannels.filter((c) => {
@@ -426,7 +447,7 @@ export function ViewerHome() {
 
   // Sub-leagues for the currently selected sport type (tab OR sidebar)
   const subLeagueOptions = useMemo(() => {
-    if (activeModule !== "sports" || !activeCategory) return [];
+    if (activeModule !== "global_sports" || !activeCategory) return [];
     const sport = SPORT_TYPES.find((s) => s.id === activeCategory);
     if (!sport) return [];
     const sportChans = moduleChannels.filter((c) => {
@@ -447,8 +468,9 @@ export function ViewerHome() {
     () =>
       Boolean(
         deferredSearch.trim() ||
-          (activeModule === "sports" && activeCategory) ||
-          ((activeModule === "bangladesh" || activeModule === "india") && activeCategory) ||
+          (activeModule === "global_sports" && activeCategory) ||
+          ((activeModule === "bangladesh" || activeModule === "india" || activeModule === "fast_tv" || activeModule === "live_matches") &&
+            activeCategory) ||
           filterLeague ||
           filterCountry ||
           filterLanguage
@@ -494,16 +516,20 @@ export function ViewerHome() {
   const currentStreamUrl = activeStreamUrl ?? activeChannel?.stream_url ?? "";
   const altLinks = activeChannel?.alternate_urls ?? [];
 
-  const { sportsCount, inCount, bdCount } = useMemo(() => {
-    let s = 0;
+  const { gsCount, inCount, bdCount, fastCount, liveCount } = useMemo(() => {
+    let gs = 0;
     let i = 0;
     let b = 0;
+    let f = 0;
+    let l = 0;
     for (const c of allChannels) {
-      if (c.module === "sports") s += 1;
+      if (c.module === "global_sports") gs += 1;
       else if (c.module === "india") i += 1;
       else if (c.module === "bangladesh") b += 1;
+      else if (c.module === "fast_tv") f += 1;
+      else if (c.module === "live_matches") l += 1;
     }
-    return { sportsCount: s, inCount: i, bdCount: b };
+    return { gsCount: gs, inCount: i, bdCount: b, fastCount: f, liveCount: l };
   }, [allChannels]);
 
   return (
@@ -535,14 +561,22 @@ export function ViewerHome() {
           <button
             type="button"
             onClick={() => {
-              transitionSetActiveModule("sports");
+              transitionSetActiveModule("global_sports");
             }}
-            className={`module-tab shrink-0 snap-start${activeModule === "sports" ? " active" : ""}`}
+            className={`module-tab shrink-0 snap-start${activeModule === "global_sports" ? " active" : ""}`}
           >
-            🌍 Sports TV
-            {sportsCount > 0 && (
-              <span className="module-tab-badge">{sportsCount}</span>
-            )}
+            🌍 Global Sports
+            {gsCount > 0 && <span className="module-tab-badge">{gsCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("bangladesh");
+            }}
+            className={`module-tab shrink-0 snap-start${activeModule === "bangladesh" ? " active bd" : ""}`}
+          >
+            🇧🇩 Bangladesh
+            {bdCount > 0 && <span className="module-tab-badge">{bdCount}</span>}
           </button>
           <button
             type="button"
@@ -552,20 +586,28 @@ export function ViewerHome() {
             className={`module-tab shrink-0 snap-start${activeModule === "india" ? " active" : ""}`}
             style={activeModule === "india" ? { borderColor: "rgba(99,102,241,0.5)", color: "rgb(199 210 254)" } : undefined}
           >
-            🇮🇳 India TV
+            🇮🇳 India
             {inCount > 0 && <span className="module-tab-badge">{inCount}</span>}
           </button>
           <button
             type="button"
             onClick={() => {
-              transitionSetActiveModule("bangladesh");
+              transitionSetActiveModule("fast_tv");
             }}
-            className={`module-tab shrink-0 snap-start${activeModule === "bangladesh" ? " active bd" : ""}`}
+            className={`module-tab shrink-0 snap-start${activeModule === "fast_tv" ? " active" : ""}`}
           >
-            🇧🇩 Bangladesh TV
-            {bdCount > 0 && (
-              <span className="module-tab-badge">{bdCount}</span>
-            )}
+            ⚡ FAST TV
+            {fastCount > 0 && <span className="module-tab-badge">{fastCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("live_matches");
+            }}
+            className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
+          >
+            🔴 Live Matches
+            {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
           </button>
         </div>
 
@@ -578,10 +620,14 @@ export function ViewerHome() {
               </div>
               <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>
                 {activeModule === "bangladesh"
-                  ? "BANGLADESH TV"
+                  ? "BANGLADESH"
                   : activeModule === "india"
-                    ? "INDIA TV"
-                    : "ABO SPORTS TV LIVE"}
+                    ? "INDIA"
+                    : activeModule === "fast_tv"
+                      ? "FAST TV 24/7"
+                      : activeModule === "live_matches"
+                        ? "LIVE MATCHES"
+                        : "GLOBAL SPORTS"}
               </span>
             </div>
             <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl" style={{ color: "var(--text-main)" }}>
@@ -589,7 +635,11 @@ export function ViewerHome() {
                 ? "বাংলাদেশ টিভি চ্যানেল"
                 : activeModule === "india"
                   ? "भारत — सभी प्रकार के चैनल"
-                  : t("tagline")}
+                  : activeModule === "fast_tv"
+                    ? "Samsung · Pluto · LG · Roku FAST channels"
+                    : activeModule === "live_matches"
+                      ? "FanCode — cricket & football (India VPN may be required)"
+                      : t("tagline")}
             </h1>
             <div className="mt-1 space-y-1.5">
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -673,7 +723,7 @@ export function ViewerHome() {
         {tier === "free" && <AdSlot variant="banner" />}
 
         {/* ── Category / Sport-type tabs ── */}
-        {activeModule === "sports" ? (
+        {activeModule === "global_sports" ? (
           /* Sports module: smart sport-type chips (auto-filtered, only non-empty) */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
@@ -709,7 +759,7 @@ export function ViewerHome() {
           </div>
           </div>
         ) : (
-          /* India / Bangladesh: category tabs from DB */
+          /* Regional / FAST / Live: category tabs from parsed group-title */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -739,7 +789,7 @@ export function ViewerHome() {
         )}
 
         {/* ── Sub-league chips (shown when a sport type is selected via tab OR sidebar) ── */}
-        {activeModule === "sports" && activeCategory && subLeagueOptions.length > 1 && (
+        {activeModule === "global_sports" && activeCategory && subLeagueOptions.length > 1 && (
           <div
             className="rounded-xl px-4 py-3"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
@@ -844,6 +894,8 @@ export function ViewerHome() {
                 title={activeChannel.name}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}
+                headerProfile={activeChannel.header_profile ?? null}
+                geoHint={Boolean(activeChannel.geo_hint)}
               />
             ) : (
               <div className="player-shell flex aspect-video items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
@@ -1037,15 +1089,23 @@ export function ViewerHome() {
         <section id="channel-grid">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
-              {activeModule === "sports" && activeCategory
+              {activeModule === "global_sports" && activeCategory
                 ? SPORT_TYPES.find((s) => s.id === activeCategory)?.label ?? "🌐 " + t("directory")
-                : (activeModule === "bangladesh" || activeModule === "india") && activeCategory
+                : (activeModule === "bangladesh" ||
+                    activeModule === "india" ||
+                    activeModule === "fast_tv" ||
+                    activeModule === "live_matches") &&
+                    activeCategory
                   ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
                   : activeModule === "bangladesh"
                     ? "🇧🇩 Bangladesh TV Channels"
                     : activeModule === "india"
                       ? "🇮🇳 India TV Channels"
-                      : "🌐 " + t("directory")}
+                      : activeModule === "fast_tv"
+                        ? "⚡ FAST TV (24/7)"
+                        : activeModule === "live_matches"
+                          ? "🔴 FanCode Live Matches"
+                          : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>
               {filtered.length} / {moduleChannels.length} channels
@@ -1102,7 +1162,7 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
   channel: Channel;
   active: boolean;
   onSelect: (c: Channel) => void;
-  activeModule: ActiveModule;
+  activeModule: ViewerModule;
 }) {
   return (
     <button

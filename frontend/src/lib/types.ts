@@ -1,3 +1,23 @@
+/** Viewer catalog modules (M3U + FanCode); replaces legacy DB module slugs for the home experience. */
+export type ViewerModule =
+  | "bangladesh"
+  | "india"
+  | "global_sports"
+  | "fast_tv"
+  | "live_matches";
+
+/** Direct stream rows merged into the catalog (not fetched as M3U playlists). */
+export type PremiumDirectSportEntry = {
+  name: string;
+  stream_url: string;
+  module: ViewerModule;
+  category?: string;
+  country?: string;
+  logo_url?: string | null;
+  alternate_urls?: readonly string[];
+  geo_hint?: boolean;
+};
+
 export type Channel = {
   id: number;
   name: string;
@@ -12,6 +32,10 @@ export type Channel = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /** Optional server allowlisted preset for /proxy/stream (rare; most channels omit). */
+  header_profile?: string | null;
+  /** Hint for VPN / geo messaging (FanCode, some Indian networks). */
+  geo_hint?: boolean;
 };
 
 export type ChannelListResponse = {

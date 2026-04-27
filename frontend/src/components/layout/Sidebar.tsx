@@ -50,7 +50,7 @@ export function Sidebar() {
   const visibleCats = showAllCats ? SPORTS_CATEGORIES : SPORTS_CATEGORIES.slice(0, 8);
 
   function handleCategoryClick(key: string) {
-    if (activeModule !== "sports") setActiveModule("sports");
+    if (activeModule !== "global_sports") setActiveModule("global_sports");
     setActiveCategory(activeCategory === key ? "" : key);
     setSidebarOpen(false);
     // Scroll to channel grid
@@ -71,8 +71,20 @@ export function Sidebar() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function handleSportsTVClick() {
-    setActiveModule("sports");
+  function handleGlobalSportsClick() {
+    setActiveModule("global_sports");
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleFastTvClick() {
+    setActiveModule("fast_tv");
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleLiveMatchesClick() {
+    setActiveModule("live_matches");
     setSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -138,17 +150,31 @@ export function Sidebar() {
             </p>
             <Link
               href="/"
-              onClick={() => { setSidebarOpen(false); handleSportsTVClick(); }}
+              onClick={() => { setSidebarOpen(false); handleGlobalSportsClick(); }}
               className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
               style={{
-                background: activeModule === "sports" ? "rgba(245,166,35,0.12)" : "transparent",
-                color: activeModule === "sports" ? "var(--primary-accent)" : "var(--text-muted)",
-                borderLeft: activeModule === "sports" ? "2px solid var(--primary-accent)" : "2px solid transparent",
+                background: activeModule === "global_sports" ? "rgba(245,166,35,0.12)" : "transparent",
+                color: activeModule === "global_sports" ? "var(--primary-accent)" : "var(--text-muted)",
+                borderLeft: activeModule === "global_sports" ? "2px solid var(--primary-accent)" : "2px solid transparent",
               }}
             >
               <Home size={17} />
-              {t("home")} — 🌍 Sports TV
+              🌍 Global Sports
             </Link>
+
+            <button
+              type="button"
+              onClick={handleBangladeshClick}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: activeModule === "bangladesh" ? "rgba(0,106,78,0.15)" : "transparent",
+                color: activeModule === "bangladesh" ? "#10b981" : "var(--text-muted)",
+                borderLeft: activeModule === "bangladesh" ? "2px solid #10b981" : "2px solid transparent",
+              }}
+            >
+              <Tv size={17} />
+              🇧🇩 Bangladesh
+            </button>
 
             <button
               type="button"
@@ -161,22 +187,35 @@ export function Sidebar() {
               }}
             >
               <Globe size={17} />
-              🇮🇳 India TV
+              🇮🇳 India
             </button>
 
-            {/* Bangladesh TV */}
             <button
               type="button"
-              onClick={handleBangladeshClick}
+              onClick={handleFastTvClick}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
               style={{
-                background: activeModule === "bangladesh" ? "rgba(0,106,78,0.15)" : "transparent",
-                color: activeModule === "bangladesh" ? "#10b981" : "var(--text-muted)",
-                borderLeft: activeModule === "bangladesh" ? "2px solid #10b981" : "2px solid transparent",
+                background: activeModule === "fast_tv" ? "rgba(245,166,35,0.12)" : "transparent",
+                color: activeModule === "fast_tv" ? "var(--primary-accent)" : "var(--text-muted)",
+                borderLeft: activeModule === "fast_tv" ? "2px solid var(--primary-accent)" : "2px solid transparent",
               }}
             >
-              <Tv size={17} />
-              🇧🇩 Bangladesh TV
+              <Zap size={17} />
+              ⚡ FAST TV (24/7)
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLiveMatchesClick}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: activeModule === "live_matches" ? "rgba(229,57,53,0.12)" : "transparent",
+                color: activeModule === "live_matches" ? "#FF5252" : "var(--text-muted)",
+                borderLeft: activeModule === "live_matches" ? "2px solid rgba(229,57,53,0.5)" : "2px solid transparent",
+              }}
+            >
+              <Flame size={17} />
+              🔴 Live Matches
             </button>
 
             {/* Browse / Search */}
@@ -210,13 +249,18 @@ export function Sidebar() {
             </Link>
           </div>
 
-          {/* ── Sports Categories ── */}
+          {/* ── Sports Categories (global IPTV sports) ── */}
           <div className="mt-2">
             <p className="mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
               🏆 Sports Categories
             </p>
             <div className="flex flex-col gap-0.5">
-              {visibleCats.map((cat) => (
+              {activeModule !== "global_sports" ? (
+                <p className="px-2 py-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  Open <strong style={{ color: "var(--primary-accent)" }}>Global Sports</strong> to filter by sport type.
+                </p>
+              ) : null}
+              {activeModule === "global_sports" ? visibleCats.map((cat) => (
                 <button
                   key={cat.key}
                   type="button"
@@ -226,8 +270,9 @@ export function Sidebar() {
                   <span className="text-base leading-none">{cat.emoji}</span>
                   <span className="text-sm">{cat.label}</span>
                 </button>
-              ))}
+              )) : null}
             </div>
+            {activeModule === "global_sports" ? (
             <button
               type="button"
               className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium transition hover:bg-white/5"
@@ -240,6 +285,7 @@ export function Sidebar() {
                 <><ChevronDown size={13} /> {SPORTS_CATEGORIES.length - 8} more sports</>
               )}
             </button>
+            ) : null}
           </div>
 
           {/* ── Features ── */}
@@ -250,7 +296,7 @@ export function Sidebar() {
             {[
               { icon: <Zap size={12} />, label: "HLS live streaming" },
               { icon: <Activity size={12} />, label: "Backup & relay streams" },
-              { icon: <Globe size={12} />, label: "Sports, India & BD" },
+              { icon: <Globe size={12} />, label: "Global, BD, IN, FAST & live" },
               { icon: <Star size={12} />, label: "Quality selector" },
               { icon: <Flame size={12} />, label: "Large channel catalog" },
               { icon: <Tv size={12} />, label: "PWA install" },

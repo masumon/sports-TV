@@ -103,11 +103,13 @@ async def lifespan(app: FastAPI):
         # Fresh/empty DB: always run one M3U sync so first deploy is not empty
         # (AUTO_SYNC_CHANNELS_ON_STARTUP alone was too easy to leave false in production).
         existing_count = db.scalar(select(func.count()).select_from(Channel)) or 0
-        needs_startup_sync = existing_count == 0
+        # Viewer home uses M3U catalog; DB sync is legacy/admin-only. Opt in with AUTO_SYNC_CHANNELS_ON_STARTUP=true.
+        needs_startup_sync = existing_count == 0 and settings.auto_sync_channels_on_startup
     finally:
         db.close()
 
     if needs_startup_sync:
+        logger.info("Startup M3U sync (empty DB + AUTO_SYNC_CHANNELS_ON_STARTUP=true)")
         await run_in_threadpool(partial(run_channel_sync, include_discovery=True, source="startup"))
 
     _needs_scheduler = (

@@ -1,6 +1,6 @@
 import type { Channel } from "@/lib/types";
 
-const KEY = "gstv-channel-list-v1";
+const KEY = "gstv-channel-catalog-v2";
 const TTL_MS = 10 * 60 * 1000; // 10 min — align with API/CDN ~5m cache; refresh in background
 
 type Payload = { t: number; items: Channel[] };

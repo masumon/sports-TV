@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Copy,
   ExternalLink,
+  Globe,
   Loader2,
   Maximize,
   Minimize,
@@ -42,6 +43,10 @@ export type PremiumPlayerProps = {
   isTheaterMode: boolean;
   onToggleTheaterMode: () => void;
   overlay?: React.ReactNode;
+  /** Backend allowlisted header preset (e.g. tsports). */
+  headerProfile?: string | null;
+  /** Prefer VPN messaging when playback fails with geo errors. */
+  geoHint?: boolean;
 };
 
 /* ────────────────────────────────────── External player definitions ── */
@@ -155,23 +160,47 @@ function isConstrainedNetwork(): boolean {
  */
 function buildOrderedStreamUrls(
   directUrls: string[],
-  dynamicM3U8Id: number | null
+  dynamicM3U8Id: number | null,
+  headerProfile: string | null | undefined
 ): string[] {
-  const opt = dynamicM3U8Id == null ? undefined : { dynamicM3U8Id };
+  const id = dynamicM3U8Id ?? undefined;
+  const hp = headerProfile?.trim() || undefined;
+  const opt =
+    id == null && !hp ? undefined : { dynamicM3U8Id: id, headerProfile: hp };
   return directUrls.map((u) => buildProxyStreamUrl(u, opt));
 }
 
 /** HLS.js would otherwise request `http://…` segment URLs directly → blocked as mixed content on HTTPS. */
-function relayHlsXhrUrlIfNeeded(url: string, dynamicM3U8Id: number | null): string {
+function relayHlsXhrUrlIfNeeded(
+  url: string,
+  dynamicM3U8Id: number | null,
+  headerProfile: string | null | undefined
+): string {
   if (!url || url.startsWith("blob:") || url.startsWith("data:")) return url;
   if ((url.includes("/proxy/stream") || url.includes("/api/v1/proxy/stream")) && url.includes("url=")) {
     return url;
   }
   try {
-    return buildProxyStreamUrl(url, dynamicM3U8Id == null ? undefined : { dynamicM3U8Id });
+    const id = dynamicM3U8Id == null ? undefined : dynamicM3U8Id;
+    const hp = headerProfile?.trim() || undefined;
+    return buildProxyStreamUrl(url, id == null && !hp ? undefined : { dynamicM3U8Id: id, headerProfile: hp });
   } catch {
     return url;
   }
+}
+
+const LINK_RETRY_ATTEMPTS = 3;
+const LINK_RETRY_DELAY_MS = 2000;
+
+function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
+  if (xhr.status !== 403 && xhr.status !== 401) return false;
+  try {
+    const j = JSON.parse(xhr.responseText) as { code?: string };
+    if (j?.code === "GEO_RESTRICTED") return true;
+  } catch {
+    /* non-JSON body */
+  }
+  return true;
 }
 
 function formatQualityFromHeight(height: number): string {
@@ -275,6 +304,8 @@ export default function PremiumPlayer({
   isTheaterMode,
   onToggleTheaterMode,
   overlay,
+  headerProfile = null,
+  geoHint: _geoHint = false,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -295,10 +326,13 @@ export default function PremiumPlayer({
   const [retryKey, setRetryKey] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [geoRestricted, setGeoRestricted] = useState(false);
   const isMobileSheet = useMatchMediaQuery("(max-width: 639px)");
   const externalPanelTitleId = useId();
   // Failover: index into ordered direct + proxy list
   const [urlIdx, setUrlIdx] = useState(0);
+  const linkRetryRef = useRef(0);
+  const linkRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dynamicM3U8Id = useMemo(() => {
     for (const u of [streamUrl, ...(alternateUrls ?? [])]) {
@@ -313,8 +347,8 @@ export default function PremiumPlayer({
     return base.map((u) => buildProxyM3U8RequestUrl(u, dynamicM3U8Id));
   }, [streamUrl, alternateUrls, dynamicM3U8Id]);
   const allUrlsList = useMemo(
-    () => buildOrderedStreamUrls(directUrls, dynamicM3U8Id),
-    [directUrls, dynamicM3U8Id]
+    () => buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile),
+    [directUrls, dynamicM3U8Id, headerProfile]
   );
   const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
 
@@ -335,7 +369,24 @@ export default function PremiumPlayer({
   useEffect(() => {
     setUrlIdx(0);
     setIsSwitching(false);
+    setGeoRestricted(false);
+    linkRetryRef.current = 0;
+    if (linkRetryTimerRef.current) {
+      clearTimeout(linkRetryTimerRef.current);
+      linkRetryTimerRef.current = null;
+    }
   }, [streamUrl]);
+
+  useEffect(() => {
+    linkRetryRef.current = 0;
+  }, [urlIdx]);
+
+  useEffect(
+    () => () => {
+      if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     const video = videoRef.current;
@@ -358,8 +409,9 @@ export default function PremiumPlayer({
     setBufferedPct(0);
     setIsLoading(true);
     setHasError(false);
+    setGeoRestricted(false);
 
-    const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id);
+    const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
     const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
     const isDash = isDashProxiedStreamUrl(effectiveUrl);
 
@@ -400,6 +452,7 @@ export default function PremiumPlayer({
     }
 
     if (Hls.isSupported()) {
+      let hlsInstance: Hls | null = null;
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: !lightNet,
@@ -422,39 +475,73 @@ export default function PremiumPlayer({
         startLevel: -1,
         capLevelToPlayerSize: true,
         xhrSetup: (xhr, requestUrl) => {
-          const nextUrl = relayHlsXhrUrlIfNeeded(requestUrl, dynamicM3U8Id);
+          const nextUrl = relayHlsXhrUrlIfNeeded(requestUrl, dynamicM3U8Id, headerProfile);
           if (nextUrl !== requestUrl) {
             xhr.open("GET", nextUrl, true);
           }
+          const onEnd = () => {
+            xhr.removeEventListener("loadend", onEnd);
+            if (parseGeoFromXhr(xhr)) {
+              setGeoRestricted(true);
+              setIsLoading(false);
+              setIsSwitching(false);
+              hlsInstance?.destroy();
+              if (hlsRef.current === hlsInstance) hlsRef.current = null;
+            }
+          };
+          xhr.addEventListener("loadend", onEnd);
         },
       });
+      hlsInstance = hls;
       hlsRef.current = hls;
       hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal) {
-          const nextIdx = urlIdx + 1;
-          if (nextIdx < allUrls.length) {
-            setIsSwitching(true);
+        if (!data.fatal) return;
+        const resp = (data as { response?: { code?: number } }).response;
+        const httpCode = resp?.code;
+        if (httpCode === 403 || httpCode === 401) {
+          setGeoRestricted(true);
+          setIsLoading(false);
+          setIsSwitching(false);
+          return;
+        }
+        const nextIdx = urlIdx + 1;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          const retries = linkRetryRef.current;
+          if (retries < LINK_RETRY_ATTEMPTS - 1) {
+            linkRetryRef.current = retries + 1;
             setIsLoading(true);
-            const nextU = allUrls[nextIdx] ?? "";
-            toast.info(
-              nextU.includes("/proxy/stream") && !(allUrls[nextIdx - 1] ?? "").includes("/proxy/stream")
-                ? "Switching to server relay…"
-                : "Switching stream…"
-            );
-            setUrlIdx(nextIdx);
-          } else {
-            setIsSwitching(false);
-            setHasError(true);
-            setIsLoading(false);
-            toast.error("All streams unavailable — try an external player or another channel");
+            if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
+            linkRetryTimerRef.current = setTimeout(() => {
+              linkRetryTimerRef.current = null;
+              setRetryKey((k) => k + 1);
+            }, LINK_RETRY_DELAY_MS);
+            return;
           }
+        }
+        linkRetryRef.current = 0;
+        if (nextIdx < allUrls.length) {
+          setIsSwitching(true);
+          setIsLoading(true);
+          const nextU = allUrls[nextIdx] ?? "";
+          toast.info(
+            nextU.includes("/proxy/stream") && !(allUrls[nextIdx - 1] ?? "").includes("/proxy/stream")
+              ? "Switching to server relay…"
+              : "Switching stream…"
+          );
+          setUrlIdx(nextIdx);
+        } else {
+          setIsSwitching(false);
+          setHasError(true);
+          setIsLoading(false);
+          toast.error("All streams unavailable — try an external player or another channel");
         }
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        linkRetryRef.current = 0;
         if (lightNet && hls.levels.length) {
           const underSd = hls.levels
             .map((level, idx) => (level.height && level.height <= 480 ? idx : -1))
@@ -487,7 +574,7 @@ export default function PremiumPlayer({
     }
 
     return cleanup;
-  }, [streamUrl, retryKey, urlIdx, alternateUrls, directUrls, dynamicM3U8Id]);
+  }, [streamUrl, retryKey, urlIdx, alternateUrls, directUrls, dynamicM3U8Id, headerProfile]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -586,7 +673,9 @@ export default function PremiumPlayer({
 
   const retryStream = useCallback(() => {
     setHasError(false);
+    setGeoRestricted(false);
     setIsLoading(true);
+    linkRetryRef.current = 0;
     setUrlIdx(0);           // restart from primary stream
     setRetryKey((k) => k + 1);
   }, []);
@@ -659,7 +748,7 @@ export default function PremiumPlayer({
 
       {/* Loading / Switching spinner */}
       <AnimatePresence>
-        {(isLoading || isSwitching) && !hasError && (
+        {(isLoading || isSwitching) && !hasError && !geoRestricted && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
@@ -681,9 +770,41 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
+      {/* Geo-restricted overlay */}
+      <AnimatePresence>
+        {geoRestricted && (
+          <motion.div
+            key="geo"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 p-6"
+            style={{ background: "rgba(7,8,15,0.92)" }}
+          >
+            <div className="flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.45)" }}>
+              <Globe className="h-7 w-7 text-indigo-300" />
+            </div>
+            <div className="max-w-sm text-center">
+              <p className="text-sm font-bold text-white">Geo-restricted content</p>
+              <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                This premium content is geo-restricted. Please connect to a VPN server (e.g. India) to watch.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={retryStream}
+              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white transition"
+              style={{ background: "rgba(245,166,35,0.18)", border: "1px solid rgba(245,166,35,0.4)" }}
+            >
+              <RefreshCw size={13} /> Try again
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Error overlay */}
       <AnimatePresence>
-        {hasError && (
+        {hasError && !geoRestricted && (
           <motion.div
             key="error"
             initial={{ opacity: 0 }}

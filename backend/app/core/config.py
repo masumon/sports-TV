@@ -38,9 +38,9 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 300
     # POST /admin/channels/sync — minimum seconds between successful syncs per process (in-memory).
     sync_rate_limit_seconds: int = 60
-    # Background M3U sync interval. Default 30 min for fully-automated mode.
-    # Set to 0 to disable. Use one worker (Render) to avoid duplicate work.
-    scheduled_sync_interval_minutes: int = 30
+    # Legacy DB M3U sync interval (admin / GET /sports-tv/channels). Viewer catalog is client-side M3U.
+    # Default 0 = scheduler disabled. Set e.g. 30 only if you still rely on DB channel rows.
+    scheduled_sync_interval_minutes: int = 0
     # Auto-discover new M3U sources every N hours (0 = disabled).
     # Default 0: free-tier Render workers should not run discovery + sync load unless explicitly enabled.
     source_discovery_interval_hours: int = 0
@@ -56,6 +56,21 @@ class Settings(BaseSettings):
     # When >0, runs on this interval. Was previously hardcoded to 15m whenever M3U sync was on
     # (harsh for free tier + datacenter-IP false negatives). Set e.g. 60–120 on paid/stable hosts.
     stream_validation_interval_minutes: int = 0
+
+    # Raw M3U text for GET /proxy/playlist — Redis + in-process fallback (free-tier friendly).
+    # Env: PROXY_PLAYLIST_CACHE_TTL_SECONDS (default 5400 = 90 min, within 60–120m guidance).
+    proxy_playlist_cache_ttl_seconds: int = 5400
+
+    # Allowlisted preset for /proxy/stream?header_profile=tsports — merged server-side only (see proxy.py).
+    # Env: STREAM_PROFILE_TSPORTS_COOKIE, STREAM_PROFILE_TSPORTS_USER_AGENT
+    stream_profile_tsports_cookie: str | None = Field(
+        default=None,
+        description="e.g. Edge-Cache-Cookie=URLPrefix=... (rotate when upstream returns 403)",
+    )
+    stream_profile_tsports_user_agent: str | None = Field(
+        default=None,
+        description="Sent as User-Agent for tsports profile; default (Linux;Android 14) if unset",
+    )
 
     model_config = SettingsConfigDict(
         env_file=(

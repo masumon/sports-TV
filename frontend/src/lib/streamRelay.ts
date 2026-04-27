@@ -56,12 +56,14 @@ export function buildProxyM3U8RequestUrl(
  */
 export function buildProxyStreamUrl(
   targetUrl: string,
-  options?: { dynamicM3U8Id?: number | null }
+  options?: { dynamicM3U8Id?: number | null; headerProfile?: string | null }
 ): string {
-  const base = `${buildApiUrl("/proxy/stream")}?url=${encodeURIComponent(targetUrl)}`;
+  let out = `${buildApiUrl("/proxy/stream")}?url=${encodeURIComponent(targetUrl)}`;
   const id = options?.dynamicM3U8Id;
-  if (id == null) return base;
-  return `${base}&stream_id=${id}`;
+  if (id != null) out += `&stream_id=${id}`;
+  const hp = options?.headerProfile?.trim();
+  if (hp) out += `&header_profile=${encodeURIComponent(hp)}`;
+  return out;
 }
 
 /** True when the proxied URL targets an MPEG-DASH manifest (``.mpd``) — HLS.js cannot play these. */
