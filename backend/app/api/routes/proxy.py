@@ -23,7 +23,7 @@ from typing import AsyncGenerator
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -129,6 +129,10 @@ _PEEK_READ_TIMEOUT = 25.0
 # httpx >=0.28 requires all four timeout parts when using keyword args (no implicit default).
 _WRITE_TIMEOUT = 30.0
 _POOL_TIMEOUT = 8.0
+# HLS manifests are small; buffer + rewrite so every variant/segment/key URL stays same-origin (HTTPS)
+# and mixed-content / wrong relative resolution against /proxy/stream?... is avoided.
+_MAX_MANIFEST_BYTES = 4 * 1024 * 1024
+_M3U8_CONTENT_TYPE = "application/vnd.apple.mpegurl"
 # Upstream may block a region; try alternate host / header set (primary vs fallback) before failing.
 _GEO_BLOCK_STATUS = (401, 403, 451)
 
@@ -315,6 +319,105 @@ async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, st
         await client.aclose()
 
 
+def _relative_proxy_stream_path(target_url: str, stream_id: int | None) -> str:
+    """Root-relative URL so the browser (Vercel or any host) resolves it on the current origin."""
+    q = urllib.parse.quote(target_url, safe="")
+    out = f"/api/v1/proxy/stream?url={q}"
+    if stream_id is not None:
+        out += f"&stream_id={stream_id}"
+    return out
+
+
+def _url_looks_like_m3u8_path(url: str) -> bool:
+    try:
+        p = (urllib.parse.urlparse(url).path or "").lower()
+    except Exception:
+        return False
+    return p.endswith(".m3u8") or p.endswith(".m3u")
+
+
+def _content_type_suggests_hls_playlist(content_type: str) -> bool:
+    c = (content_type or "").lower()
+    return any(x in c for x in ("mpegurl", "m3u", "x-mpegurl"))
+
+
+def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | None) -> str:
+    """Rewrite resource URLs to same-origin proxy paths (fixes HTTPS page + HTTP upstream mixed content)."""
+
+    def absolutize(line: str) -> str:
+        s = line.strip()
+        if s.startswith("http://") or s.startswith("https://"):
+            return s
+        return urllib.parse.urljoin(manifest_url, s)
+
+    def to_proxy_line(line: str) -> str:
+        if "/proxy/stream?" in line and "url=" in line:
+            return line
+        abs_u = absolutize(line)
+        try:
+            _validate_stream_url(abs_u)
+        except HTTPException:
+            return line
+        return _relative_proxy_stream_path(abs_u, stream_id)
+
+    def rewrite_uri_attrs(line: str) -> str:
+        if 'URI="' not in line:
+            return line
+
+        def repl(m: re.Match[str]) -> str:
+            inner = m.group(1)
+            if inner.startswith("data:") or ("/proxy/stream?" in inner and "url=" in inner):
+                return m.group(0)
+            abs_u = inner if inner.startswith("http://") or inner.startswith("https://") else urllib.parse.urljoin(manifest_url, inner)
+            try:
+                _validate_stream_url(abs_u)
+            except HTTPException:
+                return m.group(0)
+            return f'URI="{_relative_proxy_stream_path(abs_u, stream_id)}"'
+
+        return re.sub(r'URI="([^"]+)"', repl, line)
+
+    out_lines: list[str] = []
+    for raw in body.splitlines():
+        line = raw.rstrip("\r")
+        if 'URI="' in line:
+            out_lines.append(rewrite_uri_attrs(line))
+            continue
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            out_lines.append(line)
+            continue
+        out_lines.append(to_proxy_line(line))
+    trailing = "\n" if body.endswith("\n") else ""
+    return "\n".join(out_lines) + trailing
+
+
+async def _fetch_manifest_text(url: str, headers: dict[str, str], max_bytes: int) -> str | None:
+    async with httpx.AsyncClient(
+        verify=False,
+        trust_env=False,
+        limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+    ) as client:
+        try:
+            r = await client.get(
+                url,
+                headers=headers,
+                timeout=httpx.Timeout(connect=_CONNECT_TIMEOUT, read=25.0, write=_WRITE_TIMEOUT, pool=_POOL_TIMEOUT),
+                follow_redirects=True,
+            )
+        except Exception as exc:
+            logger.warning("Manifest fetch failed for %s: %s", url, exc)
+            return None
+        if r.status_code >= 400:
+            return None
+        if len(r.content) > max_bytes:
+            return None
+        try:
+            return r.text
+        except Exception:
+            return None
+
+
 @router.get("/stream")
 async def proxy_stream(
     request: Request,
@@ -393,6 +496,22 @@ async def proxy_stream(
     if st >= 400:
         raise HTTPException(status_code=502, detail="Upstream stream unavailable")
 
+    # Same-origin proxy URLs inside the playlist → works on HTTPS + Safari native HLS + correct relative resolution.
+    if _url_looks_like_m3u8_path(effective_url) or _content_type_suggests_hls_playlist(content_type):
+        mtext = await _fetch_manifest_text(effective_url, forward, _MAX_MANIFEST_BYTES)
+        if mtext:
+            lead = mtext.lstrip("\ufeff").lstrip()
+            if lead.startswith("#EXTM3U"):
+                rewritten = _rewrite_hls_playlist_text(mtext, effective_url, stream_id)
+                return Response(
+                    content=rewritten,
+                    media_type=_M3U8_CONTENT_TYPE,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Cache-Control": "no-store",
+                    },
+                )
+
     stream_client = _http_stream_client()
     response_headers: dict[str, str] = {
         "Access-Control-Allow-Origin": "*",
@@ -444,7 +563,6 @@ async def proxy_stream_preflight() -> Response:
 #   - Returns 503 only when both are unavailable.
 # ─────────────────────────────────────────────────────────────────────────────
 
-_M3U8_CONTENT_TYPE = "application/vnd.apple.mpegurl"
 _M3U8_CORS_HEADERS: dict[str, str] = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",

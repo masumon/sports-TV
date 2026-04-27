@@ -161,6 +161,19 @@ function buildOrderedStreamUrls(
   return directUrls.map((u) => buildProxyStreamUrl(u, opt));
 }
 
+/** HLS.js would otherwise request `http://…` segment URLs directly → blocked as mixed content on HTTPS. */
+function relayHlsXhrUrlIfNeeded(url: string, dynamicM3U8Id: number | null): string {
+  if (!url || url.startsWith("blob:") || url.startsWith("data:")) return url;
+  if ((url.includes("/proxy/stream") || url.includes("/api/v1/proxy/stream")) && url.includes("url=")) {
+    return url;
+  }
+  try {
+    return buildProxyStreamUrl(url, dynamicM3U8Id == null ? undefined : { dynamicM3U8Id });
+  } catch {
+    return url;
+  }
+}
+
 function formatQualityFromHeight(height: number): string {
   if (height >= 2160) return "4K";
   if (height >= 1080) return "1080p";
@@ -408,6 +421,12 @@ export default function PremiumPlayer({
         fragLoadingRetryDelay: lightNet ? 800 : 500,
         startLevel: -1,
         capLevelToPlayerSize: true,
+        xhrSetup: (xhr, requestUrl) => {
+          const nextUrl = relayHlsXhrUrlIfNeeded(requestUrl, dynamicM3U8Id);
+          if (nextUrl !== requestUrl) {
+            xhr.open("GET", nextUrl, true);
+          }
+        },
       });
       hlsRef.current = hls;
       hls.loadSource(effectiveUrl);
