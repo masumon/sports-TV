@@ -1,5 +1,42 @@
 import type { NextConfig } from "next";
 import withPWAInit from "@ducanh2912/next-pwa";
+import type { RuntimeCaching } from "workbox-build";
+
+/**
+ * PWA (Workbox) was caching every same-origin `GET /api/*` in the "apis" cache
+ * (NetworkFirst, 24h). HLS traffic goes through `/api/v1/proxy/stream` and must
+ * never be stored — a stale 502/empty body breaks playback for all channels
+ * until the cache entry expires. We extend the default runtime list and
+ * (1) bypass cache entirely for the stream proxy, (2) keep "apis" for other API
+ * GETs but exclude `/api/v1/proxy/*` from that rule.
+ */
+const pwaStreamSafeRuntimeCaching: RuntimeCaching[] = [
+  {
+    urlPattern: ({ sameOrigin, url: { pathname } }) =>
+      Boolean(sameOrigin && pathname.startsWith("/api/v1/proxy/")),
+    handler: "NetworkOnly",
+    method: "GET",
+  },
+  {
+    urlPattern: ({ sameOrigin, url: { pathname } }) =>
+      Boolean(
+        sameOrigin &&
+          pathname.startsWith("/api/") &&
+          !pathname.startsWith("/api/auth/callback") &&
+          !pathname.startsWith("/api/v1/proxy/"),
+      ),
+    handler: "NetworkFirst",
+    method: "GET",
+    options: {
+      cacheName: "apis",
+      expiration: {
+        maxEntries: 16,
+        maxAgeSeconds: 86400,
+      },
+      networkTimeoutSeconds: 10,
+    },
+  },
+];
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -7,6 +44,10 @@ const withPWA = withPWAInit({
   register: true,
   fallbacks: {
     document: "/offline",
+  },
+  extendDefaultRuntimeCaching: true,
+  workboxOptions: {
+    runtimeCaching: pwaStreamSafeRuntimeCaching,
   },
 });
 
