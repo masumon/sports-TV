@@ -11,7 +11,7 @@ type I18nStore = {
   setLocale: (l: Locale) => void;
 };
 
-const useI18nStore = create<I18nStore>()(
+export const useI18nStore = create<I18nStore>()(
   persist(
     (set) => ({
       locale: "bn" as Locale,

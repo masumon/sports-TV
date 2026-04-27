@@ -82,6 +82,10 @@ export const translations: Record<
     emptyModule: "No channels in this list yet. Try another tab, tap Refresh, or ask an admin to run “M3U sync” in the control center if India or Bangladesh is empty after deploy.",
     noResultsCta: "Reset filters",
     usageTips: "Usage tips",
+    clearCache: "Clear app cache",
+    clearCacheTitle: "Clear local cache, preferences, and server list cache, then reload",
+    clearCacheDone: "Cache cleared — reloading",
+    clearCacheError: "Local data cleared. Server list cache was not reached — try again when online",
   },
   bn: {
     appTitle: "ABO স্পোর্টস টিভি লাইভ",
@@ -161,6 +165,10 @@ export const translations: Record<
     emptyModule: "এই তালিকায় এখনো কোনো চ্যানেল নেই। অন্য ট্যাব দেখুন, রিফ্রেশ করুন, অথবা ইন্ডিয়া/বাংলাদেশ খালি থাকলে অ্যাডমিনকে কন্ট্রোল সেন্টার থেকে M3U সিঙ্ক চালানোর কথা বলুন।",
     noResultsCta: "ফিল্টার রিসেট",
     usageTips: "ব্যবহারের টিপস",
+    clearCache: "ক্যাশ পরিষ্কার",
+    clearCacheTitle: "লোকাল ক্যাশ, সেটিংস ও সার্ভার লিস্ট ক্যাশ মুছে পেজ পুনঃলোড",
+    clearCacheDone: "ক্যাশ মুছে ফেলা হয়েছে — পুনঃলোড হচ্ছে",
+    clearCacheError: "স্থানীয় ক্যাশ মুছে ফেলা হয়েছে। সার্ভারে যোগাযোগ হয়নি — অনলাইনে আবার চেষ্টা করুন",
   },
 };
 

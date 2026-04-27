@@ -150,6 +150,13 @@ export const apiClient = {
     return apiRequest<ChannelFilters>("/sports-tv/filters");
   },
 
+  /** Flush server-side Redis list caches (public POST). */
+  invalidateListCaches() {
+    return apiRequest<{ detail: string; message: string }>("/sports-tv/invalidate-cache", {
+      method: "POST",
+    });
+  },
+
   register(fullName: string, email: string, password: string) {
     return apiRequest<TokenResponse>("/auth/register", {
       method: "POST",

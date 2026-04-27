@@ -3,7 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, User } from "lucide-react";
+import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, User, Eraser } from "lucide-react";
+import { toast } from "sonner";
+import { clearAppCache } from "@/lib/appCache";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
@@ -21,6 +23,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
   const { t, locale, setLocale } = useI18n();
   const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
   const user = useAuthStore((s) => s.user);
   const tier = useSubscriptionStore((s) => s.tier);
   const { toggleSidebar } = useUiStore();
@@ -125,6 +128,25 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         </div>
 
         <VpnModeToggle />
+
+        <button
+          type="button"
+          onClick={async () => {
+            if (clearingCache) return;
+            setClearingCache(true);
+            const serverOk = await clearAppCache();
+            if (serverOk) toast.success(t("clearCacheDone"));
+            else toast.error(t("clearCacheError"));
+            window.location.reload();
+          }}
+          className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-lg p-1.5 transition hover:bg-white/10"
+          style={{ color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
+          title={t("clearCacheTitle")}
+          aria-label={t("clearCache")}
+          disabled={clearingCache}
+        >
+          <Eraser size={16} className="shrink-0" />
+        </button>
 
         {/* Premium badge */}
         {tier === "premium" ? (
