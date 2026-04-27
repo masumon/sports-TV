@@ -46,11 +46,14 @@ _FORWARD_UPSTREAM_REQUEST_HEADER_NAMES: tuple[str, ...] = (
     "accept-encoding",
     "icy-metadata",
 )
-# Browser-like UA — many IPTV origins return 403/empty for generic or missing User-Agent.
+# Browser-like defaults — many BD/IN/sports origins block non-browser clients (403/empty).
 _DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
+_DEFAULT_ORIGIN = "https://example.com"
+_DEFAULT_REFERER = "https://example.com/"
+_DEFAULT_ACCEPT_LANGUAGE = "en-US,en;q=0.9"
 
 
 def _normalize_header_map(obj: object) -> dict[str, str]:
@@ -90,6 +93,12 @@ def _merge_stream_forward_headers(
     # */* avoids picky CDNs returning 406/empty; playlist fetch still works.
     if not out.get("accept", "").strip():
         out["accept"] = "*/*"
+    if not out.get("accept-language", "").strip():
+        out["accept-language"] = _DEFAULT_ACCEPT_LANGUAGE
+    if not out.get("origin", "").strip():
+        out["origin"] = _DEFAULT_ORIGIN
+    if not out.get("referer", "").strip():
+        out["referer"] = _DEFAULT_REFERER
     # httpx/http1.1 keep pools; explicit header matches common browser behaviour.
     if not out.get("connection", "").strip():
         out["connection"] = "keep-alive"
@@ -128,17 +137,15 @@ _CHUNK_SIZE = 64 * 1024  # 64 KB
 # Allowed URL schemes — reject anything that is not http/https.
 _ALLOWED_SCHEMES = {"http", "https"}
 
-# Hard timeout for connecting to the upstream origin (AbortController-style bound).
+# Connect bound (~10s). Manifest/peek reads allow a longer first-byte wait (IPTV/CDN often >10s);
+# that is still a small buffered response — never used for TS/mp4 relay.
 _CONNECT_TIMEOUT = 10.0
-# Read timeout: how long to wait between received chunks (long for live streams).
-_READ_TIMEOUT = 30.0
-# Upstream "peek" before streaming: some CDNs take several seconds to emit the first
-# HLS byte; 5s read timeouts produced false 502s. httpx: trust_env=False — never
-# send IPTV fetches through HTTP(S)_PROXY (misconfigured build envs break all streams).
-_PEEK_READ_TIMEOUT = 25.0
+_MANIFEST_PEEK_READ_TIMEOUT = 25.0
+# Read timeout between chunks while relaying TS/mp4 (live HLS must not stall on idle).
+_READ_TIMEOUT = 120.0
 # httpx >=0.28 requires all four timeout parts when using keyword args (no implicit default).
 _WRITE_TIMEOUT = 30.0
-_POOL_TIMEOUT = 8.0
+_POOL_TIMEOUT = 10.0
 # HLS manifests are small; buffer + rewrite so every variant/segment/key URL stays same-origin (HTTPS)
 # and mixed-content / wrong relative resolution against /proxy/stream?... is avoided.
 _MAX_MANIFEST_BYTES = 4 * 1024 * 1024
@@ -153,21 +160,24 @@ _STREAM_PROXY_RESPONSE_HEADERS: dict[str, str] = {
 }
 
 
-def _proxy_error_response(status_code: int, message: str) -> JSONResponse:
+def _proxy_error_response(status_code: int, message: str = "Stream fetch failed") -> JSONResponse:
     """JSON error + CORS so the browser never hides failures behind opaque network errors."""
     return JSONResponse(
         status_code=status_code,
-        content={"error": message, "detail": message},
+        content={"error": message, "status": status_code, "detail": message},
         headers={**_STREAM_PROXY_RESPONSE_HEADERS},
     )
 
 
 def _merge_stream_client_headers(upstream_safe: dict[str, str]) -> dict[str, str]:
-    """CORS base + upstream hints safe across a second chunked GET (no Content-Length mismatch)."""
+    """CORS base + safe upstream hints (no content-encoding / transfer-encoding passthrough)."""
     h = dict(_STREAM_PROXY_RESPONSE_HEADERS)
-    ar = upstream_safe.get("accept-ranges")
-    if ar:
+    if ar := upstream_safe.get("accept-ranges"):
         h["Accept-Ranges"] = ar
+    if cc := upstream_safe.get("cache-control"):
+        h["Cache-Control"] = cc
+    if cl := upstream_safe.get("content-length"):
+        h["Content-Length"] = cl
     return h
 # Upstream may block a region; try alternate host / header set (primary vs fallback) before failing.
 _GEO_BLOCK_STATUS = (401, 403, 451)
@@ -291,48 +301,10 @@ def _http_stream_client() -> httpx.AsyncClient:
     )
 
 
-async def _stream_body_from_upstream(
-    client: httpx.AsyncClient,
-    url: str,
-    request_headers: dict[str, str],
-) -> AsyncGenerator[bytes, None]:
-    """
-    Yields body chunks from the upstream. Does **not** close ``client`` — the caller
-    owns the httpx client lifecycle.
-    """
-    try:
-        async with client.stream(
-            "GET",
-            url,
-            headers=request_headers,
-            timeout=httpx.Timeout(
-                connect=_CONNECT_TIMEOUT,
-                read=_READ_TIMEOUT,
-                write=_WRITE_TIMEOUT,
-                pool=_POOL_TIMEOUT,
-            ),
-            follow_redirects=True,
-        ) as upstream:
-            if upstream.status_code >= 400:
-                logger.warning("Upstream returned %s for %s", upstream.status_code, url)
-                return
-            async for chunk in upstream.aiter_bytes(chunk_size=_CHUNK_SIZE):
-                if chunk:
-                    yield chunk
-    except (
-        httpx.TimeoutException,
-        httpx.ConnectError,
-        httpx.ReadError,
-        httpx.RemoteProtocolError,
-        httpx.WriteError,
-    ) as exc:
-        logger.warning("Proxy stream error for %s: %s", url, exc)
-    except Exception as exc:
-        logger.warning("Proxy unexpected error for %s: %s", url, exc)
-
-
 async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, str, dict[str, str]]:
-    """GET headers + status only (stream context exits before body; separate chunked relay follows)."""
+    """
+    Short GET to learn status + Content-Type; body is closed without buffering video-sized payloads.
+    """
     client = httpx.AsyncClient(
         verify=False,
         trust_env=False,
@@ -345,8 +317,8 @@ async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, st
             headers=headers,
             timeout=httpx.Timeout(
                 connect=_CONNECT_TIMEOUT,
-                read=_PEEK_READ_TIMEOUT,
-                write=_PEEK_READ_TIMEOUT,
+                read=_MANIFEST_PEEK_READ_TIMEOUT,
+                write=_MANIFEST_PEEK_READ_TIMEOUT,
                 pool=_POOL_TIMEOUT,
             ),
             follow_redirects=True,
@@ -356,12 +328,111 @@ async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, st
             safe: dict[str, str] = {}
             if ar := resp.headers.get("accept-ranges"):
                 safe["accept-ranges"] = ar
+            if cc := resp.headers.get("cache-control"):
+                safe["cache-control"] = cc
             return st, ct, safe
     except Exception as exc:
         logger.warning("Proxy peek failed for %s: %s", url, exc)
         return 502, "application/octet-stream", {}
     finally:
         await client.aclose()
+
+
+async def _build_chunked_streaming_response(
+    url: str,
+    forward: dict[str, str],
+    default_content_type: str,
+    upstream_hint: dict[str, str],
+) -> StreamingResponse | JSONResponse:
+    """
+    Single upstream GET with stream=True; validate status before returning StreamingResponse.
+    Pipes aiter_bytes — never loads video into memory.
+    """
+    client = _http_stream_client()
+    try:
+        req = client.build_request(
+            "GET",
+            url,
+            headers=forward,
+            timeout=httpx.Timeout(
+                connect=_CONNECT_TIMEOUT,
+                read=_READ_TIMEOUT,
+                write=_WRITE_TIMEOUT,
+                pool=_POOL_TIMEOUT,
+            ),
+        )
+        resp = await client.send(req, stream=True, follow_redirects=True)
+    except (
+        httpx.TimeoutException,
+        httpx.ConnectError,
+        httpx.ReadError,
+        httpx.RemoteProtocolError,
+        httpx.WriteError,
+    ) as exc:
+        logger.warning("Proxy stream open failed for %s: %s", url, exc)
+        await client.aclose()
+        return _proxy_error_response(502)
+    except Exception as exc:
+        logger.warning("Proxy stream open unexpected for %s: %s", url, exc)
+        await client.aclose()
+        return _proxy_error_response(502)
+
+    if resp.status_code >= 400:
+        logger.warning("Upstream returned %s for %s", resp.status_code, url)
+        try:
+            await resp.aread()
+        except Exception:
+            pass
+        await resp.aclose()
+        await client.aclose()
+        return _proxy_error_response(502)
+
+    ct = (
+        (resp.headers.get("content-type") or default_content_type or "application/octet-stream")
+        .split(";")[0]
+        .strip()
+    )
+    safe: dict[str, str] = dict(upstream_hint)
+    if ar := resp.headers.get("accept-ranges"):
+        safe["accept-ranges"] = ar
+    if cc := resp.headers.get("cache-control"):
+        safe["cache-control"] = cc
+    if cl := resp.headers.get("content-length"):
+        safe["content-length"] = cl
+
+    out_headers = _merge_stream_client_headers(safe)
+
+    async def _body() -> AsyncGenerator[bytes, None]:
+        try:
+            async for chunk in resp.aiter_bytes(chunk_size=_CHUNK_SIZE):
+                if chunk:
+                    yield chunk
+        except (
+            httpx.TimeoutException,
+            httpx.ConnectError,
+            httpx.ReadError,
+            httpx.RemoteProtocolError,
+            httpx.WriteError,
+        ) as exc:
+            logger.warning("Proxy stream read error for %s: %s", url, exc)
+        except Exception as exc:
+            logger.warning("Proxy stream read unexpected for %s: %s", url, exc)
+        finally:
+            try:
+                await resp.aclose()
+            except Exception:
+                pass
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+
+    return StreamingResponse(
+        _body(),
+        status_code=200,
+        media_type=ct,
+        headers=out_headers,
+    )
 
 
 def _relative_proxy_stream_path(target_url: str, stream_id: int | None) -> str:
@@ -386,8 +457,9 @@ def _content_type_suggests_hls_playlist(content_type: str) -> bool:
     return any(x in c for x in ("mpegurl", "m3u", "x-mpegurl"))
 
 
-# #EXT-X-KEY / #EXT-X-MEDIA / #EXT-X-MAP: URI="..." or URI='...'
+# #EXT-X-KEY / #EXT-X-MEDIA / #EXT-X-MAP: URI="..." or URI='...' (some origins omit quotes)
 _URI_IN_TAG = re.compile(r"URI=(['\"])([^'\"]+)\1", re.IGNORECASE)
+_URI_IN_TAG_BARE = re.compile(r"\bURI=([^\"',\s]+)", re.IGNORECASE)
 
 
 def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | None) -> str:
@@ -414,6 +486,8 @@ def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | No
         inner = m.group(2).strip()
         if inner.lower().startswith("data:") or ("/proxy/stream?" in inner and "url=" in inner):
             return m.group(0)
+        if inner.startswith("/api/v1/proxy/stream"):
+            return m.group(0)
         abs_u = inner if inner.startswith("http://") or inner.startswith("https://") else urllib.parse.urljoin(manifest_url, inner)
         try:
             _validate_stream_url(abs_u)
@@ -421,12 +495,27 @@ def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | No
             return m.group(0)
         return f"URI={q}{_relative_proxy_stream_path(abs_u, stream_id)}{q}"
 
+    def repl_uri_bare(m: re.Match[str]) -> str:
+        inner = m.group(1).strip()
+        if inner.lower().startswith("data:") or ("/proxy/stream?" in inner and "url=" in inner):
+            return m.group(0)
+        if inner.startswith("/api/v1/proxy/stream"):
+            return m.group(0)
+        abs_u = inner if inner.startswith("http://") or inner.startswith("https://") else urllib.parse.urljoin(manifest_url, inner)
+        try:
+            _validate_stream_url(abs_u)
+        except HTTPException:
+            return m.group(0)
+        p = _relative_proxy_stream_path(abs_u, stream_id)
+        return f'URI="{p}"'
+
     out_lines: list[str] = []
     for raw in body.splitlines():
         line = raw.rstrip("\r")
         if _URI_IN_TAG.search(line):
-            out_lines.append(_URI_IN_TAG.sub(repl_uri, line))
-            continue
+            line = _URI_IN_TAG.sub(repl_uri, line)
+        elif "URI=" in line.upper():
+            line = _URI_IN_TAG_BARE.sub(repl_uri_bare, line)
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             out_lines.append(line)
@@ -436,7 +525,13 @@ def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | No
     return "\n".join(out_lines) + trailing
 
 
-async def _fetch_manifest_text(url: str, headers: dict[str, str], max_bytes: int) -> str | None:
+async def _fetch_manifest_text(
+    url: str, headers: dict[str, str], max_bytes: int
+) -> tuple[str | None, str]:
+    """
+    Fetch a small HLS manifest (buffered). Returns (text, final_url_after_redirects)
+    for correct relative URL resolution.
+    """
     async with httpx.AsyncClient(
         verify=False,
         trust_env=False,
@@ -446,20 +541,59 @@ async def _fetch_manifest_text(url: str, headers: dict[str, str], max_bytes: int
             r = await client.get(
                 url,
                 headers=headers,
-                timeout=httpx.Timeout(connect=_CONNECT_TIMEOUT, read=25.0, write=_WRITE_TIMEOUT, pool=_POOL_TIMEOUT),
+                timeout=httpx.Timeout(
+                    connect=_CONNECT_TIMEOUT,
+                    read=_MANIFEST_PEEK_READ_TIMEOUT,
+                    write=_WRITE_TIMEOUT,
+                    pool=_POOL_TIMEOUT,
+                ),
                 follow_redirects=True,
             )
         except Exception as exc:
             logger.warning("Manifest fetch failed for %s: %s", url, exc)
-            return None
+            return None, url
+        final = str(r.url)
         if r.status_code >= 400:
-            return None
+            return None, final
         if len(r.content) > max_bytes:
-            return None
+            return None, final
         try:
-            return r.text
+            return r.text, final
         except Exception:
-            return None
+            return None, final
+
+
+async def _fetch_manifest_with_geo_retries(
+    effective_url: str,
+    forward: dict[str, str],
+    *,
+    try_alternates: bool,
+    ds: DynamicStream | None,
+    h_primary: dict[str, str] | None,
+    h_fb: dict[str, str] | None,
+) -> tuple[str | None, str]:
+    """Try manifest GET with optional host/header alternates (geo / CDN quirks)."""
+    text, base = await _fetch_manifest_text(effective_url, forward, _MAX_MANIFEST_BYTES)
+    if text:
+        return text, base
+
+    if try_alternates and ds is not None and h_primary and h_fb:
+        m3u_base = (ds.m3u8_url or ds.fallback_m3u8_url) or ""
+        if m3u_base:
+            alt = _remap_url_to_m3u8_base_host(effective_url, m3u_base)
+            if alt and alt != effective_url:
+                try:
+                    alt_v = _validate_stream_url(alt)
+                    text, base = await _fetch_manifest_text(alt_v, h_primary, _MAX_MANIFEST_BYTES)
+                    if text:
+                        return text, base
+                except HTTPException:
+                    pass
+        text, base = await _fetch_manifest_text(effective_url, h_fb, _MAX_MANIFEST_BYTES)
+        if text:
+            return text, base
+
+    return None, effective_url
 
 
 @router.get("/stream", response_model=None)
@@ -471,7 +605,7 @@ async def proxy_stream(
         description="Optional DynamicStream id — stored Playwright headers apply to all requests for this id",
     ),
     db: AsyncSession = Depends(get_db),
-) -> Response | StreamingResponse:
+) -> Response | StreamingResponse | JSONResponse:
     """
     Proxy an IPTV/HLS stream URL through the backend.
 
@@ -526,11 +660,41 @@ async def proxy_stream(
                         if r and r != target_url:
                             effective_url = _validate_stream_url(r)
 
+        # .m3u8/.m3u: one buffered manifest fetch (no peek) — avoids double upstream hits and Vercel/edge stalls.
+        if _url_looks_like_m3u8_path(effective_url):
+            try:
+                mtext, manifest_base = await _fetch_manifest_with_geo_retries(
+                    effective_url,
+                    forward,
+                    try_alternates=try_alternates,
+                    ds=ds,
+                    h_primary=h_primary,
+                    h_fb=h_fb,
+                )
+            except Exception as man_exc:
+                logger.warning("Manifest fetch error: %s", man_exc)
+                return _proxy_error_response(502)
+            if not mtext:
+                return _proxy_error_response(502)
+            lead = mtext.lstrip("\ufeff").lstrip()
+            if not lead.startswith("#EXTM3U"):
+                return _proxy_error_response(502)
+            try:
+                rewritten = _rewrite_hls_playlist_text(mtext, manifest_base, stream_id)
+            except Exception as rew_exc:
+                logger.warning("HLS rewrite failed: %s", rew_exc)
+                return _proxy_error_response(502)
+            return Response(
+                content=rewritten,
+                media_type=_M3U8_CONTENT_TYPE,
+                headers=dict(_STREAM_PROXY_RESPONSE_HEADERS),
+            )
+
         try:
             st, content_type, upstream_hdrs = await _async_peek_stream(effective_url, forward)
         except Exception as exc:
             logger.warning("proxy peek failed: %s", exc)
-            return _proxy_error_response(502, "Upstream fetch failed")
+            return _proxy_error_response(502)
 
         if st in _GEO_BLOCK_STATUS and try_alternates and ds and ds.is_active and h_primary and h_fb:
             m3u_base = (ds.m3u8_url or ds.fallback_m3u8_url) or ""
@@ -547,19 +711,25 @@ async def proxy_stream(
                     forward = h_fb
 
         if st >= 400:
-            return _proxy_error_response(502, "Upstream fetch failed")
+            return _proxy_error_response(502)
 
-        # Small HLS playlists: buffer, rewrite URLs → same-origin proxy (segments + keys route correctly).
-        if _url_looks_like_m3u8_path(effective_url) or _content_type_suggests_hls_playlist(content_type):
+        if _content_type_suggests_hls_playlist(content_type):
             try:
-                mtext = await _fetch_manifest_text(effective_url, forward, _MAX_MANIFEST_BYTES)
+                mtext, manifest_base = await _fetch_manifest_with_geo_retries(
+                    effective_url,
+                    forward,
+                    try_alternates=try_alternates,
+                    ds=ds,
+                    h_primary=h_primary,
+                    h_fb=h_fb,
+                )
                 if mtext:
                     lead = mtext.lstrip("\ufeff").lstrip()
                     if lead.startswith("#EXTM3U"):
                         try:
-                            rewritten = _rewrite_hls_playlist_text(mtext, effective_url, stream_id)
+                            rewritten = _rewrite_hls_playlist_text(mtext, manifest_base, stream_id)
                         except Exception as rew_exc:
-                            logger.warning("HLS rewrite failed, falling back to raw stream: %s", rew_exc)
+                            logger.warning("HLS rewrite failed: %s", rew_exc)
                         else:
                             return Response(
                                 content=rewritten,
@@ -567,35 +737,16 @@ async def proxy_stream(
                                 headers=dict(_STREAM_PROXY_RESPONSE_HEADERS),
                             )
             except Exception as man_exc:
-                logger.warning("Manifest handling error, falling back to chunked stream: %s", man_exc)
+                logger.warning("Manifest handling error: %s", man_exc)
 
-        stream_client = _http_stream_client()
-
-        async def _stream_body() -> AsyncGenerator[bytes, None]:
-            try:
-                async for chunk in _stream_body_from_upstream(
-                    stream_client, effective_url, forward
-                ):
-                    yield chunk
-            except Exception as exc:
-                logger.warning("proxy stream generator: %s", exc)
-            finally:
-                try:
-                    await stream_client.aclose()
-                except Exception as close_exc:
-                    logger.debug("proxy stream client close: %s", close_exc)
-
-        return StreamingResponse(
-            _stream_body(),
-            status_code=200,
-            media_type=content_type,
-            headers=_merge_stream_client_headers(upstream_hdrs),
+        return await _build_chunked_streaming_response(
+            effective_url, forward, content_type, upstream_hdrs
         )
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("proxy/stream fatal: %s", exc)
-        return _proxy_error_response(502, "Upstream fetch failed")
+        return _proxy_error_response(502)
 
 
 @router.options("/stream")
