@@ -129,6 +129,17 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         return self
 
+    @model_validator(mode="after")
+    def _require_postgres_in_prod(self) -> "Settings":
+        if (self.app_env or "").lower() not in {"production", "prod"}:
+            return self
+        raw = (self.database_url or "").strip().lower()
+        if not raw or "sqlite" in raw:
+            raise ValueError(
+                "Set DATABASE_URL to PostgreSQL (e.g. Neon) in production — SQLite is not supported for APP_ENV=production."
+            )
+        return self
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
