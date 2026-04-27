@@ -23,7 +23,7 @@ from typing import AsyncGenerator
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -46,7 +46,11 @@ _FORWARD_UPSTREAM_REQUEST_HEADER_NAMES: tuple[str, ...] = (
     "accept-encoding",
     "icy-metadata",
 )
-_DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; IPTV-Proxy/1.0)"
+# Browser-like UA — many IPTV origins return 403/empty for generic or missing User-Agent.
+_DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
 
 
 def _normalize_header_map(obj: object) -> dict[str, str]:
@@ -83,6 +87,12 @@ def _merge_stream_forward_headers(
             out[name] = in_val.strip()
     if not out.get("user-agent", "").strip():
         out["user-agent"] = _DEFAULT_USER_AGENT
+    # */* avoids picky CDNs returning 406/empty; playlist fetch still works.
+    if not out.get("accept", "").strip():
+        out["accept"] = "*/*"
+    # httpx/http1.1 keep pools; explicit header matches common browser behaviour.
+    if not out.get("connection", "").strip():
+        out["connection"] = "keep-alive"
     return out
 
 
@@ -118,8 +128,8 @@ _CHUNK_SIZE = 64 * 1024  # 64 KB
 # Allowed URL schemes — reject anything that is not http/https.
 _ALLOWED_SCHEMES = {"http", "https"}
 
-# Hard timeout for connecting to the upstream origin.
-_CONNECT_TIMEOUT = 8.0
+# Hard timeout for connecting to the upstream origin (AbortController-style bound).
+_CONNECT_TIMEOUT = 10.0
 # Read timeout: how long to wait between received chunks (long for live streams).
 _READ_TIMEOUT = 30.0
 # Upstream "peek" before streaming: some CDNs take several seconds to emit the first
@@ -133,6 +143,32 @@ _POOL_TIMEOUT = 8.0
 # and mixed-content / wrong relative resolution against /proxy/stream?... is avoided.
 _MAX_MANIFEST_BYTES = 4 * 1024 * 1024
 _M3U8_CONTENT_TYPE = "application/vnd.apple.mpegurl"
+# Client (browser / Vercel rewrite) CORS — applied to both buffered manifests and chunked streams.
+_STREAM_PROXY_RESPONSE_HEADERS: dict[str, str] = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, Content-Type",
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+}
+
+
+def _proxy_error_response(status_code: int, message: str) -> JSONResponse:
+    """JSON error + CORS so the browser never hides failures behind opaque network errors."""
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": message, "detail": message},
+        headers={**_STREAM_PROXY_RESPONSE_HEADERS},
+    )
+
+
+def _merge_stream_client_headers(upstream_safe: dict[str, str]) -> dict[str, str]:
+    """CORS base + upstream hints safe across a second chunked GET (no Content-Length mismatch)."""
+    h = dict(_STREAM_PROXY_RESPONSE_HEADERS)
+    ar = upstream_safe.get("accept-ranges")
+    if ar:
+        h["Accept-Ranges"] = ar
+    return h
 # Upstream may block a region; try alternate host / header set (primary vs fallback) before failing.
 _GEO_BLOCK_STATUS = (401, 403, 451)
 
@@ -283,14 +319,20 @@ async def _stream_body_from_upstream(
             async for chunk in upstream.aiter_bytes(chunk_size=_CHUNK_SIZE):
                 if chunk:
                     yield chunk
-    except (httpx.TimeoutException, httpx.ConnectError) as exc:
+    except (
+        httpx.TimeoutException,
+        httpx.ConnectError,
+        httpx.ReadError,
+        httpx.RemoteProtocolError,
+        httpx.WriteError,
+    ) as exc:
         logger.warning("Proxy stream error for %s: %s", url, exc)
     except Exception as exc:
         logger.warning("Proxy unexpected error for %s: %s", url, exc)
 
 
-async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, str]:
-    """Return (status_code, content-type) from the start of a GET; body not consumed."""
+async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, str, dict[str, str]]:
+    """GET headers + status only (stream context exits before body; separate chunked relay follows)."""
     client = httpx.AsyncClient(
         verify=False,
         trust_env=False,
@@ -311,10 +353,13 @@ async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, st
         ) as resp:
             st = resp.status_code
             ct = (resp.headers.get("content-type") or "").split(";")[0].strip() or "application/octet-stream"
-            return st, ct
+            safe: dict[str, str] = {}
+            if ar := resp.headers.get("accept-ranges"):
+                safe["accept-ranges"] = ar
+            return st, ct, safe
     except Exception as exc:
         logger.warning("Proxy peek failed for %s: %s", url, exc)
-        return 502, "application/octet-stream"
+        return 502, "application/octet-stream", {}
     finally:
         await client.aclose()
 
@@ -341,6 +386,10 @@ def _content_type_suggests_hls_playlist(content_type: str) -> bool:
     return any(x in c for x in ("mpegurl", "m3u", "x-mpegurl"))
 
 
+# #EXT-X-KEY / #EXT-X-MEDIA / #EXT-X-MAP: URI="..." or URI='...'
+_URI_IN_TAG = re.compile(r"URI=(['\"])([^'\"]+)\1", re.IGNORECASE)
+
+
 def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | None) -> str:
     """Rewrite resource URLs to same-origin proxy paths (fixes HTTPS page + HTTP upstream mixed content)."""
 
@@ -360,28 +409,23 @@ def _rewrite_hls_playlist_text(body: str, manifest_url: str, stream_id: int | No
             return line
         return _relative_proxy_stream_path(abs_u, stream_id)
 
-    def rewrite_uri_attrs(line: str) -> str:
-        if 'URI="' not in line:
-            return line
-
-        def repl(m: re.Match[str]) -> str:
-            inner = m.group(1)
-            if inner.startswith("data:") or ("/proxy/stream?" in inner and "url=" in inner):
-                return m.group(0)
-            abs_u = inner if inner.startswith("http://") or inner.startswith("https://") else urllib.parse.urljoin(manifest_url, inner)
-            try:
-                _validate_stream_url(abs_u)
-            except HTTPException:
-                return m.group(0)
-            return f'URI="{_relative_proxy_stream_path(abs_u, stream_id)}"'
-
-        return re.sub(r'URI="([^"]+)"', repl, line)
+    def repl_uri(m: re.Match[str]) -> str:
+        q = m.group(1)
+        inner = m.group(2).strip()
+        if inner.lower().startswith("data:") or ("/proxy/stream?" in inner and "url=" in inner):
+            return m.group(0)
+        abs_u = inner if inner.startswith("http://") or inner.startswith("https://") else urllib.parse.urljoin(manifest_url, inner)
+        try:
+            _validate_stream_url(abs_u)
+        except HTTPException:
+            return m.group(0)
+        return f"URI={q}{_relative_proxy_stream_path(abs_u, stream_id)}{q}"
 
     out_lines: list[str] = []
     for raw in body.splitlines():
         line = raw.rstrip("\r")
-        if 'URI="' in line:
-            out_lines.append(rewrite_uri_attrs(line))
+        if _URI_IN_TAG.search(line):
+            out_lines.append(_URI_IN_TAG.sub(repl_uri, line))
             continue
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
@@ -418,7 +462,7 @@ async def _fetch_manifest_text(url: str, headers: dict[str, str], max_bytes: int
             return None
 
 
-@router.get("/stream")
+@router.get("/stream", response_model=None)
 async def proxy_stream(
     request: Request,
     url: str = Query(..., min_length=7, max_length=2048, description="Encoded stream URL to proxy"),
@@ -427,125 +471,145 @@ async def proxy_stream(
         description="Optional DynamicStream id — stored Playwright headers apply to all requests for this id",
     ),
     db: AsyncSession = Depends(get_db),
-) -> StreamingResponse:
+) -> Response | StreamingResponse:
     """
     Proxy an IPTV/HLS stream URL through the backend.
 
-    This reduces client-side geo-blocking, avoids CORS issues, and lets
-    Cloudflare/CDN edge nodes cache manifests closer to users.
+    Vercel only rewrites ``/api/*`` to this service — the stream is **chunked here**, not on Vercel.
+    If you still see 502 from ``*.vercel.app``, try pointing the browser API base at Render directly
+    or check Vercel rewrite timeouts for very slow origins.
 
     SSRF mitigations:
     - URL scheme restricted to http/https
     - Hostname resolved to IP; private/reserved ranges blocked
-    - DNS rebinding protection via pre-request resolution check
     """
-    target_url = _validate_stream_url(url)
-    m3u8_src = _m3u8_src_param(request)
+    try:
+        target_url = _validate_stream_url(url)
+        m3u8_src = _m3u8_src_param(request)
 
-    forward = _merge_stream_forward_headers(request, None)
-    effective_url = target_url
-    try_alternates = False
-    h_primary: dict[str, str] | None = None
-    h_fb: dict[str, str] | None = None
-    ds: DynamicStream | None = None
+        forward = _merge_stream_forward_headers(request, None)
+        effective_url = target_url
+        try_alternates = False
+        h_primary: dict[str, str] | None = None
+        h_fb: dict[str, str] | None = None
+        ds: DynamicStream | None = None
 
-    if stream_id is not None:
-        row = await db.get(DynamicStream, stream_id)
-        if row is not None and row.is_active:
-            ds = row
-            h_primary, h_fb = _header_sets_for_stream(request, row)
-            m3u_base = (row.m3u8_url or row.fallback_m3u8_url) or ""
-            m3u_pri, m3u_fb = row.m3u8_url, row.fallback_m3u8_url
+        if stream_id is not None:
+            try:
+                row = await db.get(DynamicStream, stream_id)
+            except Exception as exc:
+                logger.warning("DynamicStream lookup failed stream_id=%s: %s", stream_id, exc)
+                row = None
+            if row is not None and row.is_active:
+                ds = row
+                h_primary, h_fb = _header_sets_for_stream(request, row)
+                m3u_base = (row.m3u8_url or row.fallback_m3u8_url) or ""
+                m3u_pri, m3u_fb = row.m3u8_url, row.fallback_m3u8_url
 
-            if m3u8_src == "primary" and m3u_pri and m3u_fb and target_url == m3u_fb:
-                forward = h_primary
-                try_alternates = True
-            elif m3u8_src == "fallback" and m3u_fb and m3u_pri and target_url == m3u_pri:
-                forward = h_fb
-                try_alternates = True
-            elif m3u8_src == "fallback" and m3u_fb and target_url == m3u_fb:
-                forward = h_fb
-                if m3u_base:
-                    r = _remap_url_to_m3u8_base_host(target_url, m3u_base)
-                    if r and r != target_url:
-                        effective_url = _validate_stream_url(r)
-            else:
-                forward = h_primary
-                try_alternates = True
-                if m3u_base:
-                    r = _remap_url_to_m3u8_base_host(target_url, m3u_base)
-                    if r and r != target_url:
-                        effective_url = _validate_stream_url(r)
+                if m3u8_src == "primary" and m3u_pri and m3u_fb and target_url == m3u_fb:
+                    forward = h_primary
+                    try_alternates = True
+                elif m3u8_src == "fallback" and m3u_fb and m3u_pri and target_url == m3u_pri:
+                    forward = h_fb
+                    try_alternates = True
+                elif m3u8_src == "fallback" and m3u_fb and target_url == m3u_fb:
+                    forward = h_fb
+                    if m3u_base:
+                        r = _remap_url_to_m3u8_base_host(target_url, m3u_base)
+                        if r and r != target_url:
+                            effective_url = _validate_stream_url(r)
+                else:
+                    forward = h_primary
+                    try_alternates = True
+                    if m3u_base:
+                        r = _remap_url_to_m3u8_base_host(target_url, m3u_base)
+                        if r and r != target_url:
+                            effective_url = _validate_stream_url(r)
 
-    st, content_type = await _async_peek_stream(effective_url, forward)
-
-    if st in _GEO_BLOCK_STATUS and try_alternates and ds and ds.is_active and h_primary and h_fb:
-        m3u_base = (ds.m3u8_url or ds.fallback_m3u8_url) or ""
-        if m3u_base:
-            alt = _remap_url_to_m3u8_base_host(effective_url, m3u_base)
-            if alt and alt != effective_url:
-                alt = _validate_stream_url(alt)
-                st, content_type = await _async_peek_stream(alt, h_primary)
-                if st < 400:
-                    effective_url, forward = alt, h_primary
-        if st in _GEO_BLOCK_STATUS:
-            st, content_type = await _async_peek_stream(effective_url, h_fb)
-            if st < 400:
-                forward = h_fb
-
-    if st >= 400:
-        raise HTTPException(status_code=502, detail="Upstream stream unavailable")
-
-    # Same-origin proxy URLs inside the playlist → works on HTTPS + Safari native HLS + correct relative resolution.
-    if _url_looks_like_m3u8_path(effective_url) or _content_type_suggests_hls_playlist(content_type):
-        mtext = await _fetch_manifest_text(effective_url, forward, _MAX_MANIFEST_BYTES)
-        if mtext:
-            lead = mtext.lstrip("\ufeff").lstrip()
-            if lead.startswith("#EXTM3U"):
-                rewritten = _rewrite_hls_playlist_text(mtext, effective_url, stream_id)
-                return Response(
-                    content=rewritten,
-                    media_type=_M3U8_CONTENT_TYPE,
-                    headers={
-                        "Access-Control-Allow-Origin": "*",
-                        "Cache-Control": "no-store",
-                    },
-                )
-
-    stream_client = _http_stream_client()
-    response_headers: dict[str, str] = {
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-store",  # live streams must not be cached
-    }
-
-    async def _stream_body() -> AsyncGenerator[bytes, None]:
         try:
-            async for chunk in _stream_body_from_upstream(
-                stream_client, effective_url, forward
-            ):
-                yield chunk
-        finally:
-            await stream_client.aclose()
+            st, content_type, upstream_hdrs = await _async_peek_stream(effective_url, forward)
+        except Exception as exc:
+            logger.warning("proxy peek failed: %s", exc)
+            return _proxy_error_response(502, "Upstream fetch failed")
 
-    return StreamingResponse(
-        _stream_body(),
-        status_code=200,
-        media_type=content_type,
-        headers=response_headers,
-    )
+        if st in _GEO_BLOCK_STATUS and try_alternates and ds and ds.is_active and h_primary and h_fb:
+            m3u_base = (ds.m3u8_url or ds.fallback_m3u8_url) or ""
+            if m3u_base:
+                alt = _remap_url_to_m3u8_base_host(effective_url, m3u_base)
+                if alt and alt != effective_url:
+                    alt = _validate_stream_url(alt)
+                    st, content_type, upstream_hdrs = await _async_peek_stream(alt, h_primary)
+                    if st < 400:
+                        effective_url, forward = alt, h_primary
+            if st in _GEO_BLOCK_STATUS:
+                st, content_type, upstream_hdrs = await _async_peek_stream(effective_url, h_fb)
+                if st < 400:
+                    forward = h_fb
+
+        if st >= 400:
+            return _proxy_error_response(502, "Upstream fetch failed")
+
+        # Small HLS playlists: buffer, rewrite URLs → same-origin proxy (segments + keys route correctly).
+        if _url_looks_like_m3u8_path(effective_url) or _content_type_suggests_hls_playlist(content_type):
+            try:
+                mtext = await _fetch_manifest_text(effective_url, forward, _MAX_MANIFEST_BYTES)
+                if mtext:
+                    lead = mtext.lstrip("\ufeff").lstrip()
+                    if lead.startswith("#EXTM3U"):
+                        try:
+                            rewritten = _rewrite_hls_playlist_text(mtext, effective_url, stream_id)
+                        except Exception as rew_exc:
+                            logger.warning("HLS rewrite failed, falling back to raw stream: %s", rew_exc)
+                        else:
+                            return Response(
+                                content=rewritten,
+                                media_type=_M3U8_CONTENT_TYPE,
+                                headers=dict(_STREAM_PROXY_RESPONSE_HEADERS),
+                            )
+            except Exception as man_exc:
+                logger.warning("Manifest handling error, falling back to chunked stream: %s", man_exc)
+
+        stream_client = _http_stream_client()
+
+        async def _stream_body() -> AsyncGenerator[bytes, None]:
+            try:
+                async for chunk in _stream_body_from_upstream(
+                    stream_client, effective_url, forward
+                ):
+                    yield chunk
+            except Exception as exc:
+                logger.warning("proxy stream generator: %s", exc)
+            finally:
+                try:
+                    await stream_client.aclose()
+                except Exception as close_exc:
+                    logger.debug("proxy stream client close: %s", close_exc)
+
+        return StreamingResponse(
+            _stream_body(),
+            status_code=200,
+            media_type=content_type,
+            headers=_merge_stream_client_headers(upstream_hdrs),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("proxy/stream fatal: %s", exc)
+        return _proxy_error_response(502, "Upstream fetch failed")
 
 
 @router.options("/stream")
 async def proxy_stream_preflight() -> Response:
-    """Handle CORS preflight for the proxy endpoint."""
+    """CORS preflight — 200 + Allow-Headers * (required by checklist)."""
     return Response(
-        status_code=204,
+        status_code=200,
+        content="",
+        media_type="text/plain",
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": (
-                "Range, Accept, Accept-Encoding, User-Agent, Referer, Origin, Cookie, Authorization"
-            ),
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
         },
     )
 
