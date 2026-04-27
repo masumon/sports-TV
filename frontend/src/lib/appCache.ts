@@ -3,7 +3,6 @@ import { apiRequest } from "@/lib/apiClient";
 import { useI18nStore } from "@/lib/i18n/LocaleContext";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
-import { useVpnStore } from "@/store/vpnStore";
 
 /**
  * Clears persisted client state (Zustand + channel list) and tells the server
@@ -19,7 +18,6 @@ export async function clearAppCache(): Promise<boolean> {
   } catch {
     /* */
   }
-  useVpnStore.persist.clearStorage();
   useSubscriptionStore.persist.clearStorage();
   useSiteSettingsStore.persist.clearStorage();
   useI18nStore.persist.clearStorage();

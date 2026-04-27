@@ -30,9 +30,7 @@ import {
   buildProxyStreamUrl,
   isDashProxiedStreamUrl,
   parseDynamicM3U8IdFromStreamUrl,
-  shouldPreferServerRelay,
 } from "@/lib/streamRelay";
-import { useVpnStore } from "@/store/vpnStore";
 
 /* ─────────────────────────────────────────────────────────── Types ── */
 type QualityOption = { label: string; value: number };
@@ -41,8 +39,6 @@ export type PremiumPlayerProps = {
   streamUrl: string;
   alternateUrls?: string[];
   title: string;
-  /** For relay/VPN heuristics (not used as playback URL; primary channel metadata). */
-  relayMeta?: { name: string; category: string; stream_url: string } | null;
   isTheaterMode: boolean;
   onToggleTheaterMode: () => void;
   overlay?: React.ReactNode;
@@ -158,7 +154,6 @@ function isConstrainedNetwork(): boolean {
  * the ordered list; each item is a proxy URL.
  */
 function buildOrderedStreamUrls(
-  _preferRelay: boolean,
   directUrls: string[],
   dynamicM3U8Id: number | null
 ): string[] {
@@ -264,7 +259,6 @@ export default function PremiumPlayer({
   streamUrl,
   alternateUrls,
   title,
-  relayMeta,
   isTheaterMode,
   onToggleTheaterMode,
   overlay,
@@ -293,7 +287,6 @@ export default function PremiumPlayer({
   // Failover: index into ordered direct + proxy list
   const [urlIdx, setUrlIdx] = useState(0);
 
-  const vpnMode = useVpnStore((s) => s.mode);
   const dynamicM3U8Id = useMemo(() => {
     for (const u of [streamUrl, ...(alternateUrls ?? [])]) {
       const id = parseDynamicM3U8IdFromStreamUrl(u);
@@ -306,13 +299,9 @@ export default function PremiumPlayer({
     if (dynamicM3U8Id == null) return base;
     return base.map((u) => buildProxyM3U8RequestUrl(u, dynamicM3U8Id));
   }, [streamUrl, alternateUrls, dynamicM3U8Id]);
-  const preferRelay = useMemo(
-    () => shouldPreferServerRelay(vpnMode, relayMeta ?? { name: title, category: "", stream_url: streamUrl }),
-    [vpnMode, relayMeta, title, streamUrl]
-  );
   const allUrlsList = useMemo(
-    () => buildOrderedStreamUrls(preferRelay, directUrls, dynamicM3U8Id),
-    [preferRelay, directUrls, dynamicM3U8Id]
+    () => buildOrderedStreamUrls(directUrls, dynamicM3U8Id),
+    [directUrls, dynamicM3U8Id]
   );
   const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
 
@@ -333,7 +322,7 @@ export default function PremiumPlayer({
   useEffect(() => {
     setUrlIdx(0);
     setIsSwitching(false);
-  }, [streamUrl, preferRelay]);
+  }, [streamUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -357,9 +346,7 @@ export default function PremiumPlayer({
     setIsLoading(true);
     setHasError(false);
 
-    // Order: VPN "on" = relay (server) first; "smart" / "off" = direct first unless
-    // channelSuggestsServerRelay, then relay first. Same paths as allUrlsList.
-    const allUrls = buildOrderedStreamUrls(preferRelay, directUrls, dynamicM3U8Id);
+    const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id);
     const effectiveUrl = allUrls[urlIdx] ?? streamUrl;
     const isDash = isDashProxiedStreamUrl(effectiveUrl);
 
@@ -481,7 +468,7 @@ export default function PremiumPlayer({
     }
 
     return cleanup;
-  }, [streamUrl, retryKey, urlIdx, alternateUrls, preferRelay, directUrls, dynamicM3U8Id]);
+  }, [streamUrl, retryKey, urlIdx, alternateUrls, directUrls, dynamicM3U8Id]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -668,8 +655,8 @@ export default function PremiumPlayer({
             </div>
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.45)" }}>
               {isSwitching
-                ? (isCurrentRelay ? "Server relay (VPN)…" : "Switching stream…")
-                : (isCurrentRelay ? "Server relay (VPN)…" : "Loading stream…")}
+                ? (isCurrentRelay ? "Server relay…" : "Switching stream…")
+                : (isCurrentRelay ? "Server relay…" : "Loading stream…")}
             </p>
           </motion.div>
         )}
@@ -709,7 +696,7 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* LIVE + relay (VPN) — top inset locked (safe area); avoids “jumping” when bottom panel opens on mobile */}
+      {/* LIVE + server relay — top inset locked (safe area); avoids “jumping” when bottom panel opens on mobile */}
       <div
         className="pointer-events-none absolute left-0 right-0 z-40 flex flex-wrap items-center gap-2 px-3 sm:left-3 sm:right-auto"
         style={{
@@ -736,7 +723,7 @@ export default function PremiumPlayer({
               color: "#6ee7b7",
             }}
           >
-            VPN
+            RELAY
           </span>
         )}
       </div>

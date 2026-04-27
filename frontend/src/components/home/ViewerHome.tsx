@@ -752,11 +752,6 @@ export function ViewerHome() {
                 streamUrl={currentStreamUrl}
                 alternateUrls={altLinks}
                 title={activeChannel.name}
-                relayMeta={{
-                  name: activeChannel.name,
-                  category: activeChannel.category,
-                  stream_url: activeChannel.stream_url,
-                }}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}
               />
