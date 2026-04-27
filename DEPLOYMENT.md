@@ -39,7 +39,7 @@ When using **same-origin** `NEXT_PUBLIC_API_BASE_URL=/api` on Vercel, the browse
 - **Render sleep:** First request after idle is slow. Health checks in `render.yaml` help; users may still see cold start occasionally.  
 - **Keep one Render worker** for scheduled jobs (avoid duplicate M3U syncs).  
 - **Neon:** Use pooler host; do not open dozens of app instances without raising pool size.  
-- **Vercel Hobby:** Build minutes and function limits apply; keep `vercel.json` to **headers only** (no fake static `outputDirectory` for Next App Router).  
+- **Vercel Hobby:** Build minutes and function limits apply. `vercel.json` sets **no-store** on `/api/v1/proxy/*` and on the default `/api/*` catch so HLS segments are not edge-cached (which would break live playback). Channel list routes keep a short `s-maxage` override.  
 - **Playwright on Render:** Chromium install is in the Render build command; free tier has limited RAM—do not run heavy browser pools in parallel.
 
 ## Health checks
