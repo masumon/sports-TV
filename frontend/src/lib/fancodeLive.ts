@@ -31,9 +31,18 @@ function stableId(seed: string): number {
  * FanCode JSON is loaded with a direct GET (raw.githubusercontent.com allows browser CORS).
  * Playback still goes through /proxy/stream from PremiumPlayer.
  */
+const FANCODE_FETCH_TIMEOUT_MS = 20_000;
+
 export async function fetchFanCodeLiveChannels(): Promise<Channel[]> {
   const url = APP_STREAM_CONFIG.secured_endpoints.fancode_live_json;
-  const res = await fetch(url, { cache: "no-store" });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FANCODE_FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store", signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!res.ok) throw new Error(`FanCode JSON failed (${res.status})`);
   const data = (await res.json()) as FanCodeJson;
   const matches = Array.isArray(data.matches) ? data.matches : [];

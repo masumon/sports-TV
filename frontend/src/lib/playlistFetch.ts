@@ -1,5 +1,8 @@
 import { buildApiUrl } from "@/lib/apiClient";
 
+/** Slightly above backend httpx read timeout so the client fails cleanly if the proxy stalls. */
+const PLAYLIST_FETCH_TIMEOUT_MS = 45_000;
+
 export class GeoRestrictedError extends Error {
   readonly code = "GEO_RESTRICTED";
   constructor(message = "Geo-restricted") {
@@ -18,22 +21,30 @@ export async function fetchPlaylistText(
   const sp = new URLSearchParams();
   sp.set("url", playlistUrl);
   if (headerProfile) sp.set("header_profile", headerProfile);
-  const res = await fetch(buildApiUrl(`/proxy/playlist?${sp.toString()}`), {
-    method: "GET",
-    cache: "no-store",
-  });
-  if (res.status === 403) {
-    try {
-      const j = (await res.json()) as { code?: string };
-      if (j?.code === "GEO_RESTRICTED") throw new GeoRestrictedError();
-    } catch (e) {
-      if (e instanceof GeoRestrictedError) throw e;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PLAYLIST_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(buildApiUrl(`/proxy/playlist?${sp.toString()}`), {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (res.status === 403) {
+      try {
+        const j = (await res.json()) as { code?: string };
+        if (j?.code === "GEO_RESTRICTED") throw new GeoRestrictedError();
+      } catch (e) {
+        if (e instanceof GeoRestrictedError) throw e;
+      }
+      throw new GeoRestrictedError();
     }
-    throw new GeoRestrictedError();
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(t.slice(0, 200) || `Playlist fetch failed (${res.status})`);
+    }
+    return res.text();
+  } finally {
+    clearTimeout(timeoutId);
   }
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(t.slice(0, 200) || `Playlist fetch failed (${res.status})`);
-  }
-  return res.text();
 }

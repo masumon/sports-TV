@@ -4,6 +4,27 @@ import { parseM3UPlaylist } from "@/lib/m3uParser";
 import { fetchPlaylistText } from "@/lib/playlistFetch";
 import type { Channel, ViewerModule } from "@/lib/types";
 
+/** Caps concurrent `/proxy/playlist` calls so Render free tier is not hit with 10+ upstream fetches at once. */
+function createConcurrencyLimit(maxConcurrent: number) {
+  let running = 0;
+  const queue: Array<() => void> = [];
+  return async function limit<T>(fn: () => Promise<T>): Promise<T> {
+    while (running >= maxConcurrent) {
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    running++;
+    try {
+      return await fn();
+    } finally {
+      running--;
+      const next = queue.shift();
+      if (next) next();
+    }
+  };
+}
+
+const limitPlaylistFetch = createConcurrencyLimit(5);
+
 function stableId(seed: string): number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -55,11 +76,19 @@ async function ingestPlaylistUrls(
   seen: Set<string>,
   out: Channel[]
 ): Promise<void> {
-  for (const playlistUrl of urls) {
-    if (!playlistUrl || !playlistUrl.startsWith("http")) continue;
+  const valid = urls.filter((u) => u && u.startsWith("http"));
+  if (!valid.length) return;
+
+  /** Parallel fetches per group, globally throttled — faster than serial, bounded for free-tier backend. */
+  const settled = await Promise.allSettled(
+    valid.map((u) => limitPlaylistFetch(() => fetchPlaylistText(u)))
+  );
+
+  for (let i = 0; i < valid.length; i++) {
+    const result = settled[i];
+    if (result.status !== "fulfilled") continue;
     try {
-      const text = await fetchPlaylistText(playlistUrl);
-      const entries = parseM3UPlaylist(text);
+      const entries = parseM3UPlaylist(result.value);
       for (const e of entries) {
         const k = normKey(e.streamUrl);
         if (seen.has(k)) continue;
@@ -67,7 +96,7 @@ async function ingestPlaylistUrls(
         out.push(entryToChannel(e, module, countryFallback));
       }
     } catch {
-      /* skip broken source */
+      /* skip malformed playlist */
     }
   }
 }

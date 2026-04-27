@@ -274,26 +274,43 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  const loadChannels = useCallback(async (showToast = false, silent = false) => {
-    const hasCache = (getChannelListCache()?.length ?? 0) > 0;
-    if (!silent && (!hasCache || showToast)) {
-      setLoading(true);
-    }
-    setError(null);
-    try {
-      const data = await loadFullCatalogWithLive();
-      setAllChannels(data);
-      setChannelListCache(data);
-      if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
-    } catch (e) {
-      if (silent) return;
-      const msg = e instanceof Error ? e.message : "Load failed";
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
+  /** Ceiling for full catalog (many M3Us + FanCode); clears spinner even if fetches never settle. */
+  const CATALOG_LOAD_TIMEOUT_MS = 180_000;
+
+  const loadChannels = useCallback(
+    async (showToast = false, silent = false) => {
+      const hasCache = (getChannelListCache()?.length ?? 0) > 0;
+      if (!silent && (!hasCache || showToast)) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const data = await new Promise<Channel[]>((resolve, reject) => {
+          const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
+          void loadFullCatalogWithLive()
+            .then((d) => {
+              clearTimeout(id);
+              resolve(d);
+            })
+            .catch((err) => {
+              clearTimeout(id);
+              reject(err);
+            });
+        });
+        setAllChannels(data);
+        setChannelListCache(data);
+        if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
+      } catch (e) {
+        if (silent) return;
+        const msg = e instanceof Error ? e.message : "Load failed";
+        setError(msg);
+        toast.error(msg);
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [t]
+  );
 
   const refreshLiveMatchesOnly = useCallback(async () => {
     try {
