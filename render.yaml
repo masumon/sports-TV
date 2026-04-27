@@ -28,17 +28,30 @@ services:
         value: "1440"
       - key: SCRAPER_SOURCE_URL
         value: https://iptv-org.github.io/iptv/categories/sports.m3u
+      # Empty DB still gets one startup sync in app/main.py — no need to force true here (saves free-tier CPU).
       - key: AUTO_SYNC_CHANNELS_ON_STARTUP
-        value: "true"
-      # Optional: Upstash/Redis — response cache for channel lists
+        value: "false"
+      # Optional: Redis Cloud / Upstash — channel list cache (omit in dashboard if unused)
       - key: REDIS_URL
         sync: false
       - key: CACHE_TTL_SECONDS
         value: "300"
       - key: SYNC_RATE_LIMIT_SECONDS
-        value: "30"
-      # M3U sync every 5 minutes — backend scheduler runs automatically, no admin login needed
+        value: "60"
+      # Free tier: 30m avoids waking the instance too often; 0 = disable background sync only
       - key: SCHEDULED_SYNC_INTERVAL_MINUTES
+        value: "30"
+      # Keep 0 on free tier (Playwright / discovery load)
+      - key: SOURCE_DISCOVERY_INTERVAL_HOURS
+        value: "0"
+      - key: M3U8_REFRESH_INTERVAL_MINUTES
+        value: "0"
+      - key: STREAM_VALIDATION_INTERVAL_MINUTES
+        value: "0"
+      # Neon free tier: small pool (raise only if you scale workers)
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: DB_MAX_OVERFLOW
         value: "5"
       - key: DATABASE_URL
         sync: false
@@ -52,6 +65,6 @@ services:
         sync: false
       - key: ADMIN_FULL_NAME
         sync: false
-      # Required if browser uses NEXT_PUBLIC_API_BASE_URL=https://<render-host> (direct API from Vercel).
+      # No trailing slash. Preview *.vercel.app is also allowed via allow_origin_regex in main.py.
       - key: CORS_ORIGINS
         value: "https://sports-tv-lovat.vercel.app,http://localhost:3000"

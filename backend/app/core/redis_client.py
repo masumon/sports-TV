@@ -58,13 +58,11 @@ def _build_client() -> Any | None:
             "max_connections": 10,
         }
 
-        # Password — extracted from URL only, never from code
+        # Password / username — from URL only; unquote so %xx and Redis Cloud ACL URLs parse reliably
         if parsed.password:
-            pool_kwargs["password"] = parsed.password
-
-        # Username (Redis ACL; 'default' is the default Redis user)
-        if parsed.username and parsed.username != "default":
-            pool_kwargs["username"] = parsed.username
+            pool_kwargs["password"] = urllib.parse.unquote(parsed.password)
+        if parsed.username:
+            pool_kwargs["username"] = urllib.parse.unquote(parsed.username)
 
         if use_ssl:
             pool_kwargs["connection_class"] = SSLConnection

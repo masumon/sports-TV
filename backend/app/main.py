@@ -114,6 +114,7 @@ async def lifespan(app: FastAPI):
         settings.scheduled_sync_interval_minutes > 0
         or settings.m3u8_refresh_interval_minutes > 0
         or settings.source_discovery_interval_hours > 0
+        or (settings.stream_validation_interval_minutes or 0) > 0
     )
     if _needs_scheduler:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -234,16 +235,20 @@ async def lifespan(app: FastAPI):
             )
             logger.info("Scheduled M3U sync every %s min", settings.scheduled_sync_interval_minutes)
 
+        if settings.stream_validation_interval_minutes and settings.stream_validation_interval_minutes > 0:
             SCHEDULER.add_job(
                 scheduled_stream_validation,
                 "interval",
-                minutes=15,
+                minutes=settings.stream_validation_interval_minutes,
                 id="stream_validation",
                 max_instances=1,
                 coalesce=True,
                 misfire_grace_time=60,
             )
-            logger.info("Scheduled stream validation every 15 min")
+            logger.info(
+                "Scheduled stream validation every %s min",
+                settings.stream_validation_interval_minutes,
+            )
 
         if settings.source_discovery_interval_hours > 0:
             SCHEDULER.add_job(

@@ -42,15 +42,20 @@ class Settings(BaseSettings):
     # Set to 0 to disable. Use one worker (Render) to avoid duplicate work.
     scheduled_sync_interval_minutes: int = 30
     # Auto-discover new M3U sources every N hours (0 = disabled).
-    source_discovery_interval_hours: int = 6
+    # Default 0: free-tier Render workers should not run discovery + sync load unless explicitly enabled.
+    source_discovery_interval_hours: int = 0
     # Deactivate iptv-org channels not refreshed for this many days.
     channel_stale_days: int = 3
     # Engine pool (PostgreSQL). Keep low on free-tier DBs (e.g. Neon allows 25 connections).
     db_pool_size: int = 5
     db_max_overflow: int = 10
-    # Dynamic .m3u8 token refresh — how often to check for expiring streams (0 = disabled).
-    # Streams are re-extracted at T-15 minutes before their token expires.
-    m3u8_refresh_interval_minutes: int = 5
+    # Dynamic .m3u8 token refresh — how often to check (Playwright). 0 = disabled.
+    # Default 0: Playwright on a small Render free instance is a common OOM / CPU source.
+    m3u8_refresh_interval_minutes: int = 0
+    # Sample active channels and deactivate dead URLs. 0 = do not run scheduled checks.
+    # When >0, runs on this interval. Was previously hardcoded to 15m whenever M3U sync was on
+    # (harsh for free tier + datacenter-IP false negatives). Set e.g. 60–120 on paid/stable hosts.
+    stream_validation_interval_minutes: int = 0
 
     model_config = SettingsConfigDict(
         env_file=(
@@ -112,6 +117,19 @@ class Settings(BaseSettings):
             cleaned += "?channel_binding=disable"
 
         return cleaned
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def normalize_cors_origins(cls, value: object) -> object:
+        """Strip whitespace and trailing slashes so CORS matches browser origins exactly."""
+        if not isinstance(value, str):
+            return value
+        parts = []
+        for origin in value.split(","):
+            o = origin.strip().rstrip("/")
+            if o:
+                parts.append(o)
+        return ",".join(parts) if parts else value
 
     @property
     def resolved_database_url(self) -> str:

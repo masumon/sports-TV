@@ -28,18 +28,19 @@
 | `ADMIN_EMAIL` | `admin@test.com` | সুপারিশ | সিড-অ্যাডমিন |
 | `ADMIN_PASSWORD` | `Admin12345!` | **প্রোডে শক্ত** | `ensure_admin_seed` |
 | `ADMIN_FULL_NAME` | `Platform Admin` | ঐচ্ছিক | |
-| `CORS_ORIGINS` | `http://localhost:3000` | ঐচ্ছিক* | Comma, **trailing `/` না**; `main.py` এ `https://*.vercel.app` রেজেক্সও আছে |
+| `CORS_ORIGINS` | `http://localhost:3000` | ঐচ্ছিক* | Comma; ট্রেইলিং `/` `config` ছাঁটে; `main.py` এ `https://*.vercel.app` রেজেক্সও আছে |
 | `SCRAPER_SOURCE_URL` | `https://iptv-org.github.io/iptv/categories/sports.m3u` | ঐচ্ছিক | প্রধান M3U সিড |
-| `AUTO_SYNC_CHANNELS_ON_STARTUP` | `false` | `true` ঐচ্ছিক | `render.yaml` = true |
-| `REDIS_URL` | `None` | ঐচ্ছিক | `redis_client.py` + `Settings`; `rediss://` OK |
+| `AUTO_SYNC_CHANNELS_ON_STARTUP` | `false` | ঐচ্ছিক | খালি DB তে `main.py` একবার সিঙ্ক দেয় |
+| `REDIS_URL` | `None` | ঐচ্ছিক | `redis://` বা `rediss://` (Redis Cloud) |
 | `CACHE_TTL_SECONDS` | `300` | ঐচ্ছিক | চ্যানেল তালিকা ক্যাশ |
 | `SYNC_RATE_LIMIT_SECONDS` | `60` | ঐচ্ছিক | অ্যাডমিন `POST /admin/channels/sync` |
-| `SCHEDULED_SYNC_INTERVAL_MINUTES` | `30` (কোড); `render.yaml` = `5` | ঐচ্ছিক | `0` = ব্যাকগ্রাউন্ড সিডিউল বন্ধ |
-| `SOURCE_DISCOVERY_INTERVAL_HOURS` | `6` | ঐচ্ছিক | `0` = ডিসকভারি বন্ধ |
+| `SCHEDULED_SYNC_INTERVAL_MINUTES` | `30` | ঐচ্ছিক | `0` = ব্যাকগ্রাউন্ড M3U সিডিউল বন্ধ |
+| `SOURCE_DISCOVERY_INTERVAL_HOURS` | `0` | ঐচ্ছিক | ফ্রি টিয়ারে `0` রাখুন |
 | `CHANNEL_STALE_DAYS` | `3` | ঐচ্ছিক | স্টেইল চ্যানেল ডিঅ্যাকটিভ |
-| `DB_POOL_SIZE` | `5` | ঐচ্ছিক | Neon free |
-| `DB_MAX_OVERFLOW` | `10` | ঐচ্ছিক | |
-| `M3U8_REFRESH_INTERVAL_MINUTES` | `5` | ঐচ্ছিক | `0` = বন্ধ |
+| `DB_POOL_SIZE` | `5` | ঐচ্ছিক | Neon free: `3` সুপারিশ (`render.yaml`) |
+| `DB_MAX_OVERFLOW` | `10` | ঐচ্ছিক | Neon free: `5` সুপারিশ |
+| `M3U8_REFRESH_INTERVAL_MINUTES` | `0` | ঐচ্ছিক | Playwright; ফ্রি টিয়ারে `0` |
+| `STREAM_VALIDATION_INTERVAL_MINUTES` | `0` | ঐচ্ছিক | `0` = নির্ধারিত স্ট্রিম চেক বন্ধ |
 
 **`Settings` বাইরে (শুধু নির্দিষ্ট ফাইল):**
 
@@ -83,17 +84,18 @@ ADMIN_EMAIL=admin@yourdomain.com
 ADMIN_PASSWORD=<<<STRONG_ADMIN_PASSWORD>>>
 ADMIN_FULL_NAME=Platform Admin
 SCRAPER_SOURCE_URL=https://iptv-org.github.io/iptv/categories/sports.m3u
-AUTO_SYNC_CHANNELS_ON_STARTUP=true
-SYNC_RATE_LIMIT_SECONDS=30
-SCHEDULED_SYNC_INTERVAL_MINUTES=5
+AUTO_SYNC_CHANNELS_ON_STARTUP=false
+SYNC_RATE_LIMIT_SECONDS=60
+SCHEDULED_SYNC_INTERVAL_MINUTES=30
 CACHE_TTL_SECONDS=300
-DB_POOL_SIZE=5
-DB_MAX_OVERFLOW=10
+DB_POOL_SIZE=3
+DB_MAX_OVERFLOW=5
 PASSWORD_RESET_TOKEN_TTL_MINUTES=60
 PASSWORD_RESET_RATE_LIMIT_SECONDS=120
-SOURCE_DISCOVERY_INTERVAL_HOURS=6
+SOURCE_DISCOVERY_INTERVAL_HOURS=0
 CHANNEL_STALE_DAYS=3
-M3U8_REFRESH_INTERVAL_MINUTES=5
+M3U8_REFRESH_INTERVAL_MINUTES=0
+STREAM_VALIDATION_INTERVAL_MINUTES=0
 REDIS_URL=
 INTERNAL_SYNC_SECRET=<<<PASTE_openssl_rand_hex_32_2_OR_leave_empty_if_no_cron_hits_internal_sync>>>
 ```
