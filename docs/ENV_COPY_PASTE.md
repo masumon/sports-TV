@@ -34,7 +34,7 @@
 | `REDIS_URL` | `None` | ঐচ্ছিক | `redis://` বা `rediss://` (Redis Cloud) |
 | `CACHE_TTL_SECONDS` | `300` | ঐচ্ছিক | চ্যানেল তালিকা ক্যাশ |
 | `SYNC_RATE_LIMIT_SECONDS` | `60` | ঐচ্ছিক | অ্যাডমিন `POST /admin/channels/sync` |
-| `SCHEDULED_SYNC_INTERVAL_MINUTES` | `30` | ঐচ্ছিক | `0` = ব্যাকগ্রাউন্ড M3U সিডিউল বন্ধ |
+| `SCHEDULED_SYNC_INTERVAL_MINUTES` | `0` | ঐচ্ছিক | কোড ডিফল্ট `0` (ফ্রি টিয়ার সুপারিশ); `>0` হলে প্রতি N মিনিটে DB M3U সিঙ্ক |
 | `SOURCE_DISCOVERY_INTERVAL_HOURS` | `0` | ঐচ্ছিক | ফ্রি টিয়ারে `0` রাখুন |
 | `CHANNEL_STALE_DAYS` | `3` | ঐচ্ছিক | স্টেইল চ্যানেল ডিঅ্যাকটিভ |
 | `DB_POOL_SIZE` | `5` | ঐচ্ছিক | Neon free: `3` সুপারিশ (`render.yaml`) |
@@ -86,7 +86,7 @@ ADMIN_FULL_NAME=Platform Admin
 SCRAPER_SOURCE_URL=https://iptv-org.github.io/iptv/categories/sports.m3u
 AUTO_SYNC_CHANNELS_ON_STARTUP=false
 SYNC_RATE_LIMIT_SECONDS=60
-SCHEDULED_SYNC_INTERVAL_MINUTES=30
+SCHEDULED_SYNC_INTERVAL_MINUTES=0
 CACHE_TTL_SECONDS=300
 DB_POOL_SIZE=3
 DB_MAX_OVERFLOW=5
@@ -101,7 +101,7 @@ INTERNAL_SYNC_SECRET=<<<PASTE_openssl_rand_hex_32_2_OR_leave_empty_if_no_cron_hi
 ```
 
 - `REDIS_URL` অপ্রয়োজনে ভেরিয়েবলই বাদ দিন যদি Dash খালি সেভ না করে।
-- `INTERNAL_SYNC_SECRET` খালি রাখলে প্রোডে শুধু `POST /internal/sync` 503; বাকি সিডিউল ঠিক থাকে।
+- `INTERNAL_SYNC_SECRET` খালি রাখলে প্রোডে শুধু `POST /internal/sync` 503; বাকি API রাউট ঠিক চলবে।
 
 ---
 
