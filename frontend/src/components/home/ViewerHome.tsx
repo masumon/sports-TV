@@ -18,7 +18,6 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -82,6 +81,9 @@ function inferLeague(name: string): string {
   }
   return "🌐 Other Sports";
 }
+
+/** Main grid: only this many cards mount at a time so 10k+ catalogs stay responsive (browser + PWA). */
+const CHANNEL_GRID_BATCH = 96;
 
 // Top-level sport-type filter: matches by DB category field OR inferred league
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
@@ -242,6 +244,8 @@ export function ViewerHome() {
   const reduceM = useReducedMotion();
   const tier = useSubscriptionStore((s) => s.tier);
   const searchRef = useRef<HTMLInputElement>(null);
+  const gridSentinelRef = useRef<HTMLDivElement | null>(null);
+  const [gridVisibleCount, setGridVisibleCount] = useState(CHANNEL_GRID_BATCH);
 
   const activeChannel = usePlayerStore((state) => state.activeChannel);
   const isTheaterMode = usePlayerStore((state) => state.isTheaterMode);
@@ -322,11 +326,13 @@ export function ViewerHome() {
   }, []);
 
   /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
-  useLayoutEffect(() => {
+  useEffect(() => {
     const c = getChannelListCache();
     if (c?.length) {
-      setAllChannels(c);
-      setLoading(false);
+      startTransition(() => {
+        setAllChannels(c);
+        setLoading(false);
+      });
     }
   }, []);
 
@@ -388,10 +394,14 @@ export function ViewerHome() {
     setShowAltLinks(false);
   }, [activeChannel?.id]);
 
+  const moduleChannels = useMemo(
+    () => allChannels.filter((c) => c.module === activeModule),
+    [allChannels, activeModule]
+  );
+
   // Auto-select first channel of active module; clear selection if this module has no rows (e.g. India not synced)
   useEffect(() => {
-    const moduleChans = allChannels.filter((c) => c.module === activeModule);
-    if (moduleChans.length === 0) {
+    if (moduleChannels.length === 0) {
       if (activeChannel && activeChannel.module !== activeModule) {
         startTransition(() => {
           setActiveChannel(null);
@@ -401,15 +411,10 @@ export function ViewerHome() {
     }
     if (!activeChannel || activeChannel.module !== activeModule) {
       startTransition(() => {
-        setActiveChannel(moduleChans[0]);
+        setActiveChannel(moduleChannels[0]!);
       });
     }
-  }, [allChannels, activeModule, activeChannel, setActiveChannel]);
-
-  const moduleChannels = useMemo(
-    () => allChannels.filter((c) => c.module === activeModule),
-    [allChannels, activeModule]
-  );
+  }, [moduleChannels, activeModule, activeChannel, setActiveChannel]);
 
   const filtered = useMemo(() => {
     let list = moduleChannels;
@@ -450,19 +455,54 @@ export function ViewerHome() {
     return list;
   }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, activeModule]);
 
+  const gridFilterKey = useMemo(
+    () =>
+      [activeModule, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague].join("\u0001"),
+    [activeModule, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague]
+  );
+
+  useEffect(() => {
+    setGridVisibleCount(CHANNEL_GRID_BATCH);
+  }, [gridFilterKey]);
+
+  useEffect(() => {
+    const el = gridSentinelRef.current;
+    if (!el || loading || filtered.length === 0) return;
+    if (gridVisibleCount >= filtered.length) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        startTransition(() => {
+          setGridVisibleCount((c) => Math.min(c + CHANNEL_GRID_BATCH, filtered.length));
+        });
+      },
+      { root: null, rootMargin: "480px 0px", threshold: 0 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loading, filtered.length, gridVisibleCount]);
+
+  const gridSlice = filtered.length <= gridVisibleCount ? filtered : filtered.slice(0, gridVisibleCount);
+  const gridHasMore = !loading && filtered.length > gridSlice.length;
+
   const categoryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.category)), [moduleChannels]);
   const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
   const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
   // Count channels per sport type (only render chips that have channels)
   const sportChannelCount = useMemo<Record<string, number>>(() => {
     if (activeModule !== "global_sports") return {};
-    const counts: Record<string, number> = {};
-    for (const sport of SPORT_TYPES) {
-      counts[sport.id] = moduleChannels.filter((c) => {
-        const catLower = c.category.toLowerCase();
-        const league = inferLeague(c.name);
-        return sport.categoryKeys.some((k) => catLower.includes(k)) || league.startsWith(sport.leagueEmoji);
-      }).length;
+    const counts: Record<string, number> = Object.fromEntries(SPORT_TYPES.map((s) => [s.id, 0])) as Record<
+      string,
+      number
+    >;
+    for (const c of moduleChannels) {
+      const catLower = c.category.toLowerCase();
+      const league = inferLeague(c.name);
+      for (const sport of SPORT_TYPES) {
+        if (sport.categoryKeys.some((k) => catLower.includes(k)) || league.startsWith(sport.leagueEmoji)) {
+          counts[sport.id] = (counts[sport.id] ?? 0) + 1;
+        }
+      }
     }
     return counts;
   }, [moduleChannels, activeModule]);
@@ -472,18 +512,25 @@ export function ViewerHome() {
     if (activeModule !== "global_sports" || !activeCategory) return [];
     const sport = SPORT_TYPES.find((s) => s.id === activeCategory);
     if (!sport) return [];
-    const sportChans = moduleChannels.filter((c) => {
+    const leagues = new Set<string>();
+    for (const c of moduleChannels) {
       const catLower = c.category.toLowerCase();
       const league = inferLeague(c.name);
-      return sport.categoryKeys.some((k) => catLower.includes(k)) || league.startsWith(sport.leagueEmoji);
-    });
-    return uniqueSorted([...new Set(sportChans.map((c) => inferLeague(c.name)))]);
+      const inSport =
+        sport.categoryKeys.some((k) => catLower.includes(k)) || league.startsWith(sport.leagueEmoji);
+      if (inSport) leagues.add(league);
+    }
+    return uniqueSorted([...leagues]);
   }, [activeCategory, moduleChannels, activeModule]);
 
   const nameMatchCount = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     if (!q) return 0;
-    return moduleChannels.filter((c) => c.name.toLowerCase().includes(q)).length;
+    let n = 0;
+    for (const c of moduleChannels) {
+      if (c.name.toLowerCase().includes(q)) n += 1;
+    }
+    return n;
   }, [moduleChannels, deferredSearch]);
 
   const hasActiveFilters = useMemo(
@@ -1154,8 +1201,14 @@ export function ViewerHome() {
                           ? "🔴 FanCode Live Matches"
                           : "🌐 " + t("directory")}
             </h2>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {filtered.length} / {moduleChannels.length} channels
+            <span className="text-xs text-right" style={{ color: "var(--text-muted)" }}>
+              <span className="block sm:inline">
+                {t("showingFirst")} {gridSlice.length} {t("ofTotal")} {filtered.length}
+                {filtered.length !== moduleChannels.length ? ` · ${moduleChannels.length} ${t("channels")}` : ""}
+              </span>
+              {gridHasMore ? (
+                <span className="mt-0.5 block text-[10px] sm:mt-0 sm:ml-1 sm:inline">{t("gridScrollHint")}</span>
+              ) : null}
             </span>
           </div>
 
@@ -1181,16 +1234,41 @@ export function ViewerHome() {
               ) : null}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
-              {filtered.map((ch) => (
-                <PremiumChannelCard
-                  key={ch.id}
-                  channel={ch}
-                  active={activeChannel?.id === ch.id}
-                  onSelect={selectChannel}
-                  activeModule={activeModule}
-                />
-              ))}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
+                {gridSlice.map((ch) => (
+                  <PremiumChannelCard
+                    key={ch.id}
+                    channel={ch}
+                    active={activeChannel?.id === ch.id}
+                    onSelect={selectChannel}
+                    activeModule={activeModule}
+                  />
+                ))}
+              </div>
+              {gridHasMore ? (
+                <>
+                  <div ref={gridSentinelRef} className="h-1 w-full" aria-hidden />
+                  <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        startTransition(() => {
+                          setGridVisibleCount((c) => Math.min(c + CHANNEL_GRID_BATCH, filtered.length));
+                        });
+                      }}
+                      className="rounded-lg px-4 py-2.5 text-sm font-semibold transition hover:opacity-90"
+                      style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
+                    >
+                      {t("gridLoadMore")} (+{Math.min(CHANNEL_GRID_BATCH, filtered.length - gridSlice.length)})
+                    </button>
+                  </div>
+                </>
+              ) : filtered.length > CHANNEL_GRID_BATCH ? (
+                <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                  {t("gridEnd")}
+                </p>
+              ) : null}
             </div>
           )}
         </section>
