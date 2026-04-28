@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Minimum seconds between password reset requests for the same email (abuse / DB load)
     password_reset_rate_limit_seconds: int = 120
 
+    # Canonical defaults (overridable via ADMIN_* env on deploy): user locks these for local/parity.
     admin_email: str = "admin@test.com"
     admin_password: str = "Admin12345!"
     admin_full_name: str = "Platform Admin"
