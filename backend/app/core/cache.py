@@ -90,6 +90,7 @@ def _raw_set(key: str, value: bytes, ttl: int) -> None:
         return
     with _mem_lock:
         _mem[key] = (time.time() + ttl, value)
-        if len(_mem) > 512:
-            for k, (exp, _) in sorted(_mem.items(), key=lambda x: x[1][0])[:64]:
+        # Cap in-process cache for small free-tier workers (Redis still preferred when set).
+        if len(_mem) > 384:
+            for k, (exp, _) in sorted(_mem.items(), key=lambda x: x[1][0])[:48]:
                 _mem.pop(k, None)

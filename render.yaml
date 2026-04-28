@@ -38,9 +38,10 @@ services:
         value: "300"
       - key: SYNC_RATE_LIMIT_SECONDS
         value: "60"
-      # Free tier: 30m avoids waking the instance too often; 0 = disable background sync only
+      # 0 = no APScheduler jobs (recommended: viewer catalog is client M3U; saves Render CPU/RAM).
+      # Set 30+ only if you rely on periodic DB M3U sync; use admin sync or /internal/sync otherwise.
       - key: SCHEDULED_SYNC_INTERVAL_MINUTES
-        value: "30"
+        value: "0"
       # Keep 0 on free tier (Playwright / discovery load)
       - key: SOURCE_DISCOVERY_INTERVAL_HOURS
         value: "0"
