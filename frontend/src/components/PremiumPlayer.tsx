@@ -117,6 +117,34 @@ function useMatchMediaQuery(query: string, defaultValue = false): boolean {
   return matches;
 }
 
+type ScreenOrientationWithLock = ScreenOrientation & {
+  lock?: (orientation: "landscape" | "landscape-primary" | "any") => Promise<void>;
+};
+
+/** Best-effort landscape lock for mobile playback (works on many Android browsers, often requires fullscreen). */
+async function tryLockLandscapePlayback(): Promise<void> {
+  if (typeof screen === "undefined") return;
+  const o = screen.orientation as ScreenOrientationWithLock | null;
+  if (!o?.lock) return;
+  try {
+    await o.lock("landscape");
+  } catch {
+    try {
+      await o.lock("landscape-primary");
+    } catch {
+      /* iOS / unsupported / not fullscreen */
+    }
+  }
+}
+
+function tryUnlockPlaybackOrientation(): void {
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    /* */
+  }
+}
+
 /* ─────────────────────────────────────── App-launch detection helper ── */
 /** Opens a custom `scheme:` URL to hand the stream to an external app. Android `intent:` passes through as-is. On desktop, if the app does not steal focus (window blur) within 1.5s, the install or store page opens. */
 function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
@@ -308,7 +336,6 @@ export default function PremiumPlayer({
   onToggleTheaterMode,
   overlay,
   headerProfile = null,
-  geoHint: _geoHint = false,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -688,7 +715,24 @@ export default function PremiumPlayer({
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  useEffect(() => () => { clearHideTimer(); hlsRef.current?.destroy(); }, [clearHideTimer]);
+  /** Sync orientation when fullscreen is toggled via browser (e.g. ESC) or gesture. */
+  useEffect(() => {
+    if (!isMobileSheet) return;
+    if (isFullscreen) {
+      void tryLockLandscapePlayback();
+    } else if (!isTheaterMode) {
+      tryUnlockPlaybackOrientation();
+    }
+  }, [isMobileSheet, isFullscreen, isTheaterMode]);
+
+  useEffect(
+    () => () => {
+      tryUnlockPlaybackOrientation();
+      clearHideTimer();
+      hlsRef.current?.destroy();
+    },
+    [clearHideTimer]
+  );
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -737,9 +781,14 @@ export default function PremiumPlayer({
   const toggleFullscreen = useCallback(async () => {
     const el = containerRef.current;
     if (!el) return;
-    if (document.fullscreenElement) { await document.exitFullscreen(); }
-    else { await el.requestFullscreen(); }
-  }, []);
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      if (isMobileSheet && !isTheaterMode) tryUnlockPlaybackOrientation();
+    } else {
+      await el.requestFullscreen();
+      if (isMobileSheet) await tryLockLandscapePlayback();
+    }
+  }, [isMobileSheet, isTheaterMode]);
 
   const retryStream = useCallback(() => {
     setHasError(false);
@@ -759,14 +808,30 @@ export default function PremiumPlayer({
         case "Space": e.preventDefault(); void togglePlayPause(); break;
         case "KeyM": toggleMute(); break;
         case "KeyF": void toggleFullscreen(); break;
-        case "KeyT": onToggleTheaterMode(); break;
+        case "KeyT":
+          if (isMobileSheet) {
+            if (!isTheaterMode) void tryLockLandscapePlayback();
+            else if (!isFullscreen) tryUnlockPlaybackOrientation();
+          }
+          onToggleTheaterMode();
+          break;
         case "ArrowUp": e.preventDefault(); setVolumeLevel(Math.min(1, volume + 0.1)); break;
         case "ArrowDown": e.preventDefault(); setVolumeLevel(Math.max(0, volume - 0.1)); break;
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [togglePlayPause, toggleMute, toggleFullscreen, onToggleTheaterMode, setVolumeLevel, volume]);
+  }, [
+    togglePlayPause,
+    toggleMute,
+    toggleFullscreen,
+    onToggleTheaterMode,
+    setVolumeLevel,
+    volume,
+    isMobileSheet,
+    isTheaterMode,
+    isFullscreen,
+  ]);
 
   const currentQualityLabel = useMemo(() => {
     if (selectedQuality === -1) return "AUTO";
@@ -797,7 +862,7 @@ export default function PremiumPlayer({
     >
       <video
         ref={videoRef}
-        className="h-full w-full object-cover"
+        className={`h-full w-full bg-black ${isMobileSheet && (isFullscreen || isTheaterMode) ? "object-contain" : "object-cover"}`}
         autoPlay
         playsInline
         controls={false}
@@ -1014,8 +1079,20 @@ export default function PremiumPlayer({
                 <button className="control-btn shrink-0" type="button" onClick={() => void togglePictureInPicture()} aria-label="PiP" title="Picture-in-Picture">
                   <PictureInPicture2 size={17} />
                 </button>
-                <button className="control-btn shrink-0" type="button" onClick={onToggleTheaterMode} aria-label="Theater mode" title="Theater (T)"
-                  style={isTheaterMode ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "var(--primary-accent)" } : {}}>
+                <button
+                  className="control-btn shrink-0"
+                  type="button"
+                  onClick={() => {
+                    if (isMobileSheet) {
+                      if (!isTheaterMode) void tryLockLandscapePlayback();
+                      else if (!isFullscreen) tryUnlockPlaybackOrientation();
+                    }
+                    onToggleTheaterMode();
+                  }}
+                  aria-label="Theater mode"
+                  title="Theater (T)"
+                  style={isTheaterMode ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "var(--primary-accent)" } : {}}
+                >
                   <Tv size={17} />
                 </button>
                 <button className="control-btn shrink-0" type="button" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title="Fullscreen (F)">
