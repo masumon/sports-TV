@@ -65,6 +65,9 @@ services:
         sync: false
       - key: ADMIN_FULL_NAME
         sync: false
+      # true = each deploy keeps only ADMIN_EMAIL; other users are deleted. Set false if you need persistent signups.
+      - key: PRUNE_NON_DEFAULT_USERS_ON_STARTUP
+        value: "true"
       # No trailing slash. Preview *.vercel.app is also allowed via allow_origin_regex in main.py.
       - key: CORS_ORIGINS
         value: "https://sports-tv-lovat.vercel.app,http://localhost:3000"

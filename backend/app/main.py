@@ -38,6 +38,24 @@ logger = logging.getLogger("app.startup")
 SCHEDULER = None
 
 
+def prune_non_default_users(db: Session) -> None:
+    """Delete every user except the configured admin (ADMIN_EMAIL). Respects PRUNE_NON_DEFAULT_USERS_ON_STARTUP."""
+    if not settings.prune_non_default_users_on_startup:
+        return
+    keep = {settings.admin_email.strip().lower()}
+    q = select(User).where(
+        ~func.lower(User.email).in_([*keep]),
+    )
+    rows = db.execute(q).scalars().all()
+    n = 0
+    for row in rows:
+        db.delete(row)
+        n += 1
+    if n:
+        db.commit()
+        logger.info("Removed %s user row(s); kept admin only (%s)", n, settings.admin_email)
+
+
 def ensure_admin_seed(db: Session) -> None:
     # Migrate legacy admin@gstv.local (invalid TLD rejected by email-validator)
     # to the configured admin email so login works after the EmailStr fix.
@@ -100,6 +118,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         ensure_admin_seed(db)
+        prune_non_default_users(db)
         # Fresh/empty DB: always run one M3U sync so first deploy is not empty
         # (AUTO_SYNC_CHANNELS_ON_STARTUP alone was too easy to leave false in production).
         existing_count = db.scalar(select(func.count()).select_from(Channel)) or 0
