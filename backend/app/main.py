@@ -38,30 +38,11 @@ logger = logging.getLogger("app.startup")
 SCHEDULER = None
 
 
-def ensure_viewer_user(db: Session) -> None:
-    """Create the default non-admin user once. Does not reset password on later startups (avoids clobbering prod or manual changes)."""
-    u = db.scalar(select(User).where(User.email == settings.viewer_default_email))
-    if u is not None:
-        return
-    h = get_password_hash(settings.viewer_default_password)
-    db.add(
-        User(
-            full_name=settings.viewer_default_full_name,
-            email=settings.viewer_default_email,
-            password_hash=h,
-            is_admin=False,
-            is_active=True,
-        )
-    )
-    db.commit()
-    logger.info("Seeded default viewer: %s", settings.viewer_default_email)
-
-
 def prune_non_default_users(db: Session) -> None:
-    """Delete every user except the seeded admin and the default viewer. Call only when settings allow it."""
+    """Delete every user except the configured admin (ADMIN_EMAIL). Respects PRUNE_NON_DEFAULT_USERS_ON_STARTUP."""
     if not settings.prune_non_default_users_on_startup:
         return
-    keep = {settings.admin_email.strip().lower(), settings.viewer_default_email.strip().lower()}
+    keep = {settings.admin_email.strip().lower()}
     q = select(User).where(
         ~func.lower(User.email).in_([*keep]),
     )
@@ -72,7 +53,7 @@ def prune_non_default_users(db: Session) -> None:
         n += 1
     if n:
         db.commit()
-        logger.info("Removed %s non-default user row(s); kept admin + viewer only", n)
+        logger.info("Removed %s user row(s); kept admin only (%s)", n, settings.admin_email)
 
 
 def ensure_admin_seed(db: Session) -> None:
@@ -137,7 +118,6 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         ensure_admin_seed(db)
-        ensure_viewer_user(db)
         prune_non_default_users(db)
         # Fresh/empty DB: always run one M3U sync so first deploy is not empty
         # (AUTO_SYNC_CHANNELS_ON_STARTUP alone was too easy to leave false in production).

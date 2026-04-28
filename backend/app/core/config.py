@@ -30,12 +30,8 @@ class Settings(BaseSettings):
     admin_email: str = "admin@test.com"
     admin_password: str = "Admin12345!"
     admin_full_name: str = "Platform Admin"
-    # Second "default" account (non-admin): created on first run only; password is not reset on every deploy.
-    viewer_default_email: str = "kurban@example.com"
-    viewer_default_password: str = "Viewer12345!"
-    viewer_default_full_name: str = "Goodbye Kurban"
-    # Dangerous: when true, every process startup deletes all users except admin + viewer. Default false to protect production DBs.
-    prune_non_default_users_on_startup: bool = False
+    # When true, each process startup deletes all users except ADMIN_EMAIL (seeding above). Set false only if you need public registration to persist.
+    prune_non_default_users_on_startup: bool = True
 
     cors_origins: str = "http://localhost:3000"
     scraper_source_url: str = "https://iptv-org.github.io/iptv/categories/sports.m3u"
