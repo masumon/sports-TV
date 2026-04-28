@@ -24,17 +24,18 @@ export function MobileBottomNav() {
       {moreOpen ? (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px] md:hidden"
           aria-label="Close menu"
           onClick={() => setMoreOpen(false)}
         />
       ) : null}
       {moreOpen ? (
         <div
-          className="fixed bottom-16 left-2 right-2 z-50 rounded-xl border p-3 shadow-2xl md:hidden"
+          className="fixed bottom-16 left-2 right-2 z-50 rounded-xl border p-3 md:hidden"
           style={{
-            background: "rgba(7,8,15,0.98)",
-            borderColor: "rgba(255,255,255,0.1)",
+            background: "var(--bg-card)",
+            borderColor: "var(--border)",
+            boxShadow: "var(--shadow-card)",
             paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
           }}
         >
@@ -87,10 +88,10 @@ export function MobileBottomNav() {
       <nav
         className="fixed bottom-0 left-0 right-0 z-30 flex h-16 items-stretch justify-around pb-[env(safe-area-inset-bottom,0px)] md:hidden"
         style={{
-          background: "rgba(7,8,15,0.97)",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
-          backdropFilter: "blur(20px)",
-          boxShadow: "0 -4px 24px rgba(0,0,0,0.5)",
+          background: "var(--bg-glass)",
+          borderTop: "1px solid var(--border)",
+          backdropFilter: "blur(10px)",
+          boxShadow: "0 -2px 12px rgba(0,0,0,0.2)",
         }}
       >
         <Link

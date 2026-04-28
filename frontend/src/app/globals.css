@@ -2,16 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── ABO SPORTS TV LIVE — Design tokens (dark — default) ── */
+/* ── ABO SPORTS TV LIVE — Design tokens (dark — default) — light / calm UI ── */
 :root {
   color-scheme: dark;
-  --bg-dark: #07080F;
-  --bg-card: #0D0F1C;
-  --bg-card2: #111320;
-  --bg-hover: #161924;
-  --bg-glass: rgba(13,15,28,0.88);
-  --primary-accent: #F5A623;
-  --primary-rgb: 245 166 35;
+  --bg-dark: #080a11;
+  --bg-card: #0e111a;
+  --bg-card2: #12151f;
+  --bg-hover: #181c28;
+  --bg-glass: rgba(14,17,26,0.92);
+  --primary-accent: #e8981f;
+  --primary-rgb: 232 152 31;
   --accent-red: #E53935;
   --accent-red-rgb: 229 57 53;
   --accent-blue: #1E6EE8;
@@ -19,25 +19,27 @@
   --accent-green: #10B981;
   --success: #10B981;
   --gold: #C9A227;
-  --text-main: #EEF0F7;
-  --text-muted: #7B809A;
-  --border: rgba(255,255,255,0.07);
-  --border-accent: rgba(245,166,35,0.25);
-  --shadow-card: 0 2px 16px rgba(0,0,0,0.38);
-  --glow-gold: 0 0 18px rgba(245,166,35,0.14);
-  --glow-red: 0 0 18px rgba(229,57,53,0.18);
+  --text-main: #f0f2f8;
+  --text-muted: #8b90a8;
+  --border: rgba(255,255,255,0.06);
+  --border-accent: rgba(232,152,31,0.22);
+  --shadow-card: 0 1px 12px rgba(0,0,0,0.28);
+  --glow-gold: 0 0 14px rgba(232,152,31,0.12);
+  --glow-red: 0 0 14px rgba(229,57,53,0.14);
+  --radius-sm: 10px;
+  --radius-md: 14px;
 }
 
 /* ── Design tokens (light) ── */
 html.light {
   color-scheme: light;
-  --bg-dark: #F0F2F8;
-  --bg-card: #FFFFFF;
-  --bg-card2: #F5F7FF;
-  --bg-hover: #E8EBF6;
-  --bg-glass: rgba(255,255,255,0.92);
-  --primary-accent: #D4890A;
-  --primary-rgb: 212 137 10;
+  --bg-dark: #f2f4fa;
+  --bg-card: #ffffff;
+  --bg-card2: #f5f7fc;
+  --bg-hover: #e8ecf5;
+  --bg-glass: rgba(255,255,255,0.94);
+  --primary-accent: #c7780a;
+  --primary-rgb: 199 120 10;
   --accent-red: #C62828;
   --accent-blue: #1557D0;
   --success: #059669;
@@ -136,10 +138,10 @@ a {
 }
 
 .glass-panel {
-  background: linear-gradient(140deg, rgba(13,15,28,0.88), rgba(7,8,15,0.94));
-  border: 1px solid rgba(255,255,255,0.07);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 html.light .glass-panel {
@@ -193,12 +195,12 @@ html.light .glass-panel {
   background: transparent;
 }
 .sports-cat-item:hover {
-  background: rgba(245,166,35,0.08);
+  background: rgb(var(--primary-rgb) / 0.07);
   color: var(--text-main);
-  border-left-color: rgba(245,166,35,0.4);
+  border-left-color: var(--border-accent);
 }
 .sports-cat-item.active {
-  background: rgba(245,166,35,0.12);
+  background: rgb(var(--primary-rgb) / 0.1);
   color: var(--primary-accent);
   border-left-color: var(--primary-accent);
   font-weight: 600;
@@ -300,11 +302,11 @@ html.light .glass-panel {
 
 /* ── Player shell ── */
 .player-shell {
-  background: #080c16;
-  border-radius: 16px;
-  border: 1px solid rgb(255 255 255 / 8%);
+  background: #0a0d14;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
   overflow: hidden;
-  box-shadow: 0 4px 24px rgb(0 0 0 / 45%);
+  box-shadow: var(--shadow-card);
 }
 
 html.light .player-shell {
@@ -374,8 +376,8 @@ html.light .quality-select {
   gap: 6px;
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid rgb(255 255 255 / 10%);
-  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 500;
@@ -401,7 +403,7 @@ html.light .cat-tab:hover {
 .cat-tab.active {
   background: var(--primary-accent);
   border-color: var(--primary-accent);
-  color: #07080F;
+  color: #0a0c10;
   font-weight: 700;
 }
 
@@ -413,10 +415,10 @@ html.light .cat-tab:hover {
 /* ── Channel card (off-screen paint savings for long grids) ── */
 .ch-card {
   background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s, transform 0.15s, box-shadow 0.2s;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.15s ease;
   content-visibility: auto;
   contain-intrinsic-size: 140px 180px;
 }
@@ -429,16 +431,16 @@ html.light .ch-card {
 @media (hover: hover) and (pointer: fine) {
   .ch-card:hover {
     background: var(--bg-hover);
-    border-color: rgba(245,166,35,0.35);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(0,0,0,0.3), 0 0 0 1px rgba(245,166,35,0.1);
+    border-color: var(--border-accent);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card);
   }
 }
 
 .ch-card.active {
   border-color: var(--primary-accent);
-  background: rgba(245,166,35,0.08);
-  box-shadow: 0 0 0 1px var(--primary-accent), 0 6px 24px rgba(245,166,35,0.15);
+  background: rgb(var(--primary-rgb) / 0.08);
+  box-shadow: 0 0 0 1px rgb(var(--primary-rgb) / 0.35);
 }
 
 button.ch-card:focus-visible {
@@ -530,7 +532,7 @@ img:not([src]) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 18px;
+  padding: 8px 16px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-card);
@@ -538,24 +540,31 @@ img:not([src]) {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   white-space: nowrap;
 }
 .module-tab:hover {
-  border-color: rgba(245,166,35,0.4);
+  border-color: var(--border-accent);
   color: var(--text-main);
+  background: var(--bg-hover);
 }
 .module-tab.active {
   background: var(--primary-accent);
   border-color: var(--primary-accent);
-  color: #07080F;
-  box-shadow: 0 2px 12px rgba(245,166,35,0.22);
+  color: #0a0c10;
+  box-shadow: none;
 }
 .module-tab.active.bd {
   background: #006a4e;
   border-color: #006a4e;
   color: #fff;
-  box-shadow: 0 2px 12px rgba(0,106,78,0.28);
+  box-shadow: none;
+}
+/* India module — distinct active state without inline styles */
+.module-tab.active.module-tab--in {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: rgba(99, 102, 241, 0.45);
+  color: rgb(214 220 255);
 }
 
 .module-tab:focus-visible,
@@ -782,6 +791,26 @@ html.light [data-admin] select option {
   border-radius: 0.75rem 0.75rem 0 0;
   background: linear-gradient(90deg, var(--c1, #f59e0b), var(--c2, #d97706));
   opacity: 0.9;
+}
+
+/* ── Viewer: welcome + hero (token-based, no heavy gradients) ── */
+.welcome-banner {
+  border-radius: var(--radius-md);
+  background: rgb(var(--primary-rgb) / 0.07);
+  border: 1px solid rgb(var(--primary-rgb) / 0.2);
+}
+.hero-kicker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: rgb(var(--primary-rgb) / 0.12);
+}
+
+html.light .module-tab.active.module-tab--in {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: rgb(67 56 202);
 }
 
 /* ── Mobile / tablet touch: larger tap areas (coarse pointer) ── */

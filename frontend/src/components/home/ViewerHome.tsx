@@ -632,8 +632,7 @@ export function ViewerHome() {
           <div
             role="region"
             aria-label={t("usageTips")}
-            className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-            style={{ background: "rgba(245,166,35,0.08)", borderColor: "rgba(245,166,35,0.25)" }}
+            className="welcome-banner flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
           >
             <p className="text-left text-sm leading-relaxed" style={{ color: "var(--text-main)" }}>
               {t("welcomeHint")}
@@ -676,8 +675,7 @@ export function ViewerHome() {
             onClick={() => {
               transitionSetActiveModule("india");
             }}
-            className={`module-tab shrink-0 snap-start${activeModule === "india" ? " active" : ""}`}
-            style={activeModule === "india" ? { borderColor: "rgba(99,102,241,0.5)", color: "rgb(199 210 254)" } : undefined}
+            className={`module-tab module-tab--in shrink-0 snap-start${activeModule === "india" ? " active" : ""}`}
           >
             🇮🇳 India
             {inCount > 0 && <span className="module-tab-badge">{inCount}</span>}
@@ -708,7 +706,7 @@ export function ViewerHome() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "rgba(245,166,35,0.15)" }}>
+              <div className="hero-kicker-icon h-6 w-6">
                 <Tv2 className="h-4 w-4" style={{ color: "var(--primary-accent)" }} />
               </div>
               <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>

@@ -121,10 +121,11 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
               inputMode="search"
               autoComplete="off"
               autoCorrect="off"
-              className="search-input min-h-11 w-full rounded-xl py-2.5 pl-9 pr-3 text-[15px] text-white placeholder:text-slate-500 focus:outline-none sm:text-sm md:min-h-10 md:py-2"
+              className="search-input min-h-11 w-full rounded-xl py-2.5 pl-9 pr-3 text-[15px] placeholder:opacity-70 focus:outline-none sm:text-sm md:min-h-10 md:py-2"
               style={{
                 background: "var(--bg-card)",
-                border: "1px solid rgba(255,255,255,0.09)",
+                border: "1px solid var(--border)",
+                color: "var(--text-main)",
               }}
             />
           </div>

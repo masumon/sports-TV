@@ -31,30 +31,29 @@ export function SiteFooter() {
     <footer
       className="mt-auto"
       style={{
-        background: "linear-gradient(180deg, var(--bg-card) 0%, #04050A 100%)",
-        borderTop: "1px solid rgba(245,166,35,0.12)",
+        background: "var(--bg-card)",
+        borderTop: "1px solid var(--border)",
       }}
     >
       <div
-        className="relative overflow-hidden py-7"
+        className="relative overflow-hidden py-6"
         style={{
-          background: "linear-gradient(135deg, rgba(245,166,35,0.05) 0%, rgba(13,15,28,0.4) 100%)",
-          borderBottom: "1px solid rgba(255,255,255,0.04)",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-3 px-4 sm:flex-row sm:gap-6 sm:text-left">
           <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
             style={{
-              background: "linear-gradient(145deg, rgba(245,166,35,0.2), rgba(7,8,15,0.9))",
-              border: "1px solid rgba(245,166,35,0.35)",
+              background: "var(--bg-card2)",
+              border: "1px solid var(--border)",
             }}
           >
-            <Image src="/icons/abo-logo.svg" alt="ABO Sports TV" width={44} height={44} />
+            <Image src="/icons/abo-logo.svg" alt="ABO Sports TV" width={36} height={36} />
           </div>
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <h2
-              className="text-lg font-black uppercase tracking-[0.12em] leading-tight"
+              className="text-base font-bold uppercase tracking-wide leading-tight sm:text-lg"
               style={{ color: "var(--primary-accent)" }}
             >
               ABO Sports TV Live
@@ -71,8 +70,8 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-3">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Product
@@ -91,7 +90,7 @@ export function SiteFooter() {
                 <span
                   key={tag}
                   className="rounded-full px-2.5 py-1"
-                  style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)", color: "var(--primary-accent)" }}
+                  style={{ background: "rgb(var(--primary-rgb) / 0.08)", border: "1px solid var(--border-accent)", color: "var(--primary-accent)" }}
                 >
                   {tag}
                 </span>
@@ -151,7 +150,7 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="px-4 py-5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="px-4 py-4" style={{ borderTop: "1px solid var(--border)" }}>
         <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
             {[

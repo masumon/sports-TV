@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Home, LayoutGrid, Settings, X, Tv, Globe, ChevronDown, ChevronUp,
-  Zap, Star, Flame, Activity,
+  Zap, Flame,
 } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
@@ -93,7 +93,7 @@ export function Sidebar() {
     <>
       {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 z-30 bg-black/60 backdrop-blur-sm transition-opacity md:hidden ${
+        className={`fixed inset-0 z-30 bg-black/50 backdrop-blur-[2px] transition-opacity md:hidden ${
           sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={() => setSidebarOpen(false)}
@@ -106,7 +106,7 @@ export function Sidebar() {
         } shrink-0 overflow-y-auto`}
         style={{
           background: "var(--bg-card)",
-          borderRight: "1px solid rgba(255,255,255,0.07)",
+          borderRight: "1px solid var(--border)",
           scrollbarWidth: "none",
         }}
       >
@@ -115,7 +115,7 @@ export function Sidebar() {
           className="sticky top-0 z-10 flex items-center justify-between px-4 py-4"
           style={{
             background: "var(--bg-card)",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            borderBottom: "1px solid var(--border)",
           }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
@@ -288,31 +288,23 @@ export function Sidebar() {
             ) : null}
           </div>
 
-          {/* ── Features ── */}
-          <div className="mt-3 rounded-xl p-3" style={{ background: "rgba(245,166,35,0.05)", border: "1px solid rgba(245,166,35,0.12)" }}>
-            <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--primary-accent)" }}>
-              Platform Features
-            </p>
-            {[
-              { icon: <Zap size={12} />, label: "HLS live streaming" },
-              { icon: <Activity size={12} />, label: "Backup & relay streams" },
-              { icon: <Globe size={12} />, label: "Global, BD, IN, FAST & live" },
-              { icon: <Star size={12} />, label: "Quality selector" },
-              { icon: <Flame size={12} />, label: "Large channel catalog" },
-              { icon: <Tv size={12} />, label: "PWA install" },
-            ].map(({ icon, label }) => (
-              <div key={label} className="flex items-center gap-2 py-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                <span style={{ color: "var(--primary-accent)" }}>{icon}</span>
-                {label}
-              </div>
-            ))}
+          <div
+            className="mt-3 flex gap-2 rounded-lg px-3 py-2.5 text-[11px] leading-relaxed"
+            style={{
+              color: "var(--text-muted)",
+              border: "1px solid var(--border)",
+              background: "var(--bg-card2)",
+            }}
+          >
+            <Zap className="mt-0.5 shrink-0" size={14} style={{ color: "var(--primary-accent)" }} aria-hidden />
+            <p className="m-0">{t("installHint")}</p>
           </div>
         </div>
 
         {/* ── Footer credit ── */}
         <div
           className="px-4 py-3"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+          style={{ borderTop: "1px solid var(--border)" }}
         >
           <p className="text-[9px] uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
             Powered by
