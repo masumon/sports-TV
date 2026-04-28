@@ -1,41 +1,54 @@
 import type { NextConfig } from "next";
-import withPWAInit from "@ducanh2912/next-pwa";
+import withPWAInit, { runtimeCaching } from "@ducanh2912/next-pwa";
 import type { RuntimeCaching } from "workbox-build";
 
+const defaultCache = runtimeCaching as RuntimeCaching[];
+if (
+  !defaultCache.some(
+    (e) => e?.options && typeof e.options === "object" && (e.options as { cacheName?: string }).cacheName === "apis",
+  )
+) {
+  throw new Error("next-pwa: missing default 'apis' cache — update this file if the plugin changed");
+}
+
+const proxyStreamNetworkOnly: RuntimeCaching = {
+  urlPattern: ({ sameOrigin, url: { pathname } }) =>
+    Boolean(sameOrigin && pathname.startsWith("/api/v1/proxy/")),
+  handler: "NetworkOnly",
+  method: "GET",
+  options: undefined,
+};
+
+const apisRestNetworkFirst: RuntimeCaching = {
+  urlPattern: ({ sameOrigin, url: { pathname } }) =>
+    Boolean(
+      sameOrigin &&
+        pathname.startsWith("/api/") &&
+        !pathname.startsWith("/api/auth/callback") &&
+        !pathname.startsWith("/api/v1/proxy/"),
+    ),
+  handler: "NetworkFirst",
+  method: "GET",
+  options: {
+    cacheName: "apis",
+    expiration: { maxEntries: 16, maxAgeSeconds: 86_400 },
+    networkTimeoutSeconds: 10,
+  },
+};
+
 /**
- * PWA (Workbox) was caching every same-origin `GET /api/*` in the "apis" cache
- * (NetworkFirst, 24h). HLS traffic goes through `/api/v1/proxy/stream` and must
- * never be stored — a stale 502/empty body breaks playback for all channels
- * until the cache entry expires. We extend the default runtime list and
- * (1) bypass cache entirely for the stream proxy, (2) keep "apis" for other API
- * GETs but exclude `/api/v1/proxy/*` from that rule.
+ * next-pwa prepends custom `runtimeCaching` then merges defaults, so the stock
+ * `NetworkFirst` rule for all `/api/*` stayed active and cached HLS/playlist
+ * traffic — stale bodies → freezes and broken playback, worse in PWA. We
+ * **replace** the default list, drop the old `apis` entry, and register two
+ * rules in order: NetworkOnly for `/api/v1/proxy/*`, NetworkFirst for the rest.
  */
-const pwaStreamSafeRuntimeCaching: RuntimeCaching[] = [
-  {
-    urlPattern: ({ sameOrigin, url: { pathname } }) =>
-      Boolean(sameOrigin && pathname.startsWith("/api/v1/proxy/")),
-    handler: "NetworkOnly",
-    method: "GET",
-  },
-  {
-    urlPattern: ({ sameOrigin, url: { pathname } }) =>
-      Boolean(
-        sameOrigin &&
-          pathname.startsWith("/api/") &&
-          !pathname.startsWith("/api/auth/callback") &&
-          !pathname.startsWith("/api/v1/proxy/"),
-      ),
-    handler: "NetworkFirst",
-    method: "GET",
-    options: {
-      cacheName: "apis",
-      expiration: {
-        maxEntries: 16,
-        maxAgeSeconds: 86400,
-      },
-      networkTimeoutSeconds: 10,
-    },
-  },
+const pwaWorkboxRuntimeCaching: RuntimeCaching[] = [
+  ...defaultCache.filter(
+    (e) => !e?.options || (e.options as { cacheName?: string }).cacheName !== "apis",
+  ),
+  proxyStreamNetworkOnly,
+  apisRestNetworkFirst,
 ];
 
 const withPWA = withPWAInit({
@@ -45,9 +58,9 @@ const withPWA = withPWAInit({
   fallbacks: {
     document: "/offline",
   },
-  extendDefaultRuntimeCaching: true,
+  extendDefaultRuntimeCaching: false,
   workboxOptions: {
-    runtimeCaching: pwaStreamSafeRuntimeCaching,
+    runtimeCaching: pwaWorkboxRuntimeCaching,
   },
 });
 

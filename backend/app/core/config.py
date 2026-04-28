@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     admin_email: str = "admin@test.com"
     admin_password: str = "Admin12345!"
     admin_full_name: str = "Platform Admin"
+    # Second "default" account (non-admin) — kept on startup; all other users are removed.
+    viewer_default_email: str = "kurban@example.com"
+    viewer_default_password: str = "Viewer12345!"
+    viewer_default_full_name: str = "Goodbye Kurban"
 
     cors_origins: str = "http://localhost:3000"
     scraper_source_url: str = "https://iptv-org.github.io/iptv/categories/sports.m3u"

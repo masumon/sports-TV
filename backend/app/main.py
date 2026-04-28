@@ -38,6 +38,46 @@ logger = logging.getLogger("app.startup")
 SCHEDULER = None
 
 
+def ensure_viewer_user(db: Session) -> None:
+    """Idempotent: one regular user for testing; name/password from settings."""
+    u = db.scalar(select(User).where(User.email == settings.viewer_default_email))
+    h = get_password_hash(settings.viewer_default_password)
+    if u is None:
+        db.add(
+            User(
+                full_name=settings.viewer_default_full_name,
+                email=settings.viewer_default_email,
+                password_hash=h,
+                is_admin=False,
+                is_active=True,
+            )
+        )
+        db.commit()
+        logger.info("Seeded default viewer: %s", settings.viewer_default_email)
+        return
+    u.full_name = settings.viewer_default_full_name
+    u.password_hash = h
+    u.is_admin = False
+    u.is_active = True
+    db.commit()
+
+
+def prune_non_default_users(db: Session) -> None:
+    """Delete every user except the seeded admin and the default viewer."""
+    keep = {settings.admin_email.strip().lower(), settings.viewer_default_email.strip().lower()}
+    q = select(User).where(
+        ~func.lower(User.email).in_([*keep]),
+    )
+    rows = db.execute(q).scalars().all()
+    n = 0
+    for row in rows:
+        db.delete(row)
+        n += 1
+    if n:
+        db.commit()
+        logger.info("Removed %s non-default user row(s); kept admin + viewer only", n)
+
+
 def ensure_admin_seed(db: Session) -> None:
     # Migrate legacy admin@gstv.local (invalid TLD rejected by email-validator)
     # to the configured admin email so login works after the EmailStr fix.
@@ -100,6 +140,8 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         ensure_admin_seed(db)
+        ensure_viewer_user(db)
+        prune_non_default_users(db)
         # Fresh/empty DB: always run one M3U sync so first deploy is not empty
         # (AUTO_SYNC_CHANNELS_ON_STARTUP alone was too easy to leave false in production).
         existing_count = db.scalar(select(func.count()).select_from(Channel)) or 0
