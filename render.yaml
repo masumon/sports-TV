@@ -65,13 +65,16 @@ services:
         sync: false
       - key: ADMIN_FULL_NAME
         sync: false
-      # Non-admin test user; startup keeps only ADMIN_EMAIL + this email, deletes other rows
+      # Optional second account (inserted once if missing). Set passwords in the dashboard, not here in git.
       - key: VIEWER_DEFAULT_EMAIL
         value: kurban@example.com
       - key: VIEWER_DEFAULT_PASSWORD
         sync: false
       - key: VIEWER_DEFAULT_FULL_NAME
         value: Goodbye Kurban
+      # false = do not delete registered users in production. Set true only in a test DB.
+      - key: PRUNE_NON_DEFAULT_USERS_ON_STARTUP
+        value: "false"
       # No trailing slash. Preview *.vercel.app is also allowed via allow_origin_regex in main.py.
       - key: CORS_ORIGINS
         value: "https://sports-tv-lovat.vercel.app,http://localhost:3000"
