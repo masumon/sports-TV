@@ -49,9 +49,12 @@ export type PremiumPlayerProps = {
   headerProfile?: string | null;
   /** Prefer VPN messaging when playback fails with geo errors. */
   geoHint?: boolean;
-  /** Channel logo shown on the video (same treatment as the channel list). */
+  /** Channel logo on the video; when empty, app brand logo is shown (same as TopBar). */
   channelLogoUrl?: string | null;
 };
+
+/** Matches `TopBar` / `Sidebar` — always shown on the player when channel has no logo. */
+const DEFAULT_PLAYER_BRAND_LOGO = "/icons/abo-logo.svg";
 
 /* ────────────────────────────────────── External player definitions ── */
 const EXTERNAL_PLAYERS = [
@@ -403,6 +406,9 @@ export default function PremiumPlayer({
   );
   const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
   const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
+
+  const playerWatermarkSrc = (channelLogoUrl?.trim() || DEFAULT_PLAYER_BRAND_LOGO).trim();
+  const playerWatermarkIsChannel = Boolean(channelLogoUrl?.trim());
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
@@ -994,26 +1000,32 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* Channel branding — same corner badge style as the directory row */}
-      {channelLogoUrl ? (
-        <div
-          className="pointer-events-none absolute z-[38] rounded-xl p-0.5"
-          style={{
-            top: "max(0.75rem, env(safe-area-inset-top, 0px))",
-            right: "max(0.75rem, env(safe-area-inset-right, 0px))",
-            background: "rgba(7,8,15,0.45)",
-            border: "1px solid var(--border)",
-            boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={channelLogoUrl} alt="" className="h-10 w-10 rounded-lg object-cover sm:h-11 sm:w-11" />
-        </div>
-      ) : null}
+      {/* Channel or app brand watermark (default: abo-logo.svg) */}
+      <div
+        className="pointer-events-none absolute z-[38] rounded-xl p-0.5"
+        style={{
+          top: "max(0.75rem, env(safe-area-inset-top, 0px))",
+          right: "max(0.75rem, env(safe-area-inset-right, 0px))",
+          background: "rgba(7,8,15,0.45)",
+          border: "1px solid var(--border)",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={playerWatermarkSrc}
+          alt=""
+          className={
+            playerWatermarkIsChannel
+              ? "h-10 w-10 rounded-lg object-cover sm:h-11 sm:w-11"
+              : "block h-9 max-w-[7.25rem] object-contain object-center sm:h-10 sm:max-w-[8rem]"
+          }
+        />
+      </div>
 
       {/* LIVE + server relay — top inset locked (safe area); avoids “jumping” when bottom panel opens on mobile */}
       <div
-        className="pointer-events-none absolute left-0 right-0 z-40 flex flex-wrap items-center gap-2 px-3 sm:left-3 sm:right-auto sm:pr-[5.5rem]"
+        className="pointer-events-none absolute left-0 right-0 z-40 flex flex-wrap items-center gap-2 px-3 sm:left-3 sm:right-auto sm:pr-[9.5rem]"
         style={{
           top: "max(0.75rem, env(safe-area-inset-top, 0px))",
         }}
