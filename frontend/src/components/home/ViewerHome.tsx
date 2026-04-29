@@ -988,6 +988,7 @@ export function ViewerHome() {
                 onToggleTheaterMode={toggleTheaterMode}
                 headerProfile={activeChannel.header_profile ?? null}
                 geoHint={Boolean(activeChannel.geo_hint)}
+                channelLogoUrl={activeChannel.logo_url}
               />
             ) : (
               <div className="player-shell flex aspect-video items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>

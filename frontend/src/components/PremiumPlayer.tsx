@@ -49,7 +49,12 @@ export type PremiumPlayerProps = {
   headerProfile?: string | null;
   /** Prefer VPN messaging when playback fails with geo errors. */
   geoHint?: boolean;
+  /** Channel logo on the video; when empty, app brand logo is shown (same as TopBar). */
+  channelLogoUrl?: string | null;
 };
+
+/** Matches `TopBar` / `Sidebar` — always shown on the player when channel has no logo. */
+const DEFAULT_PLAYER_BRAND_LOGO = "/icons/abo-logo.svg";
 
 /* ────────────────────────────────────── External player definitions ── */
 const EXTERNAL_PLAYERS = [
@@ -220,7 +225,13 @@ function relayHlsXhrUrlIfNeeded(
 }
 
 const LINK_RETRY_ATTEMPTS = 3;
-const LINK_RETRY_DELAY_MS = 2000;
+/** Shorter remount delay so we rotate to the next mirror quickly. */
+const LINK_RETRY_DELAY_MS = 800;
+
+/** Fail over to the next URL instead of waiting ~10s per dead mirror (HLS.js defaults). */
+const HLS_MANIFEST_LOAD_TIMEOUT_MS = 5500;
+const HLS_LEVEL_LOAD_TIMEOUT_MS = 5500;
+const HLS_FRAG_LOAD_TIMEOUT_MS = 9000;
 
 function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
   if (xhr.status !== 403 && xhr.status !== 401) return false;
@@ -336,12 +347,15 @@ export default function PremiumPlayer({
   onToggleTheaterMode,
   overlay,
   headerProfile = null,
+  channelLogoUrl = null,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const dashRef = useRef<ReturnType<ReturnType<typeof dashjs.MediaPlayer>["create"]> | null>(null);
+  /** After first `playing`, do not show the full-screen loader on routine rebuffering. */
+  const playbackStartedRef = useRef(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -392,6 +406,9 @@ export default function PremiumPlayer({
   );
   const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
   const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
+
+  const playerWatermarkSrc = (channelLogoUrl?.trim() || DEFAULT_PLAYER_BRAND_LOGO).trim();
+  const playerWatermarkIsChannel = Boolean(channelLogoUrl?.trim());
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
@@ -448,6 +465,7 @@ export default function PremiumPlayer({
     setIsLoading(true);
     setHasError(false);
     setGeoRestricted(false);
+    playbackStartedRef.current = false;
 
     const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
     if (!allUrls.length) {
@@ -516,12 +534,15 @@ export default function PremiumPlayer({
         abrEwmaDefaultEstimate: lightNet ? 400_000 : 1_000_000,
         abrBandWidthFactor: lightNet ? 0.9 : 0.95,
         abrBandWidthUpFactor: lightNet ? 0.55 : 0.7,
-        manifestLoadingMaxRetry: 2,
-        manifestLoadingRetryDelay: lightNet ? 800 : 500,
-        levelLoadingMaxRetry: 2,
-        levelLoadingRetryDelay: lightNet ? 800 : 500,
-        fragLoadingMaxRetry: 3,
-        fragLoadingRetryDelay: lightNet ? 800 : 500,
+        manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
+        manifestLoadingMaxRetry: 0,
+        manifestLoadingRetryDelay: 350,
+        levelLoadingTimeOut: HLS_LEVEL_LOAD_TIMEOUT_MS,
+        levelLoadingMaxRetry: 0,
+        levelLoadingRetryDelay: 350,
+        fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
+        fragLoadingMaxRetry: 1,
+        fragLoadingRetryDelay: lightNet ? 600 : 400,
         startLevel: -1,
         capLevelToPlayerSize: true,
         xhrSetup: (xhr, requestUrl) => {
@@ -538,6 +559,7 @@ export default function PremiumPlayer({
               urlPlayIndexRef.current = nextIdx;
               setUrlIdx(nextIdx);
               setGeoRestricted(false);
+              playbackStartedRef.current = false;
               toast.info("Switching to backup source…");
               try {
                 hlsInstance.loadSource(allUrls[nextIdx]!);
@@ -574,6 +596,7 @@ export default function PremiumPlayer({
           if (nextIdx >= allUrls.length) return false;
           urlPlayIndexRef.current = nextIdx;
           setUrlIdx(nextIdx);
+          playbackStartedRef.current = false;
           setIsSwitching(true);
           setIsLoading(true);
           const nextU = allUrls[nextIdx] ?? "";
@@ -645,7 +668,6 @@ export default function PremiumPlayer({
             .filter((idx) => idx >= 0);
           if (underSd.length > 0) hls.autoLevelCapping = Math.max(...underSd);
         }
-        setIsLoading(false);
         setHasError(false);
         setIsSwitching(false);
         void video.play().catch(() => {
@@ -666,7 +688,6 @@ export default function PremiumPlayer({
       hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => setSelectedQuality(data.level));
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = effectiveUrl;
-      setIsLoading(false);
       setIsSwitching(false);
     }
 
@@ -679,8 +700,15 @@ export default function PremiumPlayer({
     const onPlay = () => { setIsPlaying(true); scheduleHideControls(); };
     const onPause = () => { setIsPlaying(false); setShowControls(true); clearHideTimer(); };
     const onVolumeChange = () => { setIsMuted(video.muted); setVolumeState(video.volume); };
-    const onWaiting = () => setIsLoading(true);
-    const onPlaying = () => { setIsLoading(false); setHasError(false); };
+    const onWaiting = () => {
+      if (playbackStartedRef.current) return;
+      setIsLoading(true);
+    };
+    const onPlaying = () => {
+      playbackStartedRef.current = true;
+      setIsLoading(false);
+      setHasError(false);
+    };
     const onCanPlay = () => setIsLoading(false);
     const onError = () => { setHasError(true); setIsLoading(false); };
     const onProgress = () => {
@@ -884,7 +912,7 @@ export default function PremiumPlayer({
 
       {/* Loading / Switching spinner */}
       <AnimatePresence>
-        {(isLoading || isSwitching) && !hasError && !geoRestricted && (
+        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !hasError && !geoRestricted && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
@@ -972,9 +1000,32 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
+      {/* Channel or app brand watermark (default: abo-logo.svg) */}
+      <div
+        className="pointer-events-none absolute z-[38] rounded-xl p-0.5"
+        style={{
+          top: "max(0.75rem, env(safe-area-inset-top, 0px))",
+          right: "max(0.75rem, env(safe-area-inset-right, 0px))",
+          background: "rgba(7,8,15,0.45)",
+          border: "1px solid var(--border)",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={playerWatermarkSrc}
+          alt=""
+          className={
+            playerWatermarkIsChannel
+              ? "h-10 w-10 rounded-lg object-cover sm:h-11 sm:w-11"
+              : "block h-9 max-w-[7.25rem] object-contain object-center sm:h-10 sm:max-w-[8rem]"
+          }
+        />
+      </div>
+
       {/* LIVE + server relay — top inset locked (safe area); avoids “jumping” when bottom panel opens on mobile */}
       <div
-        className="pointer-events-none absolute left-0 right-0 z-40 flex flex-wrap items-center gap-2 px-3 sm:left-3 sm:right-auto"
+        className="pointer-events-none absolute left-0 right-0 z-40 flex flex-wrap items-center gap-2 px-3 sm:left-3 sm:right-auto sm:pr-[9.5rem]"
         style={{
           top: "max(0.75rem, env(safe-area-inset-top, 0px))",
         }}
