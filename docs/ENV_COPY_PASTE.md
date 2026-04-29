@@ -34,13 +34,13 @@
 | `REDIS_URL` | `None` | ঐচ্ছিক | `redis://` বা `rediss://` (Redis Cloud) |
 | `CACHE_TTL_SECONDS` | `300` | ঐচ্ছিক | চ্যানেল তালিকা ক্যাশ |
 | `SYNC_RATE_LIMIT_SECONDS` | `60` | ঐচ্ছিক | অ্যাডমিন `POST /admin/channels/sync` |
-| `SCHEDULED_SYNC_INTERVAL_MINUTES` | `0` | ঐচ্ছিক | কোড ডিফল্ট `0` (ফ্রি টিয়ার সুপারিশ); `>0` হলে প্রতি N মিনিটে DB M3U সিঙ্ক |
+| `SCHEDULED_SYNC_INTERVAL_MINUTES` | `0` | ঐচ্ছিক | কোড ডিফল্ট `0`; `>0` হলে প্রতি N মিনিটে DB M3U সিঙ্ক। রিপোর `render.yaml` ব্লুপ্রিন্টে `120` (২ ঘণ্টায় একবার) — ডিপ্লয়ে ড্যাশবোর্ডের মান মিলিয়ে নিন |
 | `SOURCE_DISCOVERY_INTERVAL_HOURS` | `0` | ঐচ্ছিক | ফ্রি টিয়ারে `0` রাখুন |
 | `CHANNEL_STALE_DAYS` | `3` | ঐচ্ছিক | স্টেইল চ্যানেল ডিঅ্যাকটিভ |
 | `DB_POOL_SIZE` | `5` | ঐচ্ছিক | Neon free: `3` সুপারিশ (`render.yaml`) |
 | `DB_MAX_OVERFLOW` | `10` | ঐচ্ছিক | Neon free: `5` সুপারিশ |
 | `M3U8_REFRESH_INTERVAL_MINUTES` | `0` | ঐচ্ছিক | Playwright; ফ্রি টিয়ারে `0` |
-| `STREAM_VALIDATION_INTERVAL_MINUTES` | `0` | ঐচ্ছিক | `0` = নির্ধারিত স্ট্রিম চেক বন্ধ |
+| `STREAM_VALIDATION_INTERVAL_MINUTES` | `0` | ঐচ্ছিক | `0` = নির্ধারিত স্ট্রিম চেক বন্ধ। ব্লুপ্রিন্টে `120` থাকতে পারে (সিঙ্কের মতো কাঠামো) |
 
 **`Settings` বাইরে (শুধু নির্দিষ্ট ফাইল):**
 
@@ -86,7 +86,8 @@ ADMIN_FULL_NAME=Platform Admin
 SCRAPER_SOURCE_URL=https://iptv-org.github.io/iptv/categories/sports.m3u
 AUTO_SYNC_CHANNELS_ON_STARTUP=false
 SYNC_RATE_LIMIT_SECONDS=60
-SCHEDULED_SYNC_INTERVAL_MINUTES=0
+# APScheduler: 120 = প্রতি ২ ঘণ্টা (ব্লুপ্রিন্টের মতো)। বন্ধ করতে দুটোই 0।
+SCHEDULED_SYNC_INTERVAL_MINUTES=120
 CACHE_TTL_SECONDS=300
 DB_POOL_SIZE=3
 DB_MAX_OVERFLOW=5
@@ -95,7 +96,7 @@ PASSWORD_RESET_RATE_LIMIT_SECONDS=120
 SOURCE_DISCOVERY_INTERVAL_HOURS=0
 CHANNEL_STALE_DAYS=3
 M3U8_REFRESH_INTERVAL_MINUTES=0
-STREAM_VALIDATION_INTERVAL_MINUTES=0
+STREAM_VALIDATION_INTERVAL_MINUTES=120
 REDIS_URL=
 INTERNAL_SYNC_SECRET=<<<PASTE_openssl_rand_hex_32_2_OR_leave_empty_if_no_cron_hits_internal_sync>>>
 ```

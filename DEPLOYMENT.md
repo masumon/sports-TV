@@ -34,6 +34,18 @@ This project is designed to run on **hobby / free** tiers. Follow these rules to
 
 When using **same-origin** `NEXT_PUBLIC_API_BASE_URL=/api` on Vercel, the browser does not need CORS for public reads; CORS still matters for **admin / auth** from a different origin or for tools hitting Render directly.
 
+## Background automation (APScheduler on Render)
+
+The FastAPI app starts `BackgroundScheduler` when **any** of these env vars is greater than zero:  
+`SCHEDULED_SYNC_INTERVAL_MINUTES`, `STREAM_VALIDATION_INTERVAL_MINUTES`, `SOURCE_DISCOVERY_INTERVAL_HOURS`, `M3U8_REFRESH_INTERVAL_MINUTES`.
+
+- **Blueprint defaults (`render.yaml`):** periodic M3U sync and stream validation every **120 minutes**; discovery and Playwright m3u8 refresh stay **0** (lighter on free tier).
+- **To turn automation off** in the Render dashboard: set all four intervals back to `0` and redeploy (or clear and save).
+- **To tune load:** increase intervals (e.g. 240) or disable one job (set that variable to `0`).
+- **Duplicate workers:** do not scale to multiple Render instances for the same DB without external coordination, or jobs will run in duplicate.
+
+Optional **`POST /internal/sync`** (same sync as the scheduler) needs `INTERNAL_SYNC_SECRET` and header `X-Sync-Secret` in production — use for external cron if you prefer HTTP triggers over in-process schedules.
+
 ## Free-tier operational tips
 
 - **Render sleep:** First request after idle is slow. Health checks in `render.yaml` help; users may still see cold start occasionally.  
