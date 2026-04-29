@@ -35,6 +35,7 @@ import {
   loadFullCatalogWithLive,
   replaceLiveMatches,
 } from "@/lib/streamCatalog";
+import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
 import type { Channel, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
@@ -239,7 +240,6 @@ export function ViewerHome() {
   const [filterLeague, setFilterLeague] = useState("");
   const [showAllFilters, setShowAllFilters] = useState(false);
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
-  const [showAltLinks, setShowAltLinks] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const reduceM = useReducedMotion();
   const tier = useSubscriptionStore((s) => s.tier);
@@ -256,6 +256,16 @@ export function ViewerHome() {
   const selectChannel = useCallback(
     (ch: Channel) => {
       startTransition(() => {
+        setActiveStreamUrl(null);
+        setActiveChannel(ch);
+      });
+    },
+    [setActiveChannel]
+  );
+  const pickStreamLink = useCallback(
+    (ch: Channel, directUrl: string | null) => {
+      startTransition(() => {
+        setActiveStreamUrl(directUrl);
         setActiveChannel(ch);
       });
     },
@@ -384,15 +394,8 @@ export function ViewerHome() {
       setFilterLeague("");
       setActiveCategory("");
       setActiveStreamUrl(null);
-      setShowAltLinks(false);
     });
   }, [activeModule, setActiveCategory]);
-
-  // Reset active stream URL when channel changes
-  useEffect(() => {
-    setActiveStreamUrl(null);
-    setShowAltLinks(false);
-  }, [activeChannel?.id]);
 
   const moduleChannels = useMemo(
     () => allChannels.filter((c) => c.module === activeModule),
@@ -404,6 +407,7 @@ export function ViewerHome() {
     if (moduleChannels.length === 0) {
       if (activeChannel && activeChannel.module !== activeModule) {
         startTransition(() => {
+          setActiveStreamUrl(null);
           setActiveChannel(null);
         });
       }
@@ -411,6 +415,7 @@ export function ViewerHome() {
     }
     if (!activeChannel || activeChannel.module !== activeModule) {
       startTransition(() => {
+        setActiveStreamUrl(null);
         setActiveChannel(moduleChannels[0]!);
       });
     }
@@ -583,31 +588,18 @@ export function ViewerHome() {
   }, []);
 
   const currentStreamUrl = activeStreamUrl ?? activeChannel?.stream_url ?? "";
-  const altLinks = activeChannel?.alternate_urls ?? [];
 
   const playbackUrls = useMemo(() => {
     if (!activeChannel) return [];
-    const raw = [activeChannel.stream_url, ...(activeChannel.alternate_urls ?? [])].filter(
-      (u): u is string => Boolean(u && typeof u === "string" && u.trim().startsWith("http"))
-    );
-    const out: string[] = [];
-    const seen = new Set<string>();
-    for (const u of raw) {
-      try {
-        const x = new URL(u.trim());
-        x.hash = "";
-        const k = x.toString();
-        if (seen.has(k)) continue;
-        seen.add(k);
-        out.push(u.trim());
-      } catch {
-        if (seen.has(u.trim())) continue;
-        seen.add(u.trim());
-        out.push(u.trim());
-      }
-    }
-    return out;
+    return orderedStreamUrlsForChannel(activeChannel);
   }, [activeChannel]);
+
+  const selectedPlaybackIndex = useMemo(() => {
+    if (!activeChannel || playbackUrls.length === 0) return 0;
+    if (activeStreamUrl == null) return 0;
+    const i = playbackUrls.findIndex((u) => u === activeStreamUrl);
+    return i >= 0 ? i : 0;
+  }, [activeChannel, activeStreamUrl, playbackUrls]);
 
   const { gsCount, inCount, bdCount, fastCount, liveCount } = useMemo(() => {
     let gs = 0;
@@ -980,9 +972,9 @@ export function ViewerHome() {
           <section className="min-w-0 md:col-span-7 lg:col-span-8">
             {activeChannel ? (
               <PremiumPlayer
-                streamUrl={playbackUrls[0] ?? currentStreamUrl}
+                streamUrl={playbackUrls[selectedPlaybackIndex] ?? currentStreamUrl}
                 streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                alternateUrls={playbackUrls.length > 1 ? playbackUrls.slice(1) : altLinks}
+                alternateUrls={playbackUrls.length > 1 ? playbackUrls.slice(1) : []}
                 title={activeChannel.name}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}
@@ -1025,59 +1017,29 @@ export function ViewerHome() {
                   </span>
                 </div>
 
-                {/* ── Alternate / Backup stream links ── */}
-                {altLinks.length > 0 && (
+                {/* ── Stream links (Link 1, Link 2, …) ── */}
+                {playbackUrls.length > 1 && (
                   <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowAltLinks((v) => !v)}
-                      className="flex items-center gap-1.5 text-xs font-semibold transition-opacity hover:opacity-80"
-                      style={{ color: "var(--primary-accent)" }}
-                    >
-                      <Link2 size={13} />
-                      {altLinks.length} Backup Stream{altLinks.length > 1 ? "s" : ""}
-                      <ChevronRight size={12} className={`transition-transform ${showAltLinks ? "rotate-90" : ""}`} />
-                    </button>
-                    <AnimatePresence>
-                      {showAltLinks && (
-                        <motion.div
-                          initial={reduceM ? false : { height: 0, opacity: 0 }}
-                          animate={reduceM ? { opacity: 1 } : { height: "auto", opacity: 1 }}
-                          exit={reduceM ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                          transition={reduceM ? { duration: 0 } : { duration: 0.2 }}
-                          className="overflow-hidden"
+                    <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+                      <Link2 size={12} />
+                      {t("streamLinksLabel")}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {playbackUrls.map((url, i) => (
+                        <button
+                          key={url}
+                          type="button"
+                          onClick={() => {
+                            startTransition(() => {
+                              setActiveStreamUrl(i === 0 ? null : url);
+                            });
+                          }}
+                          className={`alt-link-btn${selectedPlaybackIndex === i ? " active" : ""}`}
                         >
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {/* Primary link */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                startTransition(() => {
-                                  setActiveStreamUrl(null);
-                                });
-                              }}
-                              className={`alt-link-btn${!activeStreamUrl ? " active" : ""}`}
-                            >
-                              Primary
-                            </button>
-                            {altLinks.map((url, i) => (
-                              <button
-                                key={url}
-                                type="button"
-                                onClick={() => {
-                                  startTransition(() => {
-                                    setActiveStreamUrl(url);
-                                  });
-                                }}
-                                className={`alt-link-btn${activeStreamUrl === url ? " active" : ""}`}
-                              >
-                                Backup {i + 1}
-                              </button>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                          {t("streamLinkPrefix")} {i + 1}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1235,15 +1197,24 @@ export function ViewerHome() {
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
-                {gridSlice.map((ch) => (
+                {gridSlice.map((ch) => {
+                  const playingDirectUrl =
+                    activeChannel?.id === ch.id
+                      ? (activeStreamUrl ?? orderedStreamUrlsForChannel(activeChannel)[0] ?? null)
+                      : null;
+                  return (
                   <PremiumChannelCard
                     key={ch.id}
                     channel={ch}
                     active={activeChannel?.id === ch.id}
+                    playingDirectUrl={playingDirectUrl}
                     onSelect={selectChannel}
+                    onPickStream={pickStreamLink}
+                    streamLinkPrefix={t("streamLinkPrefix")}
                     activeModule={activeModule}
                   />
-                ))}
+                  );
+                })}
               </div>
               {gridHasMore ? (
                 <>
@@ -1280,74 +1251,110 @@ export function ViewerHome() {
 const PremiumChannelCard = memo(function PremiumChannelCard({
   channel,
   active,
+  playingDirectUrl,
   onSelect,
+  onPickStream,
+  streamLinkPrefix,
   activeModule,
 }: {
   channel: Channel;
   active: boolean;
+  /** Resolved direct URL playing for this channel when selected; null if another channel is selected. */
+  playingDirectUrl: string | null;
   onSelect: (c: Channel) => void;
+  onPickStream: (c: Channel, directUrl: string | null) => void;
+  streamLinkPrefix: string;
   activeModule: ViewerModule;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        onSelect(channel);
-      }}
-      className={`ch-card group w-full p-3 text-left transition-[transform,box-shadow] duration-150 will-change-transform active:scale-[0.99]${active ? " active" : ""}`}
-    >
-      <div className="flex items-start gap-3">
-        {channel.logo_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={channel.logo_url}
-            alt=""
-            className="h-12 w-12 shrink-0 rounded-lg object-cover"
-            style={{ border: "1px solid var(--border)" }}
-            loading="lazy"
-          />
-        ) : (
-          <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
-            style={{ background: active ? "var(--primary-accent)" : "var(--bg-hover)" }}
-          >
-            {channel.name.slice(0, 2)}
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name}>
-            {channel.name}
-          </p>
-          <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${channel.country} · ${channel.language}`}>
-            {flagFromCountryName(channel.country)} {channel.country} · {channel.language}
-          </p>
-        </div>
-        {active && <span className="pulse-dot mt-1 shrink-0" />}
-      </div>
+  const streamUrls = useMemo(() => orderedStreamUrlsForChannel(channel), [channel]);
 
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
-        <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-          style={{ background: "rgb(255 255 255 / 6%)", color: "var(--text-muted)" }}
-        >
-          {categoryEmoji(channel.category, activeModule)} {channel.category}
-        </span>
-        <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-          style={{
-            background: active ? "rgba(245,166,35,0.12)" : "rgb(255 255 255 / 6%)",
-            color: active ? "var(--primary-accent)" : "var(--text-muted)",
-          }}
-        >
-          {channel.quality_tag}
-        </span>
-        {channel.alternate_urls.length > 0 && (
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgb(30 110 232 / 15%)", color: "#60a5fa" }}>
-            +{channel.alternate_urls.length} links
+  return (
+    <div
+      className={`ch-card group w-full p-3${active ? " active" : ""}`}
+    >
+      <button
+        type="button"
+        onClick={() => {
+          onSelect(channel);
+        }}
+        className="w-full text-left"
+      >
+        <div className="flex items-start gap-3">
+          {channel.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={channel.logo_url}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-lg object-cover"
+              style={{ border: "1px solid var(--border)" }}
+              loading="lazy"
+            />
+          ) : (
+            <div
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
+              style={{ background: active ? "var(--primary-accent)" : "var(--bg-hover)" }}
+            >
+              {channel.name.slice(0, 2)}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name}>
+              {channel.name}
+            </p>
+            <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${channel.country} · ${channel.language}`}>
+              {flagFromCountryName(channel.country)} {channel.country} · {channel.language}
+            </p>
+          </div>
+          {active && <span className="pulse-dot mt-1 shrink-0" />}
+        </div>
+
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+            style={{ background: "rgb(255 255 255 / 6%)", color: "var(--text-muted)" }}
+          >
+            {categoryEmoji(channel.category, activeModule)} {channel.category}
           </span>
-        )}
-      </div>
-    </button>
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+            style={{
+              background: active ? "rgba(245,166,35,0.12)" : "rgb(255 255 255 / 6%)",
+              color: active ? "var(--primary-accent)" : "var(--text-muted)",
+            }}
+          >
+            {channel.quality_tag}
+          </span>
+        </div>
+      </button>
+
+      {streamUrls.length > 1 && (
+        <div className="mt-2.5 border-t pt-2.5" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="flex flex-wrap gap-1.5">
+            {streamUrls.map((url, i) => {
+              const isCurrent = playingDirectUrl != null && url === playingDirectUrl;
+              return (
+              <button
+                key={url}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPickStream(channel, i === 0 ? null : url);
+                }}
+                style={{
+                  background: isCurrent ? "rgba(245,166,35,0.12)" : "rgb(30 110 232 / 15%)",
+                  color: isCurrent ? "var(--primary-accent)" : "#60a5fa",
+                  border: isCurrent ? "1px solid rgba(245,166,35,0.35)" : "1px solid rgba(96,165,250,0.25)",
+                }}
+                className="rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors"
+              >
+                {streamLinkPrefix} {i + 1}
+              </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 });
 
