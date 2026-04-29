@@ -69,12 +69,12 @@ function entryToChannel(
   };
 }
 
-async function ingestPlaylistUrls(
+async function ingestPlaylistUrlsIntoSeen(
   urls: readonly string[],
   module: ViewerModule,
   countryFallback: string,
   seen: Set<string>,
-  out: Channel[]
+  out: Channel[] | null
 ): Promise<void> {
   const valid = urls.filter((u) => u && u.startsWith("http"));
   if (!valid.length) return;
@@ -93,7 +93,7 @@ async function ingestPlaylistUrls(
         const k = normKey(e.streamUrl);
         if (seen.has(k)) continue;
         seen.add(k);
-        out.push(entryToChannel(e, module, countryFallback));
+        if (out) out.push(entryToChannel(e, module, countryFallback));
       }
     } catch {
       /* skip malformed playlist */
@@ -101,16 +101,25 @@ async function ingestPlaylistUrls(
   }
 }
 
+async function ingestPlaylistUrls(
+  urls: readonly string[],
+  module: ViewerModule,
+  countryFallback: string,
+  seen: Set<string>,
+  out: Channel[]
+): Promise<void> {
+  await ingestPlaylistUrlsIntoSeen(urls, module, countryFallback, seen, out);
+}
+
 function resolvePremiumModule(mod: PremiumDirectModule): ViewerModule {
   if (mod === "bangladesh_and_bdix") return "bangladesh";
   return mod;
 }
 
-function mergePremiumDirectSports(seen: Set<string>, out: Channel[]): void {
+function mergePremiumDirectSportsIntoSeen(seen: Set<string>, out: Channel[] | null): void {
   const raw = APP_STREAM_CONFIG.premium_direct_sports;
   if (!raw?.length) return;
 
-  const emptyTs = { created_at: "", updated_at: "" };
   for (const p of raw) {
     const collected: string[] = [];
     const keySeen = new Set<string>();
@@ -129,6 +138,9 @@ function mergePremiumDirectSports(seen: Set<string>, out: Channel[]): void {
     if (seen.has(k)) continue;
     seen.add(k);
 
+    if (!out) continue;
+
+    const emptyTs = { created_at: "", updated_at: "" };
     const mod = resolvePremiumModule(p.module);
     const country =
       p.country?.trim() ||
@@ -178,9 +190,51 @@ export async function loadStaticCatalogChannels(): Promise<Channel[]> {
     out
   );
 
-  mergePremiumDirectSports(seen, out);
+  mergePremiumDirectSportsIntoSeen(seen, out);
 
   return out;
+}
+
+/**
+ * Same dedupe rules as {@link loadStaticCatalogChannels} but only counts rows (no `Channel` objects).
+ * Use for admin stats so totals match the viewer home catalog.
+ */
+export async function countStaticCatalogChannels(): Promise<number> {
+  const seen = new Set<string>();
+
+  const fastUrls = Object.values(APP_STREAM_CONFIG.fast_tv_sources);
+  await ingestPlaylistUrlsIntoSeen(fastUrls, "fast_tv", "Global", seen, null);
+
+  const bdUrls = APP_STREAM_CONFIG.country_playlists.bangladesh_and_bdix;
+  await ingestPlaylistUrlsIntoSeen(bdUrls, "bangladesh", "Bangladesh", seen, null);
+
+  const inUrls = APP_STREAM_CONFIG.country_playlists.india;
+  await ingestPlaylistUrlsIntoSeen(inUrls, "india", "India", seen, null);
+
+  await ingestPlaylistUrlsIntoSeen(
+    APP_STREAM_CONFIG.dynamic_master_playlists,
+    "global_sports",
+    "Global",
+    seen,
+    null
+  );
+
+  mergePremiumDirectSportsIntoSeen(seen, null);
+
+  return seen.size;
+}
+
+/**
+ * Total rows the viewer loads: static M3U merge + FanCode live list (same as {@link loadFullCatalogWithLive} `.length`).
+ */
+export async function countFullViewerCatalogChannels(): Promise<number> {
+  const staticCount = await countStaticCatalogChannels();
+  try {
+    const live = await fetchFanCodeLiveChannels();
+    return staticCount + live.length;
+  } catch {
+    return staticCount;
+  }
 }
 
 export async function loadFullCatalogWithLive(): Promise<Channel[]> {
