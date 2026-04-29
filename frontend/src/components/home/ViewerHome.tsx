@@ -10,7 +10,6 @@ import {
   Tv2,
   ChevronRight,
   Star,
-  Link2,
 } from "lucide-react";
 import {
   memo,
@@ -28,6 +27,7 @@ import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
+import { fetchAllChannels } from "@/lib/apiClient";
 import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
 import { fetchFanCodeLiveChannels } from "@/lib/fancodeLive";
 import { useI18n } from "@/lib/i18n/LocaleContext";
@@ -36,6 +36,7 @@ import {
   replaceLiveMatches,
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
+import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
 import type { Channel, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
@@ -239,7 +240,6 @@ export function ViewerHome() {
   const [filterLanguage, setFilterLanguage] = useState("");
   const [filterLeague, setFilterLeague] = useState("");
   const [showAllFilters, setShowAllFilters] = useState(false);
-  const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const reduceM = useReducedMotion();
   const tier = useSubscriptionStore((s) => s.tier);
@@ -256,16 +256,6 @@ export function ViewerHome() {
   const selectChannel = useCallback(
     (ch: Channel) => {
       startTransition(() => {
-        setActiveStreamUrl(null);
-        setActiveChannel(ch);
-      });
-    },
-    [setActiveChannel]
-  );
-  const pickStreamLink = useCallback(
-    (ch: Channel, directUrl: string | null) => {
-      startTransition(() => {
-        setActiveStreamUrl(directUrl);
         setActiveChannel(ch);
       });
     },
@@ -301,7 +291,10 @@ export function ViewerHome() {
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          void loadFullCatalogWithLive()
+          const merged = Promise.all([loadFullCatalogWithLive(), fetchAllChannels().catch(() => [])]).then(
+            ([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db)
+          );
+          void merged
             .then((d) => {
               clearTimeout(id);
               resolve(d);
@@ -328,8 +321,8 @@ export function ViewerHome() {
 
   const refreshLiveMatchesOnly = useCallback(async () => {
     try {
-      const live = await fetchFanCodeLiveChannels();
-      setAllChannels((prev) => replaceLiveMatches(prev, live));
+      const [live, db] = await Promise.all([fetchFanCodeLiveChannels(), fetchAllChannels().catch(() => [])]);
+      setAllChannels((prev) => mergeDbChannelsIntoViewerCatalog(replaceLiveMatches(prev, live), db));
     } catch {
       /* silent background refresh */
     }
@@ -393,7 +386,6 @@ export function ViewerHome() {
       setFilterLanguage("");
       setFilterLeague("");
       setActiveCategory("");
-      setActiveStreamUrl(null);
     });
   }, [activeModule, setActiveCategory]);
 
@@ -407,7 +399,6 @@ export function ViewerHome() {
     if (moduleChannels.length === 0) {
       if (activeChannel && activeChannel.module !== activeModule) {
         startTransition(() => {
-          setActiveStreamUrl(null);
           setActiveChannel(null);
         });
       }
@@ -415,7 +406,6 @@ export function ViewerHome() {
     }
     if (!activeChannel || activeChannel.module !== activeModule) {
       startTransition(() => {
-        setActiveStreamUrl(null);
         setActiveChannel(moduleChannels[0]!);
       });
     }
@@ -587,19 +577,10 @@ export function ViewerHome() {
     setWelcomeOpen(false);
   }, []);
 
-  const currentStreamUrl = activeStreamUrl ?? activeChannel?.stream_url ?? "";
-
   const playbackUrls = useMemo(() => {
     if (!activeChannel) return [];
     return orderedStreamUrlsForChannel(activeChannel);
   }, [activeChannel]);
-
-  const selectedPlaybackIndex = useMemo(() => {
-    if (!activeChannel || playbackUrls.length === 0) return 0;
-    if (activeStreamUrl == null) return 0;
-    const i = playbackUrls.findIndex((u) => u === activeStreamUrl);
-    return i >= 0 ? i : 0;
-  }, [activeChannel, activeStreamUrl, playbackUrls]);
 
   const { gsCount, inCount, bdCount, fastCount, liveCount } = useMemo(() => {
     let gs = 0;
@@ -972,9 +953,9 @@ export function ViewerHome() {
           <section className="min-w-0 md:col-span-7 lg:col-span-8">
             {activeChannel ? (
               <PremiumPlayer
-                streamUrl={playbackUrls[selectedPlaybackIndex] ?? currentStreamUrl}
+                streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
                 streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                alternateUrls={playbackUrls.length > 1 ? playbackUrls.slice(1) : []}
+                alternateUrls={[]}
                 title={activeChannel.name}
                 isTheaterMode={isTheaterMode}
                 onToggleTheaterMode={toggleTheaterMode}
@@ -1016,32 +997,6 @@ export function ViewerHome() {
                     <span className="pulse-dot" style={{ width: 6, height: 6 }} /> LIVE
                   </span>
                 </div>
-
-                {/* ── Stream links (Link 1, Link 2, …) ── */}
-                {playbackUrls.length > 1 && (
-                  <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
-                    <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                      <Link2 size={12} />
-                      {t("streamLinksLabel")}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {playbackUrls.map((url, i) => (
-                        <button
-                          key={url}
-                          type="button"
-                          onClick={() => {
-                            startTransition(() => {
-                              setActiveStreamUrl(i === 0 ? null : url);
-                            });
-                          }}
-                          className={`alt-link-btn${selectedPlaybackIndex === i ? " active" : ""}`}
-                        >
-                          {t("streamLinkPrefix")} {i + 1}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </section>
@@ -1197,24 +1152,15 @@ export function ViewerHome() {
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
-                {gridSlice.map((ch) => {
-                  const playingDirectUrl =
-                    activeChannel?.id === ch.id
-                      ? (activeStreamUrl ?? orderedStreamUrlsForChannel(activeChannel)[0] ?? null)
-                      : null;
-                  return (
+                {gridSlice.map((ch) => (
                   <PremiumChannelCard
                     key={ch.id}
                     channel={ch}
                     active={activeChannel?.id === ch.id}
-                    playingDirectUrl={playingDirectUrl}
                     onSelect={selectChannel}
-                    onPickStream={pickStreamLink}
-                    streamLinkPrefix={t("streamLinkPrefix")}
                     activeModule={activeModule}
                   />
-                  );
-                })}
+                ))}
               </div>
               {gridHasMore ? (
                 <>
@@ -1251,23 +1197,14 @@ export function ViewerHome() {
 const PremiumChannelCard = memo(function PremiumChannelCard({
   channel,
   active,
-  playingDirectUrl,
   onSelect,
-  onPickStream,
-  streamLinkPrefix,
   activeModule,
 }: {
   channel: Channel;
   active: boolean;
-  /** Resolved direct URL playing for this channel when selected; null if another channel is selected. */
-  playingDirectUrl: string | null;
   onSelect: (c: Channel) => void;
-  onPickStream: (c: Channel, directUrl: string | null) => void;
-  streamLinkPrefix: string;
   activeModule: ViewerModule;
 }) {
-  const streamUrls = useMemo(() => orderedStreamUrlsForChannel(channel), [channel]);
-
   return (
     <div
       className={`ch-card group w-full p-3${active ? " active" : ""}`}
@@ -1326,34 +1263,6 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
           </span>
         </div>
       </button>
-
-      {streamUrls.length > 1 && (
-        <div className="mt-2.5 border-t pt-2.5" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <div className="flex flex-wrap gap-1.5">
-            {streamUrls.map((url, i) => {
-              const isCurrent = playingDirectUrl != null && url === playingDirectUrl;
-              return (
-              <button
-                key={url}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPickStream(channel, i === 0 ? null : url);
-                }}
-                style={{
-                  background: isCurrent ? "rgba(245,166,35,0.12)" : "rgb(30 110 232 / 15%)",
-                  color: isCurrent ? "var(--primary-accent)" : "#60a5fa",
-                  border: isCurrent ? "1px solid rgba(245,166,35,0.35)" : "1px solid rgba(96,165,250,0.25)",
-                }}
-                className="rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors"
-              >
-                {streamLinkPrefix} {i + 1}
-              </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 });
