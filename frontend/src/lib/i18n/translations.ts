@@ -84,6 +84,8 @@ export const translations: Record<
     clearCacheError: "Local data cleared. Server list cache was not reached — try again when online",
     catalogTimeout:
       "Channel list took too long to load. Check your connection or try Refresh — some playlist sources may be slow.",
+    streamLinkPrefix: "Link",
+    streamLinksLabel: "Stream links",
   },
   bn: {
     appTitle: "ABO স্পোর্টস টিভি লাইভ",
@@ -165,6 +167,8 @@ export const translations: Record<
     clearCacheError: "স্থানীয় ক্যাশ মুছে ফেলা হয়েছে। সার্ভারে যোগাযোগ হয়নি — অনলাইনে আবার চেষ্টা করুন",
     catalogTimeout:
       "চ্যানেল লিস্ট লোড হতে অস্বাভাবিক সময় নিচ্ছে। ইন্টারনেট দেখুন বা রিফ্রেশ করুন — কিছু প্লেলিস্ট সোর্স ধীর হতে পারে।",
+    streamLinkPrefix: "লিংক",
+    streamLinksLabel: "স্ট্রিম লিংক",
   },
 };
 
