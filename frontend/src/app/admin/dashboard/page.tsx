@@ -12,12 +12,10 @@ import Link from "next/link";
 import {
   Activity,
   Clock,
-  Database,
   Filter,
   Home,
   LogOut,
   Megaphone,
-  Radio,
   RefreshCw,
   Search,
   Settings2,
@@ -25,6 +23,7 @@ import {
   Users,
   X,
   Tv2,
+  Database,
 } from "lucide-react";
 import Image from "next/image";
 import { apiClient } from "@/lib/apiClient";
@@ -393,6 +392,10 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const adminDbInactive = stats
+    ? Math.max(0, stats.channels - stats.active_channels)
+    : 0;
+
   return (
     <main data-admin className="admin-shell">
       <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -489,21 +492,33 @@ export default function AdminDashboardPage() {
                 {viewerCatalogTotal !== null ? viewerCatalogTotal : "—"}
               </p>
               <p className="mt-1 text-[10px] leading-snug text-zinc-500">
-                Same merged list as the public app (M3U + live). DB rows:{" "}
-                <span className="tabular-nums text-zinc-400">{stats.channels}</span>
+                Public app list (client-side M3U merge + FanCode live). Not the same as DB rows below.
               </p>
             </div>
             <div
               className="admin-stat rounded-2xl p-4 pl-4 pr-3 pt-5 ring-1 ring-white/10"
-              style={{ "--c1": "#10b981", "--c2": "#34d399" } as CSSProperties}
+              style={{ "--c1": "#f59e0b", "--c2": "#fbbf24" } as CSSProperties}
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Active</p>
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-200">
-                  <Radio size={16} />
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">DB catalog</p>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-200">
+                  <Database size={16} />
                 </span>
               </div>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.active_channels}</p>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.channels}</p>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] tabular-nums text-zinc-400">
+                <span title="Channels with is_active=true (shown on API / sync)">
+                  <span className="text-emerald-400/90">●</span> Active{" "}
+                  <span className="font-semibold text-zinc-200">{stats.active_channels}</span>
+                </span>
+                <span title="Total rows minus active">
+                  <span className="text-zinc-500">○</span> Inactive{" "}
+                  <span className="font-semibold text-zinc-300">{adminDbInactive}</span>
+                </span>
+              </div>
+              <p className="mt-1.5 text-[10px] leading-snug text-zinc-500">
+                Matches the channel table below (M3U sync + manual). Large viewer count is normal — many streams are loaded only in the browser.
+              </p>
             </div>
             <div
               className="admin-stat sm:col-span-2 lg:col-span-1 rounded-2xl p-4 pl-4 pr-3 pt-5 ring-1 ring-white/10"
