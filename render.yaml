@@ -38,17 +38,19 @@ services:
         value: "300"
       - key: SYNC_RATE_LIMIT_SECONDS
         value: "60"
-      # 0 = no APScheduler jobs (recommended: viewer catalog is client M3U; saves Render CPU/RAM).
-      # Set 30+ only if you rely on periodic DB M3U sync; use admin sync or /internal/sync otherwise.
+      # APScheduler: >0 enables background jobs. Use one Render web service only (duplicate workers = duplicate jobs).
+      # 120 = every 2h — gentler on free-tier CPU/RAM than 15–30m. Set 0 to disable; use admin sync or POST /internal/sync.
       - key: SCHEDULED_SYNC_INTERVAL_MINUTES
-        value: "0"
-      # Keep 0 on free tier (Playwright / discovery load)
+        value: "120"
+      # Keep 0 on free tier (extra upstream + DB load); enable on paid hosts if you want auto source discovery.
       - key: SOURCE_DISCOVERY_INTERVAL_HOURS
         value: "0"
+      # Playwright Chromium — high RAM on small instances; keep 0 unless you rely on DynamicStream token refresh.
       - key: M3U8_REFRESH_INTERVAL_MINUTES
         value: "0"
+      # Deactivate dead stream URLs on a sample; 120m aligns with sync cadence. Set 0 to disable checks only.
       - key: STREAM_VALIDATION_INTERVAL_MINUTES
-        value: "0"
+        value: "120"
       # Neon free tier: small pool (raise only if you scale workers)
       - key: DB_POOL_SIZE
         value: "3"
