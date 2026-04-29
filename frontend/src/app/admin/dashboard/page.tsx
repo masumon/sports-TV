@@ -24,9 +24,11 @@ import {
   Trash2,
   Users,
   X,
+  Tv2,
 } from "lucide-react";
 import Image from "next/image";
 import { apiClient } from "@/lib/apiClient";
+import { countFullViewerCatalogChannels } from "@/lib/streamCatalog";
 import type { AdminStats, Channel, StreamProbeItem, StreamProbeStatus } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
@@ -101,6 +103,7 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [channelForm, setChannelForm] = useState<ChannelFormState>(initialChannelForm);
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [viewerCatalogTotal, setViewerCatalogTotal] = useState<number | null>(null);
   const [channelQuery, setChannelQuery] = useState("");
   const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "sports" | "india" | "bangladesh">("all");
   const [probeByUrl, setProbeByUrl] = useState<Record<string, StreamProbeItem>>({});
@@ -217,10 +220,19 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const fetchViewerCatalogCount = async () => {
+    try {
+      setViewerCatalogTotal(await countFullViewerCatalogChannels());
+    } catch {
+      setViewerCatalogTotal(null);
+    }
+  };
+
   useEffect(() => {
     if (!authToken) return;
     void fetchAdminData();
     void fetchStats();
+    void fetchViewerCatalogCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
@@ -232,6 +244,7 @@ export default function AdminDashboardPage() {
     const id = setInterval(() => {
       void fetchAdminData();
       void fetchStats();
+      void fetchViewerCatalogCount();
     }, 5 * 60 * 1000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -356,6 +369,7 @@ export default function AdminDashboardPage() {
       await apiClient.adminSyncChannels(authToken);
       await fetchAdminData();
       await fetchStats();
+      await fetchViewerCatalogCount();
     } catch (err) {
       setError(err instanceof Error ? err.message : "M3U Sync ব্যর্থ");
     } finally {
@@ -409,6 +423,7 @@ export default function AdminDashboardPage() {
                 onClick={() => {
                   void fetchAdminData();
                   void fetchStats();
+                  void fetchViewerCatalogCount();
                 }}
                 disabled={loading || refreshing}
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 text-sm text-white transition hover:bg-white/10 disabled:opacity-50"
@@ -465,12 +480,18 @@ export default function AdminDashboardPage() {
               style={{ "--c1": "#8b5cf6", "--c2": "#a78bfa" } as CSSProperties}
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Total channels</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Viewer catalog</p>
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/15 text-violet-200">
-                  <Database size={16} />
+                  <Tv2 size={16} />
                 </span>
               </div>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.channels}</p>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-white">
+                {viewerCatalogTotal !== null ? viewerCatalogTotal : "—"}
+              </p>
+              <p className="mt-1 text-[10px] leading-snug text-zinc-500">
+                Same merged list as the public app (M3U + live). DB rows:{" "}
+                <span className="tabular-nums text-zinc-400">{stats.channels}</span>
+              </p>
             </div>
             <div
               className="admin-stat rounded-2xl p-4 pl-4 pr-3 pt-5 ring-1 ring-white/10"
