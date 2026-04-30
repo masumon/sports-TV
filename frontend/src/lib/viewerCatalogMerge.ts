@@ -1,4 +1,4 @@
-import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
+import { allStreamUrlsForChannel, orderedStreamUrlsForChannel } from "@/lib/channelStreams";
 import type { Channel } from "@/lib/types";
 
 function normStreamUrlKey(url: string): string {
@@ -38,6 +38,8 @@ function mergeOrderedUrls(viewer: Channel, db: Channel): { stream_url: string; a
 /**
  * Enrich browser-fetched M3U rows with DB fields when any stream URL matches an active DB channel
  * (same sync pipeline as admin). Keeps viewer ordering/metadata first; adds DB mirrors + `header_profile`.
+ * Appends active DB rows whose streams are not already covered (so large DB catalogs, e.g. 10k+,
+ * appear in the viewer the same way as merged M3U rows).
  */
 export function mergeDbChannelsIntoViewerCatalog(
   viewer: readonly Channel[],
@@ -46,16 +48,16 @@ export function mergeDbChannelsIntoViewerCatalog(
   const activeDb = db.filter((c) => c.is_active);
   const urlToDb = new Map<string, Channel>();
   for (const ch of activeDb) {
-    for (const u of orderedStreamUrlsForChannel(ch)) {
+    for (const u of allStreamUrlsForChannel(ch)) {
       const k = normStreamUrlKey(u);
       if (!urlToDb.has(k)) urlToDb.set(k, ch);
     }
   }
 
-  return viewer.map((v) => {
+  const mergedViewer = viewer.map((v) => {
     const mod = viewerModuleFromDbModule(v.module);
     let dbMatch: Channel | undefined;
-    for (const u of orderedStreamUrlsForChannel(v)) {
+    for (const u of allStreamUrlsForChannel(v)) {
       const hit = urlToDb.get(normStreamUrlKey(u));
       if (hit) {
         dbMatch = hit;
@@ -74,4 +76,31 @@ export function mergeDbChannelsIntoViewerCatalog(
       geo_hint: Boolean(v.geo_hint || dbMatch.geo_hint),
     };
   });
+
+  const coveredKeys = new Set<string>();
+  for (const ch of mergedViewer) {
+    for (const u of allStreamUrlsForChannel(ch)) {
+      coveredKeys.add(normStreamUrlKey(u));
+    }
+  }
+
+  const appended: Channel[] = [];
+  const appendedIds = new Set<number>();
+  for (const ch of activeDb) {
+    const urls = allStreamUrlsForChannel(ch);
+    if (!urls.length) continue;
+    if (urls.some((u) => coveredKeys.has(normStreamUrlKey(u)))) continue;
+    if (appendedIds.has(ch.id)) continue;
+    appendedIds.add(ch.id);
+    appended.push({
+      ...ch,
+      module: viewerModuleFromDbModule(ch.module),
+      geo_hint: Boolean(ch.geo_hint),
+    });
+    for (const u of urls) {
+      coveredKeys.add(normStreamUrlKey(u));
+    }
+  }
+
+  return mergedViewer.concat(appended);
 }

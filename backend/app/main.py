@@ -24,8 +24,8 @@ from app.db.ensure_schema import (
     ensure_user_subscription_tier,
 )
 from app.db.session import ASYNC_URL, Base, SessionLocal, engine
-from app.models import Channel, User
-from app.services.automation import run_channel_health_check, run_channel_sync
+from app.models import Channel, LiveFixture, User
+from app.services.automation import run_channel_health_check, run_channel_sync, run_live_fixtures_job
 from app.services.m3u_discovery import discover_new_sources
 
 if not logging.getLogger().handlers:
@@ -137,6 +137,7 @@ async def lifespan(app: FastAPI):
         or settings.m3u8_refresh_interval_minutes > 0
         or settings.source_discovery_interval_hours > 0
         or (settings.stream_validation_interval_minutes or 0) > 0
+        or (settings.live_fixtures_sync_interval_minutes or 0) > 0
     )
     if _needs_scheduler:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -243,6 +244,12 @@ async def lifespan(app: FastAPI):
             finally:
                 sdb.close()
 
+        def scheduled_live_fixtures() -> None:
+            try:
+                run_live_fixtures_job(source="scheduler")
+            except Exception:
+                logger.exception("Scheduled live fixtures sync failed")
+
         SCHEDULER = BackgroundScheduler()
 
         if settings.scheduled_sync_interval_minutes > 0:
@@ -300,6 +307,21 @@ async def lifespan(app: FastAPI):
             logger.info(
                 "Scheduled dynamic m3u8 refresh every %s min",
                 settings.m3u8_refresh_interval_minutes,
+            )
+
+        if settings.live_fixtures_sync_interval_minutes and settings.live_fixtures_sync_interval_minutes > 0:
+            SCHEDULER.add_job(
+                scheduled_live_fixtures,
+                "interval",
+                minutes=settings.live_fixtures_sync_interval_minutes,
+                id="live_fixtures",
+                max_instances=1,
+                coalesce=True,
+                misfire_grace_time=120,
+            )
+            logger.info(
+                "Scheduled live fixtures sync every %s min",
+                settings.live_fixtures_sync_interval_minutes,
             )
 
         SCHEDULER.start()

@@ -1,0 +1,108 @@
+-- ============================================================================
+-- Manual bulk import into `channels` (PostgreSQL)
+-- ============================================================================
+-- Matches SQLAlchemy model: backend/app/models/channel.py
+--   id, name, country, category, language, logo_url, stream_url, alternate_urls,
+--   quality_tag, source, module, is_active, created_at, updated_at
+-- Unique: stream_url (constraint uq_channels_stream_url)
+--
+-- Before running:
+--   1. Connect psql to the same database as the API (DATABASE_URL).
+--   2. For ~11k rows use CSV + \\copy into staging, then INSERT ... SELECT.
+--   3. If Redis caches GET /sports-tv/channels, invalidate or wait for TTL.
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- Option A — Staging table + upsert (recommended)
+-- ---------------------------------------------------------------------------
+-- Step 1 — staging (run once per import):
+--
+-- CREATE TEMP TABLE stg_channels (
+--   name           text NOT NULL,
+--   country        text NOT NULL DEFAULT 'Global',
+--   category       text NOT NULL DEFAULT 'General',
+--   language       text NOT NULL DEFAULT 'Unknown',
+--   logo_url       text,
+--   stream_url     text NOT NULL,
+--   alternate_urls text,
+--   quality_tag    text NOT NULL DEFAULT 'auto',
+--   source         text NOT NULL DEFAULT 'bulk_import',
+--   module         text NOT NULL DEFAULT 'sports',
+--   is_active      boolean NOT NULL DEFAULT true
+-- );
+--
+-- Step 2 — load (pick one):
+--   \\copy stg_channels (name, country, category, language, logo_url, stream_url, alternate_urls, quality_tag, source, module, is_active) FROM 'channels.csv' WITH (FORMAT csv, HEADER true);
+--   or INSERT INTO stg_channels VALUES (...);
+--
+-- Step 3 — upsert into live table (uncomment to run):
+--
+-- INSERT INTO channels (
+--   name, country, category, language, logo_url, stream_url, alternate_urls,
+--   quality_tag, source, module, is_active
+-- )
+-- SELECT
+--   LEFT(TRIM(name), 255),
+--   LEFT(TRIM(country), 120),
+--   LEFT(TRIM(category), 120),
+--   LEFT(TRIM(language), 120),
+--   NULLIF(TRIM(logo_url), ''),
+--   TRIM(stream_url),
+--   NULLIF(TRIM(alternate_urls), ''),
+--   LEFT(TRIM(quality_tag), 40),
+--   LEFT(TRIM(source), 80),
+--   LEFT(TRIM(module), 40),
+--   COALESCE(is_active, true)
+-- FROM stg_channels
+-- WHERE TRIM(stream_url) <> ''
+-- ON CONFLICT (stream_url) DO UPDATE SET
+--   name            = EXCLUDED.name,
+--   country         = EXCLUDED.country,
+--   category        = EXCLUDED.category,
+--   language        = EXCLUDED.language,
+--   logo_url        = EXCLUDED.logo_url,
+--   alternate_urls  = EXCLUDED.alternate_urls,
+--   quality_tag     = EXCLUDED.quality_tag,
+--   source          = EXCLUDED.source,
+--   module          = EXCLUDED.module,
+--   is_active       = EXCLUDED.is_active,
+--   updated_at      = NOW();
+
+-- ---------------------------------------------------------------------------
+-- Option B — one-row template (generate many INSERTs from a script)
+-- ---------------------------------------------------------------------------
+-- alternate_urls: JSON text array e.g. '["https://backup/playlist.m3u8"]' or NULL
+-- module: 'sports' (UI tab global_sports), 'india', 'bangladesh'
+--
+-- INSERT INTO channels (
+--   name, country, category, language, logo_url, stream_url, alternate_urls,
+--   quality_tag, source, module, is_active
+-- ) VALUES (
+--   'Example Sports 1',
+--   'Global',
+--   'Sports',
+--   'en',
+--   NULL,
+--   'https://example.com/stream.m3u8',
+--   NULL,
+--   'auto',
+--   'bulk_import',
+--   'sports',
+--   true
+-- )
+-- ON CONFLICT (stream_url) DO UPDATE SET
+--   name            = EXCLUDED.name,
+--   country         = EXCLUDED.country,
+--   category        = EXCLUDED.category,
+--   language        = EXCLUDED.language,
+--   logo_url        = EXCLUDED.logo_url,
+--   alternate_urls  = EXCLUDED.alternate_urls,
+--   quality_tag     = EXCLUDED.quality_tag,
+--   source          = EXCLUDED.source,
+--   module          = EXCLUDED.module,
+--   is_active       = EXCLUDED.is_active,
+--   updated_at      = NOW();
+
+-- ---------------------------------------------------------------------------
+-- SQLite (local): same ON CONFLICT idea; use excluded.name (lowercase) in DO UPDATE.
+-- ---------------------------------------------------------------------------

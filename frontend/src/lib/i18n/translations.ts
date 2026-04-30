@@ -86,6 +86,16 @@ export const translations: Record<
       "Channel list took too long to load. Check your connection or try Refresh — some playlist sources may be slow.",
     streamLinkPrefix: "Link",
     streamLinksLabel: "Stream links",
+    matchScheduleHeading: "Match schedule (live data)",
+    matchScheduleHint:
+      "Fixtures from OpenLigaDB / football-data.org (when configured). “Suggested streams” = name matches in this app’s catalog — not TV rights or guarantees.",
+    suggestedStreamsLabel: "Suggested streams",
+    fixtureStatusScheduled: "Upcoming",
+    fixtureStatusLive: "Live",
+    fixtureStatusFinished: "Finished",
+    scheduleUpdated: "Schedule updated",
+  scheduleEmpty:
+    "No saved fixtures yet. On the API host, run a fixtures sync or set LIVE_FIXTURES_SYNC_INTERVAL_MINUTES (see .env.example).",
   },
   bn: {
     appTitle: "ABO স্পোর্টস টিভি লাইভ",
@@ -169,6 +179,16 @@ export const translations: Record<
       "চ্যানেল লিস্ট লোড হতে অস্বাভাবিক সময় নিচ্ছে। ইন্টারনেট দেখুন বা রিফ্রেশ করুন — কিছু প্লেলিস্ট সোর্স ধীর হতে পারে।",
     streamLinkPrefix: "লিংক",
     streamLinksLabel: "স্ট্রিম লিংক",
+    matchScheduleHeading: "ম্যাচ সূচি (রিয়েল ডাটা)",
+    matchScheduleHint:
+      "সূচি OpenLigaDB ও football-data.org (যদি টোকেন সেট থাকে) থেকে। “প্রস্তাবিত স্ট্রিম” = আমাদের ক্যাটালগে নাম মিল — অফিশিয়াল সম্প্রচার নয়।",
+    suggestedStreamsLabel: "প্রস্তাবিত স্ট্রিম",
+    fixtureStatusScheduled: "আসন্ন",
+    fixtureStatusLive: "লাইভ",
+    fixtureStatusFinished: "শেষ",
+    scheduleUpdated: "সূচি আপডেট",
+  scheduleEmpty:
+    "এখনো সূচি ডাটাবেজে নেই। ব্যাকএন্ডে ফিক্সচার সিঙ্ক চালান বা LIVE_FIXTURES_SYNC_INTERVAL_MINUTES সেট করুন।",
   },
 };
 

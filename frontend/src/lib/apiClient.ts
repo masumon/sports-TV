@@ -2,6 +2,7 @@ import type {
   AdminStats,
   Channel,
   ChannelListResponse,
+  LiveFixtureListResponse,
   StreamProbeItem,
   TokenResponse,
   UserRead,
@@ -155,6 +156,14 @@ export const apiClient = {
 
   getChannelFilters() {
     return apiRequest<ChannelFilters>("/sports-tv/filters");
+  },
+
+  getLiveFixtures(params: { hours_back?: number; days_ahead?: number } = {}) {
+    const sp = new URLSearchParams();
+    if (params.hours_back != null) sp.set("hours_back", String(params.hours_back));
+    if (params.days_ahead != null) sp.set("days_ahead", String(params.days_ahead));
+    const q = sp.toString();
+    return apiRequest<LiveFixtureListResponse>(`/sports-tv/fixtures${q ? `?${q}` : ""}`);
   },
 
   /** Flush server-side Redis list caches (public POST). */

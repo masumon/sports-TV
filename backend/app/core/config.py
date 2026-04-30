@@ -35,6 +35,10 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:3000"
     scraper_source_url: str = "https://iptv-org.github.io/iptv/categories/sports.m3u"
+    # When true, sync also fetches the iptv-org master index (~10k+ streams). Heavy; good for filling Neon.
+    iptv_full_index_sync: bool = False
+    iptv_full_index_url: str = "https://iptv-org.github.io/iptv/index.m3u"
+    iptv_full_index_fetch_timeout_seconds: int = 120
     auto_sync_channels_on_startup: bool = False
     # Optional Redis for response caching (GET /sports-tv/channels, filters). If unset, caching is disabled.
     redis_url: str | None = None
@@ -44,6 +48,12 @@ class Settings(BaseSettings):
     # Legacy DB M3U sync interval (admin / GET /sports-tv/channels). Viewer catalog is client-side M3U.
     # Default 0 = scheduler disabled. Set e.g. 30 only if you still rely on DB channel rows.
     scheduled_sync_interval_minutes: int = 0
+    # Real fixture schedule sync (OpenLigaDB + optional football-data.org). 0 = disabled.
+    live_fixtures_sync_interval_minutes: int = 0
+    live_fixtures_days_ahead: int = 14
+    openligadb_league_keys: str = "bl1,bl2"
+    football_data_org_api_token: str | None = None
+    football_data_competitions: str = "PL,BL1,PD,SA,FL1"
     # Auto-discover new M3U sources every N hours (0 = disabled).
     # Default 0: free-tier Render workers should not run discovery + sync load unless explicitly enabled.
     source_discovery_interval_hours: int = 0

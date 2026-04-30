@@ -61,6 +61,27 @@ export type ChannelListResponse = {
   items: Channel[];
 };
 
+export type LiveFixture = {
+  id: number;
+  source: string;
+  external_id: string;
+  competition_key: string | null;
+  league_name: string;
+  home_team: string;
+  away_team: string;
+  sport: string;
+  starts_at_utc: string;
+  status: string;
+  thumb_url: string | null;
+  data_attribution: string;
+  suggested_channels: Channel[];
+};
+
+export type LiveFixtureListResponse = {
+  items: LiveFixture[];
+  updated_hint: string | null;
+};
+
 export type SubscriptionTier = "free" | "premium";
 
 export type AuthUser = {

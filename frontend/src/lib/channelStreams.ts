@@ -24,3 +24,15 @@ export function orderedStreamUrlsForChannel(ch: Channel): string[] {
   }
   return out;
 }
+
+/**
+ * URLs used for catalog dedupe / DB↔viewer matching. Prefers http(s) from
+ * {@link orderedStreamUrlsForChannel}; if none (e.g. only non-HTTP `stream_url`),
+ * falls back to the raw primary so DB-only rows still merge and append correctly.
+ */
+export function allStreamUrlsForChannel(ch: Channel): string[] {
+  const fromOrdered = orderedStreamUrlsForChannel(ch);
+  if (fromOrdered.length > 0) return fromOrdered;
+  const primary = (ch.stream_url || "").trim();
+  return primary ? [primary] : [];
+}

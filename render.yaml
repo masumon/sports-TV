@@ -51,6 +51,15 @@ services:
       # Deactivate dead stream URLs on a sample; 120m aligns with sync cadence. Set 0 to disable checks only.
       - key: STREAM_VALIDATION_INTERVAL_MINUTES
         value: "120"
+      # Real match schedule → live_fixtures table (GET /sports-tv/fixtures). 0=off. 180=every 3h.
+      - key: LIVE_FIXTURES_SYNC_INTERVAL_MINUTES
+        value: "180"
+      - key: LIVE_FIXTURES_DAYS_AHEAD
+        value: "14"
+      - key: OPENLIGADB_LEAGUE_KEYS
+        value: "bl1,bl2"
+      - key: FOOTBALL_DATA_ORG_API_TOKEN
+        sync: false
       # Neon free tier: small pool (raise only if you scale workers)
       - key: DB_POOL_SIZE
         value: "3"

@@ -43,6 +43,7 @@ def cache_set_json(prefix: str, params: dict[str, Any], data: Any, ttl: int | No
 _INVALIDATE_PREFIXES: tuple[str, ...] = (
     "gstv:channels:",
     "gstv:channel_filters:",
+    "gstv:fixtures:",
 )
 
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
@@ -10,7 +12,9 @@ from app.core.cache import cache_get_json, cache_set_json, invalidate_list_cache
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.channel import Channel
+from app.models.live_fixture import LiveFixture
 from app.schemas.channel import ChannelFiltersResponse, ChannelListResponse, ChannelRead
+from app.schemas.live_fixture import LiveFixtureListResponse, LiveFixtureRead
 
 logger = logging.getLogger("app.sports_tv")
 
@@ -18,6 +22,102 @@ router = APIRouter(prefix="/sports-tv", tags=["sports-tv"])
 
 CHANNELS_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}, stale-while-revalidate=120"
 CDN_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}"
+
+_FIXTURE_ATTRIBUTION = {
+    "openligadb": "Schedule: OpenLigaDB (api.openligadb.de) — official league fixtures; not affiliated.",
+    "football-data.org": "Schedule: football-data.org (free tier / your API token).",
+}
+
+
+@router.get("/fixtures", response_model=LiveFixtureListResponse)
+async def list_live_fixtures(
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    hours_back: int = Query(default=6, ge=0, le=120),
+    days_ahead: int = Query(default=14, ge=1, le=30),
+) -> LiveFixtureListResponse:
+    """Real upcoming/recent fixtures from DB (filled by background sync). Channel links are name-match hints only."""
+    response.headers["Cache-Control"] = "public, s-maxage=120, stale-while-revalidate=60"
+
+    now = datetime.now(tz=timezone.utc)
+    from_dt = now - timedelta(hours=hours_back)
+    to_dt = now + timedelta(days=days_ahead)
+
+    params = {"from": from_dt.isoformat(), "to": to_dt.isoformat()}
+    cached = cache_get_json("fixtures", params)
+    if cached is not None:
+        try:
+            return LiveFixtureListResponse.model_validate(cached)
+        except Exception:
+            logger.debug("fixtures cache parse miss")
+
+    result = await db.execute(
+        select(LiveFixture)
+        .where(LiveFixture.starts_at_utc >= from_dt, LiveFixture.starts_at_utc <= to_dt)
+        .order_by(LiveFixture.starts_at_utc.asc())
+        .limit(500)
+    )
+    rows = list(result.scalars().all())
+
+    all_ids: set[int] = set()
+    for r in rows:
+        raw = r.suggested_channel_ids
+        if not raw:
+            continue
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                for x in parsed:
+                    if isinstance(x, int):
+                        all_ids.add(x)
+        except json.JSONDecodeError:
+            continue
+
+    ch_map: dict[int, Channel] = {}
+    if all_ids:
+        cr = await db.execute(select(Channel).where(Channel.id.in_(all_ids)))
+        for ch in cr.scalars().all():
+            ch_map[ch.id] = ch
+
+    items: list[LiveFixtureRead] = []
+    max_updated: datetime | None = None
+    for r in rows:
+        if max_updated is None or r.updated_at > max_updated:
+            max_updated = r.updated_at
+        sug_reads: list[ChannelRead] = []
+        try:
+            for cid in json.loads(r.suggested_channel_ids or "[]"):
+                if not isinstance(cid, int):
+                    continue
+                ch = ch_map.get(cid)
+                if ch and ch.is_active:
+                    sug_reads.append(ChannelRead.model_validate(ch))
+        except json.JSONDecodeError:
+            pass
+        items.append(
+            LiveFixtureRead(
+                id=r.id,
+                source=r.source,
+                external_id=r.external_id,
+                competition_key=r.competition_key,
+                league_name=r.league_name,
+                home_team=r.home_team,
+                away_team=r.away_team,
+                sport=r.sport,
+                starts_at_utc=r.starts_at_utc,
+                status=r.status,
+                thumb_url=r.thumb_url,
+                data_attribution=_FIXTURE_ATTRIBUTION.get(r.source, f"Schedule source: {r.source}"),
+                suggested_channels=sug_reads,
+            )
+        )
+
+    out = LiveFixtureListResponse(items=items, updated_hint=max_updated)
+    try:
+        cache_set_json("fixtures", params, out.model_dump(mode="json"), ttl=120)
+    except Exception as e:
+        logger.debug("fixtures cache set failed: %s", e)
+    return out
 
 
 @router.get("/channels", response_model=ChannelListResponse)

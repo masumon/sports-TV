@@ -10,6 +10,7 @@ import {
   Tv2,
   ChevronRight,
   Star,
+  Calendar,
 } from "lucide-react";
 import {
   memo,
@@ -27,7 +28,7 @@ import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
-import { fetchAllChannels } from "@/lib/apiClient";
+import { fetchAllChannels, apiClient } from "@/lib/apiClient";
 import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
 import { fetchFanCodeLiveChannels } from "@/lib/fancodeLive";
 import { useI18n } from "@/lib/i18n/LocaleContext";
@@ -37,7 +38,7 @@ import {
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
 import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
-import type { Channel, ViewerModule } from "@/lib/types";
+import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
@@ -224,6 +225,14 @@ function FilterChips({
   );
 }
 
+/** Labels for API fixture status values */
+function fixtureStatusLabel(status: string, tr: (k: string) => string): string {
+  const s = status.toLowerCase();
+  if (s === "live") return tr("fixtureStatusLive");
+  if (s === "finished") return tr("fixtureStatusFinished");
+  return tr("fixtureStatusScheduled");
+}
+
 export function ViewerHome() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -246,6 +255,9 @@ export function ViewerHome() {
   const searchRef = useRef<HTMLInputElement>(null);
   const gridSentinelRef = useRef<HTMLDivElement | null>(null);
   const [gridVisibleCount, setGridVisibleCount] = useState(CHANNEL_GRID_BATCH);
+  const [scheduleFixtures, setScheduleFixtures] = useState<LiveFixture[]>([]);
+  const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
+  const [fixturesLoading, setFixturesLoading] = useState(false);
 
   const activeChannel = usePlayerStore((state) => state.activeChannel);
   const isTheaterMode = usePlayerStore((state) => state.isTheaterMode);
@@ -327,6 +339,30 @@ export function ViewerHome() {
       /* silent background refresh */
     }
   }, []);
+
+  const loadFixturesSchedule = useCallback(async () => {
+    setFixturesLoading(true);
+    try {
+      const res = await apiClient.getLiveFixtures({ hours_back: 6, days_ahead: 14 });
+      setScheduleFixtures(res.items);
+      setScheduleUpdated(res.updated_hint ?? null);
+    } catch {
+      setScheduleFixtures([]);
+    } finally {
+      setFixturesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeModule !== "live_matches") return;
+    void loadFixturesSchedule();
+  }, [activeModule, loadFixturesSchedule]);
+
+  useEffect(() => {
+    if (activeModule !== "live_matches") return;
+    const id = setInterval(() => void loadFixturesSchedule(), 20 * 60_000);
+    return () => clearInterval(id);
+  }, [activeModule, loadFixturesSchedule]);
 
   /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
   useEffect(() => {
@@ -674,6 +710,105 @@ export function ViewerHome() {
             {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
           </button>
         </div>
+
+        {activeModule === "live_matches" ? (
+          scheduleFixtures.length > 0 ? (
+            <section
+              className="rounded-xl overflow-hidden"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            >
+              <div
+                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Calendar className="h-4 w-4 shrink-0" style={{ color: "var(--primary-accent)" }} />
+                  <h2 className="text-sm font-bold truncate" style={{ color: "var(--text-main)" }}>
+                    {t("matchScheduleHeading")}
+                  </h2>
+                </div>
+                {scheduleUpdated ? (
+                  <span className="text-[10px] shrink-0" style={{ color: "var(--text-muted)" }}>
+                    {t("scheduleUpdated")}: {new Date(scheduleUpdated).toLocaleString()}
+                  </span>
+                ) : null}
+              </div>
+              <p className="px-4 py-2 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                {t("matchScheduleHint")}
+              </p>
+              <div className="max-h-[min(40vh,22rem)] overflow-y-auto overscroll-y-contain divide-y" style={{ borderColor: "var(--border)" }}>
+                {scheduleFixtures.slice(0, 48).map((fx) => (
+                  <div key={fx.id} className="px-4 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                          {fx.league_name} · {new Date(fx.starts_at_utc).toLocaleString()}
+                        </p>
+                        <p className="mt-1 text-sm font-bold" style={{ color: "var(--text-main)" }}>
+                          {fx.home_team} vs {fx.away_team}
+                        </p>
+                        {fx.data_attribution ? (
+                          <p className="mt-0.5 text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                            {fx.data_attribution}
+                          </p>
+                        ) : null}
+                      </div>
+                      <span
+                        className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase"
+                        style={{
+                          background:
+                            fx.status === "live"
+                              ? "rgba(239,68,68,0.15)"
+                              : fx.status === "finished"
+                                ? "rgba(120,120,120,0.15)"
+                                : "rgba(245,166,35,0.12)",
+                          color:
+                            fx.status === "live"
+                              ? "#f87171"
+                              : fx.status === "finished"
+                                ? "var(--text-muted)"
+                                : "var(--primary-accent)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        {fixtureStatusLabel(fx.status, t)}
+                      </span>
+                    </div>
+                    {fx.suggested_channels?.length ? (
+                      <div className="mt-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+                          {t("suggestedStreamsLabel")}
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {fx.suggested_channels.slice(0, 6).map((ch) => (
+                            <button
+                              key={`${fx.id}-${ch.id}`}
+                              type="button"
+                              onClick={() => selectChannel(ch)}
+                              className="max-w-[10rem] truncate rounded-md px-2 py-1 text-[11px] font-medium transition hover:opacity-90"
+                              style={{
+                                background: "rgba(245,166,35,0.1)",
+                                border: "1px solid rgba(245,166,35,0.25)",
+                                color: "var(--primary-accent)",
+                              }}
+                              title={ch.name}
+                            >
+                              {ch.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : !loading && !fixturesLoading ? (
+            <p className="text-center text-xs px-2" style={{ color: "var(--text-muted)" }}>
+              {t("scheduleEmpty")}
+            </p>
+          ) : null
+        ) : null}
 
         {/* ── Hero header ── */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

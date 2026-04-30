@@ -138,10 +138,13 @@ def parse_m3u_entries(
     for index, line in enumerate(lines):
         if not line.startswith("#EXTINF"):
             continue
-        if index + 1 >= len(lines):
+        j = index + 1
+        while j < len(lines) and lines[j].startswith("#"):
+            j += 1
+        if j >= len(lines):
             continue
 
-        stream_url = lines[index + 1].strip()
+        stream_url = lines[j].strip()
         if not stream_url or stream_url.startswith("#"):
             continue
 
@@ -170,11 +173,12 @@ def parse_m3u_entries(
     return entries
 
 
-def _get_with_retry(url: str) -> requests.Response:
+def _get_with_retry(url: str, *, timeout: float | None = None) -> requests.Response:
+    timeout_s = float(REQUEST_TIMEOUT_SECONDS if timeout is None else timeout)
     last_exc: Exception | None = None
     for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
         try:
-            response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
+            response = requests.get(url, timeout=timeout_s)
             response.raise_for_status()
             return response
         except Exception as exc:
@@ -196,14 +200,14 @@ def _get_with_retry(url: str) -> requests.Response:
 
 def fetch_sports_m3u(url: str | None = None) -> str:
     source_url = url or settings.scraper_source_url or SPORTS_M3U_URL
-    response = _get_with_retry(source_url)
+    response = _get_with_retry(source_url, timeout=None)
     body = response.text
     if not body.strip().startswith("#EXTM3U"):
         raise ValueError("Invalid M3U source received.")
     return body
 
 
-def _fetch_m3u_safe(url: str) -> str | None:
+def _fetch_m3u_safe(url: str, *, timeout_seconds: float | None = None) -> str | None:
     """Fetch a single M3U source; return None on any error (don't abort the whole sync).
 
     Redis cache: playlist text is cached for 25 min so back-to-back syncs
@@ -219,7 +223,7 @@ def _fetch_m3u_safe(url: str) -> str | None:
         return cached
 
     try:
-        response = _get_with_retry(url)
+        response = _get_with_retry(url, timeout=timeout_seconds)
         body = response.text
         if body.strip().startswith("#EXTM3U"):
             safe_set(cache_key, body, ttl=1500)  # 25 min — slightly under sync interval
@@ -406,18 +410,22 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
 
 def _fetch_sources_parallel(
     url_flag_pairs: list[tuple[str, bool, str]],
+    *,
+    timeout_by_url: dict[str, float] | None = None,
     max_workers: int = 8,
 ) -> list[ParsedChannel]:
     """
     Fetch multiple M3U sources in parallel using a thread pool.
 
     url_flag_pairs: list of (url, sports_only, module)
+    timeout_by_url: optional per-URL requests timeout (seconds), e.g. large index.m3u
     Returns combined list of ParsedChannel entries.
     """
     results: list[ParsedChannel] = []
 
     def _fetch_and_parse(url: str, sports_only: bool, module: str) -> list[ParsedChannel]:
-        playlist = _fetch_m3u_safe(url)
+        to = timeout_by_url.get(url) if timeout_by_url else None
+        playlist = _fetch_m3u_safe(url, timeout_seconds=to)
         if not playlist:
             return []
         entries = parse_m3u_entries(playlist, sports_only=sports_only, module=module)
@@ -481,8 +489,19 @@ def scrape_and_sync_sports_channels(
             if url not in known:
                 fetch_jobs.append((url, True, "sports"))  # filter by sports keywords
 
+    timeout_by_url: dict[str, float] = {}
+    if settings.iptv_full_index_sync:
+        idx = (settings.iptv_full_index_url or "").strip()
+        if idx:
+            known_urls = {url for url, _, _ in fetch_jobs}
+            if idx not in known_urls:
+                fetch_jobs.append((idx, False, "sports"))
+            timeout_by_url[idx] = float(settings.iptv_full_index_fetch_timeout_seconds)
+
     logger.info("Sync start source_count=%d", len(fetch_jobs))
-    all_entries = _fetch_sources_parallel(fetch_jobs, max_workers=8)
+    all_entries = _fetch_sources_parallel(
+        fetch_jobs, timeout_by_url=timeout_by_url or None, max_workers=8
+    )
 
     if not all_entries:
         logger.warning("Sync skipped reason=no_channels_parsed source_count=%d", len(fetch_jobs))

@@ -13,6 +13,7 @@ from app.db.session import SessionLocal
 from app.models.channel import Channel
 from app.services.channel_cleanup import run_full_cleanup
 from app.services.iptv_scraper import scrape_and_sync_sports_channels
+from app.services.live_fixtures_sync import sync_live_fixtures
 from app.services.m3u_discovery import get_cached_discovered_sources
 from app.services.stream_validator import validate_stream_urls
 
@@ -99,6 +100,35 @@ def run_channel_sync(*, include_discovery: bool = True, source: str = "scheduler
         db.rollback()
         mark_sync_failure(str(exc))
         logger.exception("channel_sync failed source=%s error=%s", source, exc)
+        raise
+    finally:
+        db.close()
+
+
+def run_live_fixtures_job(*, source: str = "scheduler") -> dict[str, int]:
+    """Fetch real match schedules into live_fixtures + refresh channel name hints."""
+    started_at = datetime.now(tz=timezone.utc)
+    logger.info("live_fixtures_sync start source=%s", source)
+    db = SessionLocal()
+    try:
+        _apply_db_statement_timeout(db)
+
+        def _do() -> dict[str, int]:
+            db.rollback()
+            _apply_db_statement_timeout(db)
+            return sync_live_fixtures(db)
+
+        out = _retry(_do, operation_name=f"live_fixtures[{source}]")
+        logger.info(
+            "live_fixtures_sync success source=%s duration_seconds=%.2f %s",
+            source,
+            (datetime.now(tz=timezone.utc) - started_at).total_seconds(),
+            out,
+        )
+        return out
+    except Exception as exc:
+        db.rollback()
+        logger.exception("live_fixtures_sync failed source=%s error=%s", source, exc)
         raise
     finally:
         db.close()
