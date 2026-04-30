@@ -742,10 +742,31 @@ export function ViewerHome() {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
-                          {fx.league_name} · {new Date(fx.starts_at_utc).toLocaleString()}
+                          {fx.league_name}
                         </p>
-                        <p className="mt-1 text-sm font-bold" style={{ color: "var(--text-main)" }}>
-                          {fx.home_team} vs {fx.away_team}
+                        <div className="mt-1 flex items-center gap-2">
+                          {fx.thumb_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={fx.thumb_url}
+                              alt=""
+                              className="h-7 w-7 shrink-0 rounded-md object-cover"
+                              style={{ border: "1px solid var(--border)" }}
+                            />
+                          ) : (
+                            <div
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold"
+                              style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+                            >
+                              VS
+                            </div>
+                          )}
+                          <p className="min-w-0 truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>
+                            {fx.home_team} vs {fx.away_team}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                          {new Date(fx.starts_at_utc).toLocaleString()}
                         </p>
                         {fx.data_attribution ? (
                           <p className="mt-0.5 text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>

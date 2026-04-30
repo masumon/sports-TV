@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import cache_get_json, cache_set_json, invalidate_list_caches
@@ -51,13 +52,17 @@ async def list_live_fixtures(
         except Exception:
             logger.debug("fixtures cache parse miss")
 
-    result = await db.execute(
-        select(LiveFixture)
-        .where(LiveFixture.starts_at_utc >= from_dt, LiveFixture.starts_at_utc <= to_dt)
-        .order_by(LiveFixture.starts_at_utc.asc())
-        .limit(500)
-    )
-    rows = list(result.scalars().all())
+    try:
+        result = await db.execute(
+            select(LiveFixture)
+            .where(LiveFixture.starts_at_utc >= from_dt, LiveFixture.starts_at_utc <= to_dt)
+            .order_by(LiveFixture.starts_at_utc.asc())
+            .limit(500)
+        )
+        rows = list(result.scalars().all())
+    except SQLAlchemyError as exc:
+        logger.warning("fixtures query failed, returning empty list: %s", exc)
+        return LiveFixtureListResponse(items=[], updated_hint=None)
 
     all_ids: set[int] = set()
     for r in rows:
