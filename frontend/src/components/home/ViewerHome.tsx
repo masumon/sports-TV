@@ -258,6 +258,7 @@ export function ViewerHome() {
   const [scheduleFixtures, setScheduleFixtures] = useState<LiveFixture[]>([]);
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
+  const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
 
   const activeChannel = usePlayerStore((state) => state.activeChannel);
   const isTheaterMode = usePlayerStore((state) => state.isTheaterMode);
@@ -363,6 +364,31 @@ export function ViewerHome() {
     const id = setInterval(() => void loadFixturesSchedule(), 20 * 60_000);
     return () => clearInterval(id);
   }, [activeModule, loadFixturesSchedule]);
+
+  useEffect(() => {
+    if (activeModule === "live_matches") {
+      setScheduleView("live");
+    }
+  }, [activeModule]);
+
+  const scheduleGroups = useMemo(() => {
+    const live: LiveFixture[] = [];
+    const upcoming: LiveFixture[] = [];
+    const finished: LiveFixture[] = [];
+    for (const fx of scheduleFixtures) {
+      const s = (fx.status || "").toLowerCase();
+      if (s === "live") live.push(fx);
+      else if (s === "finished") finished.push(fx);
+      else upcoming.push(fx);
+    }
+    return { live, upcoming, finished };
+  }, [scheduleFixtures]);
+
+  const activeScheduleItems = useMemo(() => {
+    if (scheduleView === "live") return scheduleGroups.live;
+    if (scheduleView === "finished") return scheduleGroups.finished;
+    return scheduleGroups.upcoming;
+  }, [scheduleGroups, scheduleView]);
 
   /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
   useEffect(() => {
@@ -736,8 +762,53 @@ export function ViewerHome() {
               <p className="px-4 py-2 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
                 {t("matchScheduleHint")}
               </p>
+              <div className="px-4 pb-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleView("live")}
+                    className="rounded-full px-3 py-1 text-[11px] font-semibold transition"
+                    style={{
+                      background: scheduleView === "live" ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.04)",
+                      border: scheduleView === "live" ? "1px solid rgba(239,68,68,0.35)" : "1px solid var(--border)",
+                      color: scheduleView === "live" ? "#f87171" : "var(--text-muted)",
+                    }}
+                  >
+                    {t("fixtureStatusLive")} ({scheduleGroups.live.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleView("upcoming")}
+                    className="rounded-full px-3 py-1 text-[11px] font-semibold transition"
+                    style={{
+                      background: scheduleView === "upcoming" ? "rgba(245,166,35,0.12)" : "rgba(255,255,255,0.04)",
+                      border: scheduleView === "upcoming" ? "1px solid rgba(245,166,35,0.35)" : "1px solid var(--border)",
+                      color: scheduleView === "upcoming" ? "var(--primary-accent)" : "var(--text-muted)",
+                    }}
+                  >
+                    {t("fixtureStatusScheduled")} ({scheduleGroups.upcoming.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleView("finished")}
+                    className="rounded-full px-3 py-1 text-[11px] font-semibold transition"
+                    style={{
+                      background: scheduleView === "finished" ? "rgba(120,120,120,0.15)" : "rgba(255,255,255,0.04)",
+                      border: scheduleView === "finished" ? "1px solid rgba(120,120,120,0.35)" : "1px solid var(--border)",
+                      color: scheduleView === "finished" ? "var(--text-main)" : "var(--text-muted)",
+                    }}
+                  >
+                    {t("fixtureStatusFinished")} ({scheduleGroups.finished.length})
+                  </button>
+                </div>
+              </div>
               <div className="max-h-[min(40vh,22rem)] overflow-y-auto overscroll-y-contain divide-y" style={{ borderColor: "var(--border)" }}>
-                {scheduleFixtures.slice(0, 48).map((fx) => (
+                {activeScheduleItems.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                    {t("scheduleEmptyByStatus")}
+                  </div>
+                ) : null}
+                {activeScheduleItems.slice(0, 48).map((fx) => (
                   <div key={fx.id} className="px-4 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">

@@ -94,8 +94,9 @@ export const translations: Record<
     fixtureStatusLive: "Live",
     fixtureStatusFinished: "Finished",
     scheduleUpdated: "Schedule updated",
-  scheduleEmpty:
-    "No saved fixtures yet. On the API host, run a fixtures sync or set LIVE_FIXTURES_SYNC_INTERVAL_MINUTES (see .env.example).",
+    scheduleEmpty:
+      "No saved fixtures yet. On the API host, run a fixtures sync or set LIVE_FIXTURES_SYNC_INTERVAL_MINUTES (see .env.example).",
+    scheduleEmptyByStatus: "No matches in this status right now.",
   },
   bn: {
     appTitle: "ABO স্পোর্টস টিভি লাইভ",
@@ -187,8 +188,9 @@ export const translations: Record<
     fixtureStatusLive: "লাইভ",
     fixtureStatusFinished: "শেষ",
     scheduleUpdated: "সূচি আপডেট",
-  scheduleEmpty:
-    "এখনো সূচি ডাটাবেজে নেই। ব্যাকএন্ডে ফিক্সচার সিঙ্ক চালান বা LIVE_FIXTURES_SYNC_INTERVAL_MINUTES সেট করুন।",
+    scheduleEmpty:
+      "এখনো সূচি ডাটাবেজে নেই। ব্যাকএন্ডে ফিক্সচার সিঙ্ক চালান বা LIVE_FIXTURES_SYNC_INTERVAL_MINUTES সেট করুন।",
+    scheduleEmptyByStatus: "এই স্ট্যাটাসে এখন কোনো ম্যাচ নেই।",
   },
 };
 
