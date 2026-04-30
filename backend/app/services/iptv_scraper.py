@@ -39,20 +39,11 @@ MAX_FETCH_ATTEMPTS = 5
 # M3U Source Definitions
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Sports category playlists — already sports-specific, no keyword filtering needed
+# Sports category playlists — keep only currently stable upstream endpoints.
+# iptv-org removed many per-sport category files (football/cricket/etc), which
+# caused repeated 404 retries and slowed admin/scheduled sync jobs.
 SPORTS_CATEGORY_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/categories/sports.m3u",
-    "https://iptv-org.github.io/iptv/categories/football.m3u",
-    "https://iptv-org.github.io/iptv/categories/cricket.m3u",
-    "https://iptv-org.github.io/iptv/categories/basketball.m3u",
-    "https://iptv-org.github.io/iptv/categories/tennis.m3u",
-    "https://iptv-org.github.io/iptv/categories/baseball.m3u",
-    "https://iptv-org.github.io/iptv/categories/hockey.m3u",
-    "https://iptv-org.github.io/iptv/categories/boxing.m3u",
-    "https://iptv-org.github.io/iptv/categories/motor-racing.m3u",
-    "https://iptv-org.github.io/iptv/categories/golf.m3u",
-    "https://iptv-org.github.io/iptv/categories/volleyball.m3u",
-    "https://iptv-org.github.io/iptv/categories/wrestling.m3u",
 ]
 
 # India — full iptv-org country list (all genres; module=india for UI)
