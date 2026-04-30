@@ -33,11 +33,10 @@ import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache
 import { fetchFanCodeLiveChannels } from "@/lib/fancodeLive";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import {
-  loadFullCatalogWithLive,
   replaceLiveMatches,
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
-import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
+import { viewerCatalogFromDbChannels } from "@/lib/viewerCatalogMerge";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
@@ -304,8 +303,11 @@ export function ViewerHome() {
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          const merged = Promise.all([loadFullCatalogWithLive(), fetchAllChannels().catch(() => [])]).then(
-            ([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db)
+          const merged = Promise.all([fetchAllChannels().catch(() => []), fetchFanCodeLiveChannels().catch(() => [])]).then(
+            ([db, live]) => {
+              const base = viewerCatalogFromDbChannels(db);
+              return replaceLiveMatches(base, live);
+            }
           );
           void merged
             .then((d) => {
@@ -335,7 +337,8 @@ export function ViewerHome() {
   const refreshLiveMatchesOnly = useCallback(async () => {
     try {
       const [live, db] = await Promise.all([fetchFanCodeLiveChannels(), fetchAllChannels().catch(() => [])]);
-      setAllChannels((prev) => mergeDbChannelsIntoViewerCatalog(replaceLiveMatches(prev, live), db));
+      const base = viewerCatalogFromDbChannels(db);
+      setAllChannels(replaceLiveMatches(base, live));
     } catch {
       /* silent background refresh */
     }

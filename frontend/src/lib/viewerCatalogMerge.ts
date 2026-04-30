@@ -104,3 +104,14 @@ export function mergeDbChannelsIntoViewerCatalog(
 
   return mergedViewer.concat(appended);
 }
+
+/** DB-only mode: normalize active DB rows for viewer tabs/modules without client M3U merge. */
+export function viewerCatalogFromDbChannels(db: readonly Channel[]): Channel[] {
+  return db
+    .filter((c) => c.is_active)
+    .map((c) => ({
+      ...c,
+      module: viewerModuleFromDbModule(c.module),
+      geo_hint: Boolean(c.geo_hint),
+    }));
+}

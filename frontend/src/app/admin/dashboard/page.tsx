@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { apiClient } from "@/lib/apiClient";
-import { countFullViewerCatalogChannels } from "@/lib/streamCatalog";
 import type { AdminStats, Channel, StreamProbeItem, StreamProbeStatus } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
@@ -220,8 +219,10 @@ export default function AdminDashboardPage() {
   };
 
   const fetchViewerCatalogCount = async () => {
+    if (!authToken) return;
     try {
-      setViewerCatalogTotal(await countFullViewerCatalogChannels());
+      const s = await apiClient.adminStats(authToken);
+      setViewerCatalogTotal(s.active_channels);
     } catch {
       setViewerCatalogTotal(null);
     }
@@ -492,7 +493,7 @@ export default function AdminDashboardPage() {
                 {viewerCatalogTotal !== null ? viewerCatalogTotal : "—"}
               </p>
               <p className="mt-1 text-[10px] leading-snug text-zinc-500">
-                Public app list (client-side M3U merge + FanCode live). Not the same as DB rows below.
+                Viewer now uses active DB channels (+ live matches feed), so this count should align with Active rows below.
               </p>
             </div>
             <div
