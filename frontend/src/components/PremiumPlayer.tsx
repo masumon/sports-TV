@@ -54,7 +54,7 @@ export type PremiumPlayerProps = {
 };
 
 /** Matches `TopBar` / `Sidebar` — always shown on the player when channel has no logo. */
-const DEFAULT_PLAYER_BRAND_LOGO = "/icons/abo-logo.svg";
+const DEFAULT_PLAYER_BRAND_LOGO = "/icons/original-logo.jpeg";
 
 /* ────────────────────────────────────── External player definitions ── */
 const EXTERNAL_PLAYERS = [

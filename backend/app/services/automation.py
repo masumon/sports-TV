@@ -134,7 +134,12 @@ def run_live_fixtures_job(*, source: str = "scheduler") -> dict[str, int]:
         db.close()
 
 
-def run_channel_health_check(*, sample_limit: int = 80, max_workers: int = 20) -> dict[str, int]:
+def run_channel_health_check(
+    *,
+    sample_limit: int = 80,
+    max_workers: int = 20,
+    resync_on_dead: bool = True,
+) -> dict[str, int]:
     """Validate a rotating sample of active streams and deactivate dead URLs."""
     started_at = datetime.now(tz=timezone.utc)
     logger.info(
@@ -167,13 +172,22 @@ def run_channel_health_check(*, sample_limit: int = 80, max_workers: int = 20) -
             db.commit()
             invalidate_list_caches()
 
+        recovered = 0
+        if dead and resync_on_dead:
+            try:
+                sync_result = run_channel_sync(include_discovery=True, source="healthcheck-recovery")
+                recovered = int(sync_result.get("created", 0)) + int(sync_result.get("updated", 0))
+            except Exception:
+                logger.exception("channel_health_check recovery sync failed")
+
         logger.info(
-            "channel_health_check complete duration_seconds=%.2f checked=%d deactivated=%d",
+            "channel_health_check complete duration_seconds=%.2f checked=%d deactivated=%d recovered=%d",
             (datetime.now(tz=timezone.utc) - started_at).total_seconds(),
             len(rows),
             len(dead),
+            recovered,
         )
-        return {"checked": len(rows), "deactivated": len(dead)}
+        return {"checked": len(rows), "deactivated": len(dead), "recovered": recovered}
     except Exception:
         db.rollback()
         logger.exception("channel_health_check failed")

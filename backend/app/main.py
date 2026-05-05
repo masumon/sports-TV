@@ -154,7 +154,7 @@ async def lifespan(app: FastAPI):
         def scheduled_stream_validation() -> None:
             """Validate a rotating sample of active channels; deactivate dead ones."""
             try:
-                run_channel_health_check(sample_limit=80, max_workers=20)
+                run_channel_health_check(sample_limit=80, max_workers=20, resync_on_dead=True)
             except Exception:
                 logger.exception("Scheduled stream validation failed")
 

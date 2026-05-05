@@ -83,7 +83,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         {/* Logo — hidden on mobile (sidebar has it) */}
         <div className="hidden items-center gap-2.5 md:flex shrink-0">
           <div className="relative h-8 w-8">
-            <Image src="/icons/abo-logo.svg" alt="ABO" width={32} height={32} className="rounded-md" />
+            <Image src="/icons/original-logo.jpeg" alt="Brand" width={32} height={32} className="rounded-md" />
           </div>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.1em] leading-tight" style={{ color: "var(--primary-accent)" }}>

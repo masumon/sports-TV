@@ -403,7 +403,7 @@ export default function AdminDashboardPage() {
         <header className="sticky top-0 z-20 -mx-4 mb-2 border-b border-white/[0.06] bg-[#07080f]/90 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
-              <Image src="/icons/abo-logo.svg" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl ring-1 ring-white/10" />
+              <Image src="/icons/original-logo.jpeg" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl ring-1 ring-white/10" />
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>
                 <h1 className="truncate text-xl font-bold tracking-tight text-white sm:text-2xl">Control center</h1>

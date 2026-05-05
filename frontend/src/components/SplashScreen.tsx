@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 /**
@@ -75,29 +76,7 @@ export function SplashScreen({ ready }: { ready: boolean }) {
             justifyContent: "center",
           }}
         >
-          {/* Inline ABO logo SVG */}
-          <svg viewBox="0 0 192 192" width={72} height={72} aria-hidden>
-            <defs>
-              <linearGradient id="sp-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#0D0F1C" />
-                <stop offset="100%" stopColor="#07080F" />
-              </linearGradient>
-              <linearGradient id="sp-gold" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#F5A623" />
-                <stop offset="100%" stopColor="#C9A227" />
-              </linearGradient>
-            </defs>
-            <rect width="192" height="192" rx="40" fill="url(#sp-bg)" />
-            <g transform="translate(14 68) scale(0.72)">
-              <polygon points="8,60 26,12 44,60" fill="url(#sp-gold)" />
-              <rect x="16.5" y="42" width="19" height="5" fill="#080A14" />
-              <rect x="50" y="12" width="6" height="48" fill="url(#sp-gold)" />
-              <path d="M56 12 Q76 12 76 27 Q76 36 56 36" fill="url(#sp-gold)" />
-              <path d="M56 36 Q78 36 78 49 Q78 60 56 60" fill="url(#sp-gold)" />
-              <circle cx="105" cy="38" r="20" fill="none" stroke="url(#sp-gold)" strokeWidth="6" />
-              <path d="M108,18 C114,5 128,10 120,24 C128,8 140,18 130,32" fill="#CC2828" />
-            </g>
-          </svg>
+          <Image src="/icons/original-logo.jpeg" alt="Brand" width={72} height={72} style={{ borderRadius: 16, objectFit: "cover" }} priority />
         </div>
       </div>
 

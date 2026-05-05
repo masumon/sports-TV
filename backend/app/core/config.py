@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     iptv_full_index_sync: bool = False
     iptv_full_index_url: str = "https://iptv-org.github.io/iptv/index.m3u"
     iptv_full_index_fetch_timeout_seconds: int = 120
-    auto_sync_channels_on_startup: bool = False
+    auto_sync_channels_on_startup: bool = True
     # Optional Redis for response caching (GET /sports-tv/channels, filters). If unset, caching is disabled.
     redis_url: str | None = None
     cache_ttl_seconds: int = 300
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     sync_rate_limit_seconds: int = 60
     # Legacy DB M3U sync interval (admin / GET /sports-tv/channels). Viewer catalog is client-side M3U.
     # Default 0 = scheduler disabled. Set e.g. 30 only if you still rely on DB channel rows.
-    scheduled_sync_interval_minutes: int = 0
+    scheduled_sync_interval_minutes: int = 30
     # Real fixture schedule sync (OpenLigaDB + optional football-data.org). 0 = disabled.
     live_fixtures_sync_interval_minutes: int = 0
     live_fixtures_days_ahead: int = 14
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     football_data_competitions: str = "PL,BL1,PD,SA,FL1"
     # Auto-discover new M3U sources every N hours (0 = disabled).
     # Default 0: free-tier Render workers should not run discovery + sync load unless explicitly enabled.
-    source_discovery_interval_hours: int = 0
+    source_discovery_interval_hours: int = 6
     # Deactivate iptv-org channels not refreshed for this many days.
     channel_stale_days: int = 3
     # Engine pool (PostgreSQL). Keep low on free-tier DBs (e.g. Neon allows 25 connections).
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     # Sample active channels and deactivate dead URLs. 0 = do not run scheduled checks.
     # When >0, runs on this interval. Was previously hardcoded to 15m whenever M3U sync was on
     # (harsh for free tier + datacenter-IP false negatives). Set e.g. 60–120 on paid/stable hosts.
-    stream_validation_interval_minutes: int = 0
+    stream_validation_interval_minutes: int = 20
 
     # Raw M3U text for GET /proxy/playlist — Redis + in-process fallback (free-tier friendly).
     # Env: PROXY_PLAYLIST_CACHE_TTL_SECONDS (default 5400 = 90 min, within 60–120m guidance).

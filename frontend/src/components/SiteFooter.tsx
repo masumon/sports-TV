@@ -49,7 +49,7 @@ export function SiteFooter() {
               border: "1px solid var(--border)",
             }}
           >
-            <Image src="/icons/abo-logo.svg" alt="ABO Sports TV" width={36} height={36} />
+            <Image src="/icons/original-logo.jpeg" alt="Brand" width={36} height={36} />
           </div>
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <h2
@@ -132,7 +132,7 @@ export function SiteFooter() {
               Coverage
             </p>
             <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-              {["Football", "Cricket", "Basketball", "Tennis", "Combat", "Racing", "Hockey", "Golf"].map((s) => (
+              {["Football", "Cricket"].map((s) => (
                 <div key={s} style={{ color: "var(--text-muted)" }}>
                   {s}
                 </div>

@@ -5,10 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
-  Home, LayoutGrid, Settings, X, Tv, Globe, ChevronDown, ChevronUp,
+  Home, LayoutGrid, Settings, X, Tv, Globe,
   Zap, Flame,
 } from "lucide-react";
-import { useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useAuthStore } from "@/store/authStore";
 import { useUiStore } from "@/store/uiStore";
@@ -16,23 +15,6 @@ import { useUiStore } from "@/store/uiStore";
 const SPORTS_CATEGORIES = [
   { label: "Football", emoji: "⚽", key: "football" },
   { label: "Cricket", emoji: "🏏", key: "cricket" },
-  { label: "Basketball", emoji: "🏀", key: "basketball" },
-  { label: "Tennis", emoji: "🎾", key: "tennis" },
-  { label: "Baseball", emoji: "⚾", key: "baseball" },
-  { label: "Rugby", emoji: "🏉", key: "rugby" },
-  { label: "Hockey", emoji: "🏒", key: "hockey" },
-  { label: "Golf", emoji: "⛳", key: "golf" },
-  { label: "Boxing / MMA / UFC", emoji: "🥊", key: "boxing" },
-  { label: "Formula 1", emoji: "🏎️", key: "racing" },
-  { label: "Cycling", emoji: "🚴", key: "cycling" },
-  { label: "Swimming", emoji: "🏊", key: "swimming" },
-  { label: "Athletics", emoji: "🏃", key: "athletics" },
-  { label: "Volleyball", emoji: "🏐", key: "volleyball" },
-  { label: "Table Tennis", emoji: "🏓", key: "table-tennis" },
-  { label: "Badminton", emoji: "🏸", key: "badminton" },
-  { label: "Snooker", emoji: "🎱", key: "snooker" },
-  { label: "Darts", emoji: "🎯", key: "darts" },
-  { label: "Wrestling", emoji: "🤼", key: "wrestling" },
 ];
 
 export function Sidebar() {
@@ -45,9 +27,7 @@ export function Sidebar() {
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const activeCategory = useUiStore((s) => s.activeCategory);
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
-  const [showAllCats, setShowAllCats] = useState(false);
-
-  const visibleCats = showAllCats ? SPORTS_CATEGORIES : SPORTS_CATEGORIES.slice(0, 8);
+  const visibleCats = SPORTS_CATEGORIES;
 
   function handleCategoryClick(key: string) {
     if (activeModule !== "global_sports") setActiveModule("global_sports");
@@ -120,7 +100,7 @@ export function Sidebar() {
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative h-9 w-9 shrink-0">
-              <Image src="/icons/abo-logo.svg" alt="ABO" width={36} height={36} className="rounded-lg" />
+              <Image src="/icons/original-logo.jpeg" alt="Brand" width={36} height={36} className="rounded-lg" />
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.12em] leading-none" style={{ color: "var(--primary-accent)" }}>
@@ -272,20 +252,6 @@ export function Sidebar() {
                 </button>
               )) : null}
             </div>
-            {activeModule === "global_sports" ? (
-            <button
-              type="button"
-              className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium transition hover:bg-white/5"
-              style={{ color: "var(--text-muted)" }}
-              onClick={() => setShowAllCats((v) => !v)}
-            >
-              {showAllCats ? (
-                <><ChevronUp size={13} /> Show less</>
-              ) : (
-                <><ChevronDown size={13} /> {SPORTS_CATEGORIES.length - 8} more sports</>
-              )}
-            </button>
-            ) : null}
           </div>
 
           <div

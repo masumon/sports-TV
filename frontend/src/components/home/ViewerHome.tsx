@@ -85,6 +85,38 @@ function inferLeague(name: string): string {
   return "🌐 Other Sports";
 }
 
+function isFootballOrCricketChannel(channel: Channel): boolean {
+  const category = channel.category.toLowerCase();
+  const name = channel.name.toLowerCase();
+  const footballKeywords = [
+    "football",
+    "soccer",
+    "futbol",
+    "fussball",
+    "laliga",
+    "la liga",
+    "premier league",
+    "champions league",
+    "serie a",
+    "bundesliga",
+    "ligue 1",
+    "uefa",
+    "fifa",
+    "copa",
+  ];
+  const cricketKeywords = [
+    "cricket",
+    "ipl",
+    "icc",
+    "bpl",
+    "psl",
+    "t20",
+    "odi",
+    "test match",
+  ];
+  return [...footballKeywords, ...cricketKeywords].some((k) => category.includes(k) || name.includes(k));
+}
+
 /** Main grid: only this many cards mount at a time so 10k+ catalogs stay responsive (browser + PWA). */
 const CHANNEL_GRID_BATCH = 96;
 
@@ -92,26 +124,6 @@ const CHANNEL_GRID_BATCH = 96;
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
   { id: "football",   label: "⚽ Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
   { id: "cricket",    label: "🏏 Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
-  { id: "basketball", label: "🏀 Basketball",    leagueEmoji: "🏀", categoryKeys: ["basketball", "nba"] },
-  { id: "tennis",     label: "🎾 Tennis",         leagueEmoji: "🎾", categoryKeys: ["tennis"] },
-  { id: "racing",     label: "🏎️ Racing / F1",    leagueEmoji: "🏎️", categoryKeys: ["racing", "formula", "f1"] },
-  { id: "golf",       label: "⛳ Golf",           leagueEmoji: "⛳", categoryKeys: ["golf"] },
-  { id: "boxing",     label: "🥊 Boxing / MMA",   leagueEmoji: "🥊", categoryKeys: ["boxing", "mma", "ufc", "fight"] },
-  { id: "hockey",     label: "🏒 Hockey",         leagueEmoji: "🏒", categoryKeys: ["hockey"] },
-  { id: "baseball",   label: "⚾ Baseball",       leagueEmoji: "⚾", categoryKeys: ["baseball"] },
-  { id: "nfl",        label: "🏈 NFL",            leagueEmoji: "🏈", categoryKeys: ["nfl"] },
-  { id: "cycling",    label: "🚴 Cycling",        leagueEmoji: "🚴", categoryKeys: ["cycling"] },
-  { id: "horse",      label: "🏇 Horse Racing",   leagueEmoji: "🏇", categoryKeys: ["horse", "equid", "turf"] },
-  { id: "rugby",      label: "🏉 Rugby",           leagueEmoji: "🏉", categoryKeys: ["rugby"] },
-  { id: "volleyball", label: "🏐 Volleyball",      leagueEmoji: "🏐", categoryKeys: ["volleyball"] },
-  { id: "athletics",  label: "🏃 Athletics",       leagueEmoji: "🏃", categoryKeys: ["athletics", "track"] },
-  { id: "swimming",   label: "🏊 Swimming",        leagueEmoji: "🏊", categoryKeys: ["swimming", "aquatic"] },
-  { id: "table-tennis", label: "🏓 Table Tennis",  leagueEmoji: "🏓", categoryKeys: ["table tennis", "tabletennis", "ping pong"] },
-  { id: "badminton",  label: "🏸 Badminton",       leagueEmoji: "🏸", categoryKeys: ["badminton"] },
-  { id: "snooker",    label: "🎱 Snooker",         leagueEmoji: "🎱", categoryKeys: ["snooker", "billiard", "pool"] },
-  { id: "darts",      label: "🎯 Darts",           leagueEmoji: "🎯", categoryKeys: ["darts"] },
-  { id: "wrestling",  label: "🤼 Wrestling",       leagueEmoji: "🤼", categoryKeys: ["wrestling", "wwe", "aew"] },
-  { id: "news",       label: "📺 News / General",  leagueEmoji: "📺", categoryKeys: ["news", "general"] },
 ];
 
 const BD_CATEGORIES: Record<string, string> = {
@@ -469,7 +481,12 @@ export function ViewerHome() {
   }, [activeModule, setActiveCategory]);
 
   const moduleChannels = useMemo(
-    () => allChannels.filter((c) => c.module === activeModule),
+    () =>
+      allChannels.filter((c) => {
+        if (c.module !== activeModule) return false;
+        if (activeModule !== "global_sports") return true;
+        return isFootballOrCricketChannel(c);
+      }),
     [allChannels, activeModule]
   );
 

@@ -69,6 +69,29 @@ function entryToChannel(
   };
 }
 
+function isFootballOrCricketEntry(name: string, groupTitle: string): boolean {
+  const n = name.toLowerCase();
+  const g = groupTitle.toLowerCase();
+  const footballKeywords = [
+    "football",
+    "soccer",
+    "futbol",
+    "fussball",
+    "laliga",
+    "la liga",
+    "premier league",
+    "champions league",
+    "serie a",
+    "bundesliga",
+    "ligue 1",
+    "uefa",
+    "fifa",
+    "copa",
+  ];
+  const cricketKeywords = ["cricket", "ipl", "icc", "bpl", "psl", "t20", "odi", "test match"];
+  return [...footballKeywords, ...cricketKeywords].some((k) => n.includes(k) || g.includes(k));
+}
+
 async function ingestPlaylistUrlsIntoSeen(
   urls: readonly string[],
   module: ViewerModule,
@@ -90,6 +113,9 @@ async function ingestPlaylistUrlsIntoSeen(
     try {
       const entries = parseM3UPlaylist(result.value);
       for (const e of entries) {
+        if (module === "global_sports" && !isFootballOrCricketEntry(e.name, e.groupTitle ?? "")) {
+          continue;
+        }
         const k = normKey(e.streamUrl);
         if (seen.has(k)) continue;
         seen.add(k);
@@ -142,6 +168,9 @@ function mergePremiumDirectSportsIntoSeen(seen: Set<string>, out: Channel[] | nu
 
     const emptyTs = { created_at: "", updated_at: "" };
     const mod = resolvePremiumModule(p.module);
+    if (mod === "global_sports" && !isFootballOrCricketEntry(p.name, p.category ?? "")) {
+      continue;
+    }
     const country =
       p.country?.trim() ||
       (mod === "bangladesh" ? "Bangladesh" : mod === "india" ? "India" : "Global");
