@@ -407,22 +407,30 @@ async def health_db() -> dict:
 
 
 @app.get("/playlist.m3u", tags=["m3u"])
-async def get_playlist_m3u() -> Response:
+async def get_playlist_m3u(limit: int = 2000) -> Response:
+    """Generate M3U playlist from active DB channels (capped at 2000 for free-tier safety)."""
     from sqlalchemy import select
     from app.db.session import AsyncSessionLocal
     from app.models.channel import Channel
-    
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Channel).where(Channel.is_active.is_(True)))
-        channels = result.scalars().all()
-        
+
+    cap = min(max(1, limit), 5000)
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Channel).where(Channel.is_active.is_(True)).limit(cap)
+            )
+            channels = result.scalars().all()
+    except Exception as exc:
+        logger.error("playlist.m3u DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+
     lines = ["#EXTM3U"]
     for ch in channels:
         logo = f' tvg-logo="{ch.logo_url}"' if ch.logo_url else ""
         group = f' group-title="{ch.category}"' if ch.category else ""
         lines.append(f'#EXTINF:-1{logo}{group},{ch.name}')
         lines.append(ch.stream_url)
-        
+
     return Response(content="\n".join(lines) + "\n", media_type="application/vnd.apple.mpegurl")
 
 
