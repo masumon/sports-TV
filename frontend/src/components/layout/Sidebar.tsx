@@ -124,10 +124,10 @@ export function Sidebar() {
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.12em] leading-none" style={{ color: "var(--primary-accent)" }}>
-                ABO SPORTS
+                IPTV
               </p>
               <p className="text-[9px] font-semibold uppercase tracking-[0.18em] leading-tight" style={{ color: "var(--text-muted)" }}>
-                TV LIVE
+                ENTERPRISE
               </p>
             </div>
           </div>

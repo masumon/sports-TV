@@ -5,29 +5,29 @@
 /* ── ABO SPORTS TV LIVE — Design tokens (dark — default) — light / calm UI ── */
 :root {
   color-scheme: dark;
-  --bg-dark: #080a11;
-  --bg-card: #0e111a;
-  --bg-card2: #12151f;
-  --bg-hover: #181c28;
-  --bg-glass: rgba(14,17,26,0.92);
-  --primary-accent: #e8981f;
-  --primary-rgb: 232 152 31;
-  --accent-red: #E53935;
-  --accent-red-rgb: 229 57 53;
+  --bg-dark: #0d0d12;
+  --bg-card: #1a1a24;
+  --bg-card2: #262635;
+  --bg-hover: #262635;
+  --bg-glass: rgba(26,26,36,0.92);
+  --primary-accent: #e50914;
+  --primary-rgb: 229 9 20;
+  --accent-red: #e50914;
+  --accent-red-rgb: 229 9 20;
   --accent-blue: #1E6EE8;
   --accent-blue-rgb: 30 110 232;
-  --accent-green: #10B981;
-  --success: #10B981;
+  --accent-green: #00C851;
+  --success: #00C851;
   --gold: #C9A227;
-  --text-main: #f0f2f8;
-  --text-muted: #8b90a8;
-  --border: rgba(255,255,255,0.06);
-  --border-accent: rgba(232,152,31,0.22);
-  --shadow-card: 0 1px 12px rgba(0,0,0,0.28);
-  --glow-gold: 0 0 14px rgba(232,152,31,0.12);
-  --glow-red: 0 0 14px rgba(229,57,53,0.14);
-  --radius-sm: 10px;
-  --radius-md: 14px;
+  --text-main: #ffffff;
+  --text-muted: #a0a0b0;
+  --border: rgba(255,255,255,0.05);
+  --border-accent: rgba(229,9,20,0.22);
+  --shadow-card: 0 10px 30px rgba(0,0,0,0.5);
+  --glow-gold: 0 0 14px rgba(229,9,20,0.12);
+  --glow-red: 0 0 14px rgba(229,9,20,0.14);
+  --radius-sm: 8px;
+  --radius-md: 12px;
 }
 
 /* ── Design tokens (light) ── */
