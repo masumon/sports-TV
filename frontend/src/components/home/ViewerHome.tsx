@@ -5,7 +5,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Globe,
   RefreshCw,
-  Search,
   Signal,
   Tv2,
   ChevronRight,
@@ -250,10 +249,8 @@ export function ViewerHome() {
   const [filterLanguage, setFilterLanguage] = useState("");
   const [filterLeague, setFilterLeague] = useState("");
   const [showAllFilters, setShowAllFilters] = useState(false);
-  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const reduceM = useReducedMotion();
   const tier = useSubscriptionStore((s) => s.tier);
-  const searchRef = useRef<HTMLInputElement>(null);
   const gridSentinelRef = useRef<HTMLDivElement | null>(null);
   const [gridVisibleCount, setGridVisibleCount] = useState(CHANNEL_GRID_BATCH);
   const [scheduleFixtures, setScheduleFixtures] = useState<LiveFixture[]>([]);
@@ -432,16 +429,6 @@ export function ViewerHome() {
   useEffect(() => {
     void loadChannels(false).finally(() => setSplashReady(true));
   }, [loadChannels]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (localStorage.getItem("gstv-welcome-hint") === "1") return;
-    } catch {
-      return;
-    }
-    setWelcomeOpen(true);
-  }, []);
 
   useEffect(() => {
     const id = setInterval(() => void refreshLiveMatchesOnly(), 30 * 60_000);
@@ -660,15 +647,6 @@ export function ViewerHome() {
     });
   }, []);
 
-  const dismissWelcome = useCallback(() => {
-    try {
-      localStorage.setItem("gstv-welcome-hint", "1");
-    } catch {
-      /* */
-    }
-    setWelcomeOpen(false);
-  }, []);
-
   const playbackUrls = useMemo(() => {
     if (!activeChannel) return [];
     return orderedStreamUrlsForChannel(activeChannel);
@@ -696,28 +674,9 @@ export function ViewerHome() {
       {isFirstVisit && <SplashScreen ready={splashReady} />}
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
-        {welcomeOpen ? (
-          <div
-            role="region"
-            aria-label={t("usageTips")}
-            className="welcome-banner flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-          >
-            <p className="text-left text-sm leading-relaxed" style={{ color: "var(--text-main)" }}>
-              {t("welcomeHint")}
-            </p>
-            <button
-              type="button"
-              onClick={dismissWelcome}
-              className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition hover:opacity-90"
-              style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
-            >
-              {t("welcomeDismiss")}
-            </button>
-          </div>
-        ) : null}
 
-        {/* ── Module tabs (scroll on narrow screens) ── */}
-        <div className="-mx-1 flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:mx-0 sm:flex-wrap sm:overflow-visible">
+        {/* ── Module tabs: hidden on mobile (bottom nav handles navigation there) ── */}
+        <div className="hidden md:flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible">
           <button
             type="button"
             onClick={() => {
@@ -989,12 +948,10 @@ export function ViewerHome() {
         ) : null}
 
         {/* ── Hero header ── */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <div className="hero-kicker-icon h-6 w-6">
-                <Tv2 className="h-4 w-4" style={{ color: "var(--primary-accent)" }} />
-              </div>
+              <Tv2 className="h-4 w-4 shrink-0" style={{ color: "var(--primary-accent)" }} />
               <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>
                 {activeModule === "bangladesh"
                   ? "BANGLADESH"
@@ -1007,18 +964,18 @@ export function ViewerHome() {
                         : "GLOBAL SPORTS"}
               </span>
             </div>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl" style={{ color: "var(--text-main)" }}>
+            <h1 className="mt-1 text-xl font-extrabold tracking-tight md:text-2xl" style={{ color: "var(--text-main)" }}>
               {activeModule === "bangladesh"
-                ? "বাংলাদেশ টিভি চ্যানেল"
+                ? "🇧🇩 বাংলাদেশ টিভি চ্যানেল"
                 : activeModule === "india"
-                  ? "भारत — सभी प्रकार के चैनल"
+                  ? "🇮🇳 India Channels"
                   : activeModule === "fast_tv"
-                    ? "Samsung · Pluto · LG · Roku FAST channels"
+                    ? "⚡ FAST TV 24/7"
                     : activeModule === "live_matches"
-                      ? "FanCode — cricket & football (India VPN may be required)"
+                      ? "🔴 Live Match Schedule"
                       : t("tagline")}
             </h1>
-            <div className="mt-1 space-y-1.5">
+            <div className="mt-1 space-y-1">
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 {loading
                   ? t("loading")
@@ -1045,25 +1002,7 @@ export function ViewerHome() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Wide screens: second search (mobile uses TopBar #gstv-search only) */}
-            <div className="relative hidden min-w-[200px] flex-1 md:block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-              <input
-                ref={searchRef}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t("search")}
-                aria-label={t("search")}
-                autoComplete="off"
-                className="search-input w-full rounded-lg py-2 pl-9 pr-3 text-sm placeholder:text-slate-500"
-                style={{
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-main)",
-                }}
-              />
-            </div>
-
+            {/* Refresh button */}
             <button
               type="button"
               onClick={() => {
@@ -1078,14 +1017,14 @@ export function ViewerHome() {
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)", opacity: loading ? 0.75 : 1 }}
             >
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} aria-hidden />
-              {t("refresh")}
+              <span className="hidden sm:inline">{t("refresh")}</span>
             </button>
 
             <div
               className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-bold"
               style={{ background: "rgba(229,57,53,0.1)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}
             >
-              <Signal size={12} className="shrink-0" /> {t("hlsLive")}
+              <Signal size={12} className="shrink-0" /> HLS
             </div>
 
             {tier === "premium" && (

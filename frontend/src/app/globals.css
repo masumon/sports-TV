@@ -71,6 +71,16 @@ body {
   box-sizing: border-box;
 }
 
+/* Mobile: remove tap highlight flash, ensure minimum 44px touch targets for buttons */
+button, [role="button"], a {
+  -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 767px) {
+  button, [role="button"] {
+    min-height: 44px;
+  }
+}
+
 /* Keyboard focus (skip link + interactive elements) — gold ring matches brand */
 :focus {
   outline: none;

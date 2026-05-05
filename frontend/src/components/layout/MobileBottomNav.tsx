@@ -1,201 +1,98 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, LayoutGrid, Search, Trophy, Tv, User } from "lucide-react";
-import { useState } from "react";
+import { Search } from "lucide-react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
-import { useAuthStore } from "@/store/authStore";
 import { useUiStore } from "@/store/uiStore";
 
+/**
+ * Mobile bottom navigation (hidden on md+).
+ * 5 tabs: Global Sports · Live Matches · Search · Bangladesh · India
+ * FAST TV lives in the Sidebar (hamburger menu).
+ */
 export function MobileBottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
-  const isAdmin = useAuthStore((s) => s.user?.is_admin);
   const activeModule = useUiStore((s) => s.activeModule);
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
-  const [moreOpen, setMoreOpen] = useState(false);
 
   const isHome = pathname === "/";
+
+  function navigate(module: string) {
+    setActiveModule(module as Parameters<typeof setActiveModule>[0]);
+    if (pathname !== "/") {
+      router.push("/");
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function handleSearch() {
+    if (pathname !== "/") {
+      try { sessionStorage.setItem("gstv-focus-search", "1"); } catch { /**/ }
+      router.push("/");
+      return;
+    }
+    requestSearchFocus();
+    document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  const tabs = [
+    { id: "global_sports", label: "Sports",   emoji: "🌍", activeColor: "var(--primary-accent)", activeBg: "rgba(229,9,20,0.12)" },
+    { id: "live_matches",  label: "Live",      emoji: "🔴", activeColor: "#f87171",               activeBg: "rgba(239,68,68,0.12)" },
+    { id: "__search__",    label: t("search"), emoji: null,  activeColor: "var(--text-main)",       activeBg: "rgba(255,255,255,0.08)" },
+    { id: "bangladesh",    label: "বাংলা",     emoji: "🇧🇩", activeColor: "#10b981",               activeBg: "rgba(16,185,129,0.12)" },
+    { id: "india",         label: "India",     emoji: "🇮🇳", activeColor: "rgb(199,210,254)",       activeBg: "rgba(99,102,241,0.15)" },
+  ] as const;
+
+  function isTabActive(id: string) {
+    if (id === "__search__") return false;
+    return isHome && activeModule === id;
+  }
+
   return (
-    <>
-      {moreOpen ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px] md:hidden"
-          aria-label="Close menu"
-          onClick={() => setMoreOpen(false)}
-        />
-      ) : null}
-      {moreOpen ? (
-        <div
-          className="fixed bottom-16 left-2 right-2 z-50 rounded-xl border p-3 md:hidden"
-          style={{
-            background: "var(--bg-card)",
-            borderColor: "var(--border)",
-            boxShadow: "var(--shadow-card)",
-            paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
-          }}
-        >
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-            More
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              className="rounded-lg px-3 py-2.5 text-left text-sm font-medium"
-              style={{
-                background: activeModule === "fast_tv" ? "rgba(245,166,35,0.12)" : "rgba(255,255,255,0.05)",
-                color: "var(--text-main)",
-              }}
-              onClick={() => {
-                setActiveModule("fast_tv");
-                setMoreOpen(false);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch justify-around md:hidden"
+      style={{
+        height: "calc(3.5rem + env(safe-area-inset-bottom, 0px))",
+        background: "var(--bg-glass)",
+        borderTop: "1px solid var(--border)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: "0 -2px 16px rgba(0,0,0,0.28)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
+    >
+      {tabs.map((tab) => {
+        const active = isTabActive(tab.id);
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            aria-label={tab.label}
+            aria-current={active ? "page" : undefined}
+            onClick={() => tab.id === "__search__" ? handleSearch() : navigate(tab.id)}
+            className="flex flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-95"
+            style={{ color: active ? tab.activeColor : "var(--text-muted)" }}
+          >
+            <div
+              className="flex h-7 w-11 items-center justify-center rounded-full transition-all"
+              style={{ background: active ? tab.activeBg : "transparent" }}
             >
-              ⚡ FAST TV
-            </button>
-            <button
-              type="button"
-              className="rounded-lg px-3 py-2.5 text-left text-sm font-medium"
-              style={{
-                background: activeModule === "live_matches" ? "rgba(245,166,35,0.12)" : "rgba(255,255,255,0.05)",
-                color: "var(--text-main)",
-              }}
-              onClick={() => {
-                setActiveModule("live_matches");
-                setMoreOpen(false);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-            >
-              🔴 Live Matches
-            </button>
-            <Link
-              href={isAdmin ? "/admin/dashboard" : "/admin/login"}
-              className="col-span-2 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium"
-              style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-muted)" }}
-              onClick={() => setMoreOpen(false)}
-            >
-              <User size={17} /> {t("admin")}
-            </Link>
-          </div>
-        </div>
-      ) : null}
-
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-30 flex h-16 items-stretch justify-around pb-[env(safe-area-inset-bottom,0px)] md:hidden"
-        style={{
-          background: "var(--bg-glass)",
-          borderTop: "1px solid var(--border)",
-          backdropFilter: "blur(10px)",
-          boxShadow: "0 -2px 12px rgba(0,0,0,0.2)",
-        }}
-      >
-        <Link
-          href="/"
-          onClick={() => {
-            setActiveModule("global_sports");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
-          style={{
-            color: isHome && activeModule === "global_sports" ? "var(--primary-accent)" : "var(--text-muted)",
-          }}
-        >
-          <div
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
-              isHome && activeModule === "global_sports" ? "bg-[rgba(245,166,35,0.15)]" : ""
-            }`}
-          >
-            <Home size={19} />
-          </div>
-          🌍
-        </Link>
-
-        <button
-          type="button"
-          onClick={() => {
-            if (pathname !== "/") {
-              try {
-                sessionStorage.setItem("gstv-focus-search", "1");
-              } catch {
-                /* */
-              }
-              router.push("/");
-              return;
-            }
-            requestSearchFocus();
-            document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }}
-          className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
-          style={{ color: "var(--text-muted)" }}
-          aria-label={t("search")}
-        >
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg">
-            <Search size={19} />
-          </div>
-          {t("search")}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setActiveModule("bangladesh");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
-          style={{ color: activeModule === "bangladesh" ? "#10b981" : "var(--text-muted)" }}
-        >
-          <div
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
-              activeModule === "bangladesh" ? "bg-[rgba(16,185,129,0.15)]" : ""
-            }`}
-          >
-            <Tv size={19} />
-          </div>
-          🇧🇩
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setActiveModule("india");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
-          style={{ color: activeModule === "india" ? "rgb(199 210 254)" : "var(--text-muted)" }}
-        >
-          <div
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
-              activeModule === "india" ? "bg-[rgba(99,102,241,0.2)]" : ""
-            }`}
-          >
-            <Trophy size={19} />
-          </div>
-          🇮🇳
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setMoreOpen((v) => !v);
-          }}
-          className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-all"
-          style={{ color: moreOpen ? "var(--primary-accent)" : "var(--text-muted)" }}
-        >
-          <div
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
-              moreOpen ? "bg-[rgba(245,166,35,0.15)]" : ""
-            }`}
-          >
-            <LayoutGrid size={19} />
-          </div>
-          More
-        </button>
-      </nav>
-    </>
+              {tab.emoji ? (
+                <span className="text-[1.2rem] leading-none" aria-hidden>{tab.emoji}</span>
+              ) : (
+                <Search size={18} aria-hidden />
+              )}
+            </div>
+            <span className="text-[9px] leading-none" style={{ fontWeight: active ? 700 : 500 }}>
+              {tab.label}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
