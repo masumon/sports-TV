@@ -1229,19 +1229,7 @@ export function ViewerHome() {
 
             {/* Enterprise Dashboard: Player Tools */}
             {activeChannel && (
-              <div className="mt-3 flex flex-col sm:flex-row justify-between items-center rounded-xl px-4 py-3 gap-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <label className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Edge Servers:</label>
-                  <select 
-                    className="rounded-md px-2 py-1.5 text-xs outline-none cursor-pointer" 
-                    style={{ background: "var(--bg-dark)", color: "var(--text-main)", border: "1px solid var(--border)" }}
-                    onChange={() => toast.info("Switching Edge Server...")}
-                  >
-                    <option>Main Node (Auto)</option>
-                    <option>Backup Node 1</option>
-                    <option>Backup Node 2</option>
-                  </select>
-                </div>
+              <div className="mt-3 flex flex-col sm:flex-row justify-end items-center rounded-xl px-4 py-3 gap-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <label className="text-xs font-semibold hidden sm:block" style={{ color: "var(--text-muted)" }}>Open With:</label>
                   <button onClick={() => toast.success("Opening stream in VLC...")} className="flex-1 sm:flex-none rounded-md px-3 py-1.5 text-xs font-semibold transition hover:bg-white/10" style={{ background: "var(--bg-dark)", color: "var(--text-main)", border: "1px solid var(--border)" }}>
@@ -1250,33 +1238,6 @@ export function ViewerHome() {
                   <button onClick={() => toast.success("Opening stream in MX Player...")} className="flex-1 sm:flex-none rounded-md px-3 py-1.5 text-xs font-semibold transition hover:bg-white/10" style={{ background: "var(--bg-dark)", color: "var(--text-main)", border: "1px solid var(--border)" }}>
                     MX Player
                   </button>
-                </div>
-              </div>
-            )}
-
-            {/* Enterprise Dashboard: Mock EPG / TV Guide */}
-            {activeChannel && (
-              <div className="mt-4">
-                <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: "var(--text-main)" }}>
-                  <Calendar size={16} style={{ color: "var(--primary-accent)" }} /> 
-                  Live TV Guide
-                </h3>
-                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-                  {[
-                    { time: "NOW PLAYING", title: "Live Premium Broadcast", active: true },
-                    { time: "12:00 PM", title: "Match Analysis", active: false },
-                    { time: "02:00 PM", title: "Championship Final", active: false },
-                    { time: "05:00 PM", title: "Post-Match Interviews", active: false },
-                    { time: "08:00 PM", title: "Evening Highlights", active: false }
-                  ].map((item, idx) => (
-                    <div key={idx} className="shrink-0 rounded-xl px-4 py-3 min-w-[160px]" style={{ 
-                      background: item.active ? "rgba(229,9,20,0.08)" : "var(--bg-card)", 
-                      border: item.active ? "1px solid var(--primary-accent)" : "1px solid var(--border)" 
-                    }}>
-                      <div className="text-[10px] font-bold tracking-wider mb-1" style={{ color: item.active ? "var(--primary-accent)" : "var(--text-muted)" }}>{item.time}</div>
-                      <div className="text-xs font-semibold" style={{ color: "var(--text-main)" }}>{item.title}</div>
-                    </div>
-                  ))}
                 </div>
               </div>
             )}

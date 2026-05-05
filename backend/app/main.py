@@ -406,6 +406,26 @@ async def health_db() -> dict:
         return {"db": "error", "detail": detail, "backend": str(ASYNC_URL).split(":", 1)[0]}
 
 
+@app.get("/playlist.m3u", tags=["m3u"])
+async def get_playlist_m3u() -> Response:
+    from sqlalchemy import select
+    from app.db.session import AsyncSessionLocal
+    from app.models.channel import Channel
+    
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(Channel).where(Channel.is_active.is_(True)))
+        channels = result.scalars().all()
+        
+    lines = ["#EXTM3U"]
+    for ch in channels:
+        logo = f' tvg-logo="{ch.logo_url}"' if ch.logo_url else ""
+        group = f' group-title="{ch.category}"' if ch.category else ""
+        lines.append(f'#EXTINF:-1{logo}{group},{ch.name}')
+        lines.append(ch.stream_url)
+        
+    return Response(content="\n".join(lines) + "\n", media_type="application/vnd.apple.mpegurl")
+
+
 @app.post("/internal/sync", tags=["internal"], include_in_schema=False)
 async def internal_sync(request: Request) -> dict[str, object]:
     """Internal endpoint for scheduler/webhook triggered M3U sync.
