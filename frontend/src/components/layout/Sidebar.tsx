@@ -100,7 +100,13 @@ export function Sidebar() {
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative h-9 w-9 shrink-0">
-              <Image src="/icons/original-logo.jpeg" alt="Brand" width={36} height={36} className="rounded-lg" />
+              <Image
+                src="/icons/original-logo.jpeg"
+                alt="Brand"
+                width={36}
+                height={36}
+                className="rounded-lg object-contain mix-blend-screen brightness-110 contrast-125 saturate-125"
+              />
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.12em] leading-none" style={{ color: "var(--primary-accent)" }}>

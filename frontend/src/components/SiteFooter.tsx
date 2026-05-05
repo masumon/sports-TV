@@ -49,7 +49,13 @@ export function SiteFooter() {
               border: "1px solid var(--border)",
             }}
           >
-            <Image src="/icons/original-logo.jpeg" alt="Brand" width={36} height={36} />
+            <Image
+              src="/icons/original-logo.jpeg"
+              alt="Brand"
+              width={36}
+              height={36}
+              className="object-contain mix-blend-screen brightness-110 contrast-125 saturate-125"
+            />
           </div>
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <h2

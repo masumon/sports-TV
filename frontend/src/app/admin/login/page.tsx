@@ -48,7 +48,13 @@ export default function AdminLoginPage() {
         className="admin-glass w-full max-w-md rounded-2xl p-6 sm:p-8"
       >
         <div className="mb-5 flex items-center gap-3">
-          <Image src="/icons/original-logo.jpeg" alt="" width={40} height={40} className="h-10 w-10 rounded-xl ring-1 ring-white/10" />
+          <Image
+            src="/icons/original-logo.jpeg"
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-xl ring-1 ring-white/10 object-contain mix-blend-screen brightness-110 contrast-125 saturate-125"
+          />
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>
             <h1 className="text-2xl font-bold tracking-tight text-white">Sign in</h1>

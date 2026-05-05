@@ -409,6 +409,7 @@ export default function PremiumPlayer({
 
   const playerWatermarkSrc = (channelLogoUrl?.trim() || DEFAULT_PLAYER_BRAND_LOGO).trim();
   const playerWatermarkIsChannel = Boolean(channelLogoUrl?.trim());
+  const playerWatermarkIsDefaultBrand = !playerWatermarkIsChannel;
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
@@ -1019,6 +1020,14 @@ export default function PremiumPlayer({
             playerWatermarkIsChannel
               ? "h-10 w-10 rounded-lg object-cover sm:h-11 sm:w-11"
               : "block h-9 max-w-[7.25rem] object-contain object-center sm:h-10 sm:max-w-[8rem]"
+          }
+          style={
+            playerWatermarkIsDefaultBrand
+              ? {
+                  mixBlendMode: "screen",
+                  filter: "brightness(1.14) contrast(1.24) saturate(1.2)",
+                }
+              : undefined
           }
         />
       </div>

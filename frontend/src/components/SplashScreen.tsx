@@ -76,7 +76,19 @@ export function SplashScreen({ ready }: { ready: boolean }) {
             justifyContent: "center",
           }}
         >
-          <Image src="/icons/original-logo.jpeg" alt="Brand" width={72} height={72} style={{ borderRadius: 16, objectFit: "cover" }} priority />
+          <Image
+            src="/icons/original-logo.jpeg"
+            alt="Brand"
+            width={72}
+            height={72}
+            style={{
+              borderRadius: 16,
+              objectFit: "contain",
+              mixBlendMode: "screen",
+              filter: "brightness(1.14) contrast(1.24) saturate(1.2)",
+            }}
+            priority
+          />
         </div>
       </div>
 
