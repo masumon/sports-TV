@@ -25,6 +25,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { SplashScreen } from "@/components/SplashScreen";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
@@ -259,6 +260,11 @@ export function ViewerHome() {
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
   const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
+  const [splashReady, setSplashReady] = useState(false);
+  // Tracks seconds since last fixtures refresh for the "last updated" indicator
+  const [fixturesSince, setFixturesSince] = useState(0);
+  const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const activeChannel = usePlayerStore((state) => state.activeChannel);
   const isTheaterMode = usePlayerStore((state) => state.isTheaterMode);
@@ -359,11 +365,21 @@ export function ViewerHome() {
     void loadFixturesSchedule();
   }, [activeModule, loadFixturesSchedule]);
 
+  // Poll every 90 seconds (was 20 min) so live scores/statuses feel real-time.
   useEffect(() => {
     if (activeModule !== "live_matches") return;
-    const id = setInterval(() => void loadFixturesSchedule(), 20 * 60_000);
+    const id = setInterval(() => void loadFixturesSchedule(), 90_000);
     return () => clearInterval(id);
   }, [activeModule, loadFixturesSchedule]);
+
+  // Count seconds since last fixtures refresh (for "last updated X sec ago" badge)
+  useEffect(() => {
+    if (activeModule !== "live_matches") return;
+    setFixturesSince(0);
+    fixturesTimerRef.current && clearInterval(fixturesTimerRef.current);
+    fixturesTimerRef.current = setInterval(() => setFixturesSince((s) => s + 1), 1000);
+    return () => { fixturesTimerRef.current && clearInterval(fixturesTimerRef.current); };
+  }, [activeModule, scheduleUpdated]);
 
   useEffect(() => {
     if (activeModule === "live_matches") {
@@ -372,15 +388,22 @@ export function ViewerHome() {
   }, [activeModule]);
 
   const scheduleGroups = useMemo(() => {
+    const now = Date.now();
     const live: LiveFixture[] = [];
     const upcoming: LiveFixture[] = [];
     const finished: LiveFixture[] = [];
     for (const fx of scheduleFixtures) {
       const s = (fx.status || "").toLowerCase();
-      if (s === "live") live.push(fx);
-      else if (s === "finished") finished.push(fx);
+      // Compute real-time status from starts_at_utc (avoids stale DB status between 3h syncs)
+      const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
+      const elapsed = startMs > 0 ? (now - startMs) / 60_000 : 0; // minutes since kick-off
+      if (s === "finished" || elapsed > 130) finished.push(fx); // >130 min = likely done
+      else if (startMs > 0 && startMs <= now) live.push(fx); // started but not finished
       else upcoming.push(fx);
     }
+    // Sort live by most recently started
+    live.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
+    upcoming.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
     return { live, upcoming, finished };
   }, [scheduleFixtures]);
 
@@ -398,10 +421,17 @@ export function ViewerHome() {
         setAllChannels(c);
         setLoading(false);
       });
+      // Cache hit → splash not needed, mark ready immediately
+      setSplashReady(true);
+    } else {
+      // No cache → first visit: show branded splash until channels arrive
+      setIsFirstVisit(true);
     }
   }, []);
 
-  useEffect(() => { void loadChannels(false); }, [loadChannels]);
+  useEffect(() => {
+    void loadChannels(false).finally(() => setSplashReady(true));
+  }, [loadChannels]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -661,6 +691,9 @@ export function ViewerHome() {
   }, [allChannels]);
 
   return (
+    <>
+      {/* Branded splash screen — shown only on first visit (no cache), fades out once channels load */}
+      {isFirstVisit && <SplashScreen ready={splashReady} />}
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
         {welcomeOpen ? (
@@ -738,7 +771,7 @@ export function ViewerHome() {
         </div>
 
         {activeModule === "live_matches" ? (
-          scheduleFixtures.length > 0 ? (
+          scheduleFixtures.length > 0 || fixturesLoading ? (
             <section
               className="rounded-xl overflow-hidden"
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
@@ -748,16 +781,41 @@ export function ViewerHome() {
                 style={{ borderBottom: "1px solid var(--border)" }}
               >
                 <div className="flex items-center gap-2 min-w-0">
+                  {scheduleGroups.live.length > 0 && (
+                    <span className="pulse-dot shrink-0" aria-label="live" />
+                  )}
                   <Calendar className="h-4 w-4 shrink-0" style={{ color: "var(--primary-accent)" }} />
                   <h2 className="text-sm font-bold truncate" style={{ color: "var(--text-main)" }}>
                     {t("matchScheduleHeading")}
+                    {scheduleGroups.live.length > 0 && (
+                      <span className="ml-2 text-[11px] font-normal" style={{ color: "#f87171" }}>
+                        · {scheduleGroups.live.length} LIVE
+                      </span>
+                    )}
                   </h2>
                 </div>
-                {scheduleUpdated ? (
-                  <span className="text-[10px] shrink-0" style={{ color: "var(--text-muted)" }}>
-                    {t("scheduleUpdated")}: {new Date(scheduleUpdated).toLocaleString()}
-                  </span>
-                ) : null}
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Last updated counter */}
+                  {scheduleUpdated && (
+                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      {fixturesSince < 60
+                        ? `${fixturesSince}s ago`
+                        : `${Math.floor(fixturesSince / 60)}m ago`}
+                    </span>
+                  )}
+                  {/* Manual refresh */}
+                  <button
+                    type="button"
+                    onClick={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
+                    disabled={fixturesLoading}
+                    title="রিফ্রেশ করুন"
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition hover:opacity-80"
+                    style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.25)", color: "var(--primary-accent)" }}
+                  >
+                    <RefreshCw size={11} className={fixturesLoading ? "animate-spin" : ""} />
+                    {fixturesLoading ? "…" : "↻"}
+                  </button>
+                </div>
               </div>
               <p className="px-4 py-2 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
                 {t("matchScheduleHint")}
@@ -802,97 +860,125 @@ export function ViewerHome() {
                   </button>
                 </div>
               </div>
-              <div className="max-h-[min(40vh,22rem)] overflow-y-auto overscroll-y-contain divide-y" style={{ borderColor: "var(--border)" }}>
-                {activeScheduleItems.length === 0 ? (
+              <div className="max-h-[min(50vh,28rem)] overflow-y-auto overscroll-y-contain divide-y" style={{ borderColor: "var(--border)" }}>
+                {fixturesLoading && activeScheduleItems.length === 0 ? (
+                  <div className="flex items-center justify-center gap-2 px-4 py-8 text-xs" style={{ color: "var(--text-muted)" }}>
+                    <RefreshCw size={14} className="animate-spin" />
+                    লাইভ ম্যাচ লোড হচ্ছে…
+                  </div>
+                ) : activeScheduleItems.length === 0 ? (
                   <div className="px-4 py-6 text-center text-xs" style={{ color: "var(--text-muted)" }}>
                     {t("scheduleEmptyByStatus")}
                   </div>
                 ) : null}
-                {activeScheduleItems.slice(0, 48).map((fx) => (
-                  <div key={fx.id} className="px-4 py-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
-                          {fx.league_name}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2">
-                          {fx.thumb_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={fx.thumb_url}
-                              alt=""
-                              className="h-7 w-7 shrink-0 rounded-md object-cover"
-                              style={{ border: "1px solid var(--border)" }}
-                            />
-                          ) : (
-                            <div
-                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold"
-                              style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
-                            >
-                              VS
-                            </div>
-                          )}
-                          <p className="min-w-0 truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>
-                            {fx.home_team} vs {fx.away_team}
-                          </p>
+                {activeScheduleItems.slice(0, 48).map((fx) => {
+                  const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
+                  const nowMs = Date.now();
+                  const elapsedMin = startMs > 0 ? Math.floor((nowMs - startMs) / 60_000) : 0;
+                  const isReallyLive = startMs > 0 && startMs <= nowMs && (fx.status || "").toLowerCase() !== "finished" && elapsedMin <= 130;
+                  const isFinished = (fx.status || "").toLowerCase() === "finished" || elapsedMin > 130;
+                  return (
+                    <div key={fx.id} className="px-4 py-3 transition-colors hover:bg-white/[0.02]">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          {/* League name + sport icon */}
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[11px] font-semibold truncate" style={{ color: "var(--text-muted)" }}>
+                              {fx.sport ? `${fx.sport === "Soccer" ? "⚽" : fx.sport === "Cricket" ? "🏏" : "🏆"} ` : "🏆 "}{fx.league_name}
+                            </p>
+                          </div>
+                          {/* Teams */}
+                          <div className="mt-1.5 flex items-center gap-2">
+                            {fx.thumb_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={fx.thumb_url}
+                                alt=""
+                                className="h-7 w-7 shrink-0 rounded-md object-cover"
+                                style={{ border: "1px solid var(--border)" }}
+                              />
+                            ) : (
+                              <div
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold"
+                                style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
+                              >
+                                VS
+                              </div>
+                            )}
+                            <p className="min-w-0 truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>
+                              {fx.home_team} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>vs</span> {fx.away_team}
+                            </p>
+                          </div>
+                          {/* Time info */}
+                          <div className="mt-1 flex items-center gap-2 flex-wrap">
+                            {isReallyLive ? (
+                              <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "#f87171" }}>
+                                <span className="pulse-dot" style={{ width: 6, height: 6 }} aria-hidden />
+                                {elapsedMin}&apos; চলছে
+                              </span>
+                            ) : (
+                              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                                {new Date(fx.starts_at_utc).toLocaleString(undefined, {
+                                  month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+                                })}
+                              </p>
+                            )}
+                            {fx.data_attribution ? (
+                              <p className="text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                                · {fx.data_attribution}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
-                        <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                          {new Date(fx.starts_at_utc).toLocaleString()}
-                        </p>
-                        {fx.data_attribution ? (
-                          <p className="mt-0.5 text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                            {fx.data_attribution}
-                          </p>
-                        ) : null}
-                      </div>
-                      <span
-                        className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase"
-                        style={{
-                          background:
-                            fx.status === "live"
+                        {/* Status badge */}
+                        <span
+                          className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase"
+                          style={{
+                            background: isReallyLive
                               ? "rgba(239,68,68,0.15)"
-                              : fx.status === "finished"
+                              : isFinished
                                 ? "rgba(120,120,120,0.15)"
                                 : "rgba(245,166,35,0.12)",
-                          color:
-                            fx.status === "live"
+                            color: isReallyLive
                               ? "#f87171"
-                              : fx.status === "finished"
+                              : isFinished
                                 ? "var(--text-muted)"
                                 : "var(--primary-accent)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      >
-                        {fixtureStatusLabel(fx.status, t)}
-                      </span>
-                    </div>
-                    {fx.suggested_channels?.length ? (
-                      <div className="mt-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-                          {t("suggestedStreamsLabel")}
-                        </p>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          {fx.suggested_channels.slice(0, 6).map((ch) => (
-                            <button
-                              key={`${fx.id}-${ch.id}`}
-                              type="button"
-                              onClick={() => selectChannel(ch)}
-                              className="max-w-[10rem] truncate rounded-md px-2 py-1 text-[11px] font-medium transition hover:opacity-90"
-                              style={{
-                                background: "rgba(245,166,35,0.1)",
-                                border: "1px solid rgba(245,166,35,0.25)",
-                                color: "var(--primary-accent)",
-                              }}
-                              title={ch.name}
-                            >
-                              {ch.name}
-                            </button>
-                          ))}
-                        </div>
+                            border: "1px solid rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          {isReallyLive ? "🔴 LIVE" : isFinished ? "✓ শেষ" : "⏰ আসছে"}
+                        </span>
                       </div>
-                    ) : null}
-                  </div>
-                ))}
+                      {/* Suggested channels */}
+                      {fx.suggested_channels?.length ? (
+                        <div className="mt-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--text-muted)" }}>
+                            📺 {t("suggestedStreamsLabel")}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {fx.suggested_channels.slice(0, 6).map((ch) => (
+                              <button
+                                key={`${fx.id}-${ch.id}`}
+                                type="button"
+                                onClick={() => selectChannel(ch)}
+                                className="flex items-center gap-1 max-w-[12rem] truncate rounded-md px-2 py-1 text-[11px] font-medium transition hover:opacity-90 active:scale-95"
+                                style={{
+                                  background: isReallyLive ? "rgba(239,68,68,0.1)" : "rgba(245,166,35,0.1)",
+                                  border: isReallyLive ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(245,166,35,0.25)",
+                                  color: isReallyLive ? "#f87171" : "var(--primary-accent)",
+                                }}
+                                title={ch.name}
+                              >
+                                ▶ {ch.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </section>
           ) : !loading && !fixturesLoading ? (
@@ -1432,6 +1518,7 @@ export function ViewerHome() {
         </section>
       </div>
     </AppShell>
+    </>
   );
 }
 

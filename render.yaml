@@ -51,13 +51,15 @@ services:
       # Deactivate dead stream URLs on a sample; 120m aligns with sync cadence. Set 0 to disable checks only.
       - key: STREAM_VALIDATION_INTERVAL_MINUTES
         value: "120"
-      # Real match schedule → live_fixtures table (GET /sports-tv/fixtures). 0=off. 180=every 3h.
+      # Real match schedule → live_fixtures table (GET /sports-tv/fixtures). 0=off. 60=every 1h.
       - key: LIVE_FIXTURES_SYNC_INTERVAL_MINUTES
-        value: "180"
+        value: "60"
       - key: LIVE_FIXTURES_DAYS_AHEAD
         value: "14"
+      # bl1=Bundesliga1, bl2=Bundesliga2, ucl=UEFA CL, dfb=DFB Pokal
+      # football-data.org also syncs if FOOTBALL_DATA_ORG_API_TOKEN is set (free tier = PL,CL,BL1,SA,PD,FL1,EL)
       - key: OPENLIGADB_LEAGUE_KEYS
-        value: "bl1,bl2"
+        value: "bl1,bl2,ucl,dfb"
       - key: FOOTBALL_DATA_ORG_API_TOKEN
         sync: false
       # Neon free tier: small pool (raise only if you scale workers)
