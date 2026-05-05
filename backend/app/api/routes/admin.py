@@ -106,9 +106,11 @@ async def admin_create_channel(
     if exists:
         raise HTTPException(status_code=400, detail="Stream URL already exists.")
 
-    mod = (payload.module or "sports").strip().lower()
-    if mod not in ("sports", "bangladesh"):
-        mod = "sports"
+    mod = (payload.module or "global_sports").strip().lower()
+    if mod == "sports":
+        mod = "global_sports"
+    if mod not in ("global_sports", "bangladesh", "india", "fast_tv", "live_matches"):
+        mod = "global_sports"
 
     channel = Channel(
         name=payload.name.strip(),

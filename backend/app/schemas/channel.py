@@ -13,7 +13,7 @@ class ChannelBase(BaseModel):
     logo_url: str | None = None
     stream_url: str
     quality_tag: str = Field(default="auto", max_length=40)
-    module: str = Field(default="sports", max_length=40)
+    module: str = Field(default="global_sports", max_length=40)
     is_active: bool = True
 
 
@@ -26,7 +26,7 @@ class ChannelCreate(BaseModel):
     logo_url: AnyUrl | None = None
     stream_url: AnyUrl
     quality_tag: str = Field(default="auto", max_length=40)
-    module: str = Field(default="sports", max_length=40)
+    module: str = Field(default="global_sports", max_length=40)
     is_active: bool = True
 
 

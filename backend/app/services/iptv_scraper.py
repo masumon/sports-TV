@@ -81,7 +81,8 @@ SPORTS_KEYWORDS: frozenset[str] = frozenset({
 
 # If the same stream_url appears in multiple jobs, keep the highest-priority module
 # (regional full-lineup lists win over the global sports pool).
-_MODULE_URL_PRIORITY: dict[str, int] = {"bangladesh": 3, "india": 2, "sports": 1}
+GLOBAL_SPORTS_MODULE = "global_sports"
+_MODULE_URL_PRIORITY: dict[str, int] = {"bangladesh": 3, "india": 2, GLOBAL_SPORTS_MODULE: 1}
 
 
 def _dedupe_entries_by_stream_url_priority(entries: list[ParsedChannel]) -> list[ParsedChannel]:
@@ -103,7 +104,7 @@ class ParsedChannel:
     category: str
     country: str
     language: str
-    module: str = "sports"
+    module: str = GLOBAL_SPORTS_MODULE
 
 
 def _extract_attr(line: str, key: str) -> str | None:
@@ -121,7 +122,7 @@ def _extract_attr(line: str, key: str) -> str | None:
 def parse_m3u_entries(
     playlist_text: str,
     sports_only: bool = False,
-    module: str = "sports",
+    module: str = GLOBAL_SPORTS_MODULE,
 ) -> list[ParsedChannel]:
     lines = [line.strip() for line in playlist_text.splitlines() if line.strip()]
     entries: list[ParsedChannel] = []
@@ -140,7 +141,7 @@ def parse_m3u_entries(
             continue
 
         name = line.split(",", 1)[1].strip() if "," in line else "Unknown Channel"
-        default_cat = "Sports" if module == "sports" else "General"
+        default_cat = "Sports" if module == GLOBAL_SPORTS_MODULE else "General"
         category = (_extract_attr(line, "group-title") or default_cat)[:120]
 
         if sports_only:
@@ -460,7 +461,7 @@ def scrape_and_sync_sports_channels(
 
     for url in DEFAULT_M3U_SOURCES:
         sports_only = url not in category_urls
-        fetch_jobs.append((url, sports_only, "sports"))
+        fetch_jobs.append((url, sports_only, GLOBAL_SPORTS_MODULE))
 
     for url in INDIA_FULL_SOURCES:
         fetch_jobs.append((url, False, "india"))
@@ -471,14 +472,14 @@ def scrape_and_sync_sports_channels(
     # Custom env URL
     all_seed_urls = set(DEFAULT_M3U_SOURCES) | set(INDIA_FULL_SOURCES) | set(BANGLADESH_SOURCES)
     if settings.scraper_source_url and settings.scraper_source_url not in all_seed_urls:
-        fetch_jobs.append((settings.scraper_source_url, False, "sports"))
+        fetch_jobs.append((settings.scraper_source_url, False, GLOBAL_SPORTS_MODULE))
 
     # Discovered sources from m3u_discovery (already deduplicated vs. main list)
     if extra_urls:
         known = {url for url, _, _ in fetch_jobs}
         for url in extra_urls:
             if url not in known:
-                fetch_jobs.append((url, True, "sports"))  # filter by sports keywords
+                fetch_jobs.append((url, True, GLOBAL_SPORTS_MODULE))  # filter by sports keywords
 
     timeout_by_url: dict[str, float] = {}
     if settings.iptv_full_index_sync:
@@ -486,7 +487,7 @@ def scrape_and_sync_sports_channels(
         if idx:
             known_urls = {url for url, _, _ in fetch_jobs}
             if idx not in known_urls:
-                fetch_jobs.append((idx, False, "sports"))
+                fetch_jobs.append((idx, False, GLOBAL_SPORTS_MODULE))
             timeout_by_url[idx] = float(settings.iptv_full_index_fetch_timeout_seconds)
 
     logger.info("Sync start source_count=%d", len(fetch_jobs))

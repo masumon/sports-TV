@@ -88,7 +88,7 @@ const initialChannelForm: ChannelFormState = {
   logo_url: "",
   stream_url: "",
   quality_tag: "auto",
-  module: "sports",
+  module: "global_sports",
 };
 
 export default function AdminDashboardPage() {
@@ -103,7 +103,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [viewerCatalogTotal, setViewerCatalogTotal] = useState<number | null>(null);
   const [channelQuery, setChannelQuery] = useState("");
-  const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "sports" | "india" | "bangladesh">("all");
+  const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "global_sports" | "india" | "bangladesh">("all");
   const [probeByUrl, setProbeByUrl] = useState<Record<string, StreamProbeItem>>({});
 
   const authToken = token;
@@ -581,7 +581,7 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setChannelForm((prev) => ({ ...prev, module: e.target.value }))}
                     className="rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
                   >
-                    <option value="sports">sports</option>
+                    <option value="global_sports">global_sports</option>
                     <option value="india">india</option>
                     <option value="bangladesh">bangladesh</option>
                   </select>
@@ -651,11 +651,11 @@ export default function AdminDashboardPage() {
               <Filter size={14} className="shrink-0 text-zinc-500" />
               <select
                 value={channelModuleFilter}
-                onChange={(e) => setChannelModuleFilter(e.target.value as "all" | "sports" | "india" | "bangladesh")}
+                onChange={(e) => setChannelModuleFilter(e.target.value as "all" | "global_sports" | "india" | "bangladesh")}
                 className="min-w-[8rem] rounded-lg border border-white/20 bg-black/30 px-2 py-2 text-sm text-white outline-none focus:border-emerald-400"
               >
                 <option value="all">All modules</option>
-                <option value="sports">sports</option>
+                <option value="global_sports">global_sports</option>
                 <option value="india">india</option>
                 <option value="bangladesh">bangladesh</option>
               </select>

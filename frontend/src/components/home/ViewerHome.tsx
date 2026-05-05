@@ -119,6 +119,7 @@ function isFootballOrCricketChannel(channel: Channel): boolean {
 
 /** Main grid: only this many cards mount at a time so 10k+ catalogs stay responsive (browser + PWA). */
 const CHANNEL_GRID_BATCH = 96;
+const LIVE_MATCH_DEFAULT_COUNT = 5;
 
 // Top-level sport-type filter: matches by DB category field OR inferred league
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
@@ -543,6 +544,17 @@ export function ViewerHome() {
       const f = filterLanguage.toLowerCase();
       list = list.filter((c) => c.language.toLowerCase().includes(f));
     }
+
+    if (
+      activeModule === "live_matches" &&
+      !q &&
+      !activeCategory &&
+      !filterCountry &&
+      !filterLanguage
+    ) {
+      list = list.slice(0, LIVE_MATCH_DEFAULT_COUNT);
+    }
+
     return list;
   }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, activeModule]);
 
@@ -1300,9 +1312,9 @@ export function ViewerHome() {
                 {!loading && (
                   <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
                     <span>
-                      {t("showingFirst")} {Math.min(12, filtered.length)} {t("ofTotal")} {filtered.length}
+                      {t("showingFirst")} {Math.min(activeModule === "live_matches" ? LIVE_MATCH_DEFAULT_COUNT : 12, filtered.length)} {t("ofTotal")} {filtered.length}
                     </span>
-                    {filtered.length > 12 && (
+                    {filtered.length > (activeModule === "live_matches" ? LIVE_MATCH_DEFAULT_COUNT : 12) && (
                       <button
                         type="button"
                         onClick={() => document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" })}
@@ -1330,7 +1342,7 @@ export function ViewerHome() {
                     </div>
                   ))
                 ) : (
-                  filtered.slice(0, 12).map((ch) => (
+                  filtered.slice(0, activeModule === "live_matches" ? LIVE_MATCH_DEFAULT_COUNT : 12).map((ch) => (
                     <button
                       key={ch.id}
                       type="button"

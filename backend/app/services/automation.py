@@ -155,9 +155,10 @@ def run_channel_health_check(
                 select(Channel)
                 .where(Channel.is_active.is_(True))
                 .order_by(Channel.updated_at.asc())
-                .limit(sample_limit)
             ).all()
         )
+        if sample_limit and sample_limit > 0:
+            rows = rows[:sample_limit]
         if not rows:
             logger.info("channel_health_check skipped reason=no_active_channels")
             return {"checked": 0, "deactivated": 0}

@@ -52,6 +52,7 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
 export const APP_STREAM_CONFIG = {
   dynamic_master_playlists: [
     "https://iptv-org.github.io/iptv/index.m3u",
+    "https://iptv-org.github.io/iptv/categories/sports.m3u",
     "https://iptv-org.github.io/iptv/categories/sport.m3u",
   ],
 

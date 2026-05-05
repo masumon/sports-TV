@@ -26,7 +26,7 @@ class Channel(Base):
     alternate_urls: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array of backup stream URLs
     quality_tag: Mapped[str] = mapped_column(String(40), nullable=False, default="auto")
     source: Mapped[str] = mapped_column(String(80), nullable=False, default="manual")
-    module: Mapped[str] = mapped_column(String(40), nullable=False, default="sports", index=True)
+    module: Mapped[str] = mapped_column(String(40), nullable=False, default="global_sports", index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
