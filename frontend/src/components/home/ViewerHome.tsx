@@ -119,7 +119,6 @@ function isFootballOrCricketChannel(channel: Channel): boolean {
 
 /** Main grid: only this many cards mount at a time so 10k+ catalogs stay responsive (browser + PWA). */
 const CHANNEL_GRID_BATCH = 96;
-const LIVE_MATCH_DEFAULT_COUNT = 5;
 
 // Top-level sport-type filter: matches by DB category field OR inferred league
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
@@ -543,16 +542,6 @@ export function ViewerHome() {
     if (filterLanguage) {
       const f = filterLanguage.toLowerCase();
       list = list.filter((c) => c.language.toLowerCase().includes(f));
-    }
-
-    if (
-      activeModule === "live_matches" &&
-      !q &&
-      !activeCategory &&
-      !filterCountry &&
-      !filterLanguage
-    ) {
-      list = list.slice(0, LIVE_MATCH_DEFAULT_COUNT);
     }
 
     return list;
@@ -1281,20 +1270,6 @@ export function ViewerHome() {
               </div>
             )}
 
-            {/* Enterprise Dashboard: Player Tools */}
-            {activeChannel && (
-              <div className="mt-3 flex flex-col sm:flex-row justify-end items-center rounded-xl px-4 py-3 gap-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <label className="text-xs font-semibold hidden sm:block" style={{ color: "var(--text-muted)" }}>Open With:</label>
-                  <button onClick={() => toast.success("Opening stream in VLC...")} className="flex-1 sm:flex-none rounded-md px-3 py-1.5 text-xs font-semibold transition hover:bg-white/10" style={{ background: "var(--bg-dark)", color: "var(--text-main)", border: "1px solid var(--border)" }}>
-                    VLC
-                  </button>
-                  <button onClick={() => toast.success("Opening stream in MX Player...")} className="flex-1 sm:flex-none rounded-md px-3 py-1.5 text-xs font-semibold transition hover:bg-white/10" style={{ background: "var(--bg-dark)", color: "var(--text-main)", border: "1px solid var(--border)" }}>
-                    MX Player
-                  </button>
-                </div>
-              </div>
-            )}
           </section>
 
           {/* Sidebar: upcoming channels */}
@@ -1312,9 +1287,9 @@ export function ViewerHome() {
                 {!loading && (
                   <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
                     <span>
-                      {t("showingFirst")} {Math.min(activeModule === "live_matches" ? LIVE_MATCH_DEFAULT_COUNT : 12, filtered.length)} {t("ofTotal")} {filtered.length}
+                      {t("showingFirst")} {Math.min(12, filtered.length)} {t("ofTotal")} {filtered.length}
                     </span>
-                    {filtered.length > (activeModule === "live_matches" ? LIVE_MATCH_DEFAULT_COUNT : 12) && (
+                    {filtered.length > 12 && (
                       <button
                         type="button"
                         onClick={() => document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" })}
@@ -1342,7 +1317,7 @@ export function ViewerHome() {
                     </div>
                   ))
                 ) : (
-                  filtered.slice(0, activeModule === "live_matches" ? LIVE_MATCH_DEFAULT_COUNT : 12).map((ch) => (
+                  filtered.slice(0, 12).map((ch) => (
                     <button
                       key={ch.id}
                       type="button"

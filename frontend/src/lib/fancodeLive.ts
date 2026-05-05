@@ -18,56 +18,6 @@ type FanCodeJson = {
   matches?: FanCodeMatch[];
 };
 
-const LIVE_MATCH_DEFAULT_LIMIT = 5;
-
-function isFootballOrCricketMatch(match: FanCodeMatch): boolean {
-  const hay = [
-    match.event_catagory,
-    match.event_name,
-    match.match_name,
-    match.team_1,
-    match.team_2,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  const footballKeywords = [
-    "football",
-    "soccer",
-    "futbol",
-    "premier league",
-    "laliga",
-    "la liga",
-    "champions league",
-    "serie a",
-    "bundesliga",
-    "ligue 1",
-    "uefa",
-    "fifa",
-    "copa",
-  ];
-  const cricketKeywords = [
-    "cricket",
-    "ipl",
-    "icc",
-    "bpl",
-    "psl",
-    "t20",
-    "odi",
-    "test match",
-  ];
-  return [...footballKeywords, ...cricketKeywords].some((k) => hay.includes(k));
-}
-
-function isLikelyLive(match: FanCodeMatch): boolean {
-  const hay = [match.event_catagory, match.event_name, match.match_name]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return ["live", "ongoing", "watch now", "stream"].some((k) => hay.includes(k));
-}
-
 function stableId(seed: string): number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -99,9 +49,6 @@ export async function fetchFanCodeLiveChannels(): Promise<Channel[]> {
   const emptyTs = { created_at: "", updated_at: "" };
   const rows = matches
     .filter((m) => m.stream_link && String(m.stream_link).startsWith("http"))
-    .filter((m) => isFootballOrCricketMatch(m))
-    .sort((a, b) => Number(isLikelyLive(b)) - Number(isLikelyLive(a)))
-    .slice(0, LIVE_MATCH_DEFAULT_LIMIT)
     .map((m) => {
       const title = m.match_name?.trim() || "Live match";
       const cat = (m.event_catagory || "live").toLowerCase();
