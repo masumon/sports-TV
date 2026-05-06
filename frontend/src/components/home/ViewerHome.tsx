@@ -88,38 +88,6 @@ function inferLeague(name: string): string {
   return "🌐 Other Sports";
 }
 
-function isFootballOrCricketChannel(channel: Channel): boolean {
-  const category = channel.category.toLowerCase();
-  const name = channel.name.toLowerCase();
-  const footballKeywords = [
-    "football",
-    "soccer",
-    "futbol",
-    "fussball",
-    "laliga",
-    "la liga",
-    "premier league",
-    "champions league",
-    "serie a",
-    "bundesliga",
-    "ligue 1",
-    "uefa",
-    "fifa",
-    "copa",
-  ];
-  const cricketKeywords = [
-    "cricket",
-    "ipl",
-    "icc",
-    "bpl",
-    "psl",
-    "t20",
-    "odi",
-    "test match",
-  ];
-  return [...footballKeywords, ...cricketKeywords].some((k) => category.includes(k) || name.includes(k));
-}
-
 /** Main grid: only this many cards mount at a time so 10k+ catalogs stay responsive (browser + PWA). */
 const CHANNEL_GRID_BATCH = 96;
 
@@ -506,12 +474,7 @@ export function ViewerHome() {
   }, [activeModule, setActiveCategory]);
 
   const moduleChannels = useMemo(
-    () =>
-      allChannels.filter((c) => {
-        if (c.module !== activeModule) return false;
-        if (activeModule !== "global_sports") return true;
-        return isFootballOrCricketChannel(c);
-      }),
+    () => allChannels.filter((c) => c.module === activeModule),
     [allChannels, activeModule]
   );
 
@@ -819,7 +782,6 @@ export function ViewerHome() {
             className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
           >
             🔴 Live Matches
-            {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
           </button>
         </div>
 
@@ -1053,7 +1015,10 @@ export function ViewerHome() {
                               <button
                                 key={`${fx.id}-${ch.id}`}
                                 type="button"
-                                onClick={() => selectChannel(ch)}
+                                onClick={() => {
+                                  selectChannel(ch);
+                                  transitionSetActiveModule(ch.module as ViewerModule);
+                                }}
                                 className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition hover:opacity-90 active:scale-95"
                                 style={{
                                   background: isReallyLive ? "rgba(239,68,68,0.1)" : "rgba(245,166,35,0.1)",
