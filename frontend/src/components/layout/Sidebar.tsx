@@ -107,27 +107,35 @@ export function Sidebar() {
         <div
           className="sticky top-0 z-10 flex items-center justify-between px-4 py-4"
           style={{
-            background: "var(--bg-card)",
+            background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(26,26,36,0.98) 100%)",
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative h-9 w-9 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative h-14 w-14 shrink-0">
               <Image
                 src="/icons/original-logo.jpeg"
-                alt="Brand"
-                width={36}
-                height={36}
-                className="rounded-lg object-contain mix-blend-screen brightness-110 contrast-125 saturate-125"
+                alt="ABO Sports TV"
+                width={56}
+                height={56}
+                className="rounded-xl object-contain logo-brand-glow"
+                style={{ border: "1.5px solid rgba(229,9,20,0.3)" }}
+              />
+              {/* Live dot */}
+              <span
+                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 animate-pulse"
+                style={{ background: "var(--primary-accent)", borderColor: "var(--bg-card)" }}
+                aria-hidden
               />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.12em] leading-none" style={{ color: "var(--primary-accent)" }}>
-                IPTV
+              <p className="text-sm font-black uppercase tracking-[0.08em] leading-none brand-gradient-red">
+                ABO SPORTS TV
               </p>
-              <p className="text-[9px] font-semibold uppercase tracking-[0.18em] leading-tight" style={{ color: "var(--text-muted)" }}>
-                ENTERPRISE
-              </p>
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "var(--primary-accent)" }} />
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>LIVE STREAMING</span>
+              </div>
             </div>
           </div>
           <button

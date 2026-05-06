@@ -628,6 +628,63 @@ img:not([src]) {
   font-weight: 700;
 }
 
+/* ── Fixture card (Live Matches premium view) ── */
+.fixture-card {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  overflow: hidden;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.15s;
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .fixture-card:hover {
+    border-color: rgba(255,255,255,0.1);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+    transform: translateY(-1px);
+  }
+  .fixture-card.live:hover {
+    border-color: rgba(239,68,68,0.4);
+    box-shadow: 0 8px 28px rgba(239,68,68,0.1);
+  }
+}
+.fixture-card.live {
+  border-color: rgba(239,68,68,0.25);
+  box-shadow: 0 0 0 0 rgba(239,68,68,0);
+}
+
+/* ── Brand gradient text ── */
+.brand-gradient-red {
+  background: linear-gradient(135deg, #FF5252 0%, #FF1744 60%, #D50000 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Logo brand glow ── */
+.logo-brand-glow {
+  filter: drop-shadow(0 0 10px rgba(229,9,20,0.45)) drop-shadow(0 0 24px rgba(229,9,20,0.2));
+}
+
+/* ── Fixture stat tile ── */
+.fixture-stat-tile {
+  border-radius: 14px;
+  padding: 12px;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+@media (hover: hover) and (pointer: fine) {
+  .fixture-stat-tile:hover {
+    transform: translateY(-1px);
+  }
+}
+.fixture-stat-tile:active {
+  transform: scale(0.97);
+}
+
 /* ── Alternate stream link buttons ── */
 .alt-link-btn {
   display: inline-flex;

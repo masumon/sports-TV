@@ -96,24 +96,30 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           <Menu size={22} />
         </button>
 
-        {/* Logo — hidden on mobile (sidebar has it) */}
-        <div className="hidden items-center gap-2.5 md:flex shrink-0">
-          <div className="relative h-8 w-8">
+        {/* Logo — shown on all screen sizes */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="relative h-9 w-9 md:h-11 md:w-11">
             <Image
               src="/icons/original-logo.jpeg"
-              alt="Brand"
-              width={32}
-              height={32}
-              className="rounded-md object-contain mix-blend-screen brightness-110 contrast-125 saturate-125"
+              alt="ABO Sports TV"
+              width={44}
+              height={44}
+              className="rounded-xl object-contain logo-brand-glow"
+              style={{ border: "1.5px solid rgba(229,9,20,0.35)" }}
+            />
+            <span
+              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 animate-pulse"
+              style={{ background: "var(--primary-accent)", borderColor: "var(--bg-card)" }}
+              aria-hidden
             />
           </div>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.1em] leading-tight" style={{ color: "var(--primary-accent)" }}>
+          <div className="hidden sm:block">
+            <p className="text-[12px] font-black uppercase tracking-[0.08em] leading-none brand-gradient-red">
               ABO SPORTS TV
             </p>
-            <div className="flex items-center gap-1">
+            <div className="mt-0.5 flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "var(--accent-red)" }} />
-              <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: "var(--accent-red)" }}>
+              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: "var(--accent-red)" }}>
                 LIVE
               </span>
             </div>

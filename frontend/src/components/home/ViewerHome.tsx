@@ -9,7 +9,6 @@ import {
   Tv2,
   ChevronRight,
   Star,
-  Calendar,
   X,
   Share2,
   Clock,
@@ -656,7 +655,7 @@ export function ViewerHome() {
       Boolean(
         deferredSearch.trim() ||
           (activeModule === "global_sports" && activeCategory) ||
-          ((activeModule === "bangladesh" || activeModule === "india" || activeModule === "fast_tv" || activeModule === "live_matches") &&
+          ((activeModule === "bangladesh" || activeModule === "india" || activeModule === "fast_tv") &&
             activeCategory) ||
           filterLeague ||
           filterCountry ||
@@ -824,222 +823,241 @@ export function ViewerHome() {
           </button>
         </div>
 
-        {activeModule === "live_matches" ? (
-          scheduleFixtures.length > 0 || fixturesLoading ? (
-            <section
-              className="rounded-xl overflow-hidden"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-            >
-              <div
-                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
-                style={{ borderBottom: "1px solid var(--border)" }}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  {scheduleGroups.live.length > 0 && (
-                    <span className="pulse-dot shrink-0" aria-label="live" />
-                  )}
-                  <Calendar className="h-4 w-4 shrink-0" style={{ color: "var(--primary-accent)" }} />
-                  <h2 className="text-sm font-bold truncate" style={{ color: "var(--text-main)" }}>
-                    {t("matchScheduleHeading")}
-                    {scheduleGroups.live.length > 0 && (
-                      <span className="ml-2 text-[11px] font-normal" style={{ color: "#f87171" }}>
-                        · {scheduleGroups.live.length} LIVE
-                      </span>
-                    )}
-                  </h2>
+        {/* ── Live Matches: full premium standalone view ── */}
+        {activeModule === "live_matches" && (
+          <div className="space-y-4">
+            {/* ── Header ── */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)" }}
+                >
+                  <span className="text-xl" aria-hidden>🔴</span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {/* Last updated counter */}
-                  {scheduleUpdated && (
-                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                      {fixturesSince < 60
-                        ? `${fixturesSince}s ago`
-                        : `${Math.floor(fixturesSince / 60)}m ago`}
-                    </span>
-                  )}
-                  {/* Manual refresh */}
-                  <button
-                    type="button"
-                    onClick={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
-                    disabled={fixturesLoading}
-                    title="রিফ্রেশ করুন"
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition hover:opacity-80"
-                    style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.25)", color: "var(--primary-accent)" }}
-                  >
-                    <RefreshCw size={11} className={fixturesLoading ? "animate-spin" : ""} />
-                    {fixturesLoading ? "…" : "↻"}
-                  </button>
+                <div>
+                  <h1 className="text-lg font-black tracking-tight" style={{ color: "var(--text-main)" }}>
+                    Live Match Schedule
+                  </h1>
+                  <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    ⚽ Football · 🏏 Cricket · Real-time fixtures
+                  </p>
                 </div>
               </div>
-              <p className="px-4 py-2 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                {t("matchScheduleHint")}
-              </p>
-              <div className="px-4 pb-2">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setScheduleView("live")}
-                    className="rounded-full px-3 py-1 text-[11px] font-semibold transition"
-                    style={{
-                      background: scheduleView === "live" ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.04)",
-                      border: scheduleView === "live" ? "1px solid rgba(239,68,68,0.35)" : "1px solid var(--border)",
-                      color: scheduleView === "live" ? "#f87171" : "var(--text-muted)",
-                    }}
-                  >
-                    {t("fixtureStatusLive")} ({scheduleGroups.live.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScheduleView("upcoming")}
-                    className="rounded-full px-3 py-1 text-[11px] font-semibold transition"
-                    style={{
-                      background: scheduleView === "upcoming" ? "rgba(245,166,35,0.12)" : "rgba(255,255,255,0.04)",
-                      border: scheduleView === "upcoming" ? "1px solid rgba(245,166,35,0.35)" : "1px solid var(--border)",
-                      color: scheduleView === "upcoming" ? "var(--primary-accent)" : "var(--text-muted)",
-                    }}
-                  >
-                    {t("fixtureStatusScheduled")} ({scheduleGroups.upcoming.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScheduleView("finished")}
-                    className="rounded-full px-3 py-1 text-[11px] font-semibold transition"
-                    style={{
-                      background: scheduleView === "finished" ? "rgba(120,120,120,0.15)" : "rgba(255,255,255,0.04)",
-                      border: scheduleView === "finished" ? "1px solid rgba(120,120,120,0.35)" : "1px solid var(--border)",
-                      color: scheduleView === "finished" ? "var(--text-main)" : "var(--text-muted)",
-                    }}
-                  >
-                    {t("fixtureStatusFinished")} ({scheduleGroups.finished.length})
-                  </button>
-                </div>
-                {/* Sport filter pills — only shown when we have cricket data */}
-                {scheduleFixtures.some((fx) => fx.sport === "Cricket") && (
-                  <div className="flex gap-2 mt-2">
-                    {(["all", "Soccer", "Cricket"] as const).map((sport) => (
-                      <button
-                        key={sport}
-                        type="button"
-                        onClick={() => setFixtureSportFilter(sport)}
-                        className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition"
-                        style={{
-                          background: fixtureSportFilter === sport ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.04)",
-                          border: fixtureSportFilter === sport ? "1px solid rgba(245,166,35,0.4)" : "1px solid var(--border)",
-                          color: fixtureSportFilter === sport ? "var(--primary-accent)" : "var(--text-muted)",
-                        }}
-                      >
-                        {sport === "all" ? "🌐 All" : sport === "Soccer" ? "⚽ Football" : "🏏 Cricket"}
-                      </button>
-                    ))}
-                  </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {scheduleUpdated && (
+                  <span className="hidden sm:inline text-[10px]" style={{ color: "var(--text-muted)" }}>
+                    {fixturesSince < 60 ? `${fixturesSince}s ago` : `${Math.floor(fixturesSince / 60)}m ago`}
+                  </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
+                  disabled={fixturesLoading}
+                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold transition hover:opacity-80 active:scale-95"
+                  style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.25)", color: "var(--primary-accent)" }}
+                >
+                  <RefreshCw size={13} className={fixturesLoading ? "animate-spin" : ""} />
+                  <span className="hidden xs:inline">{fixturesLoading ? "…" : "Refresh"}</span>
+                </button>
               </div>
-              <div className="max-h-[min(50vh,28rem)] overflow-y-auto overscroll-y-contain divide-y" style={{ borderColor: "var(--border)" }}>
-                {fixturesLoading && activeScheduleItems.length === 0 ? (
-                  <div className="flex items-center justify-center gap-2 px-4 py-8 text-xs" style={{ color: "var(--text-muted)" }}>
-                    <RefreshCw size={14} className="animate-spin" />
-                    লাইভ ম্যাচ লোড হচ্ছে…
+            </div>
+
+            {/* ── Stats tiles (tap to switch view) ── */}
+            <div className="grid grid-cols-3 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setScheduleView("live")}
+                className="fixture-stat-tile"
+                style={{
+                  background: scheduleView === "live" ? "rgba(239,68,68,0.12)" : "var(--bg-card)",
+                  borderColor: scheduleView === "live" ? "rgba(239,68,68,0.4)" : "var(--border)",
+                }}
+              >
+                <div className="flex items-center justify-center gap-1.5">
+                  {scheduleGroups.live.length > 0 && (
+                    <span className="pulse-dot" style={{ background: "#f87171", width: 7, height: 7 }} aria-hidden />
+                  )}
+                  <span className="text-2xl font-black tabular-nums" style={{ color: "#f87171" }}>
+                    {scheduleGroups.live.length}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "#f87171" }}>
+                  LIVE NOW
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleView("upcoming")}
+                className="fixture-stat-tile"
+                style={{
+                  background: scheduleView === "upcoming" ? "rgba(245,166,35,0.1)" : "var(--bg-card)",
+                  borderColor: scheduleView === "upcoming" ? "rgba(245,166,35,0.4)" : "var(--border)",
+                }}
+              >
+                <span className="text-2xl font-black tabular-nums" style={{ color: "var(--primary-accent)" }}>
+                  {scheduleGroups.upcoming.length}
+                </span>
+                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  UPCOMING
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleView("finished")}
+                className="fixture-stat-tile"
+                style={{
+                  background: scheduleView === "finished" ? "rgba(160,160,176,0.1)" : "var(--bg-card)",
+                  borderColor: scheduleView === "finished" ? "rgba(160,160,176,0.35)" : "var(--border)",
+                }}
+              >
+                <span className="text-2xl font-black tabular-nums" style={{ color: "var(--text-muted)" }}>
+                  {scheduleGroups.finished.length}
+                </span>
+                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  FINISHED
+                </p>
+              </button>
+            </div>
+
+            {/* ── Sport filter — only when cricket data exists ── */}
+            {scheduleFixtures.some((fx) => fx.sport === "Cricket") && (
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5">
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  Sport:
+                </span>
+                {(["all", "Soccer", "Cricket"] as const).map((sport) => (
+                  <button
+                    key={sport}
+                    type="button"
+                    onClick={() => setFixtureSportFilter(sport)}
+                    className="shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition"
+                    style={{
+                      background: fixtureSportFilter === sport ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.04)",
+                      border: fixtureSportFilter === sport ? "1px solid rgba(245,166,35,0.4)" : "1px solid var(--border)",
+                      color: fixtureSportFilter === sport ? "var(--primary-accent)" : "var(--text-muted)",
+                    }}
+                  >
+                    {sport === "all" ? "🌐 All" : sport === "Soccer" ? "⚽ Football" : "🏏 Cricket"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* ── Fixture list ── */}
+            <div className="space-y-2.5">
+              {fixturesLoading && activeScheduleItems.length === 0 ? (
+                <div className="space-y-2.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-24 animate-pulse rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }} />
+                  ))}
+                </div>
+              ) : activeScheduleItems.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 rounded-xl py-14 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <span className="text-3xl" aria-hidden>📅</span>
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmptyByStatus")}</p>
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>Switch to a different tab above</p>
                   </div>
-                ) : activeScheduleItems.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-xs" style={{ color: "var(--text-muted)" }}>
-                    {t("scheduleEmptyByStatus")}
-                  </div>
-                ) : null}
-                {activeScheduleItems.slice(0, 48).map((fx) => {
+                </div>
+              ) : (
+                activeScheduleItems.slice(0, 48).map((fx) => {
                   const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
                   const nowMs = Date.now();
                   const elapsedMin = startMs > 0 ? Math.floor((nowMs - startMs) / 60_000) : 0;
                   const isReallyLive = startMs > 0 && startMs <= nowMs && (fx.status || "").toLowerCase() !== "finished" && elapsedMin <= 130;
                   const isFinished = (fx.status || "").toLowerCase() === "finished" || elapsedMin > 130;
+                  const sportIcon = fx.sport === "Cricket" ? "🏏" : fx.sport === "Soccer" ? "⚽" : "🏆";
                   return (
-                    <div key={fx.id} className="px-4 py-3 transition-colors hover:bg-white/[0.02]">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          {/* League name + sport icon */}
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-[11px] font-semibold truncate" style={{ color: "var(--text-muted)" }}>
-                              {fx.sport ? `${fx.sport === "Soccer" ? "⚽" : fx.sport === "Cricket" ? "🏏" : "🏆"} ` : "🏆 "}{fx.league_name}
-                            </p>
-                          </div>
-                          {/* Teams */}
-                          <div className="mt-1.5 flex items-center gap-2">
-                            {fx.thumb_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={fx.thumb_url}
-                                alt=""
-                                className="h-7 w-7 shrink-0 rounded-md object-cover"
-                                style={{ border: "1px solid var(--border)" }}
-                              />
-                            ) : (
-                              <div
-                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold"
-                                style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}
-                              >
-                                VS
-                              </div>
-                            )}
-                            <p className="min-w-0 truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>
-                              {fx.home_team} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>vs</span> {fx.away_team}
-                            </p>
-                          </div>
-                          {/* Time info */}
-                          <div className="mt-1 flex items-center gap-2 flex-wrap">
-                            {isReallyLive ? (
-                              <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "#f87171" }}>
-                                <span className="pulse-dot" style={{ width: 6, height: 6 }} aria-hidden />
-                                {elapsedMin}&apos; চলছে
-                              </span>
-                            ) : (
-                              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                                {new Date(fx.starts_at_utc).toLocaleString(undefined, {
-                                  month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-                                })}
-                              </p>
-                            )}
-                            {fx.data_attribution ? (
-                              <p className="text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                                · {fx.data_attribution}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                        {/* Status badge */}
+                    <div
+                      key={fx.id}
+                      className={`fixture-card${isReallyLive ? " live" : ""}`}
+                    >
+                      {/* Top strip: competition + status */}
+                      <div
+                        className="flex items-center justify-between gap-2 px-4 py-2"
+                        style={{
+                          background: isReallyLive ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.02)",
+                          borderBottom: "1px solid var(--border)",
+                        }}
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5 truncate text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+                          {sportIcon} {fx.league_name}
+                        </span>
                         <span
-                          className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase"
+                          className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
                           style={{
-                            background: isReallyLive
-                              ? "rgba(239,68,68,0.15)"
-                              : isFinished
-                                ? "rgba(120,120,120,0.15)"
-                                : "rgba(245,166,35,0.12)",
-                            color: isReallyLive
-                              ? "#f87171"
-                              : isFinished
-                                ? "var(--text-muted)"
-                                : "var(--primary-accent)",
-                            border: "1px solid rgba(255,255,255,0.08)",
+                            background: isReallyLive ? "rgba(239,68,68,0.15)" : isFinished ? "rgba(120,120,120,0.12)" : "rgba(245,166,35,0.12)",
+                            color: isReallyLive ? "#f87171" : isFinished ? "var(--text-muted)" : "var(--primary-accent)",
+                            border: `1px solid ${isReallyLive ? "rgba(239,68,68,0.35)" : isFinished ? "rgba(120,120,120,0.2)" : "rgba(245,166,35,0.3)"}`,
                           }}
                         >
-                          {isReallyLive ? "🔴 LIVE" : isFinished ? "✓ শেষ" : "⏰ আসছে"}
+                          {isReallyLive ? "🔴 LIVE" : isFinished ? "✓ FT" : "⏰ Soon"}
                         </span>
                       </div>
-                      {/* Suggested channels */}
-                      {fx.suggested_channels?.length ? (
-                        <div className="mt-2.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--text-muted)" }}>
-                            📺 {t("suggestedStreamsLabel")}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {fx.suggested_channels.slice(0, 6).map((ch) => (
+
+                      {/* Teams + info */}
+                      <div className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {/* Home team */}
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            {fx.thumb_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={fx.thumb_url} alt="" loading="lazy" className="h-9 w-9 shrink-0 rounded-lg object-cover" style={{ border: "1px solid var(--border)" }} />
+                            ) : (
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-black" style={{ background: isReallyLive ? "rgba(239,68,68,0.12)" : "var(--bg-hover)", color: isReallyLive ? "#f87171" : "var(--text-muted)" }}>
+                                {fx.home_team.slice(0, 1)}
+                              </div>
+                            )}
+                            <p className="min-w-0 truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>{fx.home_team}</p>
+                          </div>
+
+                          {/* VS / elapsed */}
+                          <div className="flex shrink-0 flex-col items-center gap-0.5 px-2">
+                            {isReallyLive ? (
+                              <>
+                                <span className="text-[11px] font-black tabular-nums" style={{ color: "#f87171" }}>{elapsedMin}&apos;</span>
+                                <span className="pulse-dot" style={{ background: "#f87171", width: 6, height: 6 }} aria-hidden />
+                              </>
+                            ) : (
+                              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-muted)" }}>VS</span>
+                            )}
+                          </div>
+
+                          {/* Away team */}
+                          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                            <p className="min-w-0 truncate text-right text-sm font-bold" style={{ color: "var(--text-main)" }}>{fx.away_team}</p>
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-black" style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}>
+                              {fx.away_team.slice(0, 1)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Time row */}
+                        <div className="mt-2 flex items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                          {isReallyLive ? (
+                            <span className="font-semibold" style={{ color: "#f87171" }}>Match in progress</span>
+                          ) : (
+                            <span>
+                              🕐 {new Date(fx.starts_at_utc).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                          {fx.data_attribution ? <span>· {fx.data_attribution}</span> : null}
+                        </div>
+
+                        {/* Channel suggestions — only real matched channels */}
+                        {fx.suggested_channels?.length ? (
+                          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                            <span className="shrink-0 text-[10px] font-semibold" style={{ color: "var(--text-muted)" }}>📺 Watch:</span>
+                            {fx.suggested_channels.slice(0, 5).map((ch) => (
                               <button
                                 key={`${fx.id}-${ch.id}`}
                                 type="button"
                                 onClick={() => selectChannel(ch)}
-                                className="flex items-center gap-1 max-w-[12rem] truncate rounded-md px-2 py-1 text-[11px] font-medium transition hover:opacity-90 active:scale-95"
+                                className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition hover:opacity-90 active:scale-95"
                                 style={{
                                   background: isReallyLive ? "rgba(239,68,68,0.1)" : "rgba(245,166,35,0.1)",
-                                  border: isReallyLive ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(245,166,35,0.25)",
+                                  border: `1px solid ${isReallyLive ? "rgba(239,68,68,0.25)" : "rgba(245,166,35,0.25)"}`,
                                   color: isReallyLive ? "#f87171" : "var(--primary-accent)",
                                 }}
                                 title={ch.name}
@@ -1048,19 +1066,39 @@ export function ViewerHome() {
                               </button>
                             ))}
                           </div>
-                        </div>
-                      ) : null}
+                        ) : null}
+                      </div>
                     </div>
                   );
-                })}
+                })
+              )}
+            </div>
+
+            {/* No fixtures at all — configuration guidance */}
+            {!fixturesLoading && scheduleFixtures.length === 0 && (
+              <div className="flex flex-col items-center gap-4 rounded-xl py-16 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <span className="text-4xl" aria-hidden>📡</span>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmpty")}</p>
+                  <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    Set FOOTBALL_DATA_ORG_API_TOKEN &amp; CRICAPI_KEY in your backend environment to load live fixtures.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
+                  className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 active:scale-95"
+                  style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
+                >
+                  <RefreshCw size={14} /> Try Again
+                </button>
               </div>
-            </section>
-          ) : !loading && !fixturesLoading ? (
-            <p className="text-center text-xs px-2" style={{ color: "var(--text-muted)" }}>
-              {t("scheduleEmpty")}
-            </p>
-          ) : null
-        ) : null}
+            )}
+          </div>
+        )}
+
+        {/* ── Channel grid + player (hidden in Live Matches mode) ── */}
+        {activeModule !== "live_matches" && (<>
 
         {/* ── Hero header ── */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1074,9 +1112,7 @@ export function ViewerHome() {
                     ? "INDIA"
                     : activeModule === "fast_tv"
                       ? "FAST TV 24/7"
-                      : activeModule === "live_matches"
-                        ? "LIVE MATCHES"
-                        : "GLOBAL SPORTS"}
+                      : "GLOBAL SPORTS"}
               </span>
             </div>
             <h1 className="mt-1 text-xl font-extrabold tracking-tight md:text-2xl" style={{ color: "var(--text-main)" }}>
@@ -1086,9 +1122,7 @@ export function ViewerHome() {
                   ? "🇮🇳 India Channels"
                   : activeModule === "fast_tv"
                     ? "⚡ FAST TV 24/7"
-                    : activeModule === "live_matches"
-                      ? "🔴 Live Match Schedule"
-                      : t("tagline")}
+                    : t("tagline")}
             </h1>
             <div className="mt-1 space-y-1">
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -1601,8 +1635,7 @@ export function ViewerHome() {
                 ? SPORT_TYPES.find((s) => s.id === activeCategory)?.label ?? "🌐 " + t("directory")
                 : (activeModule === "bangladesh" ||
                     activeModule === "india" ||
-                    activeModule === "fast_tv" ||
-                    activeModule === "live_matches") &&
+                    activeModule === "fast_tv") &&
                     activeCategory
                   ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
                   : activeModule === "bangladesh"
@@ -1611,9 +1644,7 @@ export function ViewerHome() {
                       ? "🇮🇳 India TV Channels"
                       : activeModule === "fast_tv"
                         ? "⚡ FAST TV (24/7)"
-                        : activeModule === "live_matches"
-                          ? "🔴 FanCode Live Matches"
-                          : "🌐 " + t("directory")}
+                        : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs text-right" style={{ color: "var(--text-muted)" }}>
               <span className="block sm:inline">
@@ -1700,6 +1731,7 @@ export function ViewerHome() {
             </div>
           )}
         </section>
+        </>)}
       </div>
     </AppShell>
     </>
