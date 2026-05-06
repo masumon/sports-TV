@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, User } from "lucide-react";
+import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
@@ -251,7 +251,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         </button>
 
         {/* Admin / Sign-in */}
-        {user?.is_admin ? (
+        {user?.is_admin && (
           <Link
             href="/admin/dashboard"
             className="hidden min-h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold md:inline-flex"
@@ -261,17 +261,6 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           >
             <Shield size={15} className="shrink-0" />
             <span className="hidden lg:inline">{t("admin")}</span>
-          </Link>
-        ) : (
-          <Link
-            href="/admin/login"
-            className="hidden min-h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition hover:bg-white/10 md:inline-flex"
-            style={{ color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
-            aria-label={t("signIn")}
-            title={t("signIn")}
-          >
-            <User size={15} className="shrink-0" />
-            <span className="hidden lg:inline">{t("signIn")}</span>
           </Link>
         )}
       </div>

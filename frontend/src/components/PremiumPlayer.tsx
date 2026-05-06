@@ -171,6 +171,8 @@ function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
 
 /* ────────────────────────────────────────────────────────── Helpers ── */
 const HIDE_CONTROLS_AFTER_MS = 3500;
+/** First-play: keep controls visible longer so new users can orient themselves. */
+const HIDE_CONTROLS_INITIAL_MS = 8000;
 
 type NetConn = { saveData?: boolean; effectiveType?: string };
 
@@ -372,12 +374,16 @@ export default function PremiumPlayer({
   const [isSwitching, setIsSwitching] = useState(false);
   const [geoRestricted, setGeoRestricted] = useState(false);
   const isMobileSheet = useMatchMediaQuery("(max-width: 639px)");
+  /** True on touch/pointer-coarse devices — used to hide the desktop-style volume slider. */
+  const isTouchDevice = useMatchMediaQuery("(pointer: coarse)");
   const externalPanelTitleId = useId();
   /** Index into ordered proxy URL list (UI + external players); advanced via HLS loadSource failover. */
   const [urlIdx, setUrlIdx] = useState(0);
   const urlPlayIndexRef = useRef(0);
   const linkRetryRef = useRef(0);
   const linkRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Tracks whether controls have ever been auto-hidden (first hide uses longer delay). */
+  const firstHideDoneRef = useRef(false);
 
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
@@ -417,7 +423,9 @@ export default function PremiumPlayer({
 
   const scheduleHideControls = useCallback(() => {
     clearHideTimer();
-    hideTimerRef.current = setTimeout(() => setShowControls(false), HIDE_CONTROLS_AFTER_MS);
+    const delay = firstHideDoneRef.current ? HIDE_CONTROLS_AFTER_MS : HIDE_CONTROLS_INITIAL_MS;
+    firstHideDoneRef.current = true;
+    hideTimerRef.current = setTimeout(() => setShowControls(false), delay);
   }, [clearHideTimer]);
 
   const showControlsTemporarily = useCallback(() => {
@@ -431,6 +439,7 @@ export default function PremiumPlayer({
     setIsSwitching(false);
     setGeoRestricted(false);
     linkRetryRef.current = 0;
+    firstHideDoneRef.current = false;
     if (linkRetryTimerRef.current) {
       clearTimeout(linkRetryTimerRef.current);
       linkRetryTimerRef.current = null;
@@ -1125,6 +1134,27 @@ export default function PremiumPlayer({
       {/* Custom overlay */}
       {overlay}
 
+      {/* "Tap to show controls" hint — shown briefly when controls auto-hide on touch devices */}
+      <AnimatePresence>
+        {!showControls && isPlaying && isTouchDevice && (
+          <motion.div
+            key="tap-hint"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="pointer-events-none absolute inset-0 z-30 flex items-end justify-center pb-10"
+          >
+            <span
+              className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ background: "rgba(0,0,0,0.45)", color: "rgba(255,255,255,0.45)" }}
+            >
+              Tap to show controls
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Controls panel */}
       <AnimatePresence>
         {showControls && (
@@ -1184,10 +1214,12 @@ export default function PremiumPlayer({
                 <button className="control-btn shrink-0" type="button" onClick={toggleMute} aria-label="Toggle mute">
                   <VolumeIcon size={17} />
                 </button>
-                <input type="range" min={0} max={1} step={0.05}
-                  value={isMuted ? 0 : volume}
-                  onChange={(e) => setVolumeLevel(Number(e.target.value))}
-                  className="volume-slider w-16 sm:w-24 shrink-0" aria-label="Volume" />
+                {!isTouchDevice && (
+                  <input type="range" min={0} max={1} step={0.05}
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => setVolumeLevel(Number(e.target.value))}
+                    className="volume-slider w-16 sm:w-24 shrink-0" aria-label="Volume" />
+                )}
                 <select className="quality-select shrink-0" value={selectedQuality}
                   onChange={(e) => changeQuality(Number(e.target.value))} aria-label="Quality">
                   {qualityOptions.map((opt) => (

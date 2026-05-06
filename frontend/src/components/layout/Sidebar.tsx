@@ -1,15 +1,12 @@
 "use client";
 
-import type { Route } from "next";
-import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import Link from "next/link";
 import {
-  Home, LayoutGrid, Settings, X, Tv, Globe,
+  Home, X, Tv, Globe,
   Zap, Flame,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
-import { useAuthStore } from "@/store/authStore";
 import { useUiStore } from "@/store/uiStore";
 
 const SPORTS_CATEGORIES = [
@@ -31,15 +28,12 @@ function CountBadge({ count }: { count: number }) {
 
 export function Sidebar() {
   const { t } = useI18n();
-  const pathname = usePathname();
-  const user = useAuthStore((s) => s.user);
   const { sidebarOpen, setSidebarOpen } = useUiStore();
-  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
   const activeModule = useUiStore((s) => s.activeModule);
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const activeCategory = useUiStore((s) => s.activeCategory);
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
-  const { gsCount, bdCount, inCount, fastCount, liveCount } = useUiStore((s) => s.moduleCounts);
+  const { gsCount, bdCount, inCount, fastCount } = useUiStore((s) => s.moduleCounts);
   const visibleCats = SPORTS_CATEGORIES;
 
   function handleCategoryClick(key: string) {
@@ -227,38 +221,8 @@ export function Sidebar() {
             >
               <Flame size={17} />
               🔴 Live Matches
-              <CountBadge count={liveCount} />
             </button>
 
-            {/* Browse / Search */}
-            <button
-              type="button"
-              onClick={() => {
-                setSidebarOpen(false);
-                requestSearchFocus();
-                document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
-              style={{ color: "var(--text-muted)", borderLeft: "2px solid transparent" }}
-            >
-              <LayoutGrid size={17} />
-              {t("browse")}
-            </button>
-
-            {/* Admin link */}
-            <Link
-              href={(user?.is_admin ? "/admin/dashboard" : "/admin/login") as Route}
-              onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
-              style={{
-                background: pathname?.startsWith("/admin") ? "rgba(245,166,35,0.12)" : "transparent",
-                color: pathname?.startsWith("/admin") ? "var(--primary-accent)" : "var(--text-muted)",
-                borderLeft: pathname?.startsWith("/admin") ? "2px solid var(--primary-accent)" : "2px solid transparent",
-              }}
-            >
-              <Settings size={17} />
-              {t("admin")}
-            </Link>
           </div>
 
           {/* ── Sports Categories (global IPTV sports) ── */}
