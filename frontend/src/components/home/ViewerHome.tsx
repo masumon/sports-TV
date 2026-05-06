@@ -266,6 +266,7 @@ export function ViewerHome() {
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
   const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
+  const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
   const [isFirstVisit, setIsFirstVisit] = useState(false);
   const [splashReady, setSplashReady] = useState(false);
   const [fixturesSince, setFixturesSince] = useState(0);
@@ -423,7 +424,10 @@ export function ViewerHome() {
     const live: LiveFixture[] = [];
     const upcoming: LiveFixture[] = [];
     const finished: LiveFixture[] = [];
-    for (const fx of scheduleFixtures) {
+    const filtered = fixtureSportFilter === "all"
+      ? scheduleFixtures
+      : scheduleFixtures.filter((fx) => (fx.sport || "Soccer") === fixtureSportFilter);
+    for (const fx of filtered) {
       const s = (fx.status || "").toLowerCase();
       // Compute real-time status from starts_at_utc (avoids stale DB status between 3h syncs)
       const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
@@ -436,7 +440,7 @@ export function ViewerHome() {
     live.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
     upcoming.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
     return { live, upcoming, finished };
-  }, [scheduleFixtures]);
+  }, [scheduleFixtures, fixtureSportFilter]);
 
   const activeScheduleItems = useMemo(() => {
     if (scheduleView === "live") return scheduleGroups.live;
@@ -909,6 +913,26 @@ export function ViewerHome() {
                     {t("fixtureStatusFinished")} ({scheduleGroups.finished.length})
                   </button>
                 </div>
+                {/* Sport filter pills — only shown when we have cricket data */}
+                {scheduleFixtures.some((fx) => fx.sport === "Cricket") && (
+                  <div className="flex gap-2 mt-2">
+                    {(["all", "Soccer", "Cricket"] as const).map((sport) => (
+                      <button
+                        key={sport}
+                        type="button"
+                        onClick={() => setFixtureSportFilter(sport)}
+                        className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition"
+                        style={{
+                          background: fixtureSportFilter === sport ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.04)",
+                          border: fixtureSportFilter === sport ? "1px solid rgba(245,166,35,0.4)" : "1px solid var(--border)",
+                          color: fixtureSportFilter === sport ? "var(--primary-accent)" : "var(--text-muted)",
+                        }}
+                      >
+                        {sport === "all" ? "🌐 All" : sport === "Soccer" ? "⚽ Football" : "🏏 Cricket"}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="max-h-[min(50vh,28rem)] overflow-y-auto overscroll-y-contain divide-y" style={{ borderColor: "var(--border)" }}>
                 {fixturesLoading && activeScheduleItems.length === 0 ? (

@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.db.session import engine
 from app.models.channel import Channel
 from app.models.live_fixture import LiveFixture
+from app.services.cricket_fixtures_sync import sync_cricket_fixtures
 
 logger = logging.getLogger("app.live_fixtures")
 
@@ -297,12 +298,13 @@ def sync_live_fixtures(db: Session) -> dict[str, int]:
                 break
 
     total_rows += _sync_football_data(db, word_index)
+    total_rows += sync_cricket_fixtures(db, word_index)
 
     removed = _cleanup_stale_fixtures(db)
     db.commit()
 
     logger.info(
-        "live_fixtures sync complete touched≈%d providers=openligadb+optional_football_data removed_old=%d",
+        "live_fixtures sync complete touched≈%d providers=openligadb+football_data+cricket removed_old=%d",
         total_rows,
         removed,
     )
