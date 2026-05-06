@@ -5,8 +5,9 @@ import Image from "next/image";
 import { useTheme } from "next-themes";
 import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, User } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
+import { flagFromCountryName } from "@/components/channel/flagEmoji";
 import { useAuthStore } from "@/store/authStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
@@ -20,19 +21,34 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
   const { t, locale, setLocale } = useI18n();
   const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
   const user = useAuthStore((s) => s.user);
   const tier = useSubscriptionStore((s) => s.tier);
   const { toggleSidebar } = useUiStore();
   const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
   const searchFocusNonce = useUiStore((s) => s.searchFocusNonce);
+  const searchSuggestions = useUiStore((s) => s.searchSuggestions);
   const pathname = usePathname();
   const router = useRouter();
 
   const commitSearchNavigation = () => {
     const q = searchQuery.trim();
     onSearch(q);
+    setShowSuggestions(false);
     router.push(q ? `/?q=${encodeURIComponent(q)}` : "/", { scroll: false });
   };
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -106,7 +122,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
 
         {/* Search + Go */}
         <div className="flex min-w-0 flex-1 items-center gap-1.5 mx-1 md:mx-2">
-          <div className="relative min-w-0 flex-1">
+          <div className="relative min-w-0 flex-1" ref={searchWrapRef}>
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
               style={{ color: "var(--text-muted)" }}
@@ -114,12 +130,11 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             <input
               id="gstv-search"
               value={searchQuery}
-              onChange={(e) => onSearch(e.target.value)}
+              onChange={(e) => { onSearch(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => { if (searchSuggestions.length) setShowSuggestions(true); }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitSearchNavigation();
-                }
+                if (e.key === "Enter") { e.preventDefault(); commitSearchNavigation(); }
+                if (e.key === "Escape") setShowSuggestions(false);
               }}
               placeholder={t("search")}
               aria-label={t("search")}
@@ -133,6 +148,41 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
                 color: "var(--text-main)",
               }}
             />
+            {/* Suggestions dropdown */}
+            {showSuggestions && searchSuggestions.length > 0 && (
+              <div
+                className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl shadow-2xl"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+              >
+                {searchSuggestions.map((ch) => (
+                  <button
+                    key={ch.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onSearch(ch.name);
+                      setShowSuggestions(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.05]"
+                  >
+                    {ch.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={ch.logo_url} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" style={{ border: "1px solid var(--border)" }} loading="lazy" />
+                    ) : (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold" style={{ background: "var(--bg-hover)", color: "var(--primary-accent)" }}>
+                        {ch.name.slice(0, 2)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium" style={{ color: "var(--text-main)" }}>{ch.name}</p>
+                      <p className="truncate text-[10px]" style={{ color: "var(--text-muted)" }}>
+                        {flagFromCountryName(ch.country)} {ch.country} · {ch.quality_tag.toUpperCase()}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <button
             type="button"

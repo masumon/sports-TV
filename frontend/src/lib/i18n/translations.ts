@@ -97,6 +97,15 @@ export const translations: Record<
     scheduleEmpty:
       "No saved fixtures yet. On the API host, run a fixtures sync or set LIVE_FIXTURES_SYNC_INTERVAL_MINUTES (see .env.example).",
     scheduleEmptyByStatus: "No matches in this status right now.",
+    coldStartBanner: "Backend server is waking up (Render free tier) — first load may take 30–60 seconds. Please wait…",
+    coldStartDismiss: "Dismiss",
+    recentlyWatched: "Recently Watched",
+    recentlyClear: "Clear",
+    shareChannel: "Share",
+    shareCopied: "Link copied to clipboard!",
+    tSportsFeatured: "T-Sports — Bangladesh's Premier Sports Channel",
+    errorRetry: "Retry",
+    errorLoadFail: "Failed to load channels",
   },
   bn: {
     appTitle: "ABO স্পোর্টস টিভি লাইভ",
@@ -191,6 +200,15 @@ export const translations: Record<
     scheduleEmpty:
       "এখনো সূচি ডাটাবেজে নেই। ব্যাকএন্ডে ফিক্সচার সিঙ্ক চালান বা LIVE_FIXTURES_SYNC_INTERVAL_MINUTES সেট করুন।",
     scheduleEmptyByStatus: "এই স্ট্যাটাসে এখন কোনো ম্যাচ নেই।",
+    coldStartBanner: "ব্যাকএন্ড সার্ভার জেগে উঠছে (Render ফ্রি টায়ার) — প্রথম লোড ৩০–৬০ সেকেন্ড লাগতে পারে। অনুগ্রহ করে অপেক্ষা করুন…",
+    coldStartDismiss: "বাতিল",
+    recentlyWatched: "সম্প্রতি দেখা",
+    recentlyClear: "মুছুন",
+    shareChannel: "শেয়ার",
+    shareCopied: "লিংক কপি হয়েছে!",
+    tSportsFeatured: "টি-স্পোর্টস — বাংলাদেশের প্রধান স্পোর্টস চ্যানেল",
+    errorRetry: "আবার চেষ্টা করুন",
+    errorLoadFail: "চ্যানেল লোড ব্যর্থ",
   },
 };
 

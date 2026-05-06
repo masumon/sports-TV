@@ -17,6 +17,18 @@ const SPORTS_CATEGORIES = [
   { label: "Cricket", emoji: "🏏", key: "cricket" },
 ];
 
+function CountBadge({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <span
+      className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold tabular-nums"
+      style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.2)" }}
+    >
+      {count > 9999 ? "9999+" : count}
+    </span>
+  );
+}
+
 export function Sidebar() {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -27,6 +39,7 @@ export function Sidebar() {
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const activeCategory = useUiStore((s) => s.activeCategory);
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
+  const { gsCount, bdCount, inCount, fastCount, liveCount } = useUiStore((s) => s.moduleCounts);
   const visibleCats = SPORTS_CATEGORIES;
 
   function handleCategoryClick(key: string) {
@@ -146,6 +159,7 @@ export function Sidebar() {
             >
               <Home size={17} />
               🌍 Global Sports
+              <CountBadge count={gsCount} />
             </Link>
 
             <button
@@ -160,6 +174,7 @@ export function Sidebar() {
             >
               <Tv size={17} />
               🇧🇩 Bangladesh
+              <CountBadge count={bdCount} />
             </button>
 
             <button
@@ -174,6 +189,7 @@ export function Sidebar() {
             >
               <Globe size={17} />
               🇮🇳 India
+              <CountBadge count={inCount} />
             </button>
 
             <button
@@ -188,6 +204,7 @@ export function Sidebar() {
             >
               <Zap size={17} />
               ⚡ FAST TV (24/7)
+              <CountBadge count={fastCount} />
             </button>
 
             <button
@@ -202,6 +219,7 @@ export function Sidebar() {
             >
               <Flame size={17} />
               🔴 Live Matches
+              <CountBadge count={liveCount} />
             </button>
 
             {/* Browse / Search */}

@@ -744,6 +744,64 @@ export default function PremiumPlayer({
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
+  /* ── Touch gestures: double-tap seek (±10s) + vertical swipe for volume ── */
+  useEffect(() => {
+    const container = containerRef.current;
+    const video = videoRef.current;
+    if (!container || !video) return;
+
+    let lastTapTime = 0;
+    let lastTapX = 0;
+    let touchStartY = 0;
+    let touchStartVol = 1;
+    let swipeHandled = false;
+
+    function onTouchStart(e: TouchEvent) {
+      const touch = e.touches[0];
+      if (!touch) return;
+      touchStartY = touch.clientY;
+      touchStartVol = video!.volume;
+      swipeHandled = false;
+
+      // Double-tap detection
+      const now = Date.now();
+      const rect = container!.getBoundingClientRect();
+      const tapX = touch.clientX - rect.left;
+      if (now - lastTapTime < 300 && Math.abs(tapX - lastTapX) < rect.width * 0.6) {
+        const seekDelta = tapX < rect.width / 2 ? -10 : 10;
+        video!.currentTime = Math.max(0, video!.currentTime + seekDelta);
+        // Flash seek indicator via a quick toast
+        toast(seekDelta > 0 ? "+10s →" : "← -10s", { duration: 800, position: "top-center" });
+        lastTapTime = 0; // reset so triple-tap doesn't retrigger
+      } else {
+        lastTapTime = now;
+        lastTapX = tapX;
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      const touch = e.touches[0];
+      if (!touch || swipeHandled) return;
+      const deltaY = touchStartY - touch.clientY;
+      if (Math.abs(deltaY) < 20) return; // dead zone
+      swipeHandled = true;
+      const rect = container!.getBoundingClientRect();
+      const volDelta = deltaY / rect.height;
+      const newVol = Math.min(1, Math.max(0, touchStartVol + volDelta));
+      video!.volume = newVol;
+      video!.muted = newVol === 0;
+      setVolumeState(newVol);
+      setIsMuted(newVol === 0);
+    }
+
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
+    container.addEventListener("touchmove", onTouchMove, { passive: true });
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+    };
+  }, []);
+
   /** Sync orientation when fullscreen is toggled via browser (e.g. ESC) or gesture. */
   useEffect(() => {
     if (!isMobileSheet) return;

@@ -10,6 +10,10 @@ import {
   ChevronRight,
   Star,
   Calendar,
+  X,
+  Share2,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import {
   memo,
@@ -237,13 +241,6 @@ function FilterChips({
   );
 }
 
-/** Labels for API fixture status values */
-function fixtureStatusLabel(status: string, tr: (k: string) => string): string {
-  const s = status.toLowerCase();
-  if (s === "live") return tr("fixtureStatusLive");
-  if (s === "finished") return tr("fixtureStatusFinished");
-  return tr("fixtureStatusScheduled");
-}
 
 export function ViewerHome() {
   const { t } = useI18n();
@@ -271,20 +268,37 @@ export function ViewerHome() {
   const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
   const [isFirstVisit, setIsFirstVisit] = useState(false);
   const [splashReady, setSplashReady] = useState(false);
-  // Tracks seconds since last fixtures refresh for the "last updated" indicator
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [coldStart, setColdStart] = useState(false);
+  const [coldStartDismissed, setColdStartDismissed] = useState(false);
+  const coldStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
+  const setModuleCounts = useUiStore((s) => s.setModuleCounts);
+  const setSearchSuggestions = useUiStore((s) => s.setSearchSuggestions);
 
   const activeChannel = usePlayerStore((state) => state.activeChannel);
   const isTheaterMode = usePlayerStore((state) => state.isTheaterMode);
   const setActiveChannel = usePlayerStore((state) => state.setActiveChannel);
   const toggleTheaterMode = usePlayerStore((state) => state.toggleTheaterMode);
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("gstv-recently-watched");
+      if (stored) setRecentlyWatched(JSON.parse(stored) as number[]);
+    } catch { /* ignore */ }
+  }, []);
+
   /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
   const selectChannel = useCallback(
     (ch: Channel) => {
       startTransition(() => {
         setActiveChannel(ch);
+      });
+      setRecentlyWatched((prev) => {
+        const next = [ch.id, ...prev.filter((id) => id !== ch.id)].slice(0, 10);
+        try { localStorage.setItem("gstv-recently-watched", JSON.stringify(next)); } catch { /* ignore */ }
+        return next;
       });
     },
     [setActiveChannel]
@@ -316,6 +330,10 @@ export function ViewerHome() {
         setLoading(true);
       }
       setError(null);
+      // Cold-start detection: if backend takes > 3s, show wakeup banner
+      if (!silent) {
+        coldStartTimerRef.current = setTimeout(() => setColdStart(true), 3000);
+      }
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
@@ -341,7 +359,11 @@ export function ViewerHome() {
         setError(msg);
         toast.error(msg);
       } finally {
-        if (!silent) setLoading(false);
+        if (!silent) {
+          setLoading(false);
+          setColdStart(false);
+          if (coldStartTimerRef.current) clearTimeout(coldStartTimerRef.current);
+        }
       }
     },
     [t]
@@ -385,9 +407,9 @@ export function ViewerHome() {
   useEffect(() => {
     if (activeModule !== "live_matches") return;
     setFixturesSince(0);
-    fixturesTimerRef.current && clearInterval(fixturesTimerRef.current);
+    if (fixturesTimerRef.current) clearInterval(fixturesTimerRef.current);
     fixturesTimerRef.current = setInterval(() => setFixturesSince((s) => s + 1), 1000);
-    return () => { fixturesTimerRef.current && clearInterval(fixturesTimerRef.current); };
+    return () => { if (fixturesTimerRef.current) clearInterval(fixturesTimerRef.current); };
   }, [activeModule, scheduleUpdated]);
 
   useEffect(() => {
@@ -670,6 +692,16 @@ export function ViewerHome() {
     return orderedStreamUrlsForChannel(activeChannel);
   }, [activeChannel]);
 
+  const recentChannelObjects = useMemo(() => {
+    const map = new Map(allChannels.map((c) => [c.id, c]));
+    return recentlyWatched.map((id) => map.get(id)).filter(Boolean) as Channel[];
+  }, [recentlyWatched, allChannels]);
+
+  const tSportsChannel = useMemo(() => {
+    if (activeModule !== "bangladesh") return null;
+    return moduleChannels.find((c) => c.name.toLowerCase().includes("t sport") || c.name.toLowerCase().includes("tsport")) ?? null;
+  }, [activeModule, moduleChannels]);
+
   const { gsCount, inCount, bdCount, fastCount, liveCount } = useMemo(() => {
     let gs = 0;
     let i = 0;
@@ -686,12 +718,53 @@ export function ViewerHome() {
     return { gsCount: gs, inCount: i, bdCount: b, fastCount: f, liveCount: l };
   }, [allChannels]);
 
+  // Sync module counts to store so Sidebar can show badges
+  useEffect(() => {
+    setModuleCounts({ gsCount, bdCount, inCount, fastCount, liveCount });
+  }, [gsCount, bdCount, inCount, fastCount, liveCount, setModuleCounts]);
+
+  // Sync search suggestions to store so TopBar dropdown can show them
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || q.length < 2) { setSearchSuggestions([]); return; }
+    const matches = allChannels.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 6);
+    setSearchSuggestions(matches);
+  }, [searchQuery, allChannels, setSearchSuggestions]);
+
   return (
     <>
       {/* Branded splash screen — shown only on first visit (no cache), fades out once channels load */}
       {isFirstVisit && <SplashScreen ready={splashReady} />}
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
+
+        {/* ── Cold-start banner ── */}
+        <AnimatePresence>
+          {coldStart && !coldStartDismissed && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              className="flex items-center gap-3 rounded-xl px-4 py-3"
+              style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
+            >
+              <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
+              <p className="flex-1 text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
+                {t("coldStartBanner")}
+              </p>
+              <button
+                type="button"
+                onClick={() => setColdStartDismissed(true)}
+                className="shrink-0 rounded p-1 hover:bg-white/10"
+                style={{ color: "var(--text-muted)" }}
+                aria-label={t("coldStartDismiss")}
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Module tabs: hidden on mobile (bottom nav handles navigation there) ── */}
         <div className="hidden md:flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible">
@@ -1263,9 +1336,31 @@ export function ViewerHome() {
                       <span>{activeChannel.country} · {activeChannel.category} · {activeChannel.quality_tag.toUpperCase()}</span>
                     </p>
                   </div>
-                  <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
-                    <span className="pulse-dot" style={{ width: 6, height: 6 }} /> LIVE
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
+                      <span className="pulse-dot" style={{ width: 6, height: 6 }} /> LIVE
+                    </span>
+                    <button
+                      type="button"
+                      title={t("shareChannel")}
+                      onClick={async () => {
+                        if (!activeChannel) return;
+                        const url = `${window.location.origin}/?q=${encodeURIComponent(activeChannel.name)}`;
+                        try {
+                          if (navigator.share) {
+                            await navigator.share({ title: activeChannel.name, url });
+                          } else {
+                            await navigator.clipboard.writeText(url);
+                            toast.success(t("shareCopied"));
+                          }
+                        } catch { /* user cancelled or no clipboard */ }
+                      }}
+                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition hover:opacity-80"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                    >
+                      <Share2 size={12} /> {t("shareChannel")}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1366,6 +1461,114 @@ export function ViewerHome() {
           </aside>
         </div>
 
+        {/* ── T-Sports Featured Card (Bangladesh tab) ── */}
+        {tSportsChannel && (
+          <div
+            className="relative overflow-hidden rounded-xl p-4 sm:p-5"
+            style={{
+              background: "linear-gradient(135deg, rgba(0,106,78,0.18) 0%, rgba(245,166,35,0.10) 100%)",
+              border: "1px solid rgba(0,166,78,0.35)",
+            }}
+          >
+            <div className="absolute inset-0 opacity-5"
+              style={{ backgroundImage: "radial-gradient(circle at 80% 50%, #00a64e 0%, transparent 60%)" }}
+            />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-4">
+                {tSportsChannel.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tSportsChannel.logo_url}
+                    alt={tSportsChannel.name}
+                    className="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20"
+                    style={{ border: "2px solid rgba(0,166,78,0.4)", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl text-lg font-black sm:h-20 sm:w-20"
+                    style={{ background: "rgba(0,106,78,0.3)", border: "2px solid rgba(0,166,78,0.4)", color: "#00a64e" }}>
+                    🏏
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                      style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}>
+                      🔴 LIVE
+                    </span>
+                    <span className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                      style={{ background: "rgba(0,166,78,0.15)", color: "#00a64e", border: "1px solid rgba(0,166,78,0.3)" }}>
+                      🇧🇩 FEATURED
+                    </span>
+                  </div>
+                  <h3 className="mt-1 text-lg font-black sm:text-xl" style={{ color: "var(--text-main)" }}>
+                    {tSportsChannel.name}
+                  </h3>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{t("tSportsFeatured")}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => selectChannel(tSportsChannel)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-black transition hover:opacity-90 active:scale-95 sm:ml-auto sm:shrink-0"
+                style={{ background: "linear-gradient(135deg, #00a64e, #006a3e)", color: "#fff", boxShadow: "0 4px 16px rgba(0,106,78,0.4)" }}
+              >
+                ▶ Watch Now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Recently Watched ── */}
+        {recentChannelObjects.length > 0 && (
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <Clock size={14} style={{ color: "var(--primary-accent)" }} />
+                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-main)" }}>
+                  {t("recentlyWatched")}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRecentlyWatched([]);
+                  try { localStorage.removeItem("gstv-recently-watched"); } catch { /* ignore */ }
+                }}
+                className="text-[10px] transition hover:opacity-70"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {t("recentlyClear")}
+              </button>
+            </div>
+            <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+              {recentChannelObjects.map((ch) => (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => selectChannel(ch)}
+                  className="flex shrink-0 flex-col items-center gap-1.5 px-4 py-3 text-center transition hover:bg-white/[0.04]"
+                  style={{ minWidth: 80, maxWidth: 96 }}
+                  title={ch.name}
+                >
+                  {ch.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={ch.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover"
+                      style={{ border: "1px solid var(--border)" }} loading="lazy" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg text-xs font-bold"
+                      style={{ background: "var(--bg-hover)", color: "var(--primary-accent)" }}>
+                      {ch.name.slice(0, 2)}
+                    </div>
+                  )}
+                  <p className="w-full truncate text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>
+                    {ch.name}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Full channel grid ── */}
         <section id="channel-grid">
           <div className="mb-4 flex items-center justify-between">
@@ -1399,7 +1602,21 @@ export function ViewerHome() {
             </span>
           </div>
 
-          {loading ? (
+          {error && !loading ? (
+            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(229,57,53,0.25)" }}>
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8" style={{ color: "#f87171" }} />
+              <p className="text-sm font-semibold" style={{ color: "var(--text-main)" }}>{t("errorLoadFail")}</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{error}</p>
+              <button
+                type="button"
+                onClick={() => void loadChannels(true)}
+                className="mt-5 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold transition hover:opacity-90"
+                style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
+              >
+                <RefreshCw size={14} /> {t("errorRetry")}
+              </button>
+            </div>
+          ) : loading ? (
             <ChannelSkeletonGrid count={18} />
           ) : moduleChannels.length === 0 ? (
             <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
@@ -1480,7 +1697,17 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
   return (
     <div
       className={`ch-card group w-full p-3${active ? " active" : ""}`}
+      style={active ? { boxShadow: "0 0 0 2px rgba(245,166,35,0.5), 0 8px 24px rgba(0,0,0,0.4)" } : undefined}
     >
+      {/* NOW PLAYING badge */}
+      {active && (
+        <div className="mb-2 flex items-center gap-1.5">
+          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider"
+            style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.4)", color: "var(--primary-accent)" }}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" /> NOW PLAYING
+          </span>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => {
@@ -1495,7 +1722,7 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
               src={channel.logo_url}
               alt=""
               className="h-12 w-12 shrink-0 rounded-lg object-cover"
-              style={{ border: "1px solid var(--border)" }}
+              style={{ border: active ? "2px solid rgba(245,166,35,0.6)" : "1px solid var(--border)" }}
               loading="lazy"
             />
           ) : (
@@ -1507,7 +1734,7 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name}>
+            <p className="truncate text-sm font-semibold" style={{ color: active ? "var(--primary-accent)" : "var(--text-main)" }} title={channel.name}>
               {channel.name}
             </p>
             <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${channel.country} · ${channel.language}`}>
