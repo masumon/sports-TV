@@ -215,6 +215,10 @@ export const apiClient = {
     return apiRequest<Record<string, number>>("/admin/channels/sync", { method: "POST", authToken: token });
   },
 
+  adminSyncFixtures(token: string) {
+    return apiRequest<Record<string, number>>("/admin/fixtures/sync", { method: "POST", authToken: token });
+  },
+
   adminProbeStreams(token: string, urls: string[]) {
     return apiRequest<{ results: StreamProbeItem[] }>("/admin/proxy/probe", {
       method: "POST",

@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import {
   Activity,
+  Calendar,
   Clock,
   Filter,
   Home,
@@ -98,6 +99,7 @@ export default function AdminDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const initialFetchDone = useRef(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncingFixtures, setSyncingFixtures] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelForm, setChannelForm] = useState<ChannelFormState>(initialChannelForm);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -377,6 +379,21 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const syncFixtures = async () => {
+    if (!authToken) return;
+    setSyncingFixtures(true);
+    setError(null);
+    try {
+      const res = await apiClient.adminSyncFixtures(authToken);
+      const touched = res.rows_touched ?? 0;
+      alert(`✅ Fixture sync done — ${touched} matches synced`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fixture sync failed");
+    } finally {
+      setSyncingFixtures(false);
+    }
+  };
+
   if (!authToken || !user?.is_admin) {
     return (
       <main data-admin className="admin-shell flex min-h-dvh items-center justify-center p-6">
@@ -449,6 +466,16 @@ export default function AdminDashboardPage() {
               >
                 <Activity size={16} />
                 {syncing ? "Syncing…" : "M3U sync"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void syncFixtures()}
+                disabled={syncingFixtures}
+                title="Sync live fixtures from OpenLigaDB + football-data.org (requires FOOTBALL_DATA_ORG_API_TOKEN)"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:from-blue-400 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Calendar size={16} />
+                {syncingFixtures ? "Syncing…" : "Sync Fixtures"}
               </button>
               <button
                 type="button"

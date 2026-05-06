@@ -22,6 +22,7 @@ from app.services.stream_probe import run_probe_batch
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
 from app.services.automation import run_channel_sync
+from app.services.live_fixtures_sync import run_live_fixtures_sync_standalone
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -71,6 +72,15 @@ async def admin_stream_probe(
         return StreamProbeResponse(results=[])
     results = await run_probe_batch(unique, _validate_stream_url)
     return StreamProbeResponse(results=results)
+
+
+@router.post("/fixtures/sync", response_model=dict[str, int])
+async def sync_fixtures(
+    _: User = Depends(get_current_admin_user),
+) -> dict[str, int]:
+    """Manually trigger a live fixture sync (OpenLigaDB + football-data.org)."""
+    result = await run_in_threadpool(run_live_fixtures_sync_standalone)
+    return result
 
 
 @router.post("/channels/sync", response_model=dict[str, int])

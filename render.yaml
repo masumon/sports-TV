@@ -62,6 +62,10 @@ services:
         value: "bl1,bl2,ucl,dfb"
       - key: FOOTBALL_DATA_ORG_API_TOKEN
         sync: false
+      # PL=Premier League, CL=Champions League, EL=Europa League, BL1=Bundesliga,
+      # PD=La Liga, SA=Serie A, FL1=Ligue 1, EC=Euro Championship, WC=World Cup
+      - key: FOOTBALL_DATA_COMPETITIONS
+        value: "PL,CL,EL,BL1,PD,SA,FL1,EC,WC"
       # Neon free tier: small pool (raise only if you scale workers)
       - key: DB_POOL_SIZE
         value: "3"
