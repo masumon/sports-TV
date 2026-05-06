@@ -2,52 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── ABO SPORTS TV LIVE — Design tokens (dark — default) — light / calm UI ── */
+/* ══════════════════════════════════════════════════════════════════
+   ABO SPORTS TV LIVE — Premium Design System v2
+   Dark-first, consistent tokens, rich depth & premium feel
+   ══════════════════════════════════════════════════════════════════ */
 :root {
   color-scheme: dark;
-  --bg-dark: #0d0d12;
-  --bg-card: #1a1a24;
-  --bg-card2: #262635;
-  --bg-hover: #262635;
-  --bg-glass: rgba(26,26,36,0.92);
-  --primary-accent: #e50914;
-  --primary-rgb: 229 9 20;
-  --accent-red: #e50914;
-  --accent-red-rgb: 229 9 20;
-  --accent-blue: #1E6EE8;
-  --accent-blue-rgb: 30 110 232;
-  --accent-green: #00C851;
-  --success: #00C851;
-  --gold: #C9A227;
-  --text-main: #ffffff;
-  --text-muted: #a0a0b0;
-  --border: rgba(255,255,255,0.05);
-  --border-accent: rgba(229,9,20,0.22);
-  --shadow-card: 0 10px 30px rgba(0,0,0,0.5);
-  --glow-gold: 0 0 14px rgba(229,9,20,0.12);
-  --glow-red: 0 0 14px rgba(229,9,20,0.14);
-  --radius-sm: 8px;
-  --radius-md: 12px;
+
+  /* ── Backgrounds ── */
+  --bg-dark:      #07080f;
+  --bg-card:      #111118;
+  --bg-card2:     #1c1c27;
+  --bg-hover:     #1e1e2c;
+  --bg-glass:     rgba(10,10,18,0.92);
+  --bg-overlay:   rgba(0,0,0,0.7);
+
+  /* ── Brand / accent ── */
+  --primary-accent:    #e50914;
+  --primary-rgb:       229 9 20;
+  --accent-red:        #e50914;
+  --accent-red-rgb:    229 9 20;
+  --accent-gold:       #f5a623;
+  --accent-gold-rgb:   245 166 35;
+  --accent-blue:       #1E6EE8;
+  --accent-blue-rgb:   30 110 232;
+  --accent-green:      #10b981;
+  --success:           #10b981;
+
+  /* ── Typography ── */
+  --text-main:    #f0f0f8;
+  --text-muted:   #8a8aa0;
+  --text-dim:     #5a5a70;
+
+  /* ── Borders ── */
+  --border:         rgba(255,255,255,0.06);
+  --border-strong:  rgba(255,255,255,0.11);
+  --border-accent:  rgba(229,9,20,0.28);
+
+  /* ── Shadows & glows ── */
+  --shadow-card:   0 4px 24px rgba(0,0,0,0.55), 0 1px 4px rgba(0,0,0,0.35);
+  --shadow-md:     0 8px 32px rgba(0,0,0,0.45);
+  --shadow-lg:     0 16px 48px rgba(0,0,0,0.6);
+  --glow-red:      0 0 20px rgba(229,9,20,0.18);
+  --glow-gold:     0 0 20px rgba(245,166,35,0.15);
+
+  /* ── Radii ── */
+  --radius-xs:  6px;
+  --radius-sm:  10px;
+  --radius-md:  14px;
+  --radius-lg:  18px;
+
+  /* ── Transitions ── */
+  --transition-fast:   150ms ease;
+  --transition-base:   200ms ease;
+  --transition-slow:   300ms ease;
 }
 
 /* ── Design tokens (light) ── */
 html.light {
   color-scheme: light;
-  --bg-dark: #f2f4fa;
-  --bg-card: #ffffff;
-  --bg-card2: #f5f7fc;
-  --bg-hover: #e8ecf5;
-  --bg-glass: rgba(255,255,255,0.94);
+  --bg-dark:        #f0f2f9;
+  --bg-card:        #ffffff;
+  --bg-card2:       #f5f7fc;
+  --bg-hover:       #eaecf5;
+  --bg-glass:       rgba(255,255,255,0.95);
   --primary-accent: #c7780a;
-  --primary-rgb: 199 120 10;
-  --accent-red: #C62828;
-  --accent-blue: #1557D0;
-  --success: #059669;
-  --gold: #B8860B;
-  --text-main: #0D0F1C;
-  --text-muted: #566080;
-  --border: rgba(0,0,0,0.08);
-  --border-accent: rgba(212,137,10,0.3);
+  --primary-rgb:    199 120 10;
+  --accent-red:     #C62828;
+  --accent-gold:    #c7780a;
+  --accent-gold-rgb: 199 120 10;
+  --accent-blue:    #1557D0;
+  --success:        #059669;
+  --text-main:      #0c0e1c;
+  --text-muted:     #52567a;
+  --text-dim:       #8890b0;
+  --border:         rgba(0,0,0,0.07);
+  --border-strong:  rgba(0,0,0,0.12);
+  --border-accent:  rgba(199,120,10,0.3);
+  --shadow-card:    0 2px 12px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.07);
 }
 
 html,
@@ -58,7 +90,21 @@ body {
   background: var(--bg-dark);
   color: var(--text-main);
   font-family: var(--font-inter), "Inter", system-ui, sans-serif;
-  transition: background 0.2s, color 0.2s;
+  transition: background 0.25s, color 0.25s;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle noise texture on dark bg for premium feel */
+html:not(.light) body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  opacity: 0.6;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -71,7 +117,7 @@ body {
   box-sizing: border-box;
 }
 
-/* Mobile: remove tap highlight flash, ensure minimum 44px touch targets for buttons */
+/* Mobile: remove tap highlight flash, ensure minimum 44px touch targets */
 button, [role="button"], a {
   -webkit-tap-highlight-color: transparent;
 }
@@ -81,13 +127,14 @@ button, [role="button"], a {
   }
 }
 
-/* Keyboard focus (skip link + interactive elements) — gold ring matches brand */
+/* Keyboard focus — brand red ring */
 :focus {
   outline: none;
 }
 :focus-visible {
   outline: 2px solid var(--primary-accent);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 button:focus:not(:focus-visible) {
   outline: none;
@@ -150,29 +197,32 @@ a {
 .glass-panel {
   background: var(--bg-glass);
   border: 1px solid var(--border);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(12px) saturate(1.8);
+  backdrop-filter: blur(12px) saturate(1.8);
+  box-shadow: var(--shadow-card);
 }
 
 html.light .glass-panel {
-  background: linear-gradient(140deg, rgba(255,255,255,0.88), rgba(240,242,248,0.92));
-  border: 1px solid rgba(0,0,0,0.08);
+  background: linear-gradient(140deg, rgba(255,255,255,0.92), rgba(240,242,250,0.96));
+  border: 1px solid rgba(0,0,0,0.07);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
 }
 
-/* ── Live badge ── */
+/* ── Live badge — premium pill ── */
 .live-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: rgba(229,57,53,0.15);
-  border: 1px solid rgba(229,57,53,0.4);
-  color: #FF5252;
+  background: linear-gradient(135deg, rgba(229,9,20,0.18), rgba(229,9,20,0.10));
+  border: 1px solid rgba(229,9,20,0.4);
+  color: #ff4444;
+  box-shadow: 0 0 12px rgba(229,9,20,0.12);
 }
 
 /* ── Glow accents ── */
@@ -181,7 +231,7 @@ html.light .glass-panel {
 
 /* ── ABO brand gradient text ── */
 .abo-gradient {
-  background: linear-gradient(135deg, #F5A623 0%, #C9A227 50%, #E8C84A 100%);
+  background: linear-gradient(135deg, #F5A623 0%, #e8981f 50%, #f5c842 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -193,11 +243,11 @@ html.light .glass-panel {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
   color: var(--text-muted);
   border-left: 2px solid transparent;
   text-align: left;
@@ -207,7 +257,7 @@ html.light .glass-panel {
 .sports-cat-item:hover {
   background: rgb(var(--primary-rgb) / 0.07);
   color: var(--text-main);
-  border-left-color: var(--border-accent);
+  border-left-color: rgba(229,9,20,0.35);
 }
 .sports-cat-item.active {
   background: rgb(var(--primary-rgb) / 0.1);
@@ -215,7 +265,6 @@ html.light .glass-panel {
   border-left-color: var(--primary-accent);
   font-weight: 600;
 }
-
 .sports-cat-item:focus-visible {
   outline: 2px solid var(--primary-accent);
   outline-offset: 2px;

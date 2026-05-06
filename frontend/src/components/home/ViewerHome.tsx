@@ -313,8 +313,8 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  /** Ceiling for full catalog (many M3Us + FanCode); clears spinner even if fetches never settle. */
-  const CATALOG_LOAD_TIMEOUT_MS = 180_000;
+  /** Ceiling for full catalog — 60s is sufficient; 3 min was misleading UX. */
+  const CATALOG_LOAD_TIMEOUT_MS = 60_000;
 
   const loadChannels = useCallback(
     async (showToast = false, silent = false) => {
@@ -534,7 +534,8 @@ export function ViewerHome() {
     [allChannels, activeModule]
   );
 
-  // Auto-select first channel of active module; clear selection if this module has no rows (e.g. India not synced)
+  // Clear selection when the active channel belongs to a different module than the one now showing.
+  // Do NOT auto-select the first channel — let the user choose what to play.
   useEffect(() => {
     if (moduleChannels.length === 0) {
       if (activeChannel && activeChannel.module !== activeModule) {
@@ -544,9 +545,10 @@ export function ViewerHome() {
       }
       return;
     }
-    if (!activeChannel || activeChannel.module !== activeModule) {
+    if (activeChannel && activeChannel.module !== activeModule) {
+      // Tab switched: clear the player so unexpected autoplay doesn't start
       startTransition(() => {
-        setActiveChannel(moduleChannels[0]!);
+        setActiveChannel(null);
       });
     }
   }, [moduleChannels, activeModule, activeChannel, setActiveChannel]);
@@ -783,11 +785,23 @@ export function ViewerHome() {
                 </p>
                 {coldStartSeconds > 0 && (
                   <div className="mt-1.5 flex items-center gap-2">
-                    <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(245,166,35,0.15)" }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-1000"
-                        style={{ background: "var(--primary-accent)", width: `${Math.min(100, (coldStartSeconds / 60) * 100)}%` }}
-                      />
+                    <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(229,9,20,0.15)" }}>
+                      {coldStartSeconds >= 55 ? (
+                        /* Indeterminate bar after 55s — avoids "stuck at 100%" confusion */
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            background: "var(--primary-accent)",
+                            width: "40%",
+                            animation: "indeterminate-slide 1.4s ease-in-out infinite",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          className="h-full rounded-full transition-all duration-1000"
+                          style={{ background: "var(--primary-accent)", width: `${Math.min(90, (coldStartSeconds / 55) * 90)}%` }}
+                        />
+                      )}
                     </div>
                     <span className="shrink-0 text-[10px] tabular-nums" style={{ color: "var(--primary-accent)" }}>
                       {coldStartSeconds}s
