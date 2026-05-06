@@ -241,7 +241,10 @@ export function ViewerHome() {
   const [coldStart, setColdStart] = useState(false);
   const [coldStartDismissed, setColdStartDismissed] = useState(false);
   const coldStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [coldStartSeconds, setColdStartSeconds] = useState(0);
+  const coldStartCounterRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
+  const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
   const setSearchSuggestions = useUiStore((s) => s.setSearchSuggestions);
 
@@ -254,6 +257,10 @@ export function ViewerHome() {
     try {
       const stored = localStorage.getItem("gstv-recently-watched");
       if (stored) setRecentlyWatched(JSON.parse(stored) as number[]);
+    } catch { /* ignore */ }
+    try {
+      const storedFav = localStorage.getItem("gstv-favorites");
+      if (storedFav) setFavorites(JSON.parse(storedFav) as number[]);
     } catch { /* ignore */ }
   }, []);
 
@@ -271,6 +278,16 @@ export function ViewerHome() {
     },
     [setActiveChannel]
   );
+  const toggleFavorite = useCallback((ch: Channel) => {
+    setFavorites((prev) => {
+      const next = prev.includes(ch.id)
+        ? prev.filter((id) => id !== ch.id)
+        : [ch.id, ...prev].slice(0, 30);
+      try { localStorage.setItem("gstv-favorites", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
   const transitionSetActiveModule = useCallback(
     (m: ViewerModule) => {
       startTransition(() => {
@@ -300,7 +317,14 @@ export function ViewerHome() {
       setError(null);
       // Cold-start detection: if backend takes > 3s, show wakeup banner
       if (!silent) {
-        coldStartTimerRef.current = setTimeout(() => setColdStart(true), 3000);
+        coldStartTimerRef.current = setTimeout(() => {
+          setColdStart(true);
+          setColdStartSeconds(0);
+          if (coldStartCounterRef.current) clearInterval(coldStartCounterRef.current);
+          coldStartCounterRef.current = setInterval(() => {
+            setColdStartSeconds((s) => s + 1);
+          }, 1000);
+        }, 3000);
       }
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
@@ -330,7 +354,9 @@ export function ViewerHome() {
         if (!silent) {
           setLoading(false);
           setColdStart(false);
+          setColdStartSeconds(0);
           if (coldStartTimerRef.current) clearTimeout(coldStartTimerRef.current);
+          if (coldStartCounterRef.current) { clearInterval(coldStartCounterRef.current); coldStartCounterRef.current = null; }
         }
       }
     },
@@ -445,6 +471,25 @@ export function ViewerHome() {
   useEffect(() => {
     if (qParam) setSearchQuery(qParam);
   }, [qParam]);
+
+  // Deep link: /?channel_id=ID — auto-select and play a specific channel
+  const channelIdParam = searchParams.get("channel_id");
+  useEffect(() => {
+    if (!channelIdParam || !allChannels.length) return;
+    const id = Number(channelIdParam);
+    if (!Number.isInteger(id)) return;
+    const ch = allChannels.find((c) => c.id === id);
+    if (ch) {
+      startTransition(() => {
+        setActiveModule(ch.module as ViewerModule);
+      });
+      startTransition(() => {
+        setActiveChannel(ch);
+      });
+    }
+    // Run only once after channels load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelIdParam, allChannels.length]);
 
   useEffect(() => {
     let m = searchParams.get("module")?.toLowerCase().trim();
@@ -663,6 +708,11 @@ export function ViewerHome() {
     return recentlyWatched.map((id) => map.get(id)).filter(Boolean) as Channel[];
   }, [recentlyWatched, allChannels]);
 
+  const favoriteChannelObjects = useMemo(() => {
+    const map = new Map(allChannels.map((c) => [c.id, c]));
+    return favorites.map((id) => map.get(id)).filter(Boolean) as Channel[];
+  }, [favorites, allChannels]);
+
   const tSportsChannel = useMemo(() => {
     if (activeModule !== "bangladesh") return null;
     return moduleChannels.find((c) => c.name.toLowerCase().includes("t sport") || c.name.toLowerCase().includes("tsport")) ?? null;
@@ -716,9 +766,24 @@ export function ViewerHome() {
               style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
             >
               <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
-              <p className="flex-1 text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
-                {t("coldStartBanner")}
-              </p>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
+                  {t("coldStartBanner")}
+                </p>
+                {coldStartSeconds > 0 && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(245,166,35,0.15)" }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{ background: "var(--primary-accent)", width: `${Math.min(100, (coldStartSeconds / 60) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-[10px] tabular-nums" style={{ color: "var(--primary-accent)" }}>
+                      {coldStartSeconds}s
+                    </span>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setColdStartDismissed(true)}
@@ -1001,7 +1066,7 @@ export function ViewerHome() {
                             <span className="font-semibold" style={{ color: "#f87171" }}>Match in progress</span>
                           ) : (
                             <span>
-                              🕐 {new Date(fx.starts_at_utc).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              🕐 {new Date(fx.starts_at_utc).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
                             </span>
                           )}
                           {fx.data_attribution ? <span>· {fx.data_attribution}</span> : null}
@@ -1018,6 +1083,8 @@ export function ViewerHome() {
                                 onClick={() => {
                                   transitionSetActiveModule(ch.module as ViewerModule);
                                   selectChannel(ch);
+                                  toast.success(`▶ ${ch.name}`, { description: "Switching to channel…" });
+                                  setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 80);
                                 }}
                                 className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition hover:opacity-90 active:scale-95"
                                 style={{
@@ -1151,6 +1218,22 @@ export function ViewerHome() {
 
         {/* ── AdSlot banner ── */}
         {tier === "free" && <AdSlot variant="banner" />}
+
+        {/* ── FAST TV info card ── */}
+        {activeModule === "fast_tv" && (
+          <div
+            className="flex items-center gap-3 rounded-xl px-4 py-3"
+            style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.2)" }}
+          >
+            <span className="shrink-0 text-2xl" aria-hidden>⚡</span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold" style={{ color: "var(--primary-accent)" }}>FAST TV — Free 24/7 Channels</p>
+              <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                FAST TV runs continuously — no login or subscription needed. Tap any channel to start watching instantly.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Category / Sport-type tabs ── */}
         {activeModule === "global_sports" ? (
@@ -1368,7 +1451,7 @@ export function ViewerHome() {
                       title={t("shareChannel")}
                       onClick={async () => {
                         if (!activeChannel) return;
-                        const url = `${window.location.origin}/?q=${encodeURIComponent(activeChannel.name)}`;
+                        const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
                         try {
                           if (navigator.share) {
                             await navigator.share({ title: activeChannel.name, url });
@@ -1541,6 +1624,57 @@ export function ViewerHome() {
           </div>
         )}
 
+        {/* ── Favorites ── */}
+        {favoriteChannelObjects.length > 0 && (
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.25)" }}>
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm" aria-hidden>⭐</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-main)" }}>
+                  Favorites
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFavorites([]);
+                  try { localStorage.removeItem("gstv-favorites"); } catch { /* ignore */ }
+                }}
+                className="text-[10px] transition hover:opacity-70"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {t("recentlyClear")}
+              </button>
+            </div>
+            <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+              {favoriteChannelObjects.map((ch) => (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => selectChannel(ch)}
+                  className="flex shrink-0 flex-col items-center gap-1.5 px-4 py-3 text-center transition hover:bg-white/[0.04]"
+                  style={{ minWidth: 80, maxWidth: 96 }}
+                  title={ch.name}
+                >
+                  {ch.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={ch.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover"
+                      style={{ border: "1px solid rgba(245,166,35,0.3)" }} loading="lazy" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg text-xs font-bold"
+                      style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)" }}>
+                      {ch.name.slice(0, 2)}
+                    </div>
+                  )}
+                  <p className="w-full truncate text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>
+                    {ch.name}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Recently Watched ── */}
         {recentChannelObjects.length > 0 && (
           <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -1667,6 +1801,8 @@ export function ViewerHome() {
                     active={activeChannel?.id === ch.id}
                     onSelect={selectChannel}
                     activeModule={activeModule}
+                    isFavorited={favorites.includes(ch.id)}
+                    onToggleFavorite={toggleFavorite}
                   />
                 ))}
               </div>
@@ -1709,11 +1845,15 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
   active,
   onSelect,
   activeModule,
+  isFavorited,
+  onToggleFavorite,
 }: {
   channel: Channel;
   active: boolean;
   onSelect: (c: Channel) => void;
   activeModule: ViewerModule;
+  isFavorited: boolean;
+  onToggleFavorite: (c: Channel) => void;
 }) {
   return (
     <div
@@ -1782,6 +1922,24 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
             {channel.quality_tag}
           </span>
         </div>
+      </button>
+
+      {/* Favorite toggle */}
+      <button
+        type="button"
+        aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+        title={isFavorited ? "Remove from favorites" : "Add to favorites"}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(channel);
+        }}
+        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-sm transition hover:scale-110"
+        style={{
+          background: isFavorited ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.06)",
+          border: isFavorited ? "1px solid rgba(245,166,35,0.4)" : "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        {isFavorited ? "⭐" : "☆"}
       </button>
     </div>
   );

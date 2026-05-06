@@ -1,22 +1,17 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Search } from "lucide-react";
-import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useUiStore } from "@/store/uiStore";
 
 /**
  * Mobile bottom navigation (hidden on md+).
- * 5 tabs: Global Sports · Live Matches · Search · Bangladesh · India
- * FAST TV lives in the Sidebar (hamburger menu).
+ * 5 tabs: Global Sports · Live Matches · FAST TV · Bangladesh · India
  */
 export function MobileBottomNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { t } = useI18n();
   const activeModule = useUiStore((s) => s.activeModule);
   const setActiveModule = useUiStore((s) => s.setActiveModule);
-  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
 
   const isHome = pathname === "/";
 
@@ -29,28 +24,13 @@ export function MobileBottomNav() {
     }
   }
 
-  function handleSearch() {
-    if (pathname !== "/") {
-      try { sessionStorage.setItem("gstv-focus-search", "1"); } catch { /**/ }
-      router.push("/");
-      return;
-    }
-    requestSearchFocus();
-    document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
-
   const tabs = [
-    { id: "global_sports", label: "Sports",   emoji: "🌍", activeColor: "var(--primary-accent)", activeBg: "rgba(229,9,20,0.12)" },
-    { id: "live_matches",  label: "Live",      emoji: "🔴", activeColor: "#f87171",               activeBg: "rgba(239,68,68,0.12)" },
-    { id: "__search__",    label: t("search"), emoji: null,  activeColor: "var(--text-main)",       activeBg: "rgba(255,255,255,0.08)" },
-    { id: "bangladesh",    label: "বাংলা",     emoji: "🇧🇩", activeColor: "#10b981",               activeBg: "rgba(16,185,129,0.12)" },
-    { id: "india",         label: "India",     emoji: "🇮🇳", activeColor: "rgb(199,210,254)",       activeBg: "rgba(99,102,241,0.15)" },
+    { id: "global_sports", label: "Sports",    emoji: "🌍", activeColor: "var(--primary-accent)", activeBg: "rgba(229,9,20,0.12)" },
+    { id: "live_matches",  label: "Live",       emoji: "🔴", activeColor: "#f87171",               activeBg: "rgba(239,68,68,0.12)" },
+    { id: "fast_tv",       label: "FAST",       emoji: "⚡", activeColor: "var(--primary-accent)", activeBg: "rgba(245,166,35,0.12)" },
+    { id: "bangladesh",    label: "বাংলাদেশ",  emoji: "🇧🇩", activeColor: "#10b981",               activeBg: "rgba(16,185,129,0.12)" },
+    { id: "india",         label: "India",      emoji: "🇮🇳", activeColor: "rgb(199,210,254)",       activeBg: "rgba(99,102,241,0.15)" },
   ] as const;
-
-  function isTabActive(id: string) {
-    if (id === "__search__") return false;
-    return isHome && activeModule === id;
-  }
 
   return (
     <nav
@@ -66,14 +46,14 @@ export function MobileBottomNav() {
       }}
     >
       {tabs.map((tab) => {
-        const active = isTabActive(tab.id);
+        const active = isHome && activeModule === tab.id;
         return (
           <button
             key={tab.id}
             type="button"
             aria-label={tab.label}
             aria-current={active ? "page" : undefined}
-            onClick={() => tab.id === "__search__" ? handleSearch() : navigate(tab.id)}
+            onClick={() => navigate(tab.id)}
             className="flex flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-95"
             style={{ color: active ? tab.activeColor : "var(--text-muted)" }}
           >
@@ -81,11 +61,7 @@ export function MobileBottomNav() {
               className="flex h-7 w-11 items-center justify-center rounded-full transition-all"
               style={{ background: active ? tab.activeBg : "transparent" }}
             >
-              {tab.emoji ? (
-                <span className="text-[1.2rem] leading-none" aria-hidden>{tab.emoji}</span>
-              ) : (
-                <Search size={18} aria-hidden />
-              )}
+              <span className="text-[1.2rem] leading-none" aria-hidden>{tab.emoji}</span>
             </div>
             <span className="text-[9px] leading-none" style={{ fontWeight: active ? 700 : 500 }}>
               {tab.label}
