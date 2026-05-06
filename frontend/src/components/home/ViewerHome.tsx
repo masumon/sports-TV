@@ -1016,8 +1016,8 @@ export function ViewerHome() {
                                 key={`${fx.id}-${ch.id}`}
                                 type="button"
                                 onClick={() => {
-                                  selectChannel(ch);
                                   transitionSetActiveModule(ch.module as ViewerModule);
+                                  selectChannel(ch);
                                 }}
                                 className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition hover:opacity-90 active:scale-95"
                                 style={{
