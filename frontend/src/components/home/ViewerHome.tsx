@@ -133,6 +133,14 @@ const SPORT_ICONS: Record<string, string> = {
   wrestling: "🤼",
 };
 
+const FIXTURE_TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZoneName: "short",
+};
+
 function categoryEmoji(category: string, module: string): string {
   const key = category.toLowerCase();
   if (module === "bangladesh" || module === "india") {
@@ -356,7 +364,10 @@ export function ViewerHome() {
           setColdStart(false);
           setColdStartSeconds(0);
           if (coldStartTimerRef.current) clearTimeout(coldStartTimerRef.current);
-          if (coldStartCounterRef.current) { clearInterval(coldStartCounterRef.current); coldStartCounterRef.current = null; }
+          if (coldStartCounterRef.current) {
+            clearInterval(coldStartCounterRef.current);
+            coldStartCounterRef.current = null;
+          }
         }
       }
     },
@@ -1066,7 +1077,7 @@ export function ViewerHome() {
                             <span className="font-semibold" style={{ color: "#f87171" }}>Match in progress</span>
                           ) : (
                             <span>
-                              🕐 {new Date(fx.starts_at_utc).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
+                              🕐 {new Date(fx.starts_at_utc).toLocaleString(undefined, FIXTURE_TIME_FORMAT)}
                             </span>
                           )}
                           {fx.data_attribution ? <span>· {fx.data_attribution}</span> : null}
