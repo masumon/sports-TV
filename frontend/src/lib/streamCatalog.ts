@@ -187,7 +187,7 @@ function mergePremiumDirectSportsIntoSeen(seen: Set<string>, out: Channel[] | nu
       quality_tag: "live",
       module: mod,
       is_active: true,
-      header_profile: null,
+      header_profile: p.header_profile ?? null,
       geo_hint: Boolean(p.geo_hint),
       ...emptyTs,
     });

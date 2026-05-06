@@ -9,13 +9,14 @@ from functools import partial
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from starlette.middleware.gzip import GZipMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.api.routes import admin, auth, proxy, sports_tv
+from app.api.routes import aggregator
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.ensure_schema import (
@@ -411,31 +412,65 @@ async def health_db() -> dict:
 
 
 @app.get("/playlist.m3u", tags=["m3u"])
-async def get_playlist_m3u(limit: int = 2000) -> Response:
-    """Generate M3U playlist from active DB channels (capped at 2000 for free-tier safety)."""
+async def get_playlist_m3u(
+    limit: int = 2000,
+    module: str | None = None,
+) -> Response:
+    """
+    Generate M3U playlist from active DB channels.
+
+    - Capped at 5000 entries for free-tier safety.
+    - Includes EPG URL header (x-tvg-url) for compatible players.
+    - Includes tvg-logo, tvg-id (when known), group-title per entry.
+    - Optional `module` query param to filter by module slug.
+    """
     from sqlalchemy import select
     from app.db.session import AsyncSessionLocal
     from app.models.channel import Channel
+    from app.services.iptv_scraper import EPG_URL, lookup_epg_id
 
     cap = min(max(1, limit), 5000)
     try:
         async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(Channel).where(Channel.is_active.is_(True)).limit(cap)
-            )
+            q = select(Channel).where(Channel.is_active.is_(True))
+            if module:
+                q = q.where(Channel.module == module)
+            q = q.order_by(Channel.updated_at.desc()).limit(cap)
+            result = await session.execute(q)
             channels = result.scalars().all()
     except Exception as exc:
         logger.error("playlist.m3u DB error: %s", exc)
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
 
-    lines = ["#EXTM3U"]
+    epg_url = getattr(settings, "epg_url", EPG_URL) or EPG_URL
+    lines = [f'#EXTM3U x-tvg-url="{epg_url}"']
     for ch in channels:
         logo = f' tvg-logo="{ch.logo_url}"' if ch.logo_url else ""
         group = f' group-title="{ch.category}"' if ch.category else ""
-        lines.append(f'#EXTINF:-1{logo}{group},{ch.name}')
+        epg_id = lookup_epg_id(ch.name)
+        tvg_id = f' tvg-id="{epg_id}"' if epg_id else ""
+        tvg_name = f' tvg-name="{ch.name}"'
+        lines.append(f'#EXTINF:-1{tvg_id}{tvg_name}{logo}{group},{ch.name}')
         lines.append(ch.stream_url)
 
-    return Response(content="\n".join(lines) + "\n", media_type="application/vnd.apple.mpegurl")
+    return Response(
+        content="\n".join(lines) + "\n",
+        media_type="application/vnd.apple.mpegurl",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+        },
+    )
+
+
+@app.get("/channels.json", tags=["m3u"], include_in_schema=False)
+async def channels_json_redirect() -> Response:
+    """Convenience alias — redirects to /api/v1/aggregator/channels.json."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(
+        url=f"{settings.api_v1_prefix}/aggregator/channels.json",
+        status_code=302,
+    )
 
 
 @app.post("/internal/sync", tags=["internal"], include_in_schema=False)
@@ -470,3 +505,4 @@ app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(sports_tv.router, prefix=settings.api_v1_prefix)
 app.include_router(admin.router, prefix=settings.api_v1_prefix)
 app.include_router(proxy.router, prefix=settings.api_v1_prefix)
+app.include_router(aggregator.router, prefix=settings.api_v1_prefix)

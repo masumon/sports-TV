@@ -19,6 +19,8 @@ export type PremiumDirectSportEntry = {
   country?: string;
   logo_url?: string | null;
   geo_hint?: boolean;
+  /** Server-side header profile to inject via /proxy/stream?header_profile= (e.g. "tsports"). */
+  header_profile?: string | null;
   /** @deprecated use `stream_urls` */
   stream_url?: string;
   alternate_urls?: readonly string[];

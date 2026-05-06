@@ -53,10 +53,20 @@ INDIA_FULL_SOURCES: list[str] = [
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/in.m3u",
 ]
 
-# Bangladesh — full country list (all genres; module=bangladesh)
+# Bangladesh — full country list + BDIX community sources (all genres; module=bangladesh)
+# BDIX sources: community-maintained playlists of local ISP (BDIX) channels.
 BANGLADESH_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/countries/bd.m3u",
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/bd.m3u",
+    # BDIX community playlists — lower priority (appended last so iptv-org wins on same URL)
+    "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
+    "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
+]
+
+# Global sports FAST channels (24/7 linear streams)
+GLOBAL_FAST_SOURCES: list[str] = [
+    # RedBull TV Sports
+    "https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master_3360.m3u8",
 ]
 
 # World sports: category playlists only (no mixed country lists to avoid bloat)
@@ -326,7 +336,11 @@ def _group_entries_by_name(
     return list(groups.values())
 
 
-def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) -> dict[str, int]:
+def sync_channels_from_entries(
+    db: Session,
+    entries: Iterable[ParsedChannel],
+    source: str = "iptv-org",
+) -> dict[str, int]:
     raw = list(entries)
     all_entries = _dedupe_entries_by_stream_url_priority(raw)
     if len(all_entries) < len(raw):
@@ -365,7 +379,7 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
                 country=primary.country,
                 language=primary.language,
                 quality_tag="auto",
-                source="iptv-org",
+                source=source,
                 module=primary.module,
                 alternate_urls=alt_json,
                 is_active=True,
@@ -379,7 +393,7 @@ def sync_channels_from_entries(db: Session, entries: Iterable[ParsedChannel]) ->
             channel.category = primary.category or channel.category
             channel.country = primary.country or channel.country
             channel.language = primary.language or channel.language
-            channel.source = "iptv-org"
+            channel.source = source
             channel.module = primary.module
             channel.alternate_urls = alt_json
             channel.is_active = True
@@ -438,6 +452,58 @@ def _fetch_sources_parallel(
                 logger.warning("Parallel fetch error for %s: %s", url, exc)
 
     return results
+
+
+# Known EPG IDs mapped from normalized channel name fragments.
+# Used by playlist.m3u endpoint to enrich EXTINF lines.
+EPG_ID_MAP: dict[str, str] = {
+    "t sports": "1918",
+    "t-sports": "1918",
+    "tsports": "1918",
+    "sony sports 1": "sony_sports_1",
+    "sony sports 2": "sony_sports_2",
+    "sony ten 1": "sony_ten_1",
+    "sony ten 2": "sony_ten_2",
+    "sony ten 3": "sony_ten_3",
+    "star sports 1": "star_sports_1",
+    "star sports 2": "star_sports_2",
+    "star sports hd1": "star_sports_1",
+    "willow": "willow",
+    "espn": "espn",
+    "espn2": "espn2",
+    "sky sports f1": "skysf1",
+    "sky sports cricket": "skyscricket",
+    "sky sports main event": "skymain",
+    "beinsports 1": "beinsports1",
+    "beinsports 2": "beinsports2",
+    "eurosport 1": "eurosport1",
+    "eurosport 2": "eurosport2",
+    "fox sports": "foxsports",
+    "ten cricket": "tencricket",
+    "ptv sports": "ptvsports",
+    "geo super": "geosuper",
+    "channel 24": "channel24bd",
+    "somoy tv": "somoytv",
+    "jamuna tv": "jamunatv",
+    "rtv": "rtv",
+    "dd sports": "ddsports",
+    "star cricket": "starcricket",
+    "red bull tv": "redbulltv",
+    "redbull tv": "redbulltv",
+}
+
+EPG_URL = "https://avkb.short.gy/epg.xml.gz"
+
+
+def lookup_epg_id(channel_name: str) -> str | None:
+    """Return EPG tvg-id for a known channel name, or None."""
+    key = channel_name.lower().strip()
+    if key in EPG_ID_MAP:
+        return EPG_ID_MAP[key]
+    for k, v in EPG_ID_MAP.items():
+        if k in key:
+            return v
+    return None
 
 
 def scrape_and_sync_sports_channels(

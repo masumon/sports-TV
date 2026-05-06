@@ -95,6 +95,31 @@ class Settings(BaseSettings):
         description="Sent as User-Agent for tsports profile; default (Linux;Android 14) if unset",
     )
 
+    # BDIX IPTV Aggregation — extra community M3U sources appended to Bangladesh sync.
+    # Comma-separated. Leave empty to use BDIX_SOURCES defaults in bdix_aggregator.py.
+    bdix_extra_sources: str = Field(
+        default="",
+        description="Comma-separated extra BDIX M3U URLs",
+    )
+
+    # Stream validation worker count (async path). Free-tier safe default: 30.
+    stream_validation_async_workers: int = Field(
+        default=30,
+        description="Concurrent aiohttp workers for async stream validation",
+    )
+
+    # Internal sync secret for /internal/sync and /aggregator/bdix/sync
+    internal_sync_secret: str | None = Field(
+        default=None,
+        description="Shared secret for protected internal sync endpoints",
+    )
+
+    # EPG XML URL embedded in generated M3U playlists
+    epg_url: str = Field(
+        default="https://avkb.short.gy/epg.xml.gz",
+        description="XMLTV EPG URL written into generated playlist headers",
+    )
+
     model_config = SettingsConfigDict(
         env_file=(
             None
