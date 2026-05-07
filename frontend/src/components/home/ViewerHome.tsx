@@ -251,6 +251,7 @@ export function ViewerHome() {
   const coldStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [coldStartSeconds, setColdStartSeconds] = useState(0);
   const coldStartCounterRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const deepLinkAppliedRef = useRef<string | null>(null);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
@@ -325,6 +326,17 @@ export function ViewerHome() {
       setError(null);
       // Cold-start detection: if backend takes > 3s, show wakeup banner
       if (!silent) {
+        setColdStartDismissed(false);
+        setColdStart(false);
+        setColdStartSeconds(0);
+        if (coldStartTimerRef.current) {
+          clearTimeout(coldStartTimerRef.current);
+          coldStartTimerRef.current = null;
+        }
+        if (coldStartCounterRef.current) {
+          clearInterval(coldStartCounterRef.current);
+          coldStartCounterRef.current = null;
+        }
         coldStartTimerRef.current = setTimeout(() => {
           setColdStart(true);
           setColdStartSeconds(0);
@@ -441,7 +453,7 @@ export function ViewerHome() {
       else upcoming.push(fx);
     }
     // Sort live by most recently started
-    live.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
+    live.sort((a, b) => new Date(b.starts_at_utc).getTime() - new Date(a.starts_at_utc).getTime());
     upcoming.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
     return { live, upcoming, finished };
   }, [scheduleFixtures, fixtureSportFilter]);
@@ -477,6 +489,17 @@ export function ViewerHome() {
     return () => clearInterval(id);
   }, [refreshLiveMatchesOnly]);
 
+  useEffect(() => {
+    return () => {
+      if (coldStartTimerRef.current) {
+        clearTimeout(coldStartTimerRef.current);
+      }
+      if (coldStartCounterRef.current) {
+        clearInterval(coldStartCounterRef.current);
+      }
+    };
+  }, []);
+
   // Deep link: /?module=…
   const qParam = searchParams.get("q")?.trim() ?? "";
   useEffect(() => {
@@ -487,20 +510,19 @@ export function ViewerHome() {
   const channelIdParam = searchParams.get("channel_id");
   useEffect(() => {
     if (!channelIdParam || !allChannels.length) return;
+    if (deepLinkAppliedRef.current === channelIdParam) return;
     const id = Number(channelIdParam);
     if (!Number.isInteger(id)) return;
     const ch = allChannels.find((c) => c.id === id);
-    if (ch) {
-      startTransition(() => {
-        setActiveModule(ch.module as ViewerModule);
-      });
-      startTransition(() => {
-        setActiveChannel(ch);
-      });
-    }
-    // Run only once after channels load
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelIdParam, allChannels.length]);
+    if (!ch) return;
+    deepLinkAppliedRef.current = channelIdParam;
+    startTransition(() => {
+      setActiveModule(ch.module as ViewerModule);
+    });
+    startTransition(() => {
+      setActiveChannel(ch);
+    });
+  }, [channelIdParam, allChannels, setActiveModule, setActiveChannel]);
 
   useEffect(() => {
     let m = searchParams.get("module")?.toLowerCase().trim();
