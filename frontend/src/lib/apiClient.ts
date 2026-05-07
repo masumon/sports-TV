@@ -207,6 +207,14 @@ export const apiClient = {
     });
   },
 
+  adminUpdateChannel(token: string, id: number, body: Partial<AdminChannelCreateBody & { alternate_urls?: string[] }>) {
+    return apiRequest<Channel>(`/admin/channels/${id}`, {
+      method: "PUT",
+      authToken: token,
+      body: JSON.stringify(body),
+    });
+  },
+
   adminDeleteChannel(token: string, id: number) {
     return apiRequest<void>(`/admin/channels/${id}`, { method: "DELETE", authToken: token });
   },
