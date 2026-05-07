@@ -229,11 +229,39 @@ function relayHlsXhrUrlIfNeeded(
 const LINK_RETRY_ATTEMPTS = 3;
 /** Shorter remount delay so we rotate to the next mirror quickly. */
 const LINK_RETRY_DELAY_MS = 800;
+const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
+const recentlyFailedUrlUntil = new Map<string, number>();
 
 /** Fail over to the next URL instead of waiting ~10s per dead mirror (HLS.js defaults). */
 const HLS_MANIFEST_LOAD_TIMEOUT_MS = 5500;
 const HLS_LEVEL_LOAD_TIMEOUT_MS = 5500;
 const HLS_FRAG_LOAD_TIMEOUT_MS = 9000;
+
+function isUrlTemporarilyFailed(url: string): boolean {
+  const until = recentlyFailedUrlUntil.get(url);
+  if (!until) return false;
+  if (until <= Date.now()) {
+    recentlyFailedUrlUntil.delete(url);
+    return false;
+  }
+  return true;
+}
+
+function markUrlFailed(url: string): void {
+  if (!url) return;
+  recentlyFailedUrlUntil.set(url, Date.now() + URL_FAIL_COOLDOWN_MS);
+}
+
+function prioritizeHealthyUrls(urls: string[]): string[] {
+  if (urls.length <= 1) return urls;
+  const healthy: string[] = [];
+  const failed: string[] = [];
+  for (const u of urls) {
+    if (isUrlTemporarilyFailed(u)) failed.push(u);
+    else healthy.push(u);
+  }
+  return healthy.concat(failed);
+}
 
 function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
   if (xhr.status !== 403 && xhr.status !== 401) return false;
@@ -407,7 +435,7 @@ export default function PremiumPlayer({
     return base.map((u) => buildProxyM3U8RequestUrl(u, dynamicM3U8Id));
   }, [resolvedDirect, dynamicM3U8Id]);
   const allUrlsList = useMemo(
-    () => buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile),
+    () => prioritizeHealthyUrls(buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile)),
     [directUrls, dynamicM3U8Id, headerProfile]
   );
   const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
@@ -499,6 +527,7 @@ export default function PremiumPlayer({
       player.initialize(video, effectiveUrl, true);
       const onError = () => {
         const cur = urlPlayIndexRef.current;
+        markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
         if (nextIdx < allUrls.length) {
           urlPlayIndexRef.current = nextIdx;
@@ -531,6 +560,7 @@ export default function PremiumPlayer({
 
     if (Hls.isSupported()) {
       let hlsInstance: Hls | null = null;
+      let tryFailover: (message?: string) => boolean = () => false;
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: !lightNet,
@@ -562,23 +592,17 @@ export default function PremiumPlayer({
           }
           const onEnd = () => {
             xhr.removeEventListener("loadend", onEnd);
+            if (xhr.status >= 500 || xhr.status === 429) {
+              if (tryFailover("Source server error, switching to backup…")) return;
+              setIsLoading(false);
+              setIsSwitching(false);
+              hlsInstance?.destroy();
+              if (hlsRef.current === hlsInstance) hlsRef.current = null;
+              return;
+            }
             if (!parseGeoFromXhr(xhr)) return;
-            const cur = urlPlayIndexRef.current;
-            const nextIdx = cur + 1;
-            if (nextIdx < allUrls.length && hlsInstance) {
-              urlPlayIndexRef.current = nextIdx;
-              setUrlIdx(nextIdx);
+            if (tryFailover("Switching to backup source…")) {
               setGeoRestricted(false);
-              playbackStartedRef.current = false;
-              toast.info("Switching to backup source…");
-              try {
-                hlsInstance.loadSource(allUrls[nextIdx]!);
-                hlsInstance.startLoad(-1);
-              } catch {
-                setGeoRestricted(true);
-                setIsLoading(false);
-                setIsSwitching(false);
-              }
               return;
             }
             setGeoRestricted(true);
@@ -592,6 +616,34 @@ export default function PremiumPlayer({
       });
       hlsInstance = hls;
       hlsRef.current = hls;
+      tryFailover = (message?: string): boolean => {
+        const cur = urlPlayIndexRef.current;
+        markUrlFailed(allUrls[cur] ?? "");
+        const nextIdx = cur + 1;
+        if (nextIdx >= allUrls.length || !hlsInstance) return false;
+        urlPlayIndexRef.current = nextIdx;
+        setUrlIdx(nextIdx);
+        playbackStartedRef.current = false;
+        setIsSwitching(true);
+        setIsLoading(true);
+        const nextU = allUrls[nextIdx] ?? "";
+        toast.info(
+          message ??
+            (nextU.includes("/proxy/stream") && !(allUrls[cur] ?? "").includes("/proxy/stream")
+              ? "Switching to server relay…"
+              : "Stream unstable, switching to backup server…")
+        );
+        try {
+          hls.loadSource(allUrls[nextIdx]!);
+          hls.startLoad(-1);
+        } catch {
+          setIsSwitching(false);
+          setHasError(true);
+          setIsLoading(false);
+          return false;
+        }
+        return true;
+      };
       hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
 
@@ -599,33 +651,6 @@ export default function PremiumPlayer({
         if (!data.fatal) return;
         const resp = (data as { response?: { code?: number } }).response;
         const httpCode = resp?.code;
-
-        const tryFailover = (): boolean => {
-          const cur = urlPlayIndexRef.current;
-          const nextIdx = cur + 1;
-          if (nextIdx >= allUrls.length) return false;
-          urlPlayIndexRef.current = nextIdx;
-          setUrlIdx(nextIdx);
-          playbackStartedRef.current = false;
-          setIsSwitching(true);
-          setIsLoading(true);
-          const nextU = allUrls[nextIdx] ?? "";
-          toast.info(
-            nextU.includes("/proxy/stream") && !(allUrls[cur] ?? "").includes("/proxy/stream")
-              ? "Switching to server relay…"
-              : "Stream unstable, switching to backup server…"
-          );
-          try {
-            hls.loadSource(allUrls[nextIdx]!);
-            hls.startLoad(-1);
-          } catch {
-            setIsSwitching(false);
-            setHasError(true);
-            setIsLoading(false);
-            return false;
-          }
-          return true;
-        };
 
         if (httpCode === 403 || httpCode === 401) {
           if (tryFailover()) return;
