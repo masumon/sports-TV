@@ -27,7 +27,6 @@ import {
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
-import { SplashScreen } from "@/components/SplashScreen";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
@@ -242,8 +241,6 @@ export function ViewerHome() {
   const [fixturesLoading, setFixturesLoading] = useState(false);
   const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
   const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
-  const [isFirstVisit, setIsFirstVisit] = useState(false);
-  const [splashReady, setSplashReady] = useState(false);
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [coldStart, setColdStart] = useState(false);
@@ -472,16 +469,11 @@ export function ViewerHome() {
         setAllChannels(c);
         setLoading(false);
       });
-      // Cache hit → splash not needed, mark ready immediately
-      setSplashReady(true);
-    } else {
-      // No cache → first visit: show branded splash until channels arrive
-      setIsFirstVisit(true);
     }
   }, []);
 
   useEffect(() => {
-    void loadChannels(false).finally(() => setSplashReady(true));
+    void loadChannels(false);
   }, [loadChannels]);
 
   useEffect(() => {
@@ -533,6 +525,7 @@ export function ViewerHome() {
       "india",
       "fast_tv",
       "live_matches",
+      "world_cup_2026",
     ];
     if (m && allowed.includes(m as ViewerModule)) {
       startTransition(() => {
@@ -751,26 +744,28 @@ export function ViewerHome() {
     return moduleChannels.find((c) => c.name.toLowerCase().includes("t sport") || c.name.toLowerCase().includes("tsport")) ?? null;
   }, [activeModule, moduleChannels]);
 
-  const { gsCount, inCount, bdCount, fastCount, liveCount } = useMemo(() => {
+  const { gsCount, inCount, bdCount, fastCount, liveCount, wcCount } = useMemo(() => {
     let gs = 0;
     let i = 0;
     let b = 0;
     let f = 0;
     let l = 0;
+    let wc = 0;
     for (const c of allChannels) {
       if (c.module === "global_sports") gs += 1;
       else if (c.module === "india") i += 1;
       else if (c.module === "bangladesh") b += 1;
       else if (c.module === "fast_tv") f += 1;
       else if (c.module === "live_matches") l += 1;
+      else if (c.module === "world_cup_2026") wc += 1;
     }
-    return { gsCount: gs, inCount: i, bdCount: b, fastCount: f, liveCount: l };
+    return { gsCount: gs, inCount: i, bdCount: b, fastCount: f, liveCount: l, wcCount: wc };
   }, [allChannels]);
 
   // Sync module counts to store so Sidebar can show badges
   useEffect(() => {
-    setModuleCounts({ gsCount, bdCount, inCount, fastCount, liveCount });
-  }, [gsCount, bdCount, inCount, fastCount, liveCount, setModuleCounts]);
+    setModuleCounts({ gsCount, bdCount, inCount, fastCount, liveCount, wcCount });
+  }, [gsCount, bdCount, inCount, fastCount, liveCount, wcCount, setModuleCounts]);
 
   // Sync search suggestions to store so TopBar dropdown can show them
   useEffect(() => {
@@ -782,8 +777,6 @@ export function ViewerHome() {
 
   return (
     <>
-      {/* Branded splash screen — shown only on first visit (no cache), fades out once channels load */}
-      {isFirstVisit && <SplashScreen ready={splashReady} />}
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
@@ -880,6 +873,17 @@ export function ViewerHome() {
             className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
           >
             🔴 Live Matches
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("world_cup_2026");
+            }}
+            className={`module-tab shrink-0 snap-start${activeModule === "world_cup_2026" ? " active" : ""}`}
+            style={activeModule === "world_cup_2026" ? { background: "rgba(245,166,35,0.15)", borderColor: "rgba(245,166,35,0.5)" } : {}}
+          >
+            🏆 World Cup 2026
+            {wcCount > 0 && <span className="module-tab-badge">{wcCount}</span>}
           </button>
         </div>
 
@@ -1162,6 +1166,58 @@ export function ViewerHome() {
           </div>
         )}
 
+        {/* ── World Cup 2026 Hero Banner ── */}
+        {activeModule === "world_cup_2026" && (
+          <div
+            className="relative overflow-hidden rounded-xl p-5 sm:p-6"
+            style={{
+              background: "linear-gradient(135deg, rgba(120,53,15,0.35) 0%, rgba(245,166,35,0.18) 50%, rgba(120,53,15,0.25) 100%)",
+              border: "1px solid rgba(245,166,35,0.45)",
+            }}
+          >
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #F5A623 0%, transparent 55%), radial-gradient(circle at 80% 50%, #E53935 0%, transparent 55%)" }} />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-4xl sm:h-20 sm:w-20"
+                  style={{ background: "rgba(245,166,35,0.15)", border: "2px solid rgba(245,166,35,0.45)", boxShadow: "0 4px 20px rgba(245,166,35,0.2)" }}
+                >
+                  🏆
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.5)", color: "#f87171" }}>
+                      🔴 LIVE NOW
+                    </span>
+                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.4)", color: "var(--primary-accent)" }}>
+                      FIFA 2026
+                    </span>
+                  </div>
+                  <h2 className="mt-1.5 text-xl font-black tracking-tight sm:text-2xl" style={{ color: "var(--text-main)" }}>
+                    FIFA World Cup 2026
+                  </h2>
+                  <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
+                    🇺🇸 USA · 🇨🇦 Canada · 🇲🇽 Mexico · June 11 – July 19, 2026
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                    48 দল · 104 ম্যাচ · সরাসরি সম্প্রচার
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.3)" }}>
+                    ⚽ 48 Teams
+                  </span>
+                  <span className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.3)" }}>
+                    📺 {wcCount} Channels
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Channel grid + player (hidden in Live Matches mode) ── */}
         {activeModule !== "live_matches" && (<>
 
@@ -1177,7 +1233,9 @@ export function ViewerHome() {
                     ? "INDIA"
                     : activeModule === "fast_tv"
                       ? "FAST TV 24/7"
-                      : "GLOBAL SPORTS"}
+                      : activeModule === "world_cup_2026"
+                        ? "FIFA WORLD CUP 2026"
+                        : "GLOBAL SPORTS"}
               </span>
             </div>
             <h1 className="mt-1 text-xl font-extrabold tracking-tight md:text-2xl" style={{ color: "var(--text-main)" }}>
@@ -1187,7 +1245,9 @@ export function ViewerHome() {
                   ? "🇮🇳 India Channels"
                   : activeModule === "fast_tv"
                     ? "⚡ FAST TV 24/7"
-                    : t("tagline")}
+                    : activeModule === "world_cup_2026"
+                      ? "🏆 FIFA World Cup 2026 — Live Channels"
+                      : t("tagline")}
             </h1>
             <div className="mt-1 space-y-1">
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -1776,7 +1836,9 @@ export function ViewerHome() {
                       ? "🇮🇳 India TV Channels"
                       : activeModule === "fast_tv"
                         ? "⚡ FAST TV (24/7)"
-                        : "🌐 " + t("directory")}
+                        : activeModule === "world_cup_2026"
+                          ? "🏆 World Cup 2026 Live Channels"
+                          : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs text-right" style={{ color: "var(--text-muted)" }}>
               <span className="block sm:inline">

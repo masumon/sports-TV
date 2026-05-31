@@ -4,7 +4,8 @@ export type ViewerModule =
   | "india"
   | "global_sports"
   | "fast_tv"
-  | "live_matches";
+  | "live_matches"
+  | "world_cup_2026";
 
 /** Config-only alias for premium rows targeting the Bangladesh tab. */
 export type PremiumDirectModule = ViewerModule | "bangladesh_and_bdix";
