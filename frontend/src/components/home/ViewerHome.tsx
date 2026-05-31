@@ -226,6 +226,8 @@ function FilterChips({
 }
 
 
+const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
+
 export function ViewerHome() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -913,9 +915,8 @@ export function ViewerHome() {
   }, [activeModule, moduleChannels]);
 
   // Swipe gesture: left/right to cycle modules
-  const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
   const swipeContainerRef = useRef<HTMLDivElement | null>(null);
-  useSwipeGesture(swipeContainerRef, (dir) => {
+  const onSwipe = useCallback((dir: "left" | "right" | "up" | "down") => {
     if (dir !== "left" && dir !== "right") return;
     const idx = MODULE_ORDER.indexOf(activeModule);
     if (idx === -1) return;
@@ -924,7 +925,8 @@ export function ViewerHome() {
       : MODULE_ORDER[(idx - 1 + MODULE_ORDER.length) % MODULE_ORDER.length]!;
     transitionSetActiveModule(next);
     toast(`📺 ${next.replace("_", " ").replace("world cup 2026", "World Cup")}`, { duration: 1200 });
-  });
+  }, [activeModule, transitionSetActiveModule]);
+  useSwipeGesture(swipeContainerRef, onSwipe);
 
   return (
     <>

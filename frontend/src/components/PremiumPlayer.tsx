@@ -269,9 +269,9 @@ function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
     const j = JSON.parse(xhr.responseText) as { code?: string };
     if (j?.code === "GEO_RESTRICTED") return true;
   } catch {
-    /* non-JSON body */
+    /* non-JSON body — not a confirmed geo-restriction */
   }
-  return true;
+  return false;
 }
 
 function formatQualityFromHeight(height: number): string {

@@ -41,6 +41,7 @@ html.light {
   --bg-card2: #f5f7fc;
   --bg-hover: #e8ecf5;
   --bg-glass: rgba(255,255,255,0.94);
+  --surface-glass: rgba(255,255,255,0.7);
   --primary-accent: #c7780a;
   --primary-rgb: 199 120 10;
   --accent-red: #C62828;
@@ -443,7 +444,7 @@ html.light .cat-tab:hover {
   overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s ease;
   content-visibility: auto;
-  contain-intrinsic-size: 120px 170px;
+  contain-intrinsic-size: 120px 120px;
 }
 
 html.light .ch-card {
