@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   Home, X, Tv, Globe,
-  Zap, Flame,
+  Zap, Flame, Trophy,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useUiStore } from "@/store/uiStore";
@@ -33,7 +33,7 @@ export function Sidebar() {
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const activeCategory = useUiStore((s) => s.activeCategory);
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
-  const { gsCount, bdCount, inCount, fastCount } = useUiStore((s) => s.moduleCounts);
+  const { gsCount, bdCount, inCount, fastCount, wcCount } = useUiStore((s) => s.moduleCounts);
   const visibleCats = SPORTS_CATEGORIES;
 
   function handleCategoryClick(key: string) {
@@ -72,6 +72,12 @@ export function Sidebar() {
 
   function handleLiveMatchesClick() {
     setActiveModule("live_matches");
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleWorldCupClick() {
+    setActiveModule("world_cup_2026");
     setSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -221,6 +227,21 @@ export function Sidebar() {
             >
               <Flame size={17} />
               🔴 Live Matches
+            </button>
+
+            <button
+              type="button"
+              onClick={handleWorldCupClick}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: activeModule === "world_cup_2026" ? "rgba(245,166,35,0.15)" : "transparent",
+                color: activeModule === "world_cup_2026" ? "var(--primary-accent)" : "var(--text-muted)",
+                borderLeft: activeModule === "world_cup_2026" ? "2px solid var(--primary-accent)" : "2px solid transparent",
+              }}
+            >
+              <Trophy size={17} />
+              🏆 World Cup 2026
+              <CountBadge count={wcCount} />
             </button>
 
           </div>
