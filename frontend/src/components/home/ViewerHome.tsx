@@ -41,6 +41,7 @@ import {
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
 import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
+import { useSwipeGesture } from "@/lib/useSwipeGesture";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
@@ -303,6 +304,15 @@ export function ViewerHome() {
       toast(isAdding ? `⭐ ${ch.name} favorites-এ যোগ হয়েছে` : `${ch.name} favorites থেকে সরানো হয়েছে`, { duration: 2000 });
       return next;
     });
+  }, []);
+
+  const shareChannel = useCallback((ch: Channel) => {
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/?channel=${encodeURIComponent(ch.name)}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator.share({ title: ch.name, text: `Watch ${ch.name} live`, url }).catch(() => null);
+    } else {
+      navigator.clipboard?.writeText(url).then(() => toast(`🔗 লিংক কপি হয়েছে: ${ch.name}`, { duration: 2500 })).catch(() => null);
+    }
   }, []);
 
   const transitionSetActiveModule = useCallback(
@@ -878,10 +888,48 @@ export function ViewerHome() {
     setSearchSuggestions(matches);
   }, [searchQuery, allChannels, setSearchSuggestions]);
 
+  // EPG-lite: map channel id → live fixture text for sport channels
+  const liveEpgMap = useMemo(() => {
+    const map = new Map<number, string>();
+    const live = scheduleFixtures.filter((f) => f.status === "IN_PROGRESS" || f.status === "LIVE" || f.status === "1H" || f.status === "2H" || f.status === "HT");
+    if (!live.length) return map;
+    for (const ch of moduleChannels) {
+      const n = ch.name.toLowerCase();
+      const matched = live.find((f) => {
+        const ft = `${f.home_team} ${f.away_team} ${f.league_name}`.toLowerCase();
+        return ft.includes(n.slice(0, 5)) || n.includes("sport") || n.includes("t-sport") || n.includes("tsport");
+      });
+      if (matched) {
+        map.set(ch.id, `🔴 ${matched.home_team} vs ${matched.away_team}`);
+      }
+    }
+    return map;
+  }, [scheduleFixtures, moduleChannels]);
+
+  // Recently added: top 10 channels by highest id (proxy for DB insertion order)
+  const recentlyAdded = useMemo(() => {
+    if (activeModule !== "global_sports" && activeModule !== "bangladesh" && activeModule !== "india") return [];
+    return [...moduleChannels].sort((a, b) => b.id - a.id).slice(0, 10);
+  }, [activeModule, moduleChannels]);
+
+  // Swipe gesture: left/right to cycle modules
+  const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
+  const swipeContainerRef = useRef<HTMLDivElement | null>(null);
+  useSwipeGesture(swipeContainerRef, (dir) => {
+    if (dir !== "left" && dir !== "right") return;
+    const idx = MODULE_ORDER.indexOf(activeModule);
+    if (idx === -1) return;
+    const next = dir === "left"
+      ? MODULE_ORDER[(idx + 1) % MODULE_ORDER.length]!
+      : MODULE_ORDER[(idx - 1 + MODULE_ORDER.length) % MODULE_ORDER.length]!;
+    transitionSetActiveModule(next);
+    toast(`📺 ${next.replace("_", " ").replace("world cup 2026", "World Cup")}`, { duration: 1200 });
+  });
+
   return (
     <>
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
-      <div className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
+      <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
         {/* ── Cold-start banner ── */}
         <AnimatePresence>
@@ -2057,50 +2105,79 @@ export function ViewerHome() {
               </button>
             </div>
           ) : loading ? (
-            <ChannelSkeletonGrid count={18} />
+            <ChannelSkeletonGrid count={Math.min(moduleChannels.length || CHANNEL_GRID_BATCH, CHANNEL_GRID_BATCH)} />
           ) : moduleChannels.length === 0 ? (
-            <div className="rounded-xl p-10 text-center space-y-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
-              <p className="text-2xl" aria-hidden>
+            <div className="flex flex-col items-center gap-4 rounded-2xl p-12 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl text-4xl"
+                style={{ background: "rgba(229,9,20,0.08)", border: "1px solid rgba(229,9,20,0.15)" }}>
                 {activeModule === "bangladesh" ? "🇧🇩" : activeModule === "india" ? "🇮🇳" : activeModule === "world_cup_2026" ? "🏆" : "📡"}
-              </p>
-              <p className="text-sm font-semibold" style={{ color: "var(--text-main)" }}>
-                {activeModule === "bangladesh"
-                  ? "বাংলাদেশ চ্যানেল লোড হচ্ছে…"
-                  : activeModule === "india"
-                    ? "India channels loading…"
-                    : activeModule === "world_cup_2026"
-                      ? "World Cup channels loading…"
-                      : t("emptyModule")}
-              </p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                If channels don&apos;t appear, try refreshing below.
-              </p>
-              <button
-                type="button"
-                onClick={() => void loadChannels(true)}
-                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition hover:opacity-90"
-                style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
-              >
+              </div>
+              <div>
+                <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>
+                  {activeModule === "bangladesh" ? "বাংলাদেশ চ্যানেল লোড হচ্ছে…" : activeModule === "india" ? "India channels loading…" : activeModule === "world_cup_2026" ? "World Cup channels loading…" : t("emptyModule")}
+                </p>
+                <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>চ্যানেল না দেখালে Refresh করুন</p>
+              </div>
+              <button type="button" onClick={() => void loadChannels(true)}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold transition hover:opacity-90"
+                style={{ background: "var(--primary-accent)", color: "#fff" }}>
                 <RefreshCw size={12} /> Refresh
               </button>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
-              <p className="text-sm" style={{ color: "var(--text-main)" }}>{t("noResults")}</p>
-              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{t("tryAdjust")}</p>
-              {hasActiveFilters ? (
-                <button
-                  type="button"
-                  onClick={clearAllFilters}
-                  className="mt-4 inline-flex rounded-lg px-4 py-2 text-sm font-semibold transition hover:opacity-90"
-                  style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
-                >
+            <div className="flex flex-col items-center gap-4 rounded-2xl p-12 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                🔍
+              </div>
+              <div>
+                <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("noResults")}</p>
+                <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>{t("tryAdjust")}</p>
+              </div>
+              {hasActiveFilters && (
+                <button type="button" onClick={clearAllFilters}
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold transition hover:opacity-90"
+                  style={{ background: "var(--primary-accent)", color: "#fff" }}>
                   {t("noResultsCta")}
                 </button>
-              ) : null}
+              )}
             </div>
           ) : (
             <div className="space-y-4">
+              {/* ── Recently Added row ── */}
+              {recentlyAdded.length > 0 && !deferredSearch && !activeCategory && (
+                <div className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none" aria-hidden>✨</span>
+                      <h3 className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: "var(--primary-accent)" }}>নতুন চ্যানেল</h3>
+                    </div>
+                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Recently added →</span>
+                  </div>
+                  <div className="relative">
+                    <div className="flex gap-2 overflow-x-auto px-4 pb-4 scrollbar-none">
+                      {recentlyAdded.map((ch) => {
+                        const isActive = activeChannel?.id === ch.id;
+                        return (
+                          <button key={ch.id} type="button" onClick={() => selectChannel(ch)}
+                            className="group flex shrink-0 flex-col items-center gap-1.5 rounded-xl p-2 text-center transition-all hover:scale-105"
+                            style={{ width: 72, background: isActive ? "rgba(229,9,20,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${isActive ? "rgba(229,9,20,0.4)" : "rgba(255,255,255,0.05)"}` }}>
+                            {ch.logo_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={ch.logo_url} alt="" className="h-11 w-11 rounded-xl object-contain" loading="lazy" style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
+                            ) : (
+                              <div className="flex h-11 w-11 items-center justify-center rounded-xl text-xs font-black" style={{ background: "rgba(229,9,20,0.1)", color: "var(--primary-accent)" }}>{ch.name.slice(0, 2)}</div>
+                            )}
+                            <p className="w-full truncate text-[9px] font-medium" style={{ color: isActive ? "var(--primary-accent)" : "var(--text-muted)" }}>{ch.name}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 w-10" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
                 {gridSlice.map((ch) => (
                   <PremiumChannelCard
@@ -2111,6 +2188,9 @@ export function ViewerHome() {
                     activeModule={activeModule}
                     isFavorited={favorites.includes(ch.id)}
                     onToggleFavorite={toggleFavorite}
+                    onShare={shareChannel}
+                    highlight={deferredSearch}
+                    epgText={liveEpgMap.get(ch.id) ?? null}
                   />
                 ))}
               </div>
@@ -2147,7 +2227,23 @@ export function ViewerHome() {
   );
 }
 
-/* ── Premium Channel Card (plain button: avoids N× framer + stagger on large grids → better INP) ── */
+/* ── Highlight matching text in search results ── */
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark style={{ background: "rgba(229,9,20,0.35)", color: "#fff", borderRadius: 2, padding: "0 1px" }}>
+        {text.slice(idx, idx + query.length)}
+      </mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
+/* ── Premium Channel Card ── */
 const PremiumChannelCard = memo(function PremiumChannelCard({
   channel,
   active,
@@ -2155,6 +2251,9 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
   activeModule,
   isFavorited,
   onToggleFavorite,
+  onShare,
+  highlight,
+  epgText,
 }: {
   channel: Channel;
   active: boolean;
@@ -2162,6 +2261,9 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
   activeModule: ViewerModule;
   isFavorited: boolean;
   onToggleFavorite: (c: Channel) => void;
+  onShare: (c: Channel) => void;
+  highlight?: string;
+  epgText?: string | null;
 }) {
   const isHD =
     channel.quality_tag.toLowerCase().includes("hd") ||
@@ -2214,6 +2316,14 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
             </div>
           )}
 
+          {/* EPG live match badge */}
+          {!active && epgText && (
+            <div className="absolute bottom-0 left-0 right-0 px-1.5 pb-1.5"
+              style={{ background: "linear-gradient(to top,rgba(0,0,0,0.8) 0%,transparent 100%)" }}>
+              <p className="truncate text-[8px] font-bold leading-tight" style={{ color: "#fbbf24" }}>{epgText}</p>
+            </div>
+          )}
+
           {/* HD badge */}
           {isHD && (
             <span
@@ -2224,32 +2334,39 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
             </span>
           )}
 
-          {/* Favorite toggle */}
-          <button
-            type="button"
-            aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
-            onClick={(e) => { e.stopPropagation(); onToggleFavorite(channel); }}
-            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-xs opacity-0 transition-all group-hover:opacity-100 hover:scale-110"
-            style={{
-              background: isFavorited ? "rgba(245,166,35,0.85)" : "rgba(0,0,0,0.55)",
-              border: "1px solid rgba(255,255,255,0.15)",
-              backdropFilter: "blur(6px)",
-            }}
-          >
-            {isFavorited ? "⭐" : "☆"}
-          </button>
+          {/* Action buttons: favorite + share (show on hover) */}
+          <div className="absolute right-1 top-1 flex flex-col gap-1 opacity-0 transition-all group-hover:opacity-100">
+            <button
+              type="button"
+              aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+              onClick={(e) => { e.stopPropagation(); onToggleFavorite(channel); }}
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs transition hover:scale-110"
+              style={{ background: isFavorited ? "rgba(245,166,35,0.9)" : "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(6px)" }}
+            >
+              {isFavorited ? "⭐" : "☆"}
+            </button>
+            <button
+              type="button"
+              aria-label="Share channel"
+              onClick={(e) => { e.stopPropagation(); onShare(channel); }}
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs transition hover:scale-110"
+              style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(6px)", color: "#94A3B8" }}
+            >
+              <Share2 size={10} />
+            </button>
+          </div>
         </div>
 
         {/* ── Info ── */}
-        <div className="px-2.5 py-2">
+        <div className="px-2 py-1.5">
           <p
-            className="truncate text-[12px] font-semibold leading-tight"
+            className="truncate text-[11px] font-semibold leading-tight"
             style={{ color: active ? "var(--primary-accent)" : "var(--text-main)" }}
             title={channel.name}
           >
-            {channel.name}
+            <HighlightText text={channel.name} query={highlight ?? ""} />
           </p>
-          <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] leading-none" style={{ color: "var(--text-muted)" }}>
+          <p className="mt-0.5 flex items-center gap-0.5 truncate text-[9px] leading-none" style={{ color: "var(--text-muted)" }}>
             <span className="shrink-0">{flagFromCountryName(channel.country)}</span>
             <span className="truncate">{categoryEmoji(channel.category, activeModule)} {channel.category}</span>
           </p>
