@@ -11,7 +11,10 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
     module: "bangladesh_and_bdix",
     category: "Sports",
     country: "Bangladesh",
-    stream_urls: ["https://live.tsports.com/mobile_hls/tsports_live_1/playlist.m3u8"],
+    stream_urls: [
+      "https://live.tsports.com/mobile_hls/tsports_live_1/playlist.m3u8",
+      "https://live.tsports.com/mobile_hls/tsports_live_2/playlist.m3u8",
+    ],
     header_profile: "tsports",
     logo_url: "https://upload.wikimedia.org/wikipedia/en/thumb/9/92/T_Sports_logo.png/200px-T_Sports_logo.png",
   },
@@ -73,7 +76,10 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
     module: "world_cup_2026",
     category: "Sports",
     country: "Bangladesh",
-    stream_urls: ["https://live.tsports.com/mobile_hls/tsports_live_1/playlist.m3u8"],
+    stream_urls: [
+      "https://live.tsports.com/mobile_hls/tsports_live_1/playlist.m3u8",
+      "https://live.tsports.com/mobile_hls/tsports_live_2/playlist.m3u8",
+    ],
     header_profile: "tsports",
     logo_url: "https://upload.wikimedia.org/wikipedia/en/thumb/9/92/T_Sports_logo.png/200px-T_Sports_logo.png",
   },
@@ -422,6 +428,16 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
     country: "UK",
     stream_urls: ["https://app.ncare.live/c3VydmVyX8RpbEU9Mi8xNy8yMDE0GIDU6RgzQ6NTAgdEoaeFzbF92YWxIZTO0U0ezN1IzMyfvcGVMZEJCTEFWeVN3PTOmdFsaWRtaW51aiPhnPTI2/ntvuk00332211.stream/playlist.m3u8"],
   },
+  {
+    name: "Gazi TV",
+    module: "bangladesh_and_bdix",
+    category: "Entertainment",
+    country: "Bangladesh",
+    stream_urls: [
+      "https://owrcovcrpy.gpcdn.net/bpk-tv/1718/output/index.m3u8",
+      "https://owrcovcrpy.gpcdn.net/bpk-tv/1718/output/1718.m3u8",
+    ],
+  },
 
   // ── India (from M3U) ───────────────────────────────────────────────────────
   {
@@ -534,6 +550,7 @@ export const APP_STREAM_CONFIG = {
       // BDIX community M3U sources (Bangladesh ISP-local, low latency)
       "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
       "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
+      "https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
     ],
     india: [
       "https://iptv-org.github.io/iptv/countries/in.m3u",

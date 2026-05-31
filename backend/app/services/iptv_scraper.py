@@ -61,6 +61,8 @@ BANGLADESH_SOURCES: list[str] = [
     # BDIX community playlists — lower priority (appended last so iptv-org wins on same URL)
     "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
     "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
+    # Additional community M3U with BDIX-optimised streams
+    "https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
 ]
 
 # Global sports FAST channels (24/7 linear streams)
