@@ -27,9 +27,9 @@ import {
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
-import { SplashScreen } from "@/components/SplashScreen";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
+import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
 import { fetchAllChannels, apiClient } from "@/lib/apiClient";
 import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
@@ -48,7 +48,15 @@ import { useUiStore } from "@/store/uiStore";
 
 const PremiumPlayer = dynamic(
   () => import("@/components/PremiumPlayer").then((m) => m.default),
-  { ssr: false, loading: () => <div className="player-shell aspect-video animate-pulse" style={{ background: "var(--bg-card)" }} /> }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="player-shell aspect-video flex flex-col items-center justify-center gap-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[var(--primary-accent)]" />
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Loading stream…</p>
+      </div>
+    ),
+  }
 );
 
 function uniqueSorted(values: string[]): string[] {
@@ -242,8 +250,6 @@ export function ViewerHome() {
   const [fixturesLoading, setFixturesLoading] = useState(false);
   const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
   const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
-  const [isFirstVisit, setIsFirstVisit] = useState(false);
-  const [splashReady, setSplashReady] = useState(false);
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [coldStart, setColdStart] = useState(false);
@@ -289,10 +295,12 @@ export function ViewerHome() {
   );
   const toggleFavorite = useCallback((ch: Channel) => {
     setFavorites((prev) => {
-      const next = prev.includes(ch.id)
-        ? prev.filter((id) => id !== ch.id)
-        : [ch.id, ...prev].slice(0, 30);
+      const isAdding = !prev.includes(ch.id);
+      const next = isAdding
+        ? [ch.id, ...prev].slice(0, 30)
+        : prev.filter((id) => id !== ch.id);
       try { localStorage.setItem("gstv-favorites", JSON.stringify(next)); } catch { /* ignore */ }
+      toast(isAdding ? `⭐ ${ch.name} favorites-এ যোগ হয়েছে` : `${ch.name} favorites থেকে সরানো হয়েছে`, { duration: 2000 });
       return next;
     });
   }, []);
@@ -314,8 +322,8 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  /** Ceiling for full catalog (many M3Us + FanCode); clears spinner even if fetches never settle. */
-  const CATALOG_LOAD_TIMEOUT_MS = 180_000;
+  /** Ceiling for full catalog; clears spinner even if fetches never settle. */
+  const CATALOG_LOAD_TIMEOUT_MS = 30_000;
 
   const loadChannels = useCallback(
     async (showToast = false, silent = false) => {
@@ -409,13 +417,13 @@ export function ViewerHome() {
   }, []);
 
   useEffect(() => {
-    if (activeModule !== "live_matches") return;
+    if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
     void loadFixturesSchedule();
   }, [activeModule, loadFixturesSchedule]);
 
-  // Poll every 90 seconds (was 20 min) so live scores/statuses feel real-time.
+  // Poll every 90 seconds so live scores/statuses feel real-time.
   useEffect(() => {
-    if (activeModule !== "live_matches") return;
+    if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
     const id = setInterval(() => void loadFixturesSchedule(), 90_000);
     return () => clearInterval(id);
   }, [activeModule, loadFixturesSchedule]);
@@ -464,6 +472,16 @@ export function ViewerHome() {
     return scheduleGroups.upcoming;
   }, [scheduleGroups, scheduleView]);
 
+  // World Cup 2026 fixtures: filter by competition key or league name
+  const wcFixtures = useMemo(() => {
+    return scheduleFixtures.filter(
+      (fx) =>
+        fx.competition_key?.toUpperCase() === "WC" ||
+        fx.league_name?.toLowerCase().includes("world cup") ||
+        fx.league_name?.toLowerCase().includes("fifa")
+    );
+  }, [scheduleFixtures]);
+
   /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
   useEffect(() => {
     const c = getChannelListCache();
@@ -472,16 +490,11 @@ export function ViewerHome() {
         setAllChannels(c);
         setLoading(false);
       });
-      // Cache hit → splash not needed, mark ready immediately
-      setSplashReady(true);
-    } else {
-      // No cache → first visit: show branded splash until channels arrive
-      setIsFirstVisit(true);
     }
   }, []);
 
   useEffect(() => {
-    void loadChannels(false).finally(() => setSplashReady(true));
+    void loadChannels(false);
   }, [loadChannels]);
 
   useEffect(() => {
@@ -533,6 +546,7 @@ export function ViewerHome() {
       "india",
       "fast_tv",
       "live_matches",
+      "world_cup_2026",
     ];
     if (m && allowed.includes(m as ViewerModule)) {
       startTransition(() => {
@@ -610,6 +624,46 @@ export function ViewerHome() {
       list = list.filter((c) => c.language.toLowerCase().includes(f));
     }
 
+    // Geo-based T-Sports priority: Bangladesh channels first in WC module
+    if (activeModule === "world_cup_2026") {
+      list = [...list].sort((a, b) => {
+        const pri = (c: typeof a) => {
+          const n = c.name.toLowerCase();
+          if (n.includes("t-sport") || n.includes("tsport")) return 0;
+          if (c.country.toLowerCase() === "bangladesh") return 1;
+          if (c.country.toLowerCase() === "india") return 2;
+          return 3;
+        };
+        return pri(a) - pri(b);
+      });
+    }
+
+    // Bangladesh: Sports → News → Entertainment → Religious when no category filter active
+    if (activeModule === "bangladesh" && !activeCategory && !deferredSearch.trim()) {
+      const bdCatPri = (cat: string) => {
+        const c = cat.toLowerCase();
+        if (c.includes("sport")) return 0;
+        if (c.includes("news")) return 1;
+        if (c.includes("entertainment") || c.includes("drama")) return 2;
+        if (c.includes("general")) return 3;
+        if (c.includes("music")) return 4;
+        if (c.includes("religious")) return 5;
+        return 6;
+      };
+      list = [...list].sort((a, b) => {
+        const pd = bdCatPri(a.category) - bdCatPri(b.category);
+        if (pd !== 0) return pd;
+        // within Sports: T-Sports first
+        if (bdCatPri(a.category) === 0) {
+          const an = a.name.toLowerCase();
+          const bn = b.name.toLowerCase();
+          if (an.includes("t sport") || an.includes("tsport")) return -1;
+          if (bn.includes("t sport") || bn.includes("tsport")) return 1;
+        }
+        return 0;
+      });
+    }
+
     return list;
   }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, activeModule]);
 
@@ -643,9 +697,26 @@ export function ViewerHome() {
   const gridSlice = filtered.length <= gridVisibleCount ? filtered : filtered.slice(0, gridVisibleCount);
   const gridHasMore = !loading && filtered.length > gridSlice.length;
 
-  const categoryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.category)), [moduleChannels]);
-  const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
-  const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
+  const categoryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of moduleChannels) {
+      counts.set(c.category, (counts.get(c.category) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .filter(([, n]) => n >= 3)
+      .map(([cat]) => cat)
+      .sort((a, b) => a.localeCompare(b));
+  }, [moduleChannels]);
+  const countryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of moduleChannels) counts.set(c.country, (counts.get(c.country) ?? 0) + 1);
+    return [...counts.entries()].filter(([, n]) => n >= 2).map(([v]) => v).sort((a, b) => a.localeCompare(b));
+  }, [moduleChannels]);
+  const languageOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of moduleChannels) counts.set(c.language, (counts.get(c.language) ?? 0) + 1);
+    return [...counts.entries()].filter(([, n]) => n >= 2).map(([v]) => v).sort((a, b) => a.localeCompare(b));
+  }, [moduleChannels]);
   // Count channels per sport type (only render chips that have channels)
   const sportChannelCount = useMemo<Record<string, number>>(() => {
     if (activeModule !== "global_sports") return {};
@@ -751,26 +822,53 @@ export function ViewerHome() {
     return moduleChannels.find((c) => c.name.toLowerCase().includes("t sport") || c.name.toLowerCase().includes("tsport")) ?? null;
   }, [activeModule, moduleChannels]);
 
-  const { gsCount, inCount, bdCount, fastCount, liveCount } = useMemo(() => {
+  const bdPopularChannels = useMemo(() => {
+    if (activeModule !== "bangladesh") return [];
+    const catOrder = (cat: string) => {
+      const c = cat.toLowerCase();
+      if (c.includes("sport")) return 0;
+      if (c.includes("news")) return 1;
+      if (c.includes("entertainment") || c.includes("drama")) return 2;
+      if (c.includes("general")) return 3;
+      if (c.includes("music")) return 4;
+      if (c.includes("religious")) return 5;
+      return 6;
+    };
+    return [...moduleChannels].sort((a, b) => catOrder(a.category) - catOrder(b.category)).slice(0, 12);
+  }, [activeModule, moduleChannels]);
+
+  const bdCategoryOptions = useMemo(() => {
+    if (activeModule !== "bangladesh") return categoryOptions;
+    const BD_CAT_ORDER = ["sports", "news", "entertainment", "drama", "general", "music", "movies", "religious", "kids", "cooking"];
+    return [...categoryOptions].sort((a, b) => {
+      const ai = BD_CAT_ORDER.findIndex((k) => a.toLowerCase().includes(k));
+      const bi = BD_CAT_ORDER.findIndex((k) => b.toLowerCase().includes(k));
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+  }, [activeModule, categoryOptions]);
+
+  const { gsCount, inCount, bdCount, fastCount, liveCount, wcCount } = useMemo(() => {
     let gs = 0;
     let i = 0;
     let b = 0;
     let f = 0;
     let l = 0;
+    let wc = 0;
     for (const c of allChannels) {
       if (c.module === "global_sports") gs += 1;
       else if (c.module === "india") i += 1;
       else if (c.module === "bangladesh") b += 1;
       else if (c.module === "fast_tv") f += 1;
       else if (c.module === "live_matches") l += 1;
+      else if (c.module === "world_cup_2026") wc += 1;
     }
-    return { gsCount: gs, inCount: i, bdCount: b, fastCount: f, liveCount: l };
+    return { gsCount: gs, inCount: i, bdCount: b, fastCount: f, liveCount: l, wcCount: wc };
   }, [allChannels]);
 
   // Sync module counts to store so Sidebar can show badges
   useEffect(() => {
-    setModuleCounts({ gsCount, bdCount, inCount, fastCount, liveCount });
-  }, [gsCount, bdCount, inCount, fastCount, liveCount, setModuleCounts]);
+    setModuleCounts({ gsCount, bdCount, inCount, fastCount, liveCount, wcCount });
+  }, [gsCount, bdCount, inCount, fastCount, liveCount, wcCount, setModuleCounts]);
 
   // Sync search suggestions to store so TopBar dropdown can show them
   useEffect(() => {
@@ -782,8 +880,6 @@ export function ViewerHome() {
 
   return (
     <>
-      {/* Branded splash screen — shown only on first visit (no cache), fades out once channels load */}
-      {isFirstVisit && <SplashScreen ready={splashReady} />}
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
@@ -800,8 +896,15 @@ export function ViewerHome() {
             >
               <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
               <div className="flex-1 min-w-0">
-                <p className="text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
-                  {t("coldStartBanner")}
+                <p className="text-xs font-semibold leading-snug" style={{ color: "var(--text-main)" }}>
+                  🚀 Backend starting up…
+                </p>
+                <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                  {coldStartSeconds < 15
+                    ? "Waking up the server — usually takes 10–30 seconds on first load."
+                    : coldStartSeconds < 40
+                      ? "Still loading… Free-tier servers take a moment to start. Almost there!"
+                      : "Taking longer than usual. Please wait or refresh if this persists."}
                 </p>
                 {coldStartSeconds > 0 && (
                   <div className="mt-1.5 flex items-center gap-2">
@@ -811,8 +914,8 @@ export function ViewerHome() {
                         style={{ background: "var(--primary-accent)", width: `${Math.min(100, (coldStartSeconds / 60) * 100)}%` }}
                       />
                     </div>
-                    <span className="shrink-0 text-[10px] tabular-nums" style={{ color: "var(--primary-accent)" }}>
-                      {coldStartSeconds}s
+                    <span className="shrink-0 text-[10px] tabular-nums font-bold" style={{ color: "var(--primary-accent)" }}>
+                      {coldStartSeconds}s / ~60s
                     </span>
                   </div>
                 )}
@@ -879,7 +982,22 @@ export function ViewerHome() {
             }}
             className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
           >
-            🔴 Live Matches
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "#f87171" }} aria-hidden />
+              Live Matches
+            </span>
+            {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("world_cup_2026");
+            }}
+            className={`module-tab shrink-0 snap-start${activeModule === "world_cup_2026" ? " active" : ""}`}
+            style={activeModule === "world_cup_2026" ? { background: "rgba(245,166,35,0.15)", borderColor: "rgba(245,166,35,0.5)" } : {}}
+          >
+            🏆 World Cup 2026
+            {wcCount > 0 && <span className="module-tab-badge">{wcCount}</span>}
           </button>
         </div>
 
@@ -1162,6 +1280,69 @@ export function ViewerHome() {
           </div>
         )}
 
+        {/* ── World Cup 2026 Hero Banner ── */}
+        {activeModule === "world_cup_2026" && (
+          <div
+            className="relative overflow-hidden rounded-xl p-5 sm:p-6"
+            style={{
+              background: "linear-gradient(135deg, rgba(120,53,15,0.35) 0%, rgba(245,166,35,0.18) 50%, rgba(120,53,15,0.25) 100%)",
+              border: "1px solid rgba(245,166,35,0.45)",
+            }}
+          >
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #F5A623 0%, transparent 55%), radial-gradient(circle at 80% 50%, #E53935 0%, transparent 55%)" }} />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-4xl sm:h-20 sm:w-20"
+                  style={{ background: "rgba(245,166,35,0.15)", border: "2px solid rgba(245,166,35,0.45)", boxShadow: "0 4px 20px rgba(245,166,35,0.2)" }}
+                >
+                  🏆
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.5)", color: "#f87171" }}>
+                      🔴 LIVE NOW
+                    </span>
+                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.4)", color: "var(--primary-accent)" }}>
+                      FIFA 2026
+                    </span>
+                  </div>
+                  <h2 className="mt-1.5 text-xl font-black tracking-tight sm:text-2xl" style={{ color: "var(--text-main)" }}>
+                    FIFA World Cup 2026
+                  </h2>
+                  <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
+                    🇺🇸 USA · 🇨🇦 Canada · 🇲🇽 Mexico · June 11 – July 19, 2026
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                    48 দল · 104 ম্যাচ · সরাসরি সম্প্রচার
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.3)" }}>
+                    ⚽ 48 Teams
+                  </span>
+                  <span className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.3)" }}>
+                    📺 {wcCount} Channels
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── WC 2026 Fixture Schedule ── */}
+        {activeModule === "world_cup_2026" && (
+          <WorldCupSchedule
+            fixtures={wcFixtures}
+            loading={fixturesLoading}
+            onRefresh={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
+            onSelectChannel={selectChannel}
+            onModuleChange={transitionSetActiveModule}
+          />
+        )}
+
         {/* ── Channel grid + player (hidden in Live Matches mode) ── */}
         {activeModule !== "live_matches" && (<>
 
@@ -1177,7 +1358,9 @@ export function ViewerHome() {
                     ? "INDIA"
                     : activeModule === "fast_tv"
                       ? "FAST TV 24/7"
-                      : "GLOBAL SPORTS"}
+                      : activeModule === "world_cup_2026"
+                        ? "FIFA WORLD CUP 2026"
+                        : "GLOBAL SPORTS"}
               </span>
             </div>
             <h1 className="mt-1 text-xl font-extrabold tracking-tight md:text-2xl" style={{ color: "var(--text-main)" }}>
@@ -1187,7 +1370,9 @@ export function ViewerHome() {
                   ? "🇮🇳 India Channels"
                   : activeModule === "fast_tv"
                     ? "⚡ FAST TV 24/7"
-                    : t("tagline")}
+                    : activeModule === "world_cup_2026"
+                      ? "🏆 FIFA World Cup 2026 — Live Channels"
+                      : t("tagline")}
             </h1>
             <div className="mt-1 space-y-1">
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -1248,6 +1433,65 @@ export function ViewerHome() {
             )}
           </div>
         </div>
+
+        {/* ── Bangladesh Popular Channels Quick Row ── */}
+        {activeModule === "bangladesh" && !loading && bdPopularChannels.length > 0 && (
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid rgba(0,106,78,0.2)" }}>
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm" aria-hidden>⭐</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-main)" }}>জনপ্রিয় চ্যানেল</h3>
+              </div>
+              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>ক্লিক করে দেখুন</span>
+            </div>
+            <div className="relative">
+              <div className="flex overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+                {bdPopularChannels.map((ch) => (
+                  <button
+                    key={ch.id}
+                    type="button"
+                    onClick={() => selectChannel(ch)}
+                    className="flex shrink-0 flex-col items-center gap-1.5 px-3 py-3 text-center transition-colors hover:bg-white/[0.04]"
+                    style={{
+                      minWidth: 72,
+                      maxWidth: 88,
+                      background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
+                    }}
+                    title={ch.name}
+                  >
+                    {ch.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={ch.logo_url}
+                        alt=""
+                        className="h-12 w-12 rounded-xl object-cover"
+                        style={{ border: activeChannel?.id === ch.id ? "2px solid var(--primary-accent)" : "1px solid var(--border)" }}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div
+                        className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-bold"
+                        style={{ background: "rgba(0,106,78,0.15)", color: "#10b981" }}
+                      >
+                        {ch.name.slice(0, 2)}
+                      </div>
+                    )}
+                    <p
+                      className="w-full truncate text-[10px] font-medium leading-tight"
+                      style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-muted)" }}
+                    >
+                      {ch.name}
+                    </p>
+                    {activeChannel?.id === ch.id && (
+                      <span className="h-1 w-1 rounded-full animate-pulse" style={{ background: "var(--primary-accent)" }} aria-hidden />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
+            </div>
+          </div>
+        )}
 
         {/* ── AdSlot banner ── */}
         {tier === "free" && <AdSlot variant="banner" />}
@@ -1318,7 +1562,7 @@ export function ViewerHome() {
             >
               📺 {t("filterAll")}
             </button>
-            {categoryOptions.map((cat) => (
+            {(activeModule === "bangladesh" ? bdCategoryOptions : categoryOptions).map((cat) => (
               <button
                 key={cat}
                 type="button"
@@ -1679,7 +1923,8 @@ export function ViewerHome() {
                 {t("recentlyClear")}
               </button>
             </div>
-            <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+            <div className="relative">
+              <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
               {favoriteChannelObjects.map((ch) => (
                 <button
                   key={ch.id}
@@ -1704,6 +1949,9 @@ export function ViewerHome() {
                   </p>
                 </button>
               ))}
+              </div>
+              {/* fade-out scroll hint on right edge */}
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
             </div>
           </div>
         )}
@@ -1730,7 +1978,8 @@ export function ViewerHome() {
                 {t("recentlyClear")}
               </button>
             </div>
-            <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+            <div className="relative">
+              <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
               {recentChannelObjects.map((ch) => (
                 <button
                   key={ch.id}
@@ -1755,6 +2004,8 @@ export function ViewerHome() {
                   </p>
                 </button>
               ))}
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
             </div>
           </div>
         )}
@@ -1776,7 +2027,9 @@ export function ViewerHome() {
                       ? "🇮🇳 India TV Channels"
                       : activeModule === "fast_tv"
                         ? "⚡ FAST TV (24/7)"
-                        : "🌐 " + t("directory")}
+                        : activeModule === "world_cup_2026"
+                          ? "🏆 World Cup 2026 Live Channels"
+                          : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs text-right" style={{ color: "var(--text-muted)" }}>
               <span className="block sm:inline">
@@ -1806,8 +2059,30 @@ export function ViewerHome() {
           ) : loading ? (
             <ChannelSkeletonGrid count={18} />
           ) : moduleChannels.length === 0 ? (
-            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
-              <p className="text-sm" style={{ color: "var(--text-main)" }}>{t("emptyModule")}</p>
+            <div className="rounded-xl p-10 text-center space-y-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
+              <p className="text-2xl" aria-hidden>
+                {activeModule === "bangladesh" ? "🇧🇩" : activeModule === "india" ? "🇮🇳" : activeModule === "world_cup_2026" ? "🏆" : "📡"}
+              </p>
+              <p className="text-sm font-semibold" style={{ color: "var(--text-main)" }}>
+                {activeModule === "bangladesh"
+                  ? "বাংলাদেশ চ্যানেল লোড হচ্ছে…"
+                  : activeModule === "india"
+                    ? "India channels loading…"
+                    : activeModule === "world_cup_2026"
+                      ? "World Cup channels loading…"
+                      : t("emptyModule")}
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                If channels don&apos;t appear, try refreshing below.
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadChannels(true)}
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition hover:opacity-90"
+                style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
+              >
+                <RefreshCw size={12} /> Refresh
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
@@ -1915,13 +2190,13 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
             <img
               src={channel.logo_url}
               alt=""
-              className="h-12 w-12 shrink-0 rounded-lg object-cover"
+              className="h-14 w-14 shrink-0 rounded-xl object-cover"
               style={{ border: active ? "2px solid rgba(245,166,35,0.6)" : "1px solid var(--border)" }}
               loading="lazy"
             />
           ) : (
             <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
               style={{ background: active ? "var(--primary-accent)" : "var(--bg-hover)" }}
             >
               {channel.name.slice(0, 2)}
@@ -1945,15 +2220,17 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
           >
             {categoryEmoji(channel.category, activeModule)} {channel.category}
           </span>
-          <span
-            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-            style={{
-              background: active ? "rgba(245,166,35,0.12)" : "rgb(255 255 255 / 6%)",
-              color: active ? "var(--primary-accent)" : "var(--text-muted)",
-            }}
-          >
-            {channel.quality_tag}
-          </span>
+          {(channel.quality_tag.toLowerCase().includes("hd") ||
+            channel.quality_tag.toLowerCase().includes("fhd") ||
+            channel.quality_tag.toLowerCase().includes("4k") ||
+            channel.quality_tag.toLowerCase().includes("1080")) && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+              style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}
+            >
+              {channel.quality_tag.toUpperCase()}
+            </span>
+          )}
         </div>
       </button>
 

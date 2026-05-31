@@ -4,7 +4,8 @@ export type ViewerModule =
   | "india"
   | "global_sports"
   | "fast_tv"
-  | "live_matches";
+  | "live_matches"
+  | "world_cup_2026";
 
 /** Config-only alias for premium rows targeting the Bangladesh tab. */
 export type PremiumDirectModule = ViewerModule | "bangladesh_and_bdix";
@@ -54,6 +55,8 @@ export type Channel = {
   header_profile?: string | null;
   /** Hint for VPN / geo messaging (FanCode, some Indian networks). */
   geo_hint?: boolean;
+  /** "manual" | "m3u_sync" | … — how the channel was added. */
+  source?: string;
 };
 
 export type ChannelListResponse = {
@@ -109,4 +112,15 @@ export type AdminStats = {
   cache_ttl_seconds: number;
   scheduled_sync_minutes: number;
   last_sync_at: string | null;
+  last_sync_status: string | null;
+  last_sync_error: string | null;
+  last_sweep_at: string | null;
+  last_sweep_checked: number;
+  last_sweep_deactivated: number;
+};
+
+export type HealthSweepResult = {
+  checked: number;
+  deactivated: number;
+  duration_seconds: number | null;
 };

@@ -44,6 +44,61 @@ function normKey(url: string): string {
   }
 }
 
+/**
+ * Strip quality/status tags from channel names for name-based deduplication.
+ * Mirrors the backend Python `_CHAN_NORM_RE` regex so duplicate entries from
+ * different M3U sources ("BTV HD" and "BTV") collapse into one channel with
+ * both URLs available as failover.
+ */
+const CHAN_NORM_RE = /\s*[\[(](?:\d{3,4}p|fhd|uhd|4k|hd|sd|geo[\s-]?block(?:ed)?|stream\s*\d*|backup\s*\d*|mirror\s*\d*|alt\s*\d*|live|auto|main|primary)[\])]\s*/gi;
+
+function normalizeNameForDedup(name: string): string {
+  return name.replace(CHAN_NORM_RE, " ").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * After all M3U + premium entries are collected, merge channels that share
+ * the same module + country + normalized name into a single entry, collecting
+ * all their stream URLs as failover alternates.
+ *
+ * This ensures that e.g. "BTV" from iptv-org and "BTV" from a BDIX playlist
+ * appear as ONE card with two URLs, not two separate cards.
+ */
+function deduplicateByModuleName(channels: Channel[]): Channel[] {
+  const byKey = new Map<string, Channel>();
+  const urlSeen = new Set<string>();
+
+  for (const ch of channels) {
+    // For regional modules, dedup by module+country+name.
+    // For global_sports/fast_tv/world_cup_2026, names can legitimately repeat across
+    // countries so include country in the key to avoid accidental merges.
+    const key = `${ch.module}::${ch.country.toLowerCase()}::${normalizeNameForDedup(ch.name)}`;
+    const existing = byKey.get(key);
+
+    if (!existing) {
+      byKey.set(key, {
+        ...ch,
+        alternate_urls: [...(ch.alternate_urls ?? [])],
+      });
+      urlSeen.add(normKey(ch.stream_url));
+      for (const u of ch.alternate_urls ?? []) urlSeen.add(normKey(u));
+    } else {
+      // Merge new URLs as additional failover alternates (deduped)
+      for (const u of [ch.stream_url, ...(ch.alternate_urls ?? [])]) {
+        const k = normKey(u);
+        if (!urlSeen.has(k)) {
+          urlSeen.add(k);
+          existing.alternate_urls = [...(existing.alternate_urls ?? []), u];
+        }
+      }
+      // Prefer an entry with a logo if the existing one has none
+      if (!existing.logo_url && ch.logo_url) existing.logo_url = ch.logo_url;
+    }
+  }
+
+  return [...byKey.values()];
+}
+
 function entryToChannel(
   e: { name: string; streamUrl: string; logoUrl: string | null; groupTitle: string | null },
   module: ViewerModule,
@@ -195,12 +250,20 @@ function mergePremiumDirectSportsIntoSeen(seen: Set<string>, out: Channel[] | nu
 }
 
 /**
- * Load merged catalog: FAST → Bangladesh → India → global masters → premium direct (deduped).
+ * Load merged catalog: premium direct entries FIRST (so their failover URLs are
+ * preserved), then FAST → Bangladesh → India → global masters (URL-deduped).
+ * Finally, name-dedup merges same-channel entries from different M3U sources
+ * into single cards with all URLs available as failover.
+ *
  * FanCode live rows are merged in loadFullCatalogWithLive / 30m refresh on the client.
  */
 export async function loadStaticCatalogChannels(): Promise<Channel[]> {
   const seen = new Set<string>();
   const out: Channel[] = [];
+
+  // Premium direct entries FIRST — their multi-URL failover chains must not be
+  // discarded by a later M3U playlist that claims the same primary URL with no alternates.
+  mergePremiumDirectSportsIntoSeen(seen, out);
 
   const fastUrls = Object.values(APP_STREAM_CONFIG.fast_tv_sources);
   await ingestPlaylistUrls(fastUrls, "fast_tv", "Global", seen, out);
@@ -219,9 +282,9 @@ export async function loadStaticCatalogChannels(): Promise<Channel[]> {
     out
   );
 
-  mergePremiumDirectSportsIntoSeen(seen, out);
-
-  return out;
+  // Name-based dedup: collapse same-name channels from different M3U sources
+  // into one card with all their URLs as failover alternates.
+  return deduplicateByModuleName(out);
 }
 
 /**
@@ -230,6 +293,8 @@ export async function loadStaticCatalogChannels(): Promise<Channel[]> {
  */
 export async function countStaticCatalogChannels(): Promise<number> {
   const seen = new Set<string>();
+
+  mergePremiumDirectSportsIntoSeen(seen, null);
 
   const fastUrls = Object.values(APP_STREAM_CONFIG.fast_tv_sources);
   await ingestPlaylistUrlsIntoSeen(fastUrls, "fast_tv", "Global", seen, null);
@@ -247,8 +312,6 @@ export async function countStaticCatalogChannels(): Promise<number> {
     seen,
     null
   );
-
-  mergePremiumDirectSportsIntoSeen(seen, null);
 
   return seen.size;
 }
