@@ -2,32 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── ABO SPORTS TV LIVE — Design tokens (dark — default) — light / calm UI ── */
+/* ── ABO SPORTS TV LIVE — Design tokens (dark — default) — Premium OTT ── */
 :root {
   color-scheme: dark;
-  --bg-dark: #0d0d12;
-  --bg-card: #1a1a24;
-  --bg-card2: #262635;
-  --bg-hover: #262635;
-  --bg-glass: rgba(26,26,36,0.92);
+  --bg-dark: #0B0F19;
+  --bg-card: #141927;
+  --bg-card2: #1C2436;
+  --bg-hover: #1e2840;
+  --bg-glass: rgba(11,15,25,0.94);
+  --surface-glass: rgba(20,25,39,0.6);
   --primary-accent: #e50914;
   --primary-rgb: 229 9 20;
   --accent-red: #e50914;
   --accent-red-rgb: 229 9 20;
   --accent-blue: #1E6EE8;
   --accent-blue-rgb: 30 110 232;
-  --accent-green: #00C851;
-  --success: #00C851;
+  --accent-green: #10B981;
+  --success: #10B981;
   --gold: #C9A227;
   --text-main: #ffffff;
-  --text-muted: #a0a0b0;
+  --text-muted: #94A3B8;
   --border: rgba(255,255,255,0.05);
-  --border-accent: rgba(229,9,20,0.22);
-  --shadow-card: 0 10px 30px rgba(0,0,0,0.5);
+  --border-subtle: rgba(255,255,255,0.04);
+  --border-accent: rgba(229,9,20,0.28);
+  --shadow-card: 0 8px 32px rgba(0,0,0,0.45);
+  --shadow-glass: 0 8px 32px rgba(0,0,0,0.35);
   --glow-gold: 0 0 14px rgba(229,9,20,0.12);
-  --glow-red: 0 0 14px rgba(229,9,20,0.14);
-  --radius-sm: 8px;
-  --radius-md: 12px;
+  --glow-red: 0 0 20px rgba(229,9,20,0.2);
+  --radius-sm: 10px;
+  --radius-md: 14px;
 }
 
 /* ── Design tokens (light) ── */
@@ -148,15 +151,16 @@ a {
 }
 
 .glass-panel {
-  background: var(--bg-glass);
-  border: 1px solid var(--border);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background: var(--surface-glass);
+  border: 1px solid rgba(255,255,255,0.06);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  box-shadow: var(--shadow-glass);
 }
 
 html.light .glass-panel {
-  background: linear-gradient(140deg, rgba(255,255,255,0.88), rgba(240,242,248,0.92));
-  border: 1px solid rgba(0,0,0,0.08);
+  background: linear-gradient(140deg, rgba(255,255,255,0.92), rgba(240,242,248,0.96));
+  border: 1px solid rgba(0,0,0,0.07);
 }
 
 /* ── Live badge ── */
@@ -427,36 +431,35 @@ html.light .cat-tab:hover {
   outline-offset: 2px;
 }
 
-/* ── Channel card (off-screen paint savings for long grids) ── */
+/* ── Channel card — thumbnail grid style ── */
 .ch-card {
   position: relative;
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease, transform 0.15s ease;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s ease;
   content-visibility: auto;
-  contain-intrinsic-size: 140px 180px;
+  contain-intrinsic-size: 160px 220px;
 }
 
 html.light .ch-card {
-  border-color: rgba(0,0,0,0.07);
+  border-color: rgba(0,0,0,0.06);
 }
 
-/* Hover lift only on real pointers — avoids “sticky” hover on touch */
+/* Scale lift on real pointers */
 @media (hover: hover) and (pointer: fine) {
   .ch-card:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-accent);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-card);
+    border-color: rgba(229,9,20,0.35);
+    transform: scale(1.04) translateY(-2px);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 0 1px rgba(229,9,20,0.15);
   }
 }
 
 .ch-card.active {
   border-color: var(--primary-accent);
-  background: rgb(var(--primary-rgb) / 0.08);
-  box-shadow: 0 0 0 1px rgb(var(--primary-rgb) / 0.35);
+  box-shadow: 0 0 0 2px rgb(var(--primary-rgb) / 0.4), 0 8px 32px rgba(0,0,0,0.5);
 }
 
 button.ch-card:focus-visible {
