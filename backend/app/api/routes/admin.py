@@ -11,7 +11,7 @@ from starlette.responses import Response
 from app.core.cache import invalidate_list_caches
 from app.core.config import settings
 from app.core.security import get_current_admin_user
-from app.core.sync_rate_limit import check_sync_allowed, get_last_sync_iso
+from app.core.sync_rate_limit import check_sync_allowed, get_last_sync_iso, get_last_sync_status, get_last_sync_error
 from app.db.session import get_db
 from app.models.channel import Channel
 from app.models.dynamic_stream import DynamicStream
@@ -48,6 +48,8 @@ async def admin_stats(
         cache_ttl_seconds=settings.cache_ttl_seconds,
         scheduled_sync_minutes=settings.scheduled_sync_interval_minutes,
         last_sync_at=get_last_sync_iso(),
+        last_sync_status=get_last_sync_status(),
+        last_sync_error=get_last_sync_error(),
     )
 
 
@@ -79,8 +81,14 @@ async def sync_fixtures(
     _: User = Depends(get_current_admin_user),
 ) -> dict[str, int]:
     """Manually trigger a live fixture sync (OpenLigaDB + football-data.org)."""
-    result = await run_in_threadpool(run_live_fixtures_sync_standalone)
-    return result
+    try:
+        result = await run_in_threadpool(run_live_fixtures_sync_standalone)
+        return result
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Fixture sync failed: {exc}",
+        ) from exc
 
 
 @router.post("/channels/sync", response_model=dict[str, int])
@@ -90,8 +98,14 @@ async def sync_channels(
 ) -> dict[str, int]:
     del _db
     check_sync_allowed()
-    result = await run_in_threadpool(_sync_m3u_blocking)
-    return result
+    try:
+        result = await run_in_threadpool(_sync_m3u_blocking)
+        return result
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Channel sync failed: {exc}",
+        ) from exc
 
 
 @router.get("/channels", response_model=list[ChannelRead])
@@ -119,7 +133,7 @@ async def admin_create_channel(
     mod = (payload.module or "global_sports").strip().lower()
     if mod == "sports":
         mod = "global_sports"
-    if mod not in ("global_sports", "bangladesh", "india", "fast_tv", "live_matches"):
+    if mod not in ("global_sports", "bangladesh", "india", "fast_tv", "live_matches", "world_cup_2026"):
         mod = "global_sports"
 
     channel = Channel(
