@@ -707,8 +707,16 @@ export function ViewerHome() {
       .map(([cat]) => cat)
       .sort((a, b) => a.localeCompare(b));
   }, [moduleChannels]);
-  const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
-  const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
+  const countryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of moduleChannels) counts.set(c.country, (counts.get(c.country) ?? 0) + 1);
+    return [...counts.entries()].filter(([, n]) => n >= 2).map(([v]) => v).sort((a, b) => a.localeCompare(b));
+  }, [moduleChannels]);
+  const languageOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of moduleChannels) counts.set(c.language, (counts.get(c.language) ?? 0) + 1);
+    return [...counts.entries()].filter(([, n]) => n >= 2).map(([v]) => v).sort((a, b) => a.localeCompare(b));
+  }, [moduleChannels]);
   // Count channels per sport type (only render chips that have channels)
   const sportChannelCount = useMemo<Record<string, number>>(() => {
     if (activeModule !== "global_sports") return {};
@@ -1428,59 +1436,59 @@ export function ViewerHome() {
 
         {/* ── Bangladesh Popular Channels Quick Row ── */}
         {activeModule === "bangladesh" && !loading && bdPopularChannels.length > 0 && (
-          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid rgba(0,106,78,0.2)" }}>
-            <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(0,106,78,0.07)", border: "1px solid rgba(0,106,78,0.18)" }}>
+            <div className="flex items-center justify-between gap-2 px-4 py-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm" aria-hidden>⭐</span>
-                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-main)" }}>জনপ্রিয় চ্যানেল</h3>
+                <span className="text-base leading-none" aria-hidden>⭐</span>
+                <h3 className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: "#10b981" }}>জনপ্রিয় চ্যানেল</h3>
               </div>
-              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>ক্লিক করে দেখুন</span>
+              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>ক্লিক করে দেখুন →</span>
             </div>
             <div className="relative">
-              <div className="flex overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
-                {bdPopularChannels.map((ch) => (
-                  <button
-                    key={ch.id}
-                    type="button"
-                    onClick={() => selectChannel(ch)}
-                    className="flex shrink-0 flex-col items-center gap-1.5 px-3 py-3 text-center transition-colors hover:bg-white/[0.04]"
-                    style={{
-                      minWidth: 72,
-                      maxWidth: 88,
-                      background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
-                    }}
-                    title={ch.name}
-                  >
-                    {ch.logo_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={ch.logo_url}
-                        alt=""
-                        className="h-12 w-12 rounded-xl object-cover"
-                        style={{ border: activeChannel?.id === ch.id ? "2px solid var(--primary-accent)" : "1px solid var(--border)" }}
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div
-                        className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-bold"
-                        style={{ background: "rgba(0,106,78,0.15)", color: "#10b981" }}
-                      >
-                        {ch.name.slice(0, 2)}
-                      </div>
-                    )}
-                    <p
-                      className="w-full truncate text-[10px] font-medium leading-tight"
-                      style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-muted)" }}
+              <div className="flex gap-1 overflow-x-auto px-3 pb-3 scrollbar-none">
+                {bdPopularChannels.map((ch) => {
+                  const isActive = activeChannel?.id === ch.id;
+                  return (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => selectChannel(ch)}
+                      className="group flex shrink-0 flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-center transition-all hover:scale-105"
+                      style={{
+                        width: 72,
+                        background: isActive ? "rgba(0,106,78,0.2)" : "rgba(255,255,255,0.03)",
+                        border: isActive ? "1px solid rgba(16,185,129,0.45)" : "1px solid rgba(255,255,255,0.05)",
+                      }}
+                      title={ch.name}
                     >
-                      {ch.name}
-                    </p>
-                    {activeChannel?.id === ch.id && (
-                      <span className="h-1 w-1 rounded-full animate-pulse" style={{ background: "var(--primary-accent)" }} aria-hidden />
-                    )}
-                  </button>
-                ))}
+                      {ch.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={ch.logo_url}
+                          alt=""
+                          className="h-12 w-12 rounded-xl object-cover transition-transform group-hover:scale-105"
+                          style={{ border: isActive ? "2px solid #10b981" : "1px solid rgba(255,255,255,0.08)" }}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-black"
+                          style={{ background: "rgba(0,106,78,0.2)", color: "#10b981" }}>
+                          {ch.name.slice(0, 2)}
+                        </div>
+                      )}
+                      <p className="w-full truncate text-[9px] font-semibold leading-tight"
+                        style={{ color: isActive ? "#10b981" : "var(--text-muted)" }}>
+                        {ch.name}
+                      </p>
+                      {isActive && (
+                        <span className="h-1 w-4 rounded-full" style={{ background: "#10b981" }} aria-hidden />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-10"
+                style={{ background: "linear-gradient(to right, transparent, rgba(0,106,78,0.07))" }} />
             </div>
           </div>
         )}
@@ -2093,7 +2101,7 @@ export function ViewerHome() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
                 {gridSlice.map((ch) => (
                   <PremiumChannelCard
                     key={ch.id}
@@ -2155,93 +2163,97 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
   isFavorited: boolean;
   onToggleFavorite: (c: Channel) => void;
 }) {
+  const isHD =
+    channel.quality_tag.toLowerCase().includes("hd") ||
+    channel.quality_tag.toLowerCase().includes("fhd") ||
+    channel.quality_tag.toLowerCase().includes("4k") ||
+    channel.quality_tag.toLowerCase().includes("1080");
+
   return (
-    <div
-      className={`ch-card group w-full p-3${active ? " active" : ""}`}
-      style={active ? { boxShadow: "0 0 0 2px rgba(245,166,35,0.5), 0 8px 24px rgba(0,0,0,0.4)" } : undefined}
-    >
-      {/* NOW PLAYING badge */}
-      {active && (
-        <div className="mb-2 flex items-center gap-1.5">
-          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider"
-            style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.4)", color: "var(--primary-accent)" }}>
-            <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" /> NOW PLAYING
-          </span>
-        </div>
-      )}
+    <div className={`ch-card group w-full${active ? " active" : ""}`}>
       <button
         type="button"
-        onClick={() => {
-          onSelect(channel);
-        }}
+        onClick={() => onSelect(channel)}
         className="w-full text-left"
+        aria-label={channel.name}
       >
-        <div className="flex items-start gap-3">
+        {/* ── Thumbnail ── */}
+        <div
+          className="relative w-full overflow-hidden"
+          style={{
+            aspectRatio: "1 / 1",
+            background: active
+              ? "linear-gradient(135deg,rgba(229,9,20,0.18),rgba(229,9,20,0.06))"
+              : "var(--bg-hover)",
+          }}
+        >
           {channel.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={channel.logo_url}
               alt=""
-              className="h-14 w-14 shrink-0 rounded-xl object-cover"
-              style={{ border: active ? "2px solid rgba(245,166,35,0.6)" : "1px solid var(--border)" }}
+              className="absolute inset-0 h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
             />
           ) : (
             <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
-              style={{ background: active ? "var(--primary-accent)" : "var(--bg-hover)" }}
+              className="absolute inset-0 flex items-center justify-center text-2xl font-black"
+              style={{ color: "var(--primary-accent)" }}
             >
-              {channel.name.slice(0, 2)}
+              {channel.name.slice(0, 2).toUpperCase()}
             </div>
           )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold" style={{ color: active ? "var(--primary-accent)" : "var(--text-main)" }} title={channel.name}>
-              {channel.name}
-            </p>
-            <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${channel.country} · ${channel.language}`}>
-              {flagFromCountryName(channel.country)} {channel.country} · {channel.language}
-            </p>
-          </div>
-          {active && <span className="pulse-dot mt-1 shrink-0" />}
-        </div>
 
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
-          <span
-            className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-            style={{ background: "rgb(255 255 255 / 6%)", color: "var(--text-muted)" }}
-          >
-            {categoryEmoji(channel.category, activeModule)} {channel.category}
-          </span>
-          {(channel.quality_tag.toLowerCase().includes("hd") ||
-            channel.quality_tag.toLowerCase().includes("fhd") ||
-            channel.quality_tag.toLowerCase().includes("4k") ||
-            channel.quality_tag.toLowerCase().includes("1080")) && (
+          {/* LIVE overlay when active */}
+          {active && (
+            <div className="absolute inset-0 flex items-end justify-center pb-2"
+              style={{ background: "linear-gradient(to top,rgba(0,0,0,0.7) 0%,transparent 60%)" }}>
+              <span className="live-badge text-[9px]">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" /> LIVE
+              </span>
+            </div>
+          )}
+
+          {/* HD badge */}
+          {isHD && (
             <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-              style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}
+              className="absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider"
+              style={{ background: "rgba(16,185,129,0.92)", color: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,0.4)" }}
             >
-              {channel.quality_tag.toUpperCase()}
+              HD
             </span>
           )}
-        </div>
-      </button>
 
-      {/* Favorite toggle */}
-      <button
-        type="button"
-        aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
-        title={isFavorited ? "Remove from favorites" : "Add to favorites"}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFavorite(channel);
-        }}
-        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-sm transition hover:scale-110"
-        style={{
-          background: isFavorited ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.06)",
-          border: isFavorited ? "1px solid rgba(245,166,35,0.4)" : "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        {isFavorited ? "⭐" : "☆"}
+          {/* Favorite toggle */}
+          <button
+            type="button"
+            aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(channel); }}
+            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-xs opacity-0 transition-all group-hover:opacity-100 hover:scale-110"
+            style={{
+              background: isFavorited ? "rgba(245,166,35,0.85)" : "rgba(0,0,0,0.55)",
+              border: "1px solid rgba(255,255,255,0.15)",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            {isFavorited ? "⭐" : "☆"}
+          </button>
+        </div>
+
+        {/* ── Info ── */}
+        <div className="px-2.5 py-2">
+          <p
+            className="truncate text-[12px] font-semibold leading-tight"
+            style={{ color: active ? "var(--primary-accent)" : "var(--text-main)" }}
+            title={channel.name}
+          >
+            {channel.name}
+          </p>
+          <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] leading-none" style={{ color: "var(--text-muted)" }}>
+            <span className="shrink-0">{flagFromCountryName(channel.country)}</span>
+            <span className="truncate">{categoryEmoji(channel.category, activeModule)} {channel.category}</span>
+          </p>
+        </div>
       </button>
     </div>
   );

@@ -98,8 +98,10 @@ export function Sidebar() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } shrink-0 overflow-y-auto`}
         style={{
-          background: "var(--bg-card)",
-          borderRight: "1px solid var(--border)",
+          background: "rgba(11,15,25,0.97)",
+          borderRight: "1px solid rgba(255,255,255,0.05)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
           scrollbarWidth: "none",
         }}
       >
@@ -107,8 +109,8 @@ export function Sidebar() {
         <div
           className="sticky top-0 z-10 flex items-center justify-between px-4 py-4"
           style={{
-            background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(26,26,36,0.98) 100%)",
-            borderBottom: "1px solid var(--border)",
+            background: "linear-gradient(180deg, rgba(11,15,25,0.99) 0%, rgba(14,19,31,0.97) 100%)",
+            borderBottom: "1px solid rgba(255,255,255,0.05)",
           }}
         >
           <div className="flex items-center gap-3 min-w-0">

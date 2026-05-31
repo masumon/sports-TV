@@ -77,11 +77,13 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
 
   return (
     <header
-      className="sticky top-0 z-40 backdrop-blur-md"
+      className="sticky top-0 z-40"
       style={{
-        background: "rgba(7,8,15,0.92)",
+        background: "rgba(11,15,25,0.96)",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
-        boxShadow: "0 1px 12px rgba(0,0,0,0.28)",
+        boxShadow: "0 1px 24px rgba(0,0,0,0.4)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
       }}
     >
       <div className="flex min-h-14 items-center gap-1.5 px-2 sm:gap-2 md:min-h-16 md:gap-2 md:px-4">

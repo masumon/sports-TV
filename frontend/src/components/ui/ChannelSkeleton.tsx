@@ -1,6 +1,6 @@
 export function ChannelSkeletonGrid({ count = 12 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 sm:gap-3">
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
       {Array.from({ length: count }).map((_, i) => (
         <ChannelSkeletonCard key={i} />
       ))}
@@ -11,26 +11,23 @@ export function ChannelSkeletonGrid({ count = 12 }: { count?: number }) {
 function ChannelSkeletonCard() {
   return (
     <div
-      className="relative overflow-hidden rounded-xl border p-3"
-      style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+      className="relative overflow-hidden rounded-[14px] border"
+      style={{ borderColor: "rgba(255,255,255,0.05)", background: "var(--bg-card)" }}
     >
       {/* shimmer sweep */}
       <div
         className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite]"
         style={{
-          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.055) 50%, transparent 100%)",
+          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%)",
+          zIndex: 1,
         }}
       />
-      <div className="flex items-center gap-3">
-        <div className="h-12 w-12 shrink-0 rounded-lg" style={{ background: "var(--bg-hover)" }} />
-        <div className="flex-1 space-y-2">
-          <div className="h-4 w-3/4 rounded" style={{ background: "var(--bg-hover)" }} />
-          <div className="h-3 w-1/2 rounded opacity-80" style={{ background: "var(--bg-hover)" }} />
-        </div>
-      </div>
-      <div className="mt-2.5 flex gap-1.5">
-        <div className="h-4 w-16 rounded-full" style={{ background: "var(--bg-hover)" }} />
-        <div className="h-4 w-10 rounded-full" style={{ background: "var(--bg-hover)" }} />
+      {/* Thumbnail area */}
+      <div className="w-full" style={{ aspectRatio: "1/1", background: "var(--bg-hover)" }} />
+      {/* Info below */}
+      <div className="space-y-1.5 px-2.5 py-2">
+        <div className="h-3 w-4/5 rounded-full" style={{ background: "var(--bg-hover)" }} />
+        <div className="h-2.5 w-2/3 rounded-full opacity-70" style={{ background: "var(--bg-hover)" }} />
       </div>
     </div>
   );
