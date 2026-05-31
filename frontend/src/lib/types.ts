@@ -114,4 +114,13 @@ export type AdminStats = {
   last_sync_at: string | null;
   last_sync_status: string | null;
   last_sync_error: string | null;
+  last_sweep_at: string | null;
+  last_sweep_checked: number;
+  last_sweep_deactivated: number;
+};
+
+export type HealthSweepResult = {
+  checked: number;
+  deactivated: number;
+  duration_seconds: number | null;
 };
