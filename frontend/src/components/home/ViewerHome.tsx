@@ -908,8 +908,11 @@ export function ViewerHome() {
       const chCountry = ch.country.toLowerCase();
       const matched = live.find((f) => {
         const ft = `${f.home_team} ${f.away_team} ${f.league_name}`.toLowerCase();
+        // Name-prefix match (≥6 chars to avoid spurious short matches)
         if (n.length >= 6 && ft.includes(n.slice(0, 6))) return true;
+        // T Sports specifically carries BD/IN live matches
         if (n.includes("t-sport") || n.includes("tsport") || n === "t sports") return true;
+        // Channel country aligns with one of the playing teams
         if (chCountry.length >= 4 && (
           f.home_team.toLowerCase().includes(chCountry) ||
           f.away_team.toLowerCase().includes(chCountry) ||
