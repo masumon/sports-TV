@@ -113,6 +113,7 @@ def _sync_openligadb_league(db: Session, league: str, season: int, word_index: d
     url = f"{OPENLIGADB_BASE}/getmatchdata/{league}/{season}"
     data = _fetch_json(url)
     if data is None:
+        logger.warning("openligadb: no data for league=%s season=%d — key may be invalid (UCL/Champions League is not available on OpenLigaDB; use football-data.org CL code instead)", league, season)
         return 0
     if not isinstance(data, list):
         return 0
@@ -184,9 +185,10 @@ def _sync_football_data(db: Session, word_index: dict[str, list[int]]) -> int:
     if not token:
         return 0
     now = datetime.now(tz=timezone.utc)
-    df = now.date()
-    dt_to = df + timedelta(days=max(1, settings.live_fixtures_days_ahead))
-    comps = (settings.football_data_competitions or "").strip() or "PL,BL1,PD,SA,FL1"
+    # Include recent past matches (up to 8 h back) so "just finished" fixtures appear
+    df = (now - timedelta(hours=8)).date()
+    dt_to = now.date() + timedelta(days=max(1, settings.live_fixtures_days_ahead))
+    comps = (settings.football_data_competitions or "").strip() or "PL,BL1,PD,SA,FL1,WC"
     url = (
         f"{FOOTBALL_DATA_BASE}/matches?"
         f"competitions={comps}&dateFrom={df.isoformat()}&dateTo={dt_to.isoformat()}"
