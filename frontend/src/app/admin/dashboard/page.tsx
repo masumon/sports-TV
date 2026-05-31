@@ -363,18 +363,28 @@ export default function AdminDashboardPage() {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  // Auto-dismiss error after 8 seconds
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(null), 8000);
+    return () => clearTimeout(t);
+  }, [error]);
+
   const syncM3u = async () => {
     if (!authToken) return;
     setSyncing(true);
     setError(null);
+    // Fallback: reset button after 6 minutes even if request somehow hangs
+    const fallbackTimer = setTimeout(() => setSyncing(false), 6 * 60 * 1000);
     try {
       await apiClient.adminSyncChannels(authToken);
       await fetchAdminData();
       await fetchStats();
       await fetchViewerCatalogCount();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "M3U Sync ব্যর্থ");
+      setError(err instanceof Error ? err.message : "M3U Sync ব্যর্থ হয়েছে");
     } finally {
+      clearTimeout(fallbackTimer);
       setSyncing(false);
     }
   };
@@ -383,13 +393,18 @@ export default function AdminDashboardPage() {
     if (!authToken) return;
     setSyncingFixtures(true);
     setError(null);
+    const fallbackTimer = setTimeout(() => setSyncingFixtures(false), 3 * 60 * 1000);
     try {
       const res = await apiClient.adminSyncFixtures(authToken);
-      const touched = res.rows_touched ?? 0;
-      alert(`✅ Fixture sync done — ${touched} matches synced`);
+      const touched = Object.values(res).reduce((a, b) => a + (b as number), 0);
+      await fetchStats();
+      setError(null);
+      // Show brief success in place of the error banner (repurpose as info)
+      alert(`✅ Fixture sync সম্পন্ন — ${touched} matches আপডেট হয়েছে`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fixture sync failed");
+      setError(err instanceof Error ? err.message : "Fixture sync ব্যর্থ হয়েছে");
     } finally {
+      clearTimeout(fallbackTimer);
       setSyncingFixtures(false);
     }
   };
@@ -572,6 +587,31 @@ export default function AdminDashboardPage() {
                   <>
                     <br />
                     <span className="text-[11px] text-zinc-500">{new Date(stats.last_sync_at).toLocaleString()}</span>
+                  </>
+                ) : null}
+                {stats.last_sync_status ? (
+                  <>
+                    <br />
+                    <span
+                      className="text-[11px] font-semibold"
+                      style={{
+                        color: stats.last_sync_status === "success"
+                          ? "#34d399"
+                          : stats.last_sync_status === "failed"
+                            ? "#f87171"
+                            : "#fbbf24",
+                      }}
+                    >
+                      {stats.last_sync_status === "success" ? "✓ Sync OK" : stats.last_sync_status === "failed" ? "✗ Sync failed" : "⟳ Syncing…"}
+                    </span>
+                  </>
+                ) : null}
+                {stats.last_sync_error ? (
+                  <>
+                    <br />
+                    <span className="text-[10px] text-rose-300/80 leading-tight" title={stats.last_sync_error}>
+                      {stats.last_sync_error.length > 80 ? stats.last_sync_error.slice(0, 80) + "…" : stats.last_sync_error}
+                    </span>
                   </>
                 ) : null}
               </p>

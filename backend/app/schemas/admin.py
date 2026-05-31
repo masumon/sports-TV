@@ -10,6 +10,8 @@ class AdminStatsResponse(BaseModel):
     cache_ttl_seconds: int
     scheduled_sync_minutes: int
     last_sync_at: str | None = None
+    last_sync_status: str | None = None
+    last_sync_error: str | None = None
 
 
 class StreamProbeRequest(BaseModel):

@@ -110,4 +110,6 @@ export type AdminStats = {
   cache_ttl_seconds: number;
   scheduled_sync_minutes: number;
   last_sync_at: string | null;
+  last_sync_status: string | null;
+  last_sync_error: string | null;
 };
