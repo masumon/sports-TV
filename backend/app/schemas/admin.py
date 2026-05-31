@@ -12,12 +12,16 @@ class AdminStatsResponse(BaseModel):
     last_sync_at: str | None = None
     last_sync_status: str | None = None
     last_sync_error: str | None = None
+    # Health sweep stats
+    last_sweep_at: str | None = None
+    last_sweep_checked: int = 0
+    last_sweep_deactivated: int = 0
 
 
 class StreamProbeRequest(BaseModel):
     """Batch stream URL availability checks (admin-only). Max size protects free-tier hosts."""
 
-    urls: list[str] = Field(..., min_length=1, max_length=24)
+    urls: list[str] = Field(..., min_length=1, max_length=50)
 
 
 class StreamProbeItemResult(BaseModel):
@@ -29,3 +33,9 @@ class StreamProbeItemResult(BaseModel):
 
 class StreamProbeResponse(BaseModel):
     results: list[StreamProbeItemResult]
+
+
+class HealthSweepResponse(BaseModel):
+    checked: int
+    deactivated: int
+    duration_seconds: float | None = None

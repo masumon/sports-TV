@@ -8,7 +8,7 @@ from sqlalchemy import select, text
 
 from app.core.cache import invalidate_list_caches
 from app.core.config import settings
-from app.core.sync_rate_limit import mark_sync_failure, mark_sync_started, mark_sync_success
+from app.core.sync_rate_limit import mark_sync_failure, mark_sync_started, mark_sync_success, mark_sweep_complete
 from app.db.session import SessionLocal
 from app.models.channel import Channel
 from app.services.channel_cleanup import run_full_cleanup
@@ -193,5 +193,52 @@ def run_channel_health_check(
         db.rollback()
         logger.exception("channel_health_check failed")
         return {"checked": 0, "deactivated": 0}
+    finally:
+        db.close()
+
+
+def run_health_sweep(*, max_workers: int = 30) -> dict[str, int]:
+    """Full dead-link sweep — checks ALL active channels (no sample limit).
+
+    Deactivates every channel whose primary stream_url is unreachable.
+    Intended for manual admin triggers; too heavy for the scheduler.
+    """
+    started_at = datetime.now(tz=timezone.utc)
+    logger.info("health_sweep start max_workers=%d", max_workers)
+    db = SessionLocal()
+    try:
+        _apply_db_statement_timeout(db)
+        rows = list(
+            db.scalars(
+                select(Channel).where(Channel.is_active.is_(True))
+            ).all()
+        )
+        if not rows:
+            logger.info("health_sweep skipped reason=no_active_channels")
+            return {"checked": 0, "deactivated": 0}
+
+        url_map = {ch.stream_url: ch for ch in rows}
+        results = validate_stream_urls(list(url_map.keys()), max_workers=max_workers)
+        dead = [ch for url, ch in url_map.items() if not results.get(url, False)]
+
+        for ch in dead:
+            ch.is_active = False
+        if dead:
+            db.commit()
+            invalidate_list_caches()
+
+        elapsed = (datetime.now(tz=timezone.utc) - started_at).total_seconds()
+        logger.info(
+            "health_sweep complete duration_seconds=%.2f checked=%d deactivated=%d",
+            elapsed,
+            len(rows),
+            len(dead),
+        )
+        mark_sweep_complete(checked=len(rows), deactivated=len(dead))
+        return {"checked": len(rows), "deactivated": len(dead)}
+    except Exception:
+        db.rollback()
+        logger.exception("health_sweep failed")
+        raise
     finally:
         db.close()

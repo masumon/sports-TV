@@ -261,6 +261,17 @@ export const apiClient = {
     });
   },
 
+  adminHealthSweep(token: string) {
+    return apiRequest<{ checked: number; deactivated: number; duration_seconds: number | null }>(
+      "/admin/channels/health-sweep",
+      {
+        method: "POST",
+        authToken: token,
+        timeoutMs: 10 * 60 * 1000, // 10 minutes — full sweep can take time
+      }
+    );
+  },
+
   /** No auth — only for admin accounts. Returns a one-time token in JSON (no email from server). */
   requestAdminPasswordReset(email: string) {
     return apiRequest<{

@@ -12,6 +12,12 @@ _last_sync_status: str | None = None
 _last_sync_error: str | None = None
 _SYNC_STATE_KEY = "gstv:sync:state"
 
+# Health sweep state (in-memory; best-effort Redis persistence)
+_last_sweep_at: float = 0.0
+_last_sweep_checked: int = 0
+_last_sweep_deactivated: int = 0
+_SWEEP_STATE_KEY = "gstv:sweep:state"
+
 
 def _utc_iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
@@ -31,6 +37,21 @@ def _persist_state() -> None:
             "last_sync_success_at": _utc_iso(_last_sync_at) if _last_sync_at else None,
         }
         safe_set(_SYNC_STATE_KEY, json.dumps(payload), ttl=86400)
+    except Exception:
+        pass
+
+
+def _persist_sweep_state() -> None:
+    try:
+        import json
+        from app.core.redis_client import safe_set
+
+        payload = {
+            "last_sweep_at": _utc_iso(_last_sweep_at) if _last_sweep_at else None,
+            "last_sweep_checked": _last_sweep_checked,
+            "last_sweep_deactivated": _last_sweep_deactivated,
+        }
+        safe_set(_SWEEP_STATE_KEY, json.dumps(payload), ttl=86400)
     except Exception:
         pass
 
@@ -87,3 +108,26 @@ def get_last_sync_status() -> str | None:
 
 def get_last_sync_error() -> str | None:
     return _last_sync_error
+
+
+# ── Health sweep state accessors ────────────────────────────────────────────
+
+def mark_sweep_complete(checked: int, deactivated: int) -> None:
+    global _last_sweep_at, _last_sweep_checked, _last_sweep_deactivated
+    _last_sweep_at = time.time()
+    _last_sweep_checked = checked
+    _last_sweep_deactivated = deactivated
+    _persist_sweep_state()
+
+
+def get_last_sweep_iso() -> str | None:
+    return _utc_iso(_last_sweep_at) if _last_sweep_at else None
+
+
+def get_last_sweep_checked() -> int:
+    return _last_sweep_checked
+
+
+def get_last_sweep_deactivated() -> int:
+    return _last_sweep_deactivated
+

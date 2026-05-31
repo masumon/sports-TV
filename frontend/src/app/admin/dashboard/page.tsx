@@ -376,6 +376,8 @@ export default function AdminDashboardPage() {
   const initialFetchDone = useRef(false);
   const [syncing, setSyncing] = useState(false);
   const [syncingFixtures, setSyncingFixtures] = useState(false);
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepResult, setSweepResult] = useState<{ checked: number; deactivated: number; duration_seconds: number | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [channelQuery, setChannelQuery] = useState("");
@@ -534,6 +536,26 @@ export default function AdminDashboardPage() {
     } finally {
       clearTimeout(fallback);
       setSyncingFixtures(false);
+    }
+  };
+
+  const runHealthSweep = async () => {
+    if (!authToken) return;
+    if (!window.confirm("এই অপারেশন সব active channel চেক করবে এবং dead link গুলো auto-deactivate করবে। চালাবেন?")) return;
+    setSweeping(true);
+    setSweepResult(null);
+    const fallback = setTimeout(() => setSweeping(false), 11 * 60 * 1000);
+    try {
+      const res = await apiClient.adminHealthSweep(authToken);
+      setSweepResult(res);
+      await fetchAdminData();
+      await fetchStats();
+      toast.success(`✓ Sweep সম্পন্ন — ${res.checked} checked, ${res.deactivated} dead link removed`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Health sweep ব্যর্থ হয়েছে");
+    } finally {
+      clearTimeout(fallback);
+      setSweeping(false);
     }
   };
 
@@ -765,6 +787,13 @@ export default function AdminDashboardPage() {
                   <Calendar size={16} />{syncingFixtures ? "Syncing…" : "Sync Fixtures"}
                 </button>
               </Tooltip>
+              <Tooltip text="সব active channel চেক করে dead link auto-deactivate করবে। Heavy operation — কয়েক মিনিট লাগতে পারে।">
+                <button type="button" onClick={() => void runHealthSweep()} disabled={sweeping}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-3.5 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:from-rose-500 hover:to-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
+                  <Zap size={16} className={sweeping ? "animate-pulse" : ""} />
+                  {sweeping ? "Sweeping…" : "Dead Sweep"}
+                </button>
+              </Tooltip>
               <button type="button" onClick={clearSession}
                 className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 text-sm text-rose-100 transition hover:bg-rose-500/20">
                 <LogOut size={16} /><span className="hidden sm:inline">Logout</span>
@@ -883,9 +912,44 @@ export default function AdminDashboardPage() {
                     {stats.last_sync_error.length > 70 ? stats.last_sync_error.slice(0, 70) + "…" : stats.last_sync_error}
                   </span></>
                 )}
+                {(stats.last_sweep_at || stats.last_sweep_checked > 0) && (
+                  <>
+                    <br />
+                    <span className="text-[10px] text-zinc-500">
+                      🧹 Sweep: {stats.last_sweep_checked} checked, {" "}
+                      <span className={stats.last_sweep_deactivated > 0 ? "text-rose-400" : "text-emerald-400"}>
+                        {stats.last_sweep_deactivated} removed
+                      </span>
+                    </span>
+                  </>
+                )}
               </p>
             </div>
           </section>
+        )}
+
+        {/* ── Sweep result banner ── */}
+        {sweepResult && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <Zap size={16} className="shrink-0 text-rose-400" />
+              <div>
+                <p className="text-sm font-semibold text-rose-100">Dead Link Sweep সম্পন্ন</p>
+                <p className="text-xs text-zinc-400">
+                  <span className="text-zinc-200 font-semibold">{sweepResult.checked}</span> channels checked ·{" "}
+                  <span className={sweepResult.deactivated > 0 ? "text-rose-300 font-semibold" : "text-emerald-400 font-semibold"}>
+                    {sweepResult.deactivated} dead link{sweepResult.deactivated !== 1 ? "s" : ""} removed
+                  </span>
+                  {sweepResult.duration_seconds != null && (
+                    <> · {sweepResult.duration_seconds}s</>
+                  )}
+                </p>
+              </div>
+            </div>
+            <button type="button" onClick={() => setSweepResult(null)} className="shrink-0 rounded p-1 hover:bg-rose-500/20">
+              <X size={14} className="text-rose-300" />
+            </button>
+          </div>
         )}
 
         {/* ── Error banner ── */}

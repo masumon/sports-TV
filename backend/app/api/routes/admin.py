@@ -11,17 +11,25 @@ from starlette.responses import Response
 from app.core.cache import invalidate_list_caches
 from app.core.config import settings
 from app.core.security import get_current_admin_user
-from app.core.sync_rate_limit import check_sync_allowed, get_last_sync_iso, get_last_sync_status, get_last_sync_error
+from app.core.sync_rate_limit import (
+    check_sync_allowed,
+    get_last_sync_iso,
+    get_last_sync_status,
+    get_last_sync_error,
+    get_last_sweep_iso,
+    get_last_sweep_checked,
+    get_last_sweep_deactivated,
+)
 from app.db.session import get_db
 from app.models.channel import Channel
 from app.models.dynamic_stream import DynamicStream
 from app.models.user import User
 from app.api.routes.proxy import _validate_stream_url
-from app.schemas.admin import AdminStatsResponse, StreamProbeRequest, StreamProbeResponse
+from app.schemas.admin import AdminStatsResponse, HealthSweepResponse, StreamProbeRequest, StreamProbeResponse
 from app.services.stream_probe import run_probe_batch
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
-from app.services.automation import run_channel_sync
+from app.services.automation import run_channel_sync, run_health_sweep
 from app.services.live_fixtures_sync import run_live_fixtures_sync_standalone
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -50,6 +58,9 @@ async def admin_stats(
         last_sync_at=get_last_sync_iso(),
         last_sync_status=get_last_sync_status(),
         last_sync_error=get_last_sync_error(),
+        last_sweep_at=get_last_sweep_iso(),
+        last_sweep_checked=get_last_sweep_checked(),
+        last_sweep_deactivated=get_last_sweep_deactivated(),
     )
 
 
@@ -106,6 +117,31 @@ async def sync_channels(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Channel sync failed: {exc}",
         ) from exc
+
+
+@router.post("/channels/health-sweep", response_model=HealthSweepResponse)
+async def health_sweep_channels(
+    _: User = Depends(get_current_admin_user),
+) -> HealthSweepResponse:
+    """Check ALL active channels and auto-deactivate any with dead stream URLs.
+
+    This is a heavy operation — it validates every active channel concurrently.
+    Use on-demand; the scheduled health check already samples channels automatically.
+    """
+    import time as _time
+    t0 = _time.monotonic()
+    try:
+        result = await run_in_threadpool(lambda: run_health_sweep(max_workers=30))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Health sweep failed: {exc}",
+        ) from exc
+    return HealthSweepResponse(
+        checked=result.get("checked", 0),
+        deactivated=result.get("deactivated", 0),
+        duration_seconds=round(_time.monotonic() - t0, 1),
+    )
 
 
 @router.get("/channels", response_model=list[ChannelRead])
