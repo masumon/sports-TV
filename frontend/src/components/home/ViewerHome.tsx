@@ -697,7 +697,16 @@ export function ViewerHome() {
   const gridSlice = filtered.length <= gridVisibleCount ? filtered : filtered.slice(0, gridVisibleCount);
   const gridHasMore = !loading && filtered.length > gridSlice.length;
 
-  const categoryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.category)), [moduleChannels]);
+  const categoryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of moduleChannels) {
+      counts.set(c.category, (counts.get(c.category) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .filter(([, n]) => n >= 3)
+      .map(([cat]) => cat)
+      .sort((a, b) => a.localeCompare(b));
+  }, [moduleChannels]);
   const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
   const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
   // Count channels per sport type (only render chips that have channels)
