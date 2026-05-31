@@ -18,9 +18,9 @@ export async function clearAppCache(): Promise<boolean> {
   } catch {
     /* */
   }
-  useSubscriptionStore.persist.clearStorage();
-  useSiteSettingsStore.persist.clearStorage();
-  useI18nStore.persist.clearStorage();
+  try { useSubscriptionStore.persist.clearStorage(); } catch { /* */ }
+  try { useSiteSettingsStore.persist.clearStorage(); } catch { /* */ }
+  try { useI18nStore.persist.clearStorage(); } catch { /* */ }
   // Keep login session: useAuthStore remains untouched
 
   try {
