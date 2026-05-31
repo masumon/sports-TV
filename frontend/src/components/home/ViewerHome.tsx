@@ -274,11 +274,17 @@ export function ViewerHome() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem("gstv-recently-watched");
-      if (stored) setRecentlyWatched(JSON.parse(stored) as number[]);
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed)) setRecentlyWatched(parsed.filter((x): x is number => typeof x === "number"));
+      }
     } catch { /* ignore */ }
     try {
       const storedFav = localStorage.getItem("gstv-favorites");
-      if (storedFav) setFavorites(JSON.parse(storedFav) as number[]);
+      if (storedFav) {
+        const parsed: unknown = JSON.parse(storedFav);
+        if (Array.isArray(parsed)) setFavorites(parsed.filter((x): x is number => typeof x === "number"));
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -819,15 +825,17 @@ export function ViewerHome() {
     return orderedStreamUrlsForChannel(activeChannel);
   }, [activeChannel]);
 
-  const recentChannelObjects = useMemo(() => {
-    const map = new Map(allChannels.map((c) => [c.id, c]));
-    return recentlyWatched.map((id) => map.get(id)).filter(Boolean) as Channel[];
-  }, [recentlyWatched, allChannels]);
+  const channelById = useMemo(() => new Map(allChannels.map((c) => [c.id, c])), [allChannels]);
 
-  const favoriteChannelObjects = useMemo(() => {
-    const map = new Map(allChannels.map((c) => [c.id, c]));
-    return favorites.map((id) => map.get(id)).filter(Boolean) as Channel[];
-  }, [favorites, allChannels]);
+  const recentChannelObjects = useMemo(
+    () => recentlyWatched.map((id) => channelById.get(id)).filter(Boolean) as Channel[],
+    [recentlyWatched, channelById]
+  );
+
+  const favoriteChannelObjects = useMemo(
+    () => favorites.map((id) => channelById.get(id)).filter(Boolean) as Channel[],
+    [favorites, channelById]
+  );
 
   const tSportsChannel = useMemo(() => {
     if (activeModule !== "bangladesh") return null;
@@ -897,9 +905,20 @@ export function ViewerHome() {
     if (!live.length) return map;
     for (const ch of moduleChannels) {
       const n = ch.name.toLowerCase();
+      const chCountry = ch.country.toLowerCase();
       const matched = live.find((f) => {
         const ft = `${f.home_team} ${f.away_team} ${f.league_name}`.toLowerCase();
-        return ft.includes(n.slice(0, 5)) || n.includes("sport") || n.includes("t-sport") || n.includes("tsport");
+        // Name-prefix match (≥6 chars to avoid spurious short matches)
+        if (n.length >= 6 && ft.includes(n.slice(0, 6))) return true;
+        // T Sports specifically carries BD/IN live matches
+        if (n.includes("t-sport") || n.includes("tsport") || n === "t sports") return true;
+        // Channel country aligns with one of the playing teams
+        if (chCountry.length >= 4 && (
+          f.home_team.toLowerCase().includes(chCountry) ||
+          f.away_team.toLowerCase().includes(chCountry) ||
+          ft.includes(chCountry)
+        )) return true;
+        return false;
       });
       if (matched) {
         map.set(ch.id, `🔴 ${matched.home_team} vs ${matched.away_team}`);
@@ -924,7 +943,8 @@ export function ViewerHome() {
       ? MODULE_ORDER[(idx + 1) % MODULE_ORDER.length]!
       : MODULE_ORDER[(idx - 1 + MODULE_ORDER.length) % MODULE_ORDER.length]!;
     transitionSetActiveModule(next);
-    toast(`📺 ${next.replace("_", " ").replace("world cup 2026", "World Cup")}`, { duration: 1200 });
+    const label = next.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    toast(`📺 ${label}`, { duration: 1200 });
   }, [activeModule, transitionSetActiveModule]);
   useSwipeGesture(swipeContainerRef, onSwipe);
 
