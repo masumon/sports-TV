@@ -707,8 +707,16 @@ export function ViewerHome() {
       .map(([cat]) => cat)
       .sort((a, b) => a.localeCompare(b));
   }, [moduleChannels]);
-  const countryOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.country)), [moduleChannels]);
-  const languageOptions = useMemo(() => uniqueSorted(moduleChannels.map((c) => c.language)), [moduleChannels]);
+  const countryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of moduleChannels) counts.set(c.country, (counts.get(c.country) ?? 0) + 1);
+    return [...counts.entries()].filter(([, n]) => n >= 2).map(([v]) => v).sort((a, b) => a.localeCompare(b));
+  }, [moduleChannels]);
+  const languageOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of moduleChannels) counts.set(c.language, (counts.get(c.language) ?? 0) + 1);
+    return [...counts.entries()].filter(([, n]) => n >= 2).map(([v]) => v).sort((a, b) => a.localeCompare(b));
+  }, [moduleChannels]);
   // Count channels per sport type (only render chips that have channels)
   const sportChannelCount = useMemo<Record<string, number>>(() => {
     if (activeModule !== "global_sports") return {};
