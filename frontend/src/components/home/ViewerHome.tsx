@@ -1436,59 +1436,59 @@ export function ViewerHome() {
 
         {/* ── Bangladesh Popular Channels Quick Row ── */}
         {activeModule === "bangladesh" && !loading && bdPopularChannels.length > 0 && (
-          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid rgba(0,106,78,0.2)" }}>
-            <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(0,106,78,0.07)", border: "1px solid rgba(0,106,78,0.18)" }}>
+            <div className="flex items-center justify-between gap-2 px-4 py-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm" aria-hidden>⭐</span>
-                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-main)" }}>জনপ্রিয় চ্যানেল</h3>
+                <span className="text-base leading-none" aria-hidden>⭐</span>
+                <h3 className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: "#10b981" }}>জনপ্রিয় চ্যানেল</h3>
               </div>
-              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>ক্লিক করে দেখুন</span>
+              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>ক্লিক করে দেখুন →</span>
             </div>
             <div className="relative">
-              <div className="flex overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
-                {bdPopularChannels.map((ch) => (
-                  <button
-                    key={ch.id}
-                    type="button"
-                    onClick={() => selectChannel(ch)}
-                    className="flex shrink-0 flex-col items-center gap-1.5 px-3 py-3 text-center transition-colors hover:bg-white/[0.04]"
-                    style={{
-                      minWidth: 72,
-                      maxWidth: 88,
-                      background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
-                    }}
-                    title={ch.name}
-                  >
-                    {ch.logo_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={ch.logo_url}
-                        alt=""
-                        className="h-12 w-12 rounded-xl object-cover"
-                        style={{ border: activeChannel?.id === ch.id ? "2px solid var(--primary-accent)" : "1px solid var(--border)" }}
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div
-                        className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-bold"
-                        style={{ background: "rgba(0,106,78,0.15)", color: "#10b981" }}
-                      >
-                        {ch.name.slice(0, 2)}
-                      </div>
-                    )}
-                    <p
-                      className="w-full truncate text-[10px] font-medium leading-tight"
-                      style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-muted)" }}
+              <div className="flex gap-1 overflow-x-auto px-3 pb-3 scrollbar-none">
+                {bdPopularChannels.map((ch) => {
+                  const isActive = activeChannel?.id === ch.id;
+                  return (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => selectChannel(ch)}
+                      className="group flex shrink-0 flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-center transition-all hover:scale-105"
+                      style={{
+                        width: 72,
+                        background: isActive ? "rgba(0,106,78,0.2)" : "rgba(255,255,255,0.03)",
+                        border: isActive ? "1px solid rgba(16,185,129,0.45)" : "1px solid rgba(255,255,255,0.05)",
+                      }}
+                      title={ch.name}
                     >
-                      {ch.name}
-                    </p>
-                    {activeChannel?.id === ch.id && (
-                      <span className="h-1 w-1 rounded-full animate-pulse" style={{ background: "var(--primary-accent)" }} aria-hidden />
-                    )}
-                  </button>
-                ))}
+                      {ch.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={ch.logo_url}
+                          alt=""
+                          className="h-12 w-12 rounded-xl object-cover transition-transform group-hover:scale-105"
+                          style={{ border: isActive ? "2px solid #10b981" : "1px solid rgba(255,255,255,0.08)" }}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-black"
+                          style={{ background: "rgba(0,106,78,0.2)", color: "#10b981" }}>
+                          {ch.name.slice(0, 2)}
+                        </div>
+                      )}
+                      <p className="w-full truncate text-[9px] font-semibold leading-tight"
+                        style={{ color: isActive ? "#10b981" : "var(--text-muted)" }}>
+                        {ch.name}
+                      </p>
+                      {isActive && (
+                        <span className="h-1 w-4 rounded-full" style={{ background: "#10b981" }} aria-hidden />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-10"
+                style={{ background: "linear-gradient(to right, transparent, rgba(0,106,78,0.07))" }} />
             </div>
           </div>
         )}
@@ -2101,7 +2101,7 @@ export function ViewerHome() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
                 {gridSlice.map((ch) => (
                   <PremiumChannelCard
                     key={ch.id}
