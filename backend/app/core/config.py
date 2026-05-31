@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # Real fixture schedule sync (OpenLigaDB + optional football-data.org). 0 = disabled.
     live_fixtures_sync_interval_minutes: int = 15
     live_fixtures_days_ahead: int = 14
-    openligadb_league_keys: str = "bl1,bl2"
+    openligadb_league_keys: str = "bl1,bl2,dfb"
     football_data_org_api_token: str | None = None
     football_data_competitions: str = "PL,BL1,PD,SA,FL1,WC"
     # CricAPI free tier (100 calls/day) — https://cricapi.com

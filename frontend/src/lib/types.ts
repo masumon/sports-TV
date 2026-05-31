@@ -55,6 +55,8 @@ export type Channel = {
   header_profile?: string | null;
   /** Hint for VPN / geo messaging (FanCode, some Indian networks). */
   geo_hint?: boolean;
+  /** "manual" | "m3u_sync" | … — how the channel was added. */
+  source?: string;
 };
 
 export type ChannelListResponse = {

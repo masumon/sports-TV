@@ -48,7 +48,15 @@ import { useUiStore } from "@/store/uiStore";
 
 const PremiumPlayer = dynamic(
   () => import("@/components/PremiumPlayer").then((m) => m.default),
-  { ssr: false, loading: () => <div className="player-shell aspect-video animate-pulse" style={{ background: "var(--bg-card)" }} /> }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="player-shell aspect-video flex flex-col items-center justify-center gap-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[var(--primary-accent)]" />
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Loading stream…</p>
+      </div>
+    ),
+  }
 );
 
 function uniqueSorted(values: string[]): string[] {
@@ -287,10 +295,12 @@ export function ViewerHome() {
   );
   const toggleFavorite = useCallback((ch: Channel) => {
     setFavorites((prev) => {
-      const next = prev.includes(ch.id)
-        ? prev.filter((id) => id !== ch.id)
-        : [ch.id, ...prev].slice(0, 30);
+      const isAdding = !prev.includes(ch.id);
+      const next = isAdding
+        ? [ch.id, ...prev].slice(0, 30)
+        : prev.filter((id) => id !== ch.id);
       try { localStorage.setItem("gstv-favorites", JSON.stringify(next)); } catch { /* ignore */ }
+      toast(isAdding ? `⭐ ${ch.name} favorites-এ যোগ হয়েছে` : `${ch.name} favorites থেকে সরানো হয়েছে`, { duration: 2000 });
       return next;
     });
   }, []);
@@ -312,8 +322,8 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  /** Ceiling for full catalog (many M3Us + FanCode); clears spinner even if fetches never settle. */
-  const CATALOG_LOAD_TIMEOUT_MS = 180_000;
+  /** Ceiling for full catalog; clears spinner even if fetches never settle. */
+  const CATALOG_LOAD_TIMEOUT_MS = 30_000;
 
   const loadChannels = useCallback(
     async (showToast = false, silent = false) => {
@@ -818,8 +828,15 @@ export function ViewerHome() {
             >
               <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
               <div className="flex-1 min-w-0">
-                <p className="text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
-                  {t("coldStartBanner")}
+                <p className="text-xs font-semibold leading-snug" style={{ color: "var(--text-main)" }}>
+                  🚀 Backend starting up…
+                </p>
+                <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                  {coldStartSeconds < 15
+                    ? "Waking up the server — usually takes 10–30 seconds on first load."
+                    : coldStartSeconds < 40
+                      ? "Still loading… Free-tier servers take a moment to start. Almost there!"
+                      : "Taking longer than usual. Please wait or refresh if this persists."}
                 </p>
                 {coldStartSeconds > 0 && (
                   <div className="mt-1.5 flex items-center gap-2">
@@ -829,8 +846,8 @@ export function ViewerHome() {
                         style={{ background: "var(--primary-accent)", width: `${Math.min(100, (coldStartSeconds / 60) * 100)}%` }}
                       />
                     </div>
-                    <span className="shrink-0 text-[10px] tabular-nums" style={{ color: "var(--primary-accent)" }}>
-                      {coldStartSeconds}s
+                    <span className="shrink-0 text-[10px] tabular-nums font-bold" style={{ color: "var(--primary-accent)" }}>
+                      {coldStartSeconds}s / ~60s
                     </span>
                   </div>
                 )}
@@ -898,6 +915,7 @@ export function ViewerHome() {
             className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
           >
             🔴 Live Matches
+            {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
           </button>
           <button
             type="button"
@@ -1775,7 +1793,8 @@ export function ViewerHome() {
                 {t("recentlyClear")}
               </button>
             </div>
-            <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+            <div className="relative">
+              <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
               {favoriteChannelObjects.map((ch) => (
                 <button
                   key={ch.id}
@@ -1800,6 +1819,9 @@ export function ViewerHome() {
                   </p>
                 </button>
               ))}
+              </div>
+              {/* fade-out scroll hint on right edge */}
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
             </div>
           </div>
         )}
@@ -1826,7 +1848,8 @@ export function ViewerHome() {
                 {t("recentlyClear")}
               </button>
             </div>
-            <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+            <div className="relative">
+              <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
               {recentChannelObjects.map((ch) => (
                 <button
                   key={ch.id}
@@ -1851,6 +1874,8 @@ export function ViewerHome() {
                   </p>
                 </button>
               ))}
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
             </div>
           </div>
         )}
@@ -1904,8 +1929,30 @@ export function ViewerHome() {
           ) : loading ? (
             <ChannelSkeletonGrid count={18} />
           ) : moduleChannels.length === 0 ? (
-            <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
-              <p className="text-sm" style={{ color: "var(--text-main)" }}>{t("emptyModule")}</p>
+            <div className="rounded-xl p-10 text-center space-y-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>
+              <p className="text-2xl" aria-hidden>
+                {activeModule === "bangladesh" ? "🇧🇩" : activeModule === "india" ? "🇮🇳" : activeModule === "world_cup_2026" ? "🏆" : "📡"}
+              </p>
+              <p className="text-sm font-semibold" style={{ color: "var(--text-main)" }}>
+                {activeModule === "bangladesh"
+                  ? "বাংলাদেশ চ্যানেল লোড হচ্ছে…"
+                  : activeModule === "india"
+                    ? "India channels loading…"
+                    : activeModule === "world_cup_2026"
+                      ? "World Cup channels loading…"
+                      : t("emptyModule")}
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                If channels don&apos;t appear, try refreshing below.
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadChannels(true)}
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition hover:opacity-90"
+                style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
+              >
+                <RefreshCw size={12} /> Refresh
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="rounded-xl p-10 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.15)" }}>

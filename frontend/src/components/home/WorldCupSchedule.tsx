@@ -2,6 +2,7 @@
 
 import { Bell, BellOff, RefreshCw } from "lucide-react";
 import { startTransition, useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   checkAndFireUpcomingNotifications,
   getNotifPermission,
@@ -63,10 +64,14 @@ export function WorldCupSchedule({
   }, [fixtures, notifEnabled, notifPerm]);
 
   const handleToggleNotif = useCallback(async () => {
-    if (!isNotificationsSupported()) return;
+    if (!isNotificationsSupported()) {
+      toast.error("Your browser doesn't support notifications");
+      return;
+    }
     if (notifEnabled) {
       setNotifEnabled(false);
       setNotifPref(false);
+      toast.info("Match alerts disabled");
       return;
     }
     const perm = await requestNotifPermission();
@@ -74,6 +79,9 @@ export function WorldCupSchedule({
     if (perm === "granted") {
       setNotifEnabled(true);
       setNotifPref(true);
+      toast.success("✓ Match alerts enabled — you'll be notified 15 min before kickoff");
+    } else {
+      toast.error("Notifications blocked — enable in your browser settings", { duration: 5000 });
     }
   }, [notifEnabled]);
 
@@ -264,11 +272,26 @@ export function WorldCupSchedule({
                   </p>
                 </div>
 
-                {/* Time */}
+                {/* Time + countdown */}
                 {!isLive && startMs > 0 && (
-                  <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                    🕐 {new Date(fx.starts_at_utc).toLocaleString(undefined, TIME_FORMAT)}
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      🕐 {new Date(fx.starts_at_utc).toLocaleString(undefined, TIME_FORMAT)}
+                    </p>
+                    {!isFinished && startMs > Date.now() && (() => {
+                      const minLeft = Math.round((startMs - Date.now()) / 60_000);
+                      const label = minLeft < 60
+                        ? `${minLeft}m`
+                        : minLeft < 1440
+                          ? `${Math.floor(minLeft / 60)}h ${minLeft % 60}m`
+                          : `${Math.floor(minLeft / 1440)}d`;
+                      return (
+                        <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)" }}>
+                          ⏳ in {label}
+                        </span>
+                      );
+                    })()}
+                  </div>
                 )}
 
                 {/* Channel suggestions */}

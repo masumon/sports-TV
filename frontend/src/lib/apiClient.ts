@@ -134,6 +134,7 @@ type AdminChannelCreateBody = {
   quality_tag: string;
   module: string;
   is_active: boolean;
+  alternate_urls?: string[];
 };
 
 export async function fetchAllChannels(
