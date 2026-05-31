@@ -25,10 +25,10 @@ export function MobileBottomNav() {
   }
 
   const tabs = [
-    { id: "global_sports",  label: "Sports",   emoji: "🌍", activeColor: "var(--primary-accent)", activeBg: "rgba(229,9,20,0.12)" },
-    { id: "world_cup_2026", label: "World Cup", emoji: "🏆", activeColor: "#F5A623",               activeBg: "rgba(245,166,35,0.15)" },
-    { id: "live_matches",   label: "Live",     emoji: "🔴", activeColor: "#f87171",               activeBg: "rgba(239,68,68,0.12)" },
     { id: "bangladesh",     label: "বাংলাদেশ",  emoji: "🇧🇩", activeColor: "#10b981",               activeBg: "rgba(16,185,129,0.12)" },
+    { id: "live_matches",   label: "Live",     emoji: "🔴", activeColor: "#f87171",               activeBg: "rgba(239,68,68,0.12)" },
+    { id: "world_cup_2026", label: "World Cup", emoji: "🏆", activeColor: "#F5A623",               activeBg: "rgba(245,166,35,0.15)" },
+    { id: "global_sports",  label: "Sports",   emoji: "🌍", activeColor: "var(--primary-accent)", activeBg: "rgba(229,9,20,0.12)" },
     { id: "india",          label: "India",    emoji: "🇮🇳", activeColor: "rgb(199,210,254)",       activeBg: "rgba(99,102,241,0.15)" },
   ] as const;
 
