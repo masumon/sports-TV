@@ -638,6 +638,32 @@ export function ViewerHome() {
       });
     }
 
+    // Bangladesh: Sports → News → Entertainment → Religious when no category filter active
+    if (activeModule === "bangladesh" && !activeCategory && !deferredSearch.trim()) {
+      const bdCatPri = (cat: string) => {
+        const c = cat.toLowerCase();
+        if (c.includes("sport")) return 0;
+        if (c.includes("news")) return 1;
+        if (c.includes("entertainment") || c.includes("drama")) return 2;
+        if (c.includes("general")) return 3;
+        if (c.includes("music")) return 4;
+        if (c.includes("religious")) return 5;
+        return 6;
+      };
+      list = [...list].sort((a, b) => {
+        const pd = bdCatPri(a.category) - bdCatPri(b.category);
+        if (pd !== 0) return pd;
+        // within Sports: T-Sports first
+        if (bdCatPri(a.category) === 0) {
+          const an = a.name.toLowerCase();
+          const bn = b.name.toLowerCase();
+          if (an.includes("t sport") || an.includes("tsport")) return -1;
+          if (bn.includes("t sport") || bn.includes("tsport")) return 1;
+        }
+        return 0;
+      });
+    }
+
     return list;
   }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, activeModule]);
 
@@ -779,6 +805,31 @@ export function ViewerHome() {
     return moduleChannels.find((c) => c.name.toLowerCase().includes("t sport") || c.name.toLowerCase().includes("tsport")) ?? null;
   }, [activeModule, moduleChannels]);
 
+  const bdPopularChannels = useMemo(() => {
+    if (activeModule !== "bangladesh") return [];
+    const catOrder = (cat: string) => {
+      const c = cat.toLowerCase();
+      if (c.includes("sport")) return 0;
+      if (c.includes("news")) return 1;
+      if (c.includes("entertainment") || c.includes("drama")) return 2;
+      if (c.includes("general")) return 3;
+      if (c.includes("music")) return 4;
+      if (c.includes("religious")) return 5;
+      return 6;
+    };
+    return [...moduleChannels].sort((a, b) => catOrder(a.category) - catOrder(b.category)).slice(0, 12);
+  }, [activeModule, moduleChannels]);
+
+  const bdCategoryOptions = useMemo(() => {
+    if (activeModule !== "bangladesh") return categoryOptions;
+    const BD_CAT_ORDER = ["sports", "news", "entertainment", "drama", "general", "music", "movies", "religious", "kids", "cooking"];
+    return [...categoryOptions].sort((a, b) => {
+      const ai = BD_CAT_ORDER.findIndex((k) => a.toLowerCase().includes(k));
+      const bi = BD_CAT_ORDER.findIndex((k) => b.toLowerCase().includes(k));
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+  }, [activeModule, categoryOptions]);
+
   const { gsCount, inCount, bdCount, fastCount, liveCount, wcCount } = useMemo(() => {
     let gs = 0;
     let i = 0;
@@ -914,7 +965,10 @@ export function ViewerHome() {
             }}
             className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
           >
-            🔴 Live Matches
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "#f87171" }} aria-hidden />
+              Live Matches
+            </span>
             {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
           </button>
           <button
@@ -1363,6 +1417,65 @@ export function ViewerHome() {
           </div>
         </div>
 
+        {/* ── Bangladesh Popular Channels Quick Row ── */}
+        {activeModule === "bangladesh" && !loading && bdPopularChannels.length > 0 && (
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid rgba(0,106,78,0.2)" }}>
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm" aria-hidden>⭐</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-main)" }}>জনপ্রিয় চ্যানেল</h3>
+              </div>
+              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>ক্লিক করে দেখুন</span>
+            </div>
+            <div className="relative">
+              <div className="flex overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+                {bdPopularChannels.map((ch) => (
+                  <button
+                    key={ch.id}
+                    type="button"
+                    onClick={() => selectChannel(ch)}
+                    className="flex shrink-0 flex-col items-center gap-1.5 px-3 py-3 text-center transition-colors hover:bg-white/[0.04]"
+                    style={{
+                      minWidth: 72,
+                      maxWidth: 88,
+                      background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
+                    }}
+                    title={ch.name}
+                  >
+                    {ch.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={ch.logo_url}
+                        alt=""
+                        className="h-12 w-12 rounded-xl object-cover"
+                        style={{ border: activeChannel?.id === ch.id ? "2px solid var(--primary-accent)" : "1px solid var(--border)" }}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div
+                        className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-bold"
+                        style={{ background: "rgba(0,106,78,0.15)", color: "#10b981" }}
+                      >
+                        {ch.name.slice(0, 2)}
+                      </div>
+                    )}
+                    <p
+                      className="w-full truncate text-[10px] font-medium leading-tight"
+                      style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-muted)" }}
+                    >
+                      {ch.name}
+                    </p>
+                    {activeChannel?.id === ch.id && (
+                      <span className="h-1 w-1 rounded-full animate-pulse" style={{ background: "var(--primary-accent)" }} aria-hidden />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-xl" style={{ background: "linear-gradient(to right, transparent, var(--bg-card))" }} />
+            </div>
+          </div>
+        )}
+
         {/* ── AdSlot banner ── */}
         {tier === "free" && <AdSlot variant="banner" />}
 
@@ -1432,7 +1545,7 @@ export function ViewerHome() {
             >
               📺 {t("filterAll")}
             </button>
-            {categoryOptions.map((cat) => (
+            {(activeModule === "bangladesh" ? bdCategoryOptions : categoryOptions).map((cat) => (
               <button
                 key={cat}
                 type="button"
@@ -2060,13 +2173,13 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
             <img
               src={channel.logo_url}
               alt=""
-              className="h-12 w-12 shrink-0 rounded-lg object-cover"
+              className="h-14 w-14 shrink-0 rounded-xl object-cover"
               style={{ border: active ? "2px solid rgba(245,166,35,0.6)" : "1px solid var(--border)" }}
               loading="lazy"
             />
           ) : (
             <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
               style={{ background: active ? "var(--primary-accent)" : "var(--bg-hover)" }}
             >
               {channel.name.slice(0, 2)}
@@ -2090,15 +2203,17 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
           >
             {categoryEmoji(channel.category, activeModule)} {channel.category}
           </span>
-          <span
-            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-            style={{
-              background: active ? "rgba(245,166,35,0.12)" : "rgb(255 255 255 / 6%)",
-              color: active ? "var(--primary-accent)" : "var(--text-muted)",
-            }}
-          >
-            {channel.quality_tag}
-          </span>
+          {(channel.quality_tag.toLowerCase().includes("hd") ||
+            channel.quality_tag.toLowerCase().includes("fhd") ||
+            channel.quality_tag.toLowerCase().includes("4k") ||
+            channel.quality_tag.toLowerCase().includes("1080")) && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+              style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}
+            >
+              {channel.quality_tag.toUpperCase()}
+            </span>
+          )}
         </div>
       </button>
 
