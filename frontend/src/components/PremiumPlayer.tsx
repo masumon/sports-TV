@@ -269,9 +269,9 @@ function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
     const j = JSON.parse(xhr.responseText) as { code?: string };
     if (j?.code === "GEO_RESTRICTED") return true;
   } catch {
-    /* non-JSON body */
+    /* non-JSON body — not a confirmed geo-restriction */
   }
-  return true;
+  return false;
 }
 
 function formatQualityFromHeight(height: number): string {
@@ -398,6 +398,7 @@ export default function PremiumPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [autoRetryCountdown, setAutoRetryCountdown] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [geoRestricted, setGeoRestricted] = useState(false);
@@ -915,11 +916,25 @@ export default function PremiumPlayer({
     setHasError(false);
     setGeoRestricted(false);
     setIsLoading(true);
+    setAutoRetryCountdown(0);
     linkRetryRef.current = 0;
     urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setRetryKey((k) => k + 1);
   }, []);
+
+  // Auto-retry countdown: when error appears, count down 10s then auto-retry
+  useEffect(() => {
+    if (!hasError) { setAutoRetryCountdown(0); return; }
+    setAutoRetryCountdown(10);
+    const interval = setInterval(() => {
+      setAutoRetryCountdown((c) => {
+        if (c <= 1) { clearInterval(interval); retryStream(); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [hasError, retryStream]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1076,12 +1091,17 @@ export default function PremiumPlayer({
             <div className="text-center">
               <p className="text-sm font-bold text-white">Stream unavailable</p>
               <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>This stream may be offline. Try another channel or an external player.</p>
+              {autoRetryCountdown > 0 && (
+                <p className="mt-2 text-[11px] font-semibold" style={{ color: "var(--primary-accent)" }}>
+                  Auto-retrying in {autoRetryCountdown}s…
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               <button type="button" onClick={retryStream}
                 className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white transition"
                 style={{ background: "rgba(245,166,35,0.18)", border: "1px solid rgba(245,166,35,0.4)" }}>
-                <RefreshCw size={13} /> Retry
+                <RefreshCw size={13} /> Retry Now
               </button>
               <button type="button" onClick={() => window.open(sharePlaybackUrl, "_blank", "noopener,noreferrer")}
                 className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition hover:bg-white/10"
