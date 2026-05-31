@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio } from "lucide-react";
+import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
@@ -77,11 +77,13 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
 
   return (
     <header
-      className="sticky top-0 z-40 backdrop-blur-md"
+      className="sticky top-0 z-40"
       style={{
-        background: "rgba(7,8,15,0.92)",
+        background: "rgba(11,15,25,0.96)",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
-        boxShadow: "0 1px 12px rgba(0,0,0,0.28)",
+        boxShadow: "0 1px 24px rgba(0,0,0,0.4)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
       }}
     >
       <div className="flex min-h-14 items-center gap-1.5 px-2 sm:gap-2 md:min-h-16 md:gap-2 md:px-4">
@@ -147,13 +149,24 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
               inputMode="search"
               autoComplete="off"
               autoCorrect="off"
-              className="search-input min-h-11 w-full rounded-xl py-2.5 pl-9 pr-3 text-[15px] placeholder:opacity-70 focus:outline-none sm:text-sm md:min-h-10 md:py-2"
+              className="search-input min-h-11 w-full rounded-xl py-2.5 pl-9 pr-8 text-[15px] placeholder:opacity-70 focus:outline-none sm:text-sm md:min-h-10 md:py-2"
               style={{
                 background: "var(--bg-card)",
                 border: "1px solid var(--border)",
                 color: "var(--text-main)",
               }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => { onSearch(""); setShowSuggestions(false); document.getElementById("gstv-search")?.focus(); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition hover:bg-white/10"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <X size={14} />
+              </button>
+            )}
             {/* Suggestions dropdown */}
             {showSuggestions && searchSuggestions.length > 0 && (
               <div

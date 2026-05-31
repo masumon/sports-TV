@@ -32,20 +32,37 @@ export const buildApiV1Url = buildApiUrl;
 type ApiRequestOptions = RequestInit & {
   /** When set, 401 will clear the persisted auth session. */
   authToken?: string | null;
+  /** Request timeout in milliseconds. Defaults to no timeout. */
+  timeoutMs?: number;
 };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { headers: optionHeaders, authToken, ...rest } = options;
+  const { headers: optionHeaders, authToken, timeoutMs, ...rest } = options;
   const merged: Record<string, string> = {
     "Content-Type": "application/json",
     ...(optionHeaders as Record<string, string> | undefined),
   };
   if (authToken) merged["Authorization"] = `Bearer ${authToken}`;
 
-  const res = await fetch(buildApiUrl(path), {
-    ...rest,
-    headers: merged,
-  });
+  let signal = rest.signal ?? undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs && timeoutMs > 0 && !signal) {
+    const controller = new AbortController();
+    signal = controller.signal;
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(buildApiUrl(path), { ...rest, headers: merged, signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("Request timed out — backend may be waking up, try again shortly");
+    }
+    throw err;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 
   if (res.status === 401) {
     const authz = merged["Authorization"] || merged["authorization"];
@@ -117,6 +134,7 @@ type AdminChannelCreateBody = {
   quality_tag: string;
   module: string;
   is_active: boolean;
+  alternate_urls?: string[];
 };
 
 export async function fetchAllChannels(
@@ -220,11 +238,19 @@ export const apiClient = {
   },
 
   adminSyncChannels(token: string) {
-    return apiRequest<Record<string, number>>("/admin/channels/sync", { method: "POST", authToken: token });
+    return apiRequest<Record<string, number>>("/admin/channels/sync", {
+      method: "POST",
+      authToken: token,
+      timeoutMs: 5 * 60 * 1000, // 5 minutes — M3U sync can be slow on free tier
+    });
   },
 
   adminSyncFixtures(token: string) {
-    return apiRequest<Record<string, number>>("/admin/fixtures/sync", { method: "POST", authToken: token });
+    return apiRequest<Record<string, number>>("/admin/fixtures/sync", {
+      method: "POST",
+      authToken: token,
+      timeoutMs: 2 * 60 * 1000, // 2 minutes
+    });
   },
 
   adminProbeStreams(token: string, urls: string[]) {
@@ -233,6 +259,17 @@ export const apiClient = {
       authToken: token,
       body: JSON.stringify({ urls }),
     });
+  },
+
+  adminHealthSweep(token: string) {
+    return apiRequest<{ checked: number; deactivated: number; duration_seconds: number | null }>(
+      "/admin/channels/health-sweep",
+      {
+        method: "POST",
+        authToken: token,
+        timeoutMs: 10 * 60 * 1000, // 10 minutes — full sweep can take time
+      }
+    );
   },
 
   /** No auth — only for admin accounts. Returns a one-time token in JSON (no email from server). */

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   Home, X, Tv, Globe,
-  Zap, Flame,
+  Zap, Flame, Trophy,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { useUiStore } from "@/store/uiStore";
@@ -33,7 +33,7 @@ export function Sidebar() {
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const activeCategory = useUiStore((s) => s.activeCategory);
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
-  const { gsCount, bdCount, inCount, fastCount } = useUiStore((s) => s.moduleCounts);
+  const { gsCount, bdCount, inCount, fastCount, wcCount } = useUiStore((s) => s.moduleCounts);
   const visibleCats = SPORTS_CATEGORIES;
 
   function handleCategoryClick(key: string) {
@@ -76,6 +76,12 @@ export function Sidebar() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function handleWorldCupClick() {
+    setActiveModule("world_cup_2026");
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <>
       {/* Mobile overlay */}
@@ -92,8 +98,10 @@ export function Sidebar() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } shrink-0 overflow-y-auto`}
         style={{
-          background: "var(--bg-card)",
-          borderRight: "1px solid var(--border)",
+          background: "rgba(11,15,25,0.97)",
+          borderRight: "1px solid rgba(255,255,255,0.05)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
           scrollbarWidth: "none",
         }}
       >
@@ -101,8 +109,8 @@ export function Sidebar() {
         <div
           className="sticky top-0 z-10 flex items-center justify-between px-4 py-4"
           style={{
-            background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(26,26,36,0.98) 100%)",
-            borderBottom: "1px solid var(--border)",
+            background: "linear-gradient(180deg, rgba(11,15,25,0.99) 0%, rgba(14,19,31,0.97) 100%)",
+            borderBottom: "1px solid rgba(255,255,255,0.05)",
           }}
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -221,6 +229,21 @@ export function Sidebar() {
             >
               <Flame size={17} />
               🔴 Live Matches
+            </button>
+
+            <button
+              type="button"
+              onClick={handleWorldCupClick}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: activeModule === "world_cup_2026" ? "rgba(245,166,35,0.15)" : "transparent",
+                color: activeModule === "world_cup_2026" ? "var(--primary-accent)" : "var(--text-muted)",
+                borderLeft: activeModule === "world_cup_2026" ? "2px solid var(--primary-accent)" : "2px solid transparent",
+              }}
+            >
+              <Trophy size={17} />
+              🏆 World Cup 2026
+              <CountBadge count={wcCount} />
             </button>
 
           </div>
