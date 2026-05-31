@@ -295,10 +295,12 @@ export function ViewerHome() {
   );
   const toggleFavorite = useCallback((ch: Channel) => {
     setFavorites((prev) => {
-      const next = prev.includes(ch.id)
-        ? prev.filter((id) => id !== ch.id)
-        : [ch.id, ...prev].slice(0, 30);
+      const isAdding = !prev.includes(ch.id);
+      const next = isAdding
+        ? [ch.id, ...prev].slice(0, 30)
+        : prev.filter((id) => id !== ch.id);
       try { localStorage.setItem("gstv-favorites", JSON.stringify(next)); } catch { /* ignore */ }
+      toast(isAdding ? `⭐ ${ch.name} favorites-এ যোগ হয়েছে` : `${ch.name} favorites থেকে সরানো হয়েছে`, { duration: 2000 });
       return next;
     });
   }, []);
@@ -320,8 +322,8 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  /** Ceiling for full catalog (many M3Us + FanCode); clears spinner even if fetches never settle. */
-  const CATALOG_LOAD_TIMEOUT_MS = 180_000;
+  /** Ceiling for full catalog; clears spinner even if fetches never settle. */
+  const CATALOG_LOAD_TIMEOUT_MS = 30_000;
 
   const loadChannels = useCallback(
     async (showToast = false, silent = false) => {
@@ -913,6 +915,7 @@ export function ViewerHome() {
             className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
           >
             🔴 Live Matches
+            {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
           </button>
           <button
             type="button"
