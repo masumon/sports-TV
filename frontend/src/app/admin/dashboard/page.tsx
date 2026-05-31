@@ -105,7 +105,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [viewerCatalogTotal, setViewerCatalogTotal] = useState<number | null>(null);
   const [channelQuery, setChannelQuery] = useState("");
-  const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "global_sports" | "india" | "bangladesh" | "fast_tv">("all");
+  const [channelModuleFilter, setChannelModuleFilter] = useState<"all" | "global_sports" | "india" | "bangladesh" | "fast_tv" | "world_cup_2026">("all");
   const [probeByUrl, setProbeByUrl] = useState<Record<string, StreamProbeItem>>({});
 
   const authToken = token;
@@ -618,6 +618,7 @@ export default function AdminDashboardPage() {
                     <option value="india">india</option>
                     <option value="bangladesh">bangladesh</option>
                     <option value="fast_tv">fast_tv</option>
+                    <option value="world_cup_2026">world_cup_2026</option>
                   </select>
                 );
               }
@@ -685,7 +686,7 @@ export default function AdminDashboardPage() {
               <Filter size={14} className="shrink-0 text-zinc-500" />
               <select
                 value={channelModuleFilter}
-                onChange={(e) => setChannelModuleFilter(e.target.value as "all" | "global_sports" | "india" | "bangladesh" | "fast_tv")}
+                onChange={(e) => setChannelModuleFilter(e.target.value as "all" | "global_sports" | "india" | "bangladesh" | "fast_tv" | "world_cup_2026")}
                 className="min-w-[8rem] rounded-lg border border-white/20 bg-black/30 px-2 py-2 text-sm text-white outline-none focus:border-emerald-400"
               >
                 <option value="all">All modules</option>
@@ -693,6 +694,7 @@ export default function AdminDashboardPage() {
                 <option value="india">india</option>
                 <option value="bangladesh">bangladesh</option>
                 <option value="fast_tv">fast_tv</option>
+                <option value="world_cup_2026">world_cup_2026</option>
               </select>
             </div>
           </div>
