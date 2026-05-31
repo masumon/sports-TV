@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
+import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
 import { fetchAllChannels, apiClient } from "@/lib/apiClient";
 import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
@@ -406,13 +407,13 @@ export function ViewerHome() {
   }, []);
 
   useEffect(() => {
-    if (activeModule !== "live_matches") return;
+    if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
     void loadFixturesSchedule();
   }, [activeModule, loadFixturesSchedule]);
 
-  // Poll every 90 seconds (was 20 min) so live scores/statuses feel real-time.
+  // Poll every 90 seconds so live scores/statuses feel real-time.
   useEffect(() => {
-    if (activeModule !== "live_matches") return;
+    if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
     const id = setInterval(() => void loadFixturesSchedule(), 90_000);
     return () => clearInterval(id);
   }, [activeModule, loadFixturesSchedule]);
@@ -460,6 +461,16 @@ export function ViewerHome() {
     if (scheduleView === "finished") return scheduleGroups.finished;
     return scheduleGroups.upcoming;
   }, [scheduleGroups, scheduleView]);
+
+  // World Cup 2026 fixtures: filter by competition key or league name
+  const wcFixtures = useMemo(() => {
+    return scheduleFixtures.filter(
+      (fx) =>
+        fx.competition_key?.toUpperCase() === "WC" ||
+        fx.league_name?.toLowerCase().includes("world cup") ||
+        fx.league_name?.toLowerCase().includes("fifa")
+    );
+  }, [scheduleFixtures]);
 
   /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
   useEffect(() => {
@@ -601,6 +612,20 @@ export function ViewerHome() {
     if (filterLanguage) {
       const f = filterLanguage.toLowerCase();
       list = list.filter((c) => c.language.toLowerCase().includes(f));
+    }
+
+    // Geo-based T-Sports priority: Bangladesh channels first in WC module
+    if (activeModule === "world_cup_2026") {
+      list = [...list].sort((a, b) => {
+        const pri = (c: typeof a) => {
+          const n = c.name.toLowerCase();
+          if (n.includes("t-sport") || n.includes("tsport")) return 0;
+          if (c.country.toLowerCase() === "bangladesh") return 1;
+          if (c.country.toLowerCase() === "india") return 2;
+          return 3;
+        };
+        return pri(a) - pri(b);
+      });
     }
 
     return list;
@@ -1216,6 +1241,17 @@ export function ViewerHome() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── WC 2026 Fixture Schedule ── */}
+        {activeModule === "world_cup_2026" && (
+          <WorldCupSchedule
+            fixtures={wcFixtures}
+            loading={fixturesLoading}
+            onRefresh={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
+            onSelectChannel={selectChannel}
+            onModuleChange={transitionSetActiveModule}
+          />
         )}
 
         {/* ── Channel grid + player (hidden in Live Matches mode) ── */}

@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     live_fixtures_days_ahead: int = 14
     openligadb_league_keys: str = "bl1,bl2"
     football_data_org_api_token: str | None = None
-    football_data_competitions: str = "PL,BL1,PD,SA,FL1"
+    football_data_competitions: str = "PL,BL1,PD,SA,FL1,WC"
     # CricAPI free tier (100 calls/day) — https://cricapi.com
     cricapi_key: str | None = None
     # Auto-discover new M3U sources every N hours (0 = disabled).
