@@ -8,6 +8,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   Globe,
   Loader2,
   Maximize,
