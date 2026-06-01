@@ -98,30 +98,35 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           <Menu size={22} />
         </button>
 
-        {/* Logo — shown on all screen sizes */}
+        {/* Logo */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="relative h-9 w-9 md:h-11 md:w-11">
-            <Image
-              src="/icons/abo-sports-tv-logo.png"
-              alt="ABO Sports TV"
-              width={44}
-              height={44}
-              className="rounded-xl object-contain logo-brand-glow"
-              style={{ background: "#fff", padding: 2, border: "1.5px solid rgba(245,166,35,0.4)" }}
-            />
+          <div className="relative">
+            <div
+              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl md:h-10 md:w-10"
+              style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.45)", boxShadow: "0 2px 12px rgba(245,166,35,0.2), 0 0 0 2px rgba(245,166,35,0.08)" }}
+            >
+              <Image
+                src="/icons/abo-sports-tv-logo.png"
+                alt="ABO Sports TV"
+                width={36}
+                height={36}
+                className="object-contain"
+                style={{ padding: 2 }}
+              />
+            </div>
             <span
               className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 animate-pulse"
-              style={{ background: "var(--primary-accent)", borderColor: "var(--bg-card)" }}
+              style={{ background: "#F5A623", borderColor: "var(--bg-card)" }}
               aria-hidden
             />
           </div>
-          <div className="hidden min-[360px]:block">
-            <p className="text-[11px] font-black uppercase tracking-[0.08em] leading-none brand-gradient-red sm:text-[12px]">
+          <div className="hidden min-[360px]:flex flex-col">
+            <p className="text-[11px] font-black uppercase tracking-[0.06em] leading-none" style={{ color: "#F5A623" }}>
               ABO SPORTS TV
             </p>
             <div className="mt-0.5 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "var(--accent-red)" }} />
-              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: "var(--accent-red)" }}>
+              <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "#ef4444" }} />
+              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: "#ef4444" }}>
                 LIVE
               </span>
             </div>
