@@ -66,7 +66,7 @@ export default function AdminForgotPasswordPage() {
       >
         <div className="mb-5 flex items-center gap-3">
           <Image
-            src="/icons/original-logo.jpeg"
+            src="/icons/abo-sports-tv-logo.png"
             alt=""
             width={40}
             height={40}

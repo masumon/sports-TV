@@ -102,12 +102,12 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         <div className="flex items-center gap-2 shrink-0">
           <div className="relative h-9 w-9 md:h-11 md:w-11">
             <Image
-              src="/icons/original-logo.jpeg"
+              src="/icons/abo-sports-tv-logo.png"
               alt="ABO Sports TV"
               width={44}
               height={44}
               className="rounded-xl object-contain logo-brand-glow"
-              style={{ border: "1.5px solid rgba(229,9,20,0.35)" }}
+              style={{ background: "#fff", padding: 2, border: "1.5px solid rgba(245,166,35,0.4)" }}
             />
             <span
               className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 animate-pulse"

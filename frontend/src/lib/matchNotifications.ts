@@ -59,7 +59,7 @@ export function checkAndFireUpcomingNotifications(
       try {
         new Notification(`⚽ ${fx.home_team} vs ${fx.away_team}`, {
           body: `${fx.league_name} — ${Math.ceil(minUntil)} মিনিটে শুরু হবে!`,
-          icon: "/icons/original-logo.jpeg",
+          icon: "/icons/abo-sports-tv-logo.png",
           tag: `wc26-${fx.home_team}-${fx.away_team}`,
         });
       } catch {}

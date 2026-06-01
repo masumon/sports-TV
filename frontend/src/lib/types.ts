@@ -109,11 +109,14 @@ export type AdminStats = {
   users: number;
   channels: number;
   active_channels: number;
+  inactive_channels: number;
   cache_ttl_seconds: number;
   scheduled_sync_minutes: number;
   last_sync_at: string | null;
   last_sync_status: string | null;
   last_sync_error: string | null;
+  last_sync_created?: number;
+  last_sync_updated?: number;
   last_sweep_at: string | null;
   last_sweep_checked: number;
   last_sweep_deactivated: number;
