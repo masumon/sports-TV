@@ -23,8 +23,6 @@ import {
   Info,
   LogOut,
   Megaphone,
-  PauseCircle,
-  PlayCircle,
   RefreshCw,
   Search,
   Settings2,
@@ -554,7 +552,7 @@ export default function AdminDashboardPage() {
 
   const runHealthSweep = async () => {
     if (!authToken) return;
-    if (!window.confirm("এই অপারেশন সব active channel চেক করবে এবং dead link গুলো auto-deactivate করবে। চালাবেন?")) return;
+    if (!window.confirm("এই অপারেশন সব active channel চেক করবে এবং dead link গুলো DB থেকে permanently delete করবে। চালাবেন?")) return;
     setSweeping(true);
     setSweepResult(null);
     const fallback = setTimeout(() => setSweeping(false), 11 * 60 * 1000);
@@ -563,7 +561,7 @@ export default function AdminDashboardPage() {
       setSweepResult(res);
       await fetchAdminData();
       await fetchStats();
-      toast.success(`✓ Sweep সম্পন্ন — ${res.checked} checked, ${res.deactivated} dead link removed`);
+      toast.success(`✓ Sweep সম্পন্ন — ${res.checked} checked, ${res.deactivated} dead link DB থেকে deleted`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Health sweep ব্যর্থ হয়েছে");
     } finally {
@@ -616,14 +614,16 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const toggleActive = async (ch: Channel) => {
+  const purgeInactive = async () => {
     if (!authToken) return;
+    if (!window.confirm("সব inactive channel DB থেকে permanently delete করবেন?")) return;
     try {
-      await apiClient.adminUpdateChannel(authToken, ch.id, { is_active: !ch.is_active });
-      setChannels(prev => prev.map(c => c.id === ch.id ? { ...c, is_active: !c.is_active } : c));
-      toast.success(`${!ch.is_active ? "✓ Activated" : "Deactivated"}: ${ch.name}`);
+      const res = await apiClient.adminPurgeInactive(authToken);
+      await fetchAdminData();
+      await fetchStats();
+      toast.success(`✓ ${res.deleted} inactive channel permanently deleted`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Toggle failed");
+      toast.error(err instanceof Error ? err.message : "Purge failed");
     }
   };
 
@@ -694,12 +694,6 @@ export default function AdminDashboardPage() {
           const ch = info.row.original;
           return (
             <div className="flex items-center gap-1.5">
-              {/* Active toggle */}
-              <button type="button" onClick={() => void toggleActive(ch)}
-                title={ch.is_active ? "Deactivate channel" : "Activate channel"}
-                className={`rounded-lg p-1.5 transition ${ch.is_active ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-zinc-500/10 text-zinc-500 hover:bg-zinc-500/20"}`}>
-                {ch.is_active ? <PlayCircle size={14} /> : <PauseCircle size={14} />}
-              </button>
               {/* Edit */}
               <button type="button" onClick={() => setEditChannel(ch)}
                 title="Edit channel"
@@ -800,7 +794,7 @@ export default function AdminDashboardPage() {
                   <Calendar size={16} />{syncingFixtures ? "Syncing…" : "Sync Fixtures"}
                 </button>
               </Tooltip>
-              <Tooltip text="সব active channel চেক করে dead link auto-deactivate করবে। Heavy operation — কয়েক মিনিট লাগতে পারে।">
+              <Tooltip text="সব active channel চেক করে dead link DB থেকে permanently delete করবে। Heavy operation — কয়েক মিনিট লাগতে পারে।">
                 <button type="button" onClick={() => void runHealthSweep()} disabled={sweeping}
                   className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-3.5 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:from-rose-500 hover:to-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
                   <Zap size={16} className={sweeping ? "animate-pulse" : ""} />
@@ -869,7 +863,15 @@ export default function AdminDashboardPage() {
               <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.active_channels.toLocaleString()}</p>
               <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] tabular-nums text-zinc-400">
                 <span><span className="text-emerald-400">●</span> Active <span className="font-semibold text-zinc-200">{stats.active_channels.toLocaleString()}</span></span>
-                <span><span className="text-red-400">●</span> Inactive <span className="font-semibold text-zinc-300">{(stats.inactive_channels ?? adminDbInactive).toLocaleString()}</span></span>
+                {(stats.inactive_channels ?? 0) > 0 && (
+                  <span className="flex items-center gap-1">
+                    <span className="text-red-400">●</span> Inactive <span className="font-semibold text-red-300">{(stats.inactive_channels ?? 0).toLocaleString()}</span>
+                    <button type="button" onClick={() => void purgeInactive()}
+                      className="ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 transition">
+                      Purge
+                    </button>
+                  </span>
+                )}
               </div>
             </div>
 
@@ -951,7 +953,7 @@ export default function AdminDashboardPage() {
                 <p className="text-xs text-zinc-400">
                   <span className="text-zinc-200 font-semibold">{sweepResult.checked}</span> channels checked ·{" "}
                   <span className={sweepResult.deactivated > 0 ? "text-rose-300 font-semibold" : "text-emerald-400 font-semibold"}>
-                    {sweepResult.deactivated} dead link{sweepResult.deactivated !== 1 ? "s" : ""} removed
+                    {sweepResult.deactivated} dead link{sweepResult.deactivated !== 1 ? "s" : ""} deleted from DB
                   </span>
                   {sweepResult.duration_seconds != null && (
                     <> · {sweepResult.duration_seconds}s</>

@@ -48,20 +48,20 @@ def cleanup_stale_channels(
     )
     stale = list(db.scalars(stmt).all())
 
-    deactivated = 0
+    deleted = 0
     for ch in stale:
-        ch.is_active = False
-        deactivated += 1
+        db.delete(ch)
+        deleted += 1
 
-    if deactivated:
+    if deleted:
         db.commit()
         logger.info(
-            "Cleanup: deactivated %d stale channel(s) (not seen in M3U for %d+ day(s))",
-            deactivated,
+            "Cleanup: deleted %d stale channel(s) (not seen in M3U for %d+ day(s))",
+            deleted,
             stale_days,
         )
 
-    return {"deactivated": deactivated}
+    return {"deactivated": deleted}
 
 
 def remove_duplicate_channels(db: Session) -> dict[str, int]:

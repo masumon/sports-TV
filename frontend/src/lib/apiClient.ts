@@ -267,8 +267,15 @@ export const apiClient = {
       {
         method: "POST",
         authToken: token,
-        timeoutMs: 10 * 60 * 1000, // 10 minutes — full sweep can take time
+        timeoutMs: 10 * 60 * 1000,
       }
+    );
+  },
+
+  adminPurgeInactive(token: string) {
+    return apiRequest<{ deleted: number }>(
+      "/admin/channels/purge-inactive",
+      { method: "POST", authToken: token }
     );
   },
 
