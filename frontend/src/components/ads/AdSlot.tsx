@@ -34,14 +34,7 @@ export function AdSlot({ variant, className = "" }: Props) {
   if (tier === "premium") return null;
 
   if (!isConfigured) {
-    return (
-      <div
-        className={`flex items-center justify-center rounded-lg border border-dashed border-slate-600/60 bg-slate-800/30 text-center text-xs text-slate-500 ${variant === "banner" ? "min-h-14 w-full" : "min-h-20"} ${className}`}
-        data-ad-slot={variant}
-      >
-        <span className="px-3">Ad — configure Google AdSense in Admin → Settings</span>
-      </div>
-    );
+    return null;
   }
 
   return (
