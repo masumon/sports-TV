@@ -182,7 +182,7 @@ def run_channel_health_check(
         dead = [ch for url, ch in url_map.items() if not results.get(url, False)]
 
         for channel in dead:
-            channel.is_active = False
+            db.delete(channel)
         if dead:
             db.commit()
             invalidate_list_caches()
@@ -196,7 +196,7 @@ def run_channel_health_check(
                 logger.exception("channel_health_check recovery sync failed")
 
         logger.info(
-            "channel_health_check complete duration_seconds=%.2f checked=%d deactivated=%d recovered=%d",
+            "channel_health_check complete duration_seconds=%.2f checked=%d deleted=%d recovered=%d",
             (datetime.now(tz=timezone.utc) - started_at).total_seconds(),
             len(rows),
             len(dead),
@@ -236,14 +236,14 @@ def run_health_sweep(*, max_workers: int = 30) -> dict[str, int]:
         dead = [ch for url, ch in url_map.items() if not results.get(url, False)]
 
         for ch in dead:
-            ch.is_active = False
+            db.delete(ch)
         if dead:
             db.commit()
             invalidate_list_caches()
 
         elapsed = (datetime.now(tz=timezone.utc) - started_at).total_seconds()
         logger.info(
-            "health_sweep complete duration_seconds=%.2f checked=%d deactivated=%d",
+            "health_sweep complete duration_seconds=%.2f checked=%d deleted=%d",
             elapsed,
             len(rows),
             len(dead),

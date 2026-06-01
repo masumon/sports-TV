@@ -293,11 +293,11 @@ export function Sidebar() {
         >
           <div className="flex items-center gap-2 mb-1.5">
             <Image
-              src="/icons/original-logo.jpeg"
+              src="/icons/abo-sports-tv-logo.png"
               alt="ABO Sports TV"
               width={28}
               height={28}
-              className="rounded-lg object-cover shrink-0"
+              className="rounded-lg object-contain bg-white shrink-0"
               style={{ border: "1px solid rgba(245,166,35,0.3)" }}
             />
             <div className="min-w-0">

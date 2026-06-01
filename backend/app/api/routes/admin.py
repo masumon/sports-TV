@@ -149,12 +149,26 @@ async def health_sweep_channels(
     )
 
 
+@router.post("/channels/purge-inactive", response_model=dict[str, int])
+async def purge_inactive_channels(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict[str, int]:
+    """Permanently delete all channels with is_active=False from the database."""
+    result = await db.execute(
+        delete(Channel).where(Channel.is_active.is_(False))
+    )
+    await db.commit()
+    invalidate_list_caches()
+    return {"deleted": result.rowcount}
+
+
 @router.get("/channels", response_model=list[ChannelRead])
 async def admin_list_channels(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> list[ChannelRead]:
-    stmt = select(Channel).order_by(Channel.updated_at.desc())
+    stmt = select(Channel).where(Channel.is_active.is_(True)).order_by(Channel.updated_at.desc())
     r = await db.execute(stmt)
     chans = r.scalars().all()
     return [ChannelRead.model_validate(c) for c in chans]

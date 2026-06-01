@@ -1032,7 +1032,7 @@ export default function PremiumPlayer({
               <span className="absolute inset-[-6px] animate-ping rounded-2xl opacity-[0.06]" style={{ background: "var(--primary-accent)", animationDuration: "2s", animationDelay: "0.3s" }} />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/icons/original-logo.jpeg"
+                src="/icons/abo-sports-tv-logo.png"
                 alt="ABO Sports TV"
                 className="relative h-16 w-16 rounded-2xl object-contain"
                 style={{
