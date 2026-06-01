@@ -2328,14 +2328,23 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
             />
           ) : null}
           <div
-            className="absolute inset-0 items-center justify-center text-2xl font-black"
+            className="absolute inset-0 flex-col items-center justify-center gap-1"
             style={{
-              color: "var(--primary-accent)",
-              background: "linear-gradient(135deg,rgba(229,9,20,0.08),rgba(245,166,35,0.06))",
+              background: "linear-gradient(135deg,rgba(14,18,32,0.95) 0%,rgba(20,12,28,0.9) 100%)",
               display: channel.logo_url ? "none" : "flex",
             }}
           >
-            {channel.name.slice(0, 2).toUpperCase()}
+            <span
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-lg font-black"
+              style={{
+                background: "linear-gradient(135deg,rgba(229,9,20,0.18),rgba(245,166,35,0.12))",
+                border: "1.5px solid rgba(245,166,35,0.25)",
+                color: "var(--primary-accent)",
+                boxShadow: "0 4px 16px rgba(229,9,20,0.18)",
+              }}
+            >
+              {channel.name.replace(/\s*\[.*?\]/g, "").slice(0, 2).toUpperCase()}
+            </span>
           </div>
 
           {/* LIVE overlay when active */}
@@ -2395,9 +2404,9 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
           <p
             className="truncate text-[11px] font-semibold leading-tight"
             style={{ color: active ? "var(--primary-accent)" : "var(--text-main)" }}
-            title={channel.name}
+            title={channel.name.replace(/\s*\[.*?\]/g, "").trim()}
           >
-            <HighlightText text={channel.name} query={highlight ?? ""} />
+            <HighlightText text={channel.name.replace(/\s*\[.*?\]/g, "").trim()} query={highlight ?? ""} />
           </p>
           <p className="mt-0.5 flex items-center gap-0.5 truncate text-[9px] leading-none" style={{ color: "var(--text-muted)" }}>
             <span className="shrink-0">{flagFromCountryName(channel.country)}</span>

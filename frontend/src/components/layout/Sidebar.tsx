@@ -291,6 +291,25 @@ export function Sidebar() {
           className="px-4 py-3"
           style={{ borderTop: "1px solid var(--border)" }}
         >
+          <div className="flex items-center gap-2 mb-1.5">
+            <Image
+              src="/icons/original-logo.jpeg"
+              alt="ABO Sports TV"
+              width={28}
+              height={28}
+              className="rounded-lg object-cover shrink-0"
+              style={{ border: "1px solid rgba(245,166,35,0.3)" }}
+            />
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.15em] leading-none brand-gradient-red">
+                ABO SPORTS TV
+              </p>
+              <div className="mt-0.5 flex items-center gap-1">
+                <span className="h-1 w-1 rounded-full" style={{ background: "var(--primary-accent)" }} />
+                <span className="text-[8px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>LIVE STREAMING</span>
+              </div>
+            </div>
+          </div>
           <p className="text-[9px] uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
             Powered by
           </p>

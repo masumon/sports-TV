@@ -115,8 +115,8 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
               aria-hidden
             />
           </div>
-          <div className="hidden sm:block">
-            <p className="text-[12px] font-black uppercase tracking-[0.08em] leading-none brand-gradient-red">
+          <div className="hidden min-[360px]:block">
+            <p className="text-[11px] font-black uppercase tracking-[0.08em] leading-none brand-gradient-red sm:text-[12px]">
               ABO SPORTS TV
             </p>
             <div className="mt-0.5 flex items-center gap-1">

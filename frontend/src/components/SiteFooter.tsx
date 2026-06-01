@@ -36,42 +36,81 @@ export function SiteFooter() {
       }}
     >
       <div
-        className="relative overflow-hidden py-6"
+        className="relative overflow-hidden py-8"
         style={{
+          background: "linear-gradient(135deg, rgba(229,9,20,0.04) 0%, rgba(245,166,35,0.03) 100%)",
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-3 px-4 sm:flex-row sm:gap-6 sm:text-left">
-          <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-            style={{
-              background: "var(--bg-card2)",
-              border: "1px solid var(--border)",
-            }}
-          >
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-4 px-4 sm:flex-row sm:gap-8 sm:text-left">
+          {/* Brand Logo — prominent */}
+          <div className="relative shrink-0">
+            <div
+              className="absolute inset-0 rounded-2xl opacity-40 blur-xl"
+              style={{ background: "radial-gradient(circle, rgba(245,166,35,0.5), transparent 70%)" }}
+              aria-hidden
+            />
             <Image
               src="/icons/original-logo.jpeg"
-              alt="Brand"
-              width={36}
-              height={36}
-              className="object-contain mix-blend-screen brightness-110 contrast-125 saturate-125"
+              alt="ABO Sports TV Live"
+              width={72}
+              height={72}
+              className="relative rounded-2xl object-cover"
+              style={{
+                border: "2px solid rgba(245,166,35,0.4)",
+                boxShadow: "0 0 32px rgba(229,9,20,0.2), 0 8px 24px rgba(0,0,0,0.5)",
+              }}
+            />
+            <span
+              className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 animate-pulse"
+              style={{ background: "#e8181f", borderColor: "var(--bg-card)" }}
+              aria-hidden
             />
           </div>
+
+          {/* Brand identity */}
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <h2
-              className="text-base font-bold uppercase tracking-wide leading-tight sm:text-lg"
-              style={{ color: "var(--primary-accent)" }}
+              className="text-xl font-black uppercase tracking-[0.06em] leading-tight sm:text-2xl"
+              style={{
+                background: "linear-gradient(90deg,#F5A623 0%,#fff 50%,#F5A623 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
             >
-              ABO Sports TV Live
+              ABO SPORTS TV LIVE
             </h2>
-            <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
               Global live sports, India &amp; Bangladesh TV — one app.
             </p>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+              <span className="live-badge inline-flex items-center gap-1">
+                <Radio size={9} className="animate-pulse" /> LIVE
+              </span>
+              <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.2)", color: "var(--primary-accent)" }}>
+                HLS · PWA · HD
+              </span>
+              <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "#10b981" }}>
+                10,000+ Channels
+              </span>
+            </div>
           </div>
-          <div className="shrink-0">
-            <span className="live-badge inline-flex items-center">
-              <Radio size={10} className="animate-pulse" /> Live
-            </span>
+
+          {/* ABO Enterprise credit */}
+          <div className="shrink-0 text-center sm:text-right">
+            <p className="text-[9px] uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>Powered by</p>
+            <a
+              href="https://aboenterprise.netlify.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-black uppercase tracking-wide transition hover:opacity-80"
+              style={{ color: "var(--primary-accent)" }}
+            >
+              ABO Enterprise
+            </a>
           </div>
         </div>
       </div>

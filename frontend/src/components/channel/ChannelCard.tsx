@@ -68,8 +68,8 @@ export function ChannelCard({ channel, active, onSelect, index }: Props) {
         )}
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name}>
-            {channel.name}
+          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name.replace(/\s*\[.*?\]/g, "").trim()}>
+            {channel.name.replace(/\s*\[.*?\]/g, "").trim()}
           </p>
           <p
             className="mt-0.5 flex items-center gap-1.5 truncate text-xs"
