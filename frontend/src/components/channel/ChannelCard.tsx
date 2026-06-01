@@ -112,11 +112,6 @@ export function ChannelCard({ channel, active, onSelect, index }: Props) {
         >
           {channel.quality_tag.toUpperCase()}
         </span>
-        {channel.quality_tag.toLowerCase().includes("hd") && (
-          <span className="rounded-full px-2 py-0.5 font-bold" style={{ background: "rgba(16,185,129,0.1)", color: "#10B981" }}>
-            HD
-          </span>
-        )}
         {active && (
           <span className="live-badge ml-auto">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
