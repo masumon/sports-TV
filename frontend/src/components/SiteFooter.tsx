@@ -43,28 +43,16 @@ export function SiteFooter() {
         }}
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-4 px-4 sm:flex-row sm:gap-8 sm:text-left">
-          {/* Brand Logo — prominent */}
-          <div className="relative shrink-0">
-            <div
-              className="absolute inset-0 rounded-2xl opacity-40 blur-xl"
-              style={{ background: "radial-gradient(circle, rgba(245,166,35,0.5), transparent 70%)" }}
-              aria-hidden
-            />
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: "#fff", border: "2px solid rgba(245,166,35,0.35)", padding: 3 }}
+          >
             <Image
-              src="/icons/original-logo.jpeg"
-              alt="ABO Sports TV Live"
-              width={72}
-              height={72}
-              className="relative rounded-2xl object-cover"
-              style={{
-                border: "2px solid rgba(245,166,35,0.4)",
-                boxShadow: "0 0 32px rgba(229,9,20,0.2), 0 8px 24px rgba(0,0,0,0.5)",
-              }}
-            />
-            <span
-              className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 animate-pulse"
-              style={{ background: "#e8181f", borderColor: "var(--bg-card)" }}
-              aria-hidden
+              src="/icons/abo-sports-tv-logo.png"
+              alt="ABO Sports TV"
+              width={48}
+              height={48}
+              className="object-contain"
             />
           </div>
 
