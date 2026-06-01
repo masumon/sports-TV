@@ -114,11 +114,6 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
                 style={{ padding: 2 }}
               />
             </div>
-            <span
-              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 animate-pulse"
-              style={{ background: "#F5A623", borderColor: "var(--bg-card)" }}
-              aria-hidden
-            />
           </div>
           <div className="hidden min-[360px]:flex flex-col">
             <p className="text-[11px] font-black uppercase tracking-[0.06em] leading-none" style={{ color: "#F5A623" }}>
@@ -211,7 +206,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           <button
             type="button"
             onClick={commitSearchNavigation}
-            className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold transition hover:opacity-90 min-h-11 md:min-h-10"
+            className="shrink-0 rounded-xl px-2.5 py-2.5 sm:px-3 sm:py-2 text-sm font-semibold transition hover:opacity-90 min-h-11 md:min-h-10"
             style={{
               background: "var(--primary-accent)",
               color: "#0a0a0f",
@@ -219,7 +214,8 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             }}
             aria-label={t("searchGo")}
           >
-            {t("searchGo")}
+            <Search size={16} className="sm:hidden" aria-hidden />
+            <span className="hidden sm:inline">{t("searchGo")}</span>
           </button>
         </div>
 
@@ -243,12 +239,12 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           </span>
         ) : null}
 
-        {/* Theme toggle */}
+        {/* Theme toggle — hidden on mobile to save space */}
         {mounted && (
           <button
             type="button"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="rounded-lg p-2 transition hover:bg-white/10"
+            className="hidden sm:inline-flex items-center justify-center rounded-lg p-2 transition hover:bg-white/10"
             style={{ color: "var(--text-muted)" }}
             aria-label="Toggle theme"
           >
