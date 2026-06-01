@@ -440,9 +440,12 @@ export function ViewerHome() {
   }, [activeModule, loadFixturesSchedule]);
 
   // Poll every 90 seconds so live scores/statuses feel real-time.
+  // Skip fetch when the tab is hidden — saves battery and bandwidth on mobile.
   useEffect(() => {
     if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
-    const id = setInterval(() => void loadFixturesSchedule(), 90_000);
+    const id = setInterval(() => {
+      if (!document.hidden) void loadFixturesSchedule();
+    }, 90_000);
     return () => clearInterval(id);
   }, [activeModule, loadFixturesSchedule]);
 
@@ -2067,10 +2070,10 @@ export function ViewerHome() {
                 </p>
                 <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>চ্যানেল না দেখালে Refresh করুন</p>
               </div>
-              <button type="button" onClick={() => void loadChannels(true)}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold transition hover:opacity-90"
+              <button type="button" onClick={() => void loadChannels(true)} disabled={loading}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: "var(--primary-accent)", color: "#fff" }}>
-                <RefreshCw size={12} /> Refresh
+                <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> {loading ? "লোড হচ্ছে…" : "Refresh"}
               </button>
             </div>
           ) : filtered.length === 0 ? (

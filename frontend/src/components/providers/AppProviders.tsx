@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import Script from "next/script";
 import { AuthSessionSync } from "@/components/AuthSessionSync";
+import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { I18nProvider } from "@/lib/i18n/LocaleContext";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
 
@@ -27,6 +28,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         <AdSenseScript />
         <AuthSessionSync />
         {children}
+        <PwaInstallBanner />
         <Toaster position="top-center" richColors closeButton />
       </I18nProvider>
     </ThemeProvider>

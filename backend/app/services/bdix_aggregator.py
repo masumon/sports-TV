@@ -32,10 +32,13 @@ from app.services.iptv_scraper import (
 
 logger = logging.getLogger("app.bdix")
 
-# Authoritative BDIX playlist sources
+# Authoritative BDIX playlist sources (ordered by priority — first source wins on name collision)
 BDIX_SOURCES: list[str] = [
+    # Community BDIX playlists
     "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
     "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
+    # iptv-org official Bangladesh country playlist (public, maintained, non-BDIX fallback)
+    "https://iptv-org.github.io/iptv/countries/bd.m3u",
 ]
 
 _FETCH_TIMEOUT = 25.0  # GitHub raw can be slow

@@ -5,17 +5,37 @@ import { useUiStore } from "@/store/uiStore";
 
 /**
  * Mobile bottom navigation (hidden on md+).
- * 5 tabs: Global Sports · Live Matches · FAST TV · Bangladesh · India
+ * Tabs: Bangladesh · Live · WC 2026 · Sports · Search · India
  */
 export function MobileBottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const activeModule = useUiStore((s) => s.activeModule);
   const setActiveModule = useUiStore((s) => s.setActiveModule);
+  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
 
   const isHome = pathname === "/";
 
+  function haptic() {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(8);
+    }
+  }
+
   function navigate(module: string) {
+    haptic();
+    if (module === "search") {
+      if (pathname !== "/") {
+        try { sessionStorage.setItem("gstv-focus-search", "1"); } catch { /* */ }
+        router.push("/");
+      } else {
+        requestSearchFocus();
+        queueMicrotask(() => {
+          document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
+      return;
+    }
     setActiveModule(module as Parameters<typeof setActiveModule>[0]);
     if (pathname !== "/") {
       router.push("/");
@@ -29,7 +49,7 @@ export function MobileBottomNav() {
     { id: "live_matches",   label: "Live",    emoji: "🔴", activeColor: "#f87171",               activeBg: "rgba(239,68,68,0.12)" },
     { id: "world_cup_2026", label: "WC 2026", emoji: "🏆", activeColor: "#F5A623",               activeBg: "rgba(245,166,35,0.15)" },
     { id: "global_sports",  label: "Sports",  emoji: "🌍", activeColor: "var(--primary-accent)", activeBg: "rgba(229,9,20,0.12)" },
-    { id: "fast_tv",        label: "FAST TV", emoji: "⚡", activeColor: "#F5A623",               activeBg: "rgba(245,166,35,0.12)" },
+    { id: "search",         label: "খুঁজুন",   emoji: "🔍", activeColor: "#a78bfa",               activeBg: "rgba(139,92,246,0.12)" },
     { id: "india",          label: "India",   emoji: "🇮🇳", activeColor: "rgb(199,210,254)",       activeBg: "rgba(99,102,241,0.15)" },
   ] as const;
 

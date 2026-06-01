@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Hind_Siliguri } from "next/font/google";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { SkipToContentLink } from "@/components/SkipToContentLink";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -9,6 +9,13 @@ const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
+});
+
+const hindSiliguri = Hind_Siliguri({
+  subsets: ["bengali"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-bengali",
 });
 
 // Preview: built-in VERCEL_URL keeps OG/metadataBase off production domain.
@@ -57,6 +64,20 @@ export const metadata: Metadata = {
     siteName: "ABO SPORTS TV LIVE",
     title: "ABO SPORTS TV LIVE",
     description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং প্ল্যাটফর্ম",
+    images: [
+      {
+        url: `${siteUrl}/icons/icon-512.png`,
+        width: 512,
+        height: 512,
+        alt: "ABO SPORTS TV LIVE",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "ABO SPORTS TV LIVE",
+    description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং",
+    images: [`${siteUrl}/icons/icon-512.png`],
   },
 };
 
@@ -72,8 +93,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="bn" className={inter.variable} suppressHydrationWarning>
-      <body className={`flex min-h-dvh min-h-screen flex-col antialiased font-sans ${inter.className}`}>
+    <html lang="bn" className={`${inter.variable} ${hindSiliguri.variable}`} suppressHydrationWarning>
+      <body className={`flex min-h-dvh min-h-screen flex-col antialiased font-sans ${inter.className}`}
+        style={{ fontFamily: `var(--font-inter), var(--font-bengali), system-ui, sans-serif` }}>
         <AppProviders>
           <SkipToContentLink />
           <div id="main-content" className="flex flex-1 flex-col outline-none" tabIndex={-1}>

@@ -1087,6 +1087,7 @@ export default function PremiumPlayer({
     <motion.div
       ref={containerRef}
       className={`player-shell relative isolate overflow-hidden ${isTheaterMode ? "h-[75vh] min-h-[200px]" : "aspect-video"}`}
+      style={{ overscrollBehavior: "none" }}
       onMouseMove={showControlsTemporarily}
       onMouseEnter={() => setShowControls(true)}
       onMouseLeave={handlePlayerPointerLeave}
@@ -1249,7 +1250,11 @@ export default function PremiumPlayer({
             <div className="text-center space-y-1.5">
               <p className="text-sm font-bold text-white">স্ট্রিম পাওয়া যাচ্ছে না</p>
               <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
-                চ্যানেলটি এখন offline বা source পরিবর্তন হয়েছে।<br />অন্য চ্যানেল বা external player ব্যবহার করুন।
+                {geoHint
+                  ? <>এটি Geo-restricted content হতে পারে।<br />VPN (India / UK) চালু করে আবার চেষ্টা করুন।</>
+                  : isConstrainedNetwork()
+                  ? <>নেটওয়ার্ক সংযোগ দুর্বল।<br />WiFi বা ভালো 4G-তে চেষ্টা করুন।</>
+                  : <>চ্যানেলটি এখন offline বা source পরিবর্তন হয়েছে।<br />অন্য চ্যানেল বা external player ব্যবহার করুন।</>}
               </p>
               {autoRetryCountdown > 0 && (
                 <div className="mt-1 flex items-center justify-center gap-1.5">

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePlayerStore } from "@/store/playerStore";
 import {
   ExternalLink,
   Mail,
@@ -27,9 +28,11 @@ const LEGAL_PDF = {
 } as const;
 
 export function SiteFooter() {
+  const activeChannel = usePlayerStore((s) => s.activeChannel);
+
   return (
     <footer
-      className="mt-auto"
+      className={`mt-auto ${activeChannel ? "hidden md:block" : ""}`}
       style={{
         background: "var(--bg-card)",
         borderTop: "1px solid var(--border)",
@@ -165,7 +168,12 @@ export function SiteFooter() {
               Coverage
             </p>
             <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-              {["Football", "Cricket"].map((s) => (
+              {[
+                "⚽ Football", "🏏 Cricket",
+                "🏀 Basketball", "🎾 Tennis",
+                "🏎️ Formula 1",  "🥊 Boxing / MMA",
+                "🏒 Hockey",     "🏈 NFL",
+              ].map((s) => (
                 <div key={s} style={{ color: "var(--text-muted)" }}>
                   {s}
                 </div>
