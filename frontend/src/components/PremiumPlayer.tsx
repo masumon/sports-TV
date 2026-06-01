@@ -403,16 +403,19 @@ export default function PremiumPlayer({
   const [isSwitching, setIsSwitching] = useState(false);
   const [geoRestricted, setGeoRestricted] = useState(false);
   const isMobileSheet = useMatchMediaQuery("(max-width: 639px)");
-  /** True on touch/pointer-coarse devices — used to hide the desktop-style volume slider. */
   const isTouchDevice = useMatchMediaQuery("(pointer: coarse)");
   const externalPanelTitleId = useId();
-  /** Index into ordered proxy URL list (UI + external players); advanced via HLS loadSource failover. */
   const [urlIdx, setUrlIdx] = useState(0);
   const urlPlayIndexRef = useRef(0);
   const linkRetryRef = useRef(0);
   const linkRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Tracks whether controls have ever been auto-hidden (first hide uses longer delay). */
   const firstHideDoneRef = useRef(false);
+  /** Seek ripple feedback: direction "left"|"right" + dismiss timer */
+  const [seekFeedback, setSeekFeedback] = useState<{ dir: "left" | "right"; secs: number; key: number } | null>(null);
+  const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Volume swipe overlay: shown while swiping, dismissed after gesture ends */
+  const [volFeedback, setVolFeedback] = useState<number | null>(null);
+  const volFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
@@ -786,25 +789,36 @@ export default function PremiumPlayer({
     let lastTapX = 0;
     let touchStartY = 0;
     let touchStartVol = 1;
-    let swipeHandled = false;
+    let isSwiping = false;
+
+    function showSeekRipple(dir: "left" | "right", secs: number) {
+      if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
+      setSeekFeedback({ dir, secs, key: Date.now() });
+      seekFeedbackTimerRef.current = setTimeout(() => setSeekFeedback(null), 900);
+    }
+
+    function showVolOverlay(vol: number) {
+      if (volFeedbackTimerRef.current) clearTimeout(volFeedbackTimerRef.current);
+      setVolFeedback(Math.round(vol * 100));
+      volFeedbackTimerRef.current = setTimeout(() => setVolFeedback(null), 1200);
+    }
 
     function onTouchStart(e: TouchEvent) {
       const touch = e.touches[0];
       if (!touch) return;
       touchStartY = touch.clientY;
       touchStartVol = video!.volume;
-      swipeHandled = false;
+      isSwiping = false;
 
-      // Double-tap detection
       const now = Date.now();
       const rect = container!.getBoundingClientRect();
       const tapX = touch.clientX - rect.left;
       if (now - lastTapTime < 300 && Math.abs(tapX - lastTapX) < rect.width * 0.6) {
-        const seekDelta = tapX < rect.width / 2 ? -10 : 10;
+        const isLeft = tapX < rect.width / 2;
+        const seekDelta = isLeft ? -10 : 10;
         video!.currentTime = Math.max(0, video!.currentTime + seekDelta);
-        // Flash seek indicator via a quick toast
-        toast(seekDelta > 0 ? "+10s →" : "← -10s", { duration: 800, position: "top-center" });
-        lastTapTime = 0; // reset so triple-tap doesn't retrigger
+        showSeekRipple(isLeft ? "left" : "right", Math.abs(seekDelta));
+        lastTapTime = 0;
       } else {
         lastTapTime = now;
         lastTapX = tapX;
@@ -813,10 +827,10 @@ export default function PremiumPlayer({
 
     function onTouchMove(e: TouchEvent) {
       const touch = e.touches[0];
-      if (!touch || swipeHandled) return;
+      if (!touch) return;
       const deltaY = touchStartY - touch.clientY;
-      if (Math.abs(deltaY) < 20) return; // dead zone
-      swipeHandled = true;
+      if (!isSwiping && Math.abs(deltaY) < 20) return;
+      isSwiping = true;
       const rect = container!.getBoundingClientRect();
       const volDelta = deltaY / rect.height;
       const newVol = Math.min(1, Math.max(0, touchStartVol + volDelta));
@@ -824,6 +838,7 @@ export default function PremiumPlayer({
       video!.muted = newVol === 0;
       setVolumeState(newVol);
       setIsMuted(newVol === 0);
+      showVolOverlay(newVol);
     }
 
     container.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -832,6 +847,7 @@ export default function PremiumPlayer({
       container.removeEventListener("touchstart", onTouchStart);
       container.removeEventListener("touchmove", onTouchMove);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Sync orientation when fullscreen is toggled via browser (e.g. ESC) or gesture. */
@@ -1005,62 +1021,90 @@ export default function PremiumPlayer({
       {/* Click-to-play */}
       <div className="absolute inset-0 z-10 cursor-pointer" onClick={() => void togglePlayPause()} />
 
-      {/* Buffer bar — gold */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 h-[3px] bg-white/10">
+      {/* Buffer bar */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 h-[3px] bg-white/[0.07]">
         <motion.div
           className="h-full"
-          style={{ background: "linear-gradient(90deg, var(--primary-accent), var(--gold))" }}
+          style={{ background: "linear-gradient(90deg, #F5A623, #f59e0b, #F5A623)", backgroundSize: "200% 100%" }}
           animate={{ width: `${bufferedPct}%` }}
-          transition={{ duration: 0.4 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
         />
       </div>
 
-      {/* Loading / Switching — ABO SPORTS TV branded screen */}
+      {/* ── Loading / Switching — Premium branded screen ── */}
       <AnimatePresence>
         {(isSwitching || (isLoading && !playbackStartedRef.current)) && !hasError && !geoRestricted && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.2 } }}
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4"
-            style={{ background: "rgba(7,8,15,0.88)", backdropFilter: "blur(6px)" }}
+            exit={{ opacity: 0, transition: { duration: 0.25 } }}
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5"
+            style={{ background: "linear-gradient(160deg, rgba(5,6,12,0.95) 0%, rgba(12,10,22,0.95) 100%)", backdropFilter: "blur(8px)" }}
           >
-            {/* Logo with pulse rings */}
-            <div className="relative flex h-20 w-20 items-center justify-center">
-              <span className="absolute inset-0 animate-ping rounded-2xl opacity-10" style={{ background: "var(--primary-accent)", animationDuration: "1.4s" }} />
-              <span className="absolute inset-[-6px] animate-ping rounded-2xl opacity-[0.06]" style={{ background: "var(--primary-accent)", animationDuration: "2s", animationDelay: "0.3s" }} />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/icons/abo-sports-tv-logo.png"
-                alt="ABO Sports TV"
-                className="relative h-16 w-16 rounded-2xl object-contain"
-                style={{
-                  border: "1.5px solid rgba(229,9,20,0.45)",
-                  boxShadow: "0 0 24px rgba(229,9,20,0.25), 0 8px 32px rgba(0,0,0,0.6)",
-                }}
-              />
-            </div>
-
-            {/* Brand name */}
-            <div className="flex flex-col items-center gap-1">
-              <p className="text-xs font-black uppercase tracking-[0.22em]" style={{ color: "var(--primary-accent)" }}>
-                ABO SPORTS TV
-              </p>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "rgba(255,255,255,0.35)" }}>
-                {isSwitching
-                  ? (isCurrentRelay ? "সার্ভার রিলে…" : "ব্যাকআপে যাচ্ছে…")
-                  : (isCurrentRelay ? "সার্ভার রিলে…" : "সংযোগ হচ্ছে…")}
-              </p>
-            </div>
-
-            {/* Animated progress bar */}
-            <div className="h-[2px] w-28 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+            {/* Logo ring spinner */}
+            <div className="relative flex h-[88px] w-[88px] items-center justify-center">
+              {/* Outer spinning arc */}
+              <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 88 88" fill="none">
+                <circle cx="44" cy="44" r="40" stroke="rgba(245,166,35,0.12)" strokeWidth="3" />
+                <motion.circle
+                  cx="44" cy="44" r="40"
+                  stroke="url(#spinGrad)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray="251"
+                  animate={{ strokeDashoffset: [251, 30, 251] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <defs>
+                  <linearGradient id="spinGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#F5A623" stopOpacity="0" />
+                    <stop offset="60%" stopColor="#F5A623" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              {/* Inner subtle pulse ring */}
               <motion.div
-                className="h-full rounded-full"
-                style={{ background: "linear-gradient(90deg, var(--primary-accent), #f59e0b)" }}
-                animate={{ x: ["-100%", "200%"] }}
-                transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute inset-[10px] rounded-full"
+                style={{ border: "1px solid rgba(245,166,35,0.15)" }}
+                animate={{ scale: [1, 1.06, 1], opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+              />
+              {/* Logo */}
+              <div
+                className="relative flex h-[56px] w-[56px] items-center justify-center rounded-xl overflow-hidden"
+                style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.5)", boxShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,166,35,0.1)" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
+                  alt={title || "ABO Sports TV"}
+                  className="h-[48px] w-[48px] object-contain"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
+                />
+              </div>
+            </div>
+
+            {/* Text */}
+            <div className="flex flex-col items-center gap-1.5">
+              <p className="text-[13px] font-bold tracking-wide text-white truncate max-w-[200px] text-center" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.6)" }}>
+                {title || "ABO SPORTS TV"}
+              </p>
+              <p className="text-[11px] font-medium tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.75)" }}>
+                {isSwitching
+                  ? (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "ব্যাকআপ চ্যানেলে যাচ্ছে…")
+                  : (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "লাইভ সংযোগ হচ্ছে…")}
+              </p>
+            </div>
+
+            {/* Shimmer progress bar */}
+            <div className="h-[3px] w-36 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
+              <motion.div
+                className="h-full w-1/2 rounded-full"
+                style={{ background: "linear-gradient(90deg, transparent, #F5A623, transparent)" }}
+                animate={{ x: ["-100%", "300%"] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
               />
             </div>
           </motion.div>
@@ -1099,39 +1143,54 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* Error overlay */}
+      {/* ── Error overlay ── */}
       <AnimatePresence>
         {hasError && !geoRestricted && (
           <motion.div
             key="error"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 p-6"
-            style={{ background: "rgba(7,8,15,0.88)" }}
+            transition={{ duration: 0.22 }}
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 p-6"
+            style={{ background: "linear-gradient(160deg, rgba(5,6,12,0.96) 0%, rgba(20,8,8,0.96) 100%)", backdropFilter: "blur(8px)" }}
           >
-            <div className="flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "rgba(229,57,53,0.15)", border: "1px solid rgba(229,57,53,0.4)" }}>
+            {/* Icon */}
+            <div className="relative flex h-16 w-16 items-center justify-center">
+              <motion.div
+                className="absolute inset-0 rounded-full"
+                style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.35)" }}
+                animate={{ scale: [1, 1.06, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
               <AlertTriangle className="h-7 w-7 text-red-400" />
             </div>
-            <div className="text-center">
-              <p className="text-sm font-bold text-white">Stream unavailable</p>
-              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>This stream may be offline. Try another channel or an external player.</p>
+            {/* Message */}
+            <div className="text-center space-y-1.5">
+              <p className="text-sm font-bold text-white">স্ট্রিম পাওয়া যাচ্ছে না</p>
+              <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
+                চ্যানেলটি এখন offline বা source পরিবর্তন হয়েছে।<br />অন্য চ্যানেল বা external player ব্যবহার করুন।
+              </p>
               {autoRetryCountdown > 0 && (
-                <p className="mt-2 text-[11px] font-semibold" style={{ color: "var(--primary-accent)" }}>
-                  Auto-retrying in {autoRetryCountdown}s…
-                </p>
+                <div className="mt-1 flex items-center justify-center gap-1.5">
+                  <Loader2 size={11} className="animate-spin" style={{ color: "var(--primary-accent)" }} />
+                  <p className="text-[11px] font-semibold" style={{ color: "var(--primary-accent)" }}>
+                    {autoRetryCountdown}s পরে আবার চেষ্টা…
+                  </p>
+                </div>
               )}
             </div>
+            {/* Actions */}
             <div className="flex flex-wrap justify-center gap-2">
               <button type="button" onClick={retryStream}
-                className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white transition"
-                style={{ background: "rgba(245,166,35,0.18)", border: "1px solid rgba(245,166,35,0.4)" }}>
-                <RefreshCw size={13} /> Retry Now
+                className="flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold text-white transition active:scale-95"
+                style={{ background: "linear-gradient(135deg, rgba(245,166,35,0.25), rgba(245,166,35,0.15))", border: "1px solid rgba(245,166,35,0.45)", boxShadow: "0 4px 12px rgba(245,166,35,0.15)" }}>
+                <RefreshCw size={13} /> আবার চেষ্টা
               </button>
               <button type="button" onClick={() => window.open(sharePlaybackUrl, "_blank", "noopener,noreferrer")}
-                className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition hover:bg-white/10"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--text-muted)" }}>
-                <ExternalLink size={13} /> Open in tab
+                className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold transition hover:bg-white/10 active:scale-95"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.55)" }}>
+                <ExternalLink size={13} /> Tab-এ খুলুন
               </button>
             </div>
           </motion.div>
@@ -1174,7 +1233,75 @@ export default function PremiumPlayer({
       {/* Custom overlay */}
       {overlay}
 
-      {/* "Tap to show controls" hint — shown briefly when controls auto-hide on touch devices */}
+      {/* ── Seek ripple overlay (double-tap ±10s) ── */}
+      <AnimatePresence>
+        {seekFeedback && (
+          <motion.div
+            key={`seek-${seekFeedback.key}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="pointer-events-none absolute inset-0 z-35 flex items-center"
+          >
+            <div className={`absolute flex flex-col items-center gap-1 ${seekFeedback.dir === "left" ? "left-[8%]" : "right-[8%]"}`}>
+              <motion.div
+                className="flex h-16 w-16 items-center justify-center rounded-full"
+                style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.3)", backdropFilter: "blur(4px)" }}
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 1.1, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <span className="text-xl font-black" style={{ color: "#F5A623" }}>
+                  {seekFeedback.dir === "left" ? "«" : "»"}
+                </span>
+              </motion.div>
+              <motion.span
+                className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                style={{ background: "rgba(0,0,0,0.5)", color: "#F5A623" }}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+              >
+                {seekFeedback.dir === "left" ? `-${seekFeedback.secs}s` : `+${seekFeedback.secs}s`}
+              </motion.span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Volume swipe indicator ── */}
+      <AnimatePresence>
+        {volFeedback !== null && (
+          <motion.div
+            key="vol-indicator"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.18 }}
+            className="pointer-events-none absolute left-1/2 top-1/2 z-35 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-2"
+            style={{ backdropFilter: "blur(12px)" }}
+          >
+            <div
+              className="flex flex-col items-center gap-2 rounded-2xl px-6 py-4"
+              style={{ background: "rgba(10,11,18,0.82)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
+            >
+              <VolumeIcon size={22} style={{ color: volFeedback === 0 ? "#ef4444" : "#F5A623" }} />
+              {/* Bar */}
+              <div className="h-1.5 w-24 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.12)" }}>
+                <div
+                  className="h-full rounded-full transition-all duration-75"
+                  style={{ width: `${volFeedback}%`, background: volFeedback === 0 ? "#ef4444" : "linear-gradient(90deg, #F5A623, #f59e0b)" }}
+                />
+              </div>
+              <span className="text-xs font-bold tabular-nums text-white">{volFeedback}%</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* "Tap to show controls" hint */}
       <AnimatePresence>
         {!showControls && isPlaying && isTouchDevice && (
           <motion.div
@@ -1182,46 +1309,59 @@ export default function PremiumPlayer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="pointer-events-none absolute inset-0 z-30 flex items-end justify-center pb-10"
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
           >
             <span
-              className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-widest"
-              style={{ background: "rgba(0,0,0,0.45)", color: "rgba(255,255,255,0.45)" }}
+              className="rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-wide"
+              style={{ background: "rgba(0,0,0,0.38)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(4px)" }}
             >
-              Tap to show controls
+              স্পর্শ করুন · ডাবল ট্যাপ ±10s
             </span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Controls panel */}
+      {/* ── Controls panel ── */}
       <AnimatePresence>
         {showControls && (
           <motion.div
             key="controls"
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
             className="absolute inset-x-0 bottom-0 z-40"
           >
             <div className="glass-panel mx-2 mb-2 overflow-hidden rounded-2xl sm:mx-3 sm:mb-3">
-              {/* Now playing — subtle top gradient */}
+              {/* Now playing header */}
               <div
-                className="border-b border-white/[0.06] px-3.5 pb-2.5 pt-3.5 sm:px-4"
-                style={{ background: "linear-gradient(180deg, rgba(245,166,35,0.08) 0%, transparent 100%)" }}
+                className="border-b border-white/[0.06] px-3.5 pb-2.5 pt-3 sm:px-4"
+                style={{ background: "linear-gradient(180deg, rgba(245,166,35,0.07) 0%, transparent 100%)" }}
               >
-                <div className="flex items-center justify-between gap-2 sm:gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[8px] font-black uppercase tracking-[0.2em] sm:text-[9px] sm:tracking-[0.22em]" style={{ color: "var(--primary-accent)" }}>
-                      Now playing
-                    </p>
-                    <p className="mt-0.5 truncate text-sm font-bold leading-tight text-white">{title}</p>
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  {/* Channel/brand logo thumbnail */}
+                  <div
+                    className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+                    style={{ background: "#fff", border: "1px solid rgba(245,166,35,0.35)" }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
+                      alt=""
+                      className="h-7 w-7 object-contain"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
+                    />
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[8px] font-black uppercase tracking-[0.22em]" style={{ color: "rgba(245,166,35,0.7)" }}>
+                      🔴 LIVE NOW
+                    </p>
+                    <p className="truncate text-[13px] font-bold leading-tight text-white">{title}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
                     <span
-                      className="rounded-md px-2 py-0.5 text-[9px] font-bold tabular-nums sm:text-[10px]"
+                      className="rounded-md px-2 py-0.5 text-[9px] font-bold tabular-nums"
                       style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.28)" }}
                     >
                       {currentQualityLabel}
@@ -1229,36 +1369,47 @@ export default function PremiumPlayer({
                     <button
                       type="button"
                       onClick={() => setShowExternalPanel((v) => !v)}
-                      className="flex min-h-9 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide sm:px-2.5 sm:text-[10px]"
+                      className="flex min-h-[34px] items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-semibold uppercase tracking-wide transition active:scale-95 sm:px-2.5 sm:text-[10px]"
                       style={{
-                        background: showExternalPanel ? "rgba(245,166,35,0.15)" : "rgba(255,255,255,0.06)",
+                        background: showExternalPanel ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.06)",
                         border: "1px solid rgba(255,255,255,0.1)",
                         color: showExternalPanel ? "var(--primary-accent)" : "var(--text-muted)",
                       }}
                     >
                       <Tv size={12} className="shrink-0" />
-                      <span className="hidden min-[400px]:inline">Players</span>
-                      {showExternalPanel ? <ChevronUp size={11} className="shrink-0" /> : <ChevronDown size={11} className="shrink-0" />}
+                      <span className="hidden min-[380px]:inline">Players</span>
+                      {showExternalPanel ? <ChevronUp size={10} className="shrink-0" /> : <ChevronDown size={10} className="shrink-0" />}
                     </button>
                   </div>
                 </div>
               </div>
 
               {/* Main controls */}
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none px-3 pb-3 pt-1 sm:gap-3 sm:px-4 sm:pb-3.5 sm:pt-0">
-                <button className="control-btn shrink-0" type="button" onClick={() => void togglePlayPause()}
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none px-2.5 pb-3 pt-1.5 sm:gap-2 sm:px-4 sm:pb-3.5">
+                {/* Play/Pause — larger, prominent */}
+                <button
+                  className="shrink-0 flex h-11 w-11 items-center justify-center rounded-xl transition active:scale-90"
+                  type="button"
+                  onClick={() => void togglePlayPause()}
                   aria-label={isPlaying ? "Pause" : "Play"}
-                  style={isPlaying ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "var(--primary-accent)" } : {}}>
-                  {isPlaying ? <Pause size={17} /> : <Play size={17} />}
+                  style={{
+                    background: isPlaying ? "rgba(245,166,35,0.2)" : "rgba(255,255,255,0.1)",
+                    border: isPlaying ? "1px solid rgba(245,166,35,0.5)" : "1px solid rgba(255,255,255,0.15)",
+                    color: isPlaying ? "var(--primary-accent)" : "#fff",
+                    boxShadow: isPlaying ? "0 0 16px rgba(245,166,35,0.15)" : "none",
+                  }}
+                >
+                  {isPlaying ? <Pause size={19} /> : <Play size={19} />}
                 </button>
-                <button className="control-btn shrink-0" type="button" onClick={toggleMute} aria-label="Toggle mute">
+
+                <button className="control-btn shrink-0 active:scale-90 transition" type="button" onClick={toggleMute} aria-label="Toggle mute">
                   <VolumeIcon size={17} />
                 </button>
                 {!isTouchDevice && (
                   <input type="range" min={0} max={1} step={0.05}
                     value={isMuted ? 0 : volume}
                     onChange={(e) => setVolumeLevel(Number(e.target.value))}
-                    className="volume-slider w-16 sm:w-24 shrink-0" aria-label="Volume" />
+                    className="volume-slider w-16 sm:w-20 shrink-0" aria-label="Volume" />
                 )}
                 <select className="quality-select shrink-0" value={selectedQuality}
                   onChange={(e) => changeQuality(Number(e.target.value))} aria-label="Quality">
@@ -1266,11 +1417,11 @@ export default function PremiumPlayer({
                     <option key={`${opt.label}-${opt.value}`} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <button className="control-btn shrink-0" type="button" onClick={() => void togglePictureInPicture()} aria-label="PiP" title="Picture-in-Picture">
+                <button className="control-btn shrink-0 active:scale-90 transition" type="button" onClick={() => void togglePictureInPicture()} aria-label="PiP" title="Picture-in-Picture">
                   <PictureInPicture2 size={17} />
                 </button>
                 <button
-                  className="control-btn shrink-0"
+                  className="control-btn shrink-0 active:scale-90 transition"
                   type="button"
                   onClick={() => {
                     if (isMobileSheet) {
@@ -1285,7 +1436,7 @@ export default function PremiumPlayer({
                 >
                   <Tv size={17} />
                 </button>
-                <button className="control-btn shrink-0" type="button" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title="Fullscreen (F)">
+                <button className="control-btn shrink-0 active:scale-90 transition" type="button" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title="Fullscreen (F)">
                   {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
                 </button>
               </div>
