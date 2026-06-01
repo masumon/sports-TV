@@ -68,8 +68,8 @@ export function ChannelCard({ channel, active, onSelect, index }: Props) {
         )}
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name}>
-            {channel.name}
+          <p className="truncate text-sm font-semibold" style={{ color: "var(--text-main)" }} title={channel.name.replace(/\s*\[.*?\]/g, "").trim()}>
+            {channel.name.replace(/\s*\[.*?\]/g, "").trim()}
           </p>
           <p
             className="mt-0.5 flex items-center gap-1.5 truncate text-xs"
@@ -112,11 +112,6 @@ export function ChannelCard({ channel, active, onSelect, index }: Props) {
         >
           {channel.quality_tag.toUpperCase()}
         </span>
-        {channel.quality_tag.toLowerCase().includes("hd") && (
-          <span className="rounded-full px-2 py-0.5 font-bold" style={{ background: "rgba(16,185,129,0.1)", color: "#10B981" }}>
-            HD
-          </span>
-        )}
         {active && (
           <span className="live-badge ml-auto">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
