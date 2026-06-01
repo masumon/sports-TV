@@ -967,7 +967,7 @@ async def proxy_playlist_raw(
     url: str = Query(..., min_length=7, max_length=2048, description="M3U / playlist URL to fetch as raw text"),
     header_profile: str | None = Query(
         default=None,
-        description="Optional allowlisted preset (e.g. tsports) for upstream headers",
+        description="Optional allowlisted header preset for upstream requests",
     ),
 ) -> Response | JSONResponse:
     """

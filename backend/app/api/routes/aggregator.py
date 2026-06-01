@@ -202,9 +202,6 @@ async def bdix_preflight() -> Response:
 
 # Known EPG IDs for popular channels (extend as needed)
 _EPG_ID_MAP: dict[str, str] = {
-    "t sports": "1918",
-    "t-sports": "1918",
-    "tsports": "1918",
     "sony sports 1": "sony_sports_1",
     "sony sports 2": "sony_sports_2",
     "sony ten 1": "sony_ten_1",

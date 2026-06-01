@@ -459,9 +459,6 @@ def _fetch_sources_parallel(
 # Known EPG IDs mapped from normalized channel name fragments.
 # Used by playlist.m3u endpoint to enrich EXTINF lines.
 EPG_ID_MAP: dict[str, str] = {
-    "t sports": "1918",
-    "t-sports": "1918",
-    "tsports": "1918",
     "sony sports 1": "sony_sports_1",
     "sony sports 2": "sony_sports_2",
     "sony ten 1": "sony_ten_1",
