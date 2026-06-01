@@ -485,6 +485,10 @@ export default function PremiumPlayer({
   /** Volume swipe overlay: shown while swiping, dismissed after gesture ends */
   const [volFeedback, setVolFeedback] = useState<number | null>(null);
   const volFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Tap hint — shows once per channel for 2s then auto-hides */
+  const [showHint, setShowHint] = useState(false);
+  const hintShownRef = useRef(false);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
@@ -538,6 +542,9 @@ export default function PremiumPlayer({
     setGeoRestricted(false);
     linkRetryRef.current = 0;
     firstHideDoneRef.current = false;
+    hintShownRef.current = false;
+    setShowHint(false);
+    if (hintTimerRef.current) { clearTimeout(hintTimerRef.current); hintTimerRef.current = null; }
     if (linkRetryTimerRef.current) {
       clearTimeout(linkRetryTimerRef.current);
       linkRetryTimerRef.current = null;
@@ -547,9 +554,22 @@ export default function PremiumPlayer({
   useEffect(
     () => () => {
       if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
     },
     []
   );
+
+  useEffect(() => {
+    if (showControls) {
+      setShowHint(false);
+      if (hintTimerRef.current) { clearTimeout(hintTimerRef.current); hintTimerRef.current = null; }
+      return;
+    }
+    if (!isPlaying || !isTouchDevice || hintShownRef.current) return;
+    hintShownRef.current = true;
+    setShowHint(true);
+    hintTimerRef.current = setTimeout(() => setShowHint(false), 2000);
+  }, [showControls, isPlaying, isTouchDevice]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1347,15 +1367,15 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* "Tap to show controls" hint */}
+      {/* "Tap to show controls" hint — auto-hides after 2s, shown once per channel */}
       <AnimatePresence>
-        {!showControls && isPlaying && isTouchDevice && (
+        {showHint && (
           <motion.div
             key="tap-hint"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
             className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
           >
             <span
