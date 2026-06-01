@@ -11,6 +11,17 @@ export default function OfflinePage() {
   const [isOnline, setIsOnline] = useState(false);
   const [loadedAt] = useState(() => new Date().toLocaleTimeString("bn-BD"));
   const [retrying, setRetrying] = useState(false);
+  const [cacheCount, setCacheCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('gstv-channel-list-cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) setCacheCount(parsed.length);
+      }
+    } catch { /* */ }
+  }, []);
 
   useEffect(() => {
     function handleOnline() {
@@ -65,6 +76,11 @@ export default function OfflinePage() {
           <div className="flex flex-col items-center gap-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
             <span>পেজ লোড: {loadedAt}</span>
             <span>সংযোগ ফিরলে স্বয়ংক্রিয়ভাবে যাবে</span>
+            {cacheCount !== null && (
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                {cacheCount} টি চ্যানেল ক্যাশে আছে
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col items-center gap-3 sm:flex-row">

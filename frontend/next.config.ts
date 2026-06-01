@@ -82,6 +82,12 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     deviceSizes: [640, 750, 828, 1080, 1200],
     imageSizes: [32, 48, 64, 96],
+    // Channel logos come from arbitrary CDN origins — allow all remote patterns.
+    // unoptimized=true is used on the component side to skip server-side resizing.
+    remotePatterns: [
+      { protocol: "https", hostname: "**" },
+      { protocol: "http", hostname: "**" },
+    ],
   },
   experimental: {
     optimizePackageImports: ["lucide-react", "framer-motion"],

@@ -271,6 +271,10 @@ export function ViewerHome() {
   const setActiveChannel = usePlayerStore((state) => state.setActiveChannel);
   const toggleTheaterMode = usePlayerStore((state) => state.toggleTheaterMode);
 
+  const playerSectionRef = useRef<HTMLElement | null>(null);
+  const [showErrorSuggestions, setShowErrorSuggestions] = useState(false);
+  const [notifyIds, setNotifyIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem("gstv-recently-watched");
@@ -288,17 +292,38 @@ export function ViewerHome() {
     } catch { /* ignore */ }
   }, []);
 
+  useEffect(() => {
+    if (activeChannel) {
+      document.title = `${activeChannel.name} · ABO SPORTS TV LIVE`;
+    } else {
+      document.title = "ABO SPORTS TV LIVE";
+    }
+    return () => { document.title = "ABO SPORTS TV LIVE"; };
+  }, [activeChannel]);
+
   /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
   const selectChannel = useCallback(
     (ch: Channel) => {
       startTransition(() => {
         setActiveChannel(ch);
       });
+      setShowErrorSuggestions(false);
       setRecentlyWatched((prev) => {
         const next = [ch.id, ...prev.filter((id) => id !== ch.id)].slice(0, 10);
         try { localStorage.setItem("gstv-recently-watched", JSON.stringify(next)); } catch { /* ignore */ }
         return next;
       });
+      try {
+        const existing = JSON.parse(localStorage.getItem("gstv-watch-history") || "[]");
+        const entry = { id: ch.id, name: ch.name, logo_url: ch.logo_url ?? null, module: ch.module, watchedAt: Date.now() };
+        const updated = [entry, ...existing.filter((e: { id: number }) => e.id !== ch.id)].slice(0, 50);
+        localStorage.setItem("gstv-watch-history", JSON.stringify(updated));
+      } catch { /* */ }
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        queueMicrotask(() => {
+          playerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
     },
     [setActiveChannel]
   );
@@ -321,6 +346,23 @@ export function ViewerHome() {
     } else {
       navigator.clipboard?.writeText(url).then(() => toast(`🔗 লিংক কপি হয়েছে: ${ch.name}`, { duration: 2500 })).catch(() => null);
     }
+  }, []);
+
+  const requestMatchNotification = useCallback(async (fx: LiveFixture) => {
+    if (!("Notification" in window)) return;
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return;
+    const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
+    const msUntil = startMs - Date.now();
+    if (msUntil > 0 && msUntil < 60 * 60 * 1000) { // within 1 hour
+      setTimeout(() => {
+        new Notification(`🔴 Match Starting: ${fx.home_team} vs ${fx.away_team}`, {
+          body: fx.league_name || "Live match",
+          icon: "/icons/icon-192.png",
+        });
+      }, Math.max(0, msUntil - 60_000)); // notify 1 min before
+    }
+    setNotifyIds((prev) => new Set([...prev, fx.external_id || String(fx.id)]));
   }, []);
 
   const transitionSetActiveModule = useCallback(
@@ -1278,6 +1320,17 @@ export function ViewerHome() {
                             </span>
                           )}
                           {fx.data_attribution ? <span>· {fx.data_attribution}</span> : null}
+                          {!isReallyLive && !isFinished && (
+                            <button
+                              type="button"
+                              onClick={() => void requestMatchNotification(fx)}
+                              className="ml-auto rounded-full p-1 text-[10px] transition hover:opacity-80"
+                              title="নোটিফিকেশন"
+                              style={{ color: notifyIds.has(fx.external_id || String(fx.id)) ? "var(--primary-accent)" : "var(--text-muted)" }}
+                            >
+                              🔔
+                            </button>
+                          )}
                         </div>
 
                         {/* Channel suggestions — only real matched channels */}
@@ -1733,7 +1786,18 @@ export function ViewerHome() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
 
           {/* Player — hidden on mobile until a channel is selected */}
-          <section className={`min-w-0 md:col-span-7 lg:col-span-8 ${!activeChannel ? "hidden md:block" : ""}`}>
+          <section ref={playerSectionRef} className={`min-w-0 md:col-span-7 lg:col-span-8 ${!activeChannel ? "hidden md:block" : ""}`}>
+            {/* Mobile back button */}
+            {activeChannel && (
+              <button
+                type="button"
+                onClick={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
+                className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
+              </button>
+            )}
             {activeChannel ? (
               <PremiumPlayer
                 streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
@@ -1745,6 +1809,7 @@ export function ViewerHome() {
                 headerProfile={activeChannel.header_profile ?? null}
                 geoHint={Boolean(activeChannel.geo_hint)}
                 channelLogoUrl={activeChannel.logo_url}
+                onStreamError={() => setShowErrorSuggestions(true)}
               />
             ) : (
               <div className="player-shell flex aspect-video items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
@@ -1805,6 +1870,22 @@ export function ViewerHome() {
                       <span className="hidden sm:inline">{t("shareChannel")}</span>
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {showErrorSuggestions && activeChannel && filtered.length > 1 && (
+              <div className="mt-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <p className="mb-2 text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>অন্য চ্যানেল চেষ্টা করুন:</p>
+                <div className="flex flex-wrap gap-2">
+                  {filtered.filter((c) => c.id !== activeChannel.id).slice(0, 4).map((ch) => (
+                    <button key={ch.id} type="button"
+                      onClick={() => { selectChannel(ch); setShowErrorSuggestions(false); }}
+                      className="rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
+                      style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}>
+                      {ch.name.slice(0, 20)}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -2135,20 +2216,21 @@ export function ViewerHome() {
               )}
 
 
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
+              <div role="list" className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
                 {gridSlice.map((ch) => (
-                  <PremiumChannelCard
-                    key={ch.id}
-                    channel={ch}
-                    active={activeChannel?.id === ch.id}
-                    onSelect={selectChannel}
-                    activeModule={activeModule}
-                    isFavorited={favorites.includes(ch.id)}
-                    onToggleFavorite={toggleFavorite}
-                    onShare={shareChannel}
-                    highlight={deferredSearch}
-                    epgText={liveEpgMap.get(ch.id) ?? null}
-                  />
+                  <div key={ch.id} role="listitem">
+                    <PremiumChannelCard
+                      channel={ch}
+                      active={activeChannel?.id === ch.id}
+                      onSelect={selectChannel}
+                      activeModule={activeModule}
+                      isFavorited={favorites.includes(ch.id)}
+                      onToggleFavorite={toggleFavorite}
+                      onShare={shareChannel}
+                      highlight={deferredSearch}
+                      epgText={liveEpgMap.get(ch.id) ?? null}
+                    />
+                  </div>
                 ))}
               </div>
               {gridHasMore ? (

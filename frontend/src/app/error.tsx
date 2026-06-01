@@ -10,7 +10,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[ABO SPORTS TV] Error:", error);
+    console.error("[ABO SPORTS TV] Error:", error, error.digest ? `(digest: ${error.digest})` : "");
   }, [error]);
 
   return (

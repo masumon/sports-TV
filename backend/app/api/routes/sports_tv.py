@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
@@ -18,6 +21,36 @@ from app.schemas.channel import ChannelFiltersResponse, ChannelListResponse, Cha
 from app.schemas.live_fixture import LiveFixtureListResponse, LiveFixtureRead
 
 logger = logging.getLogger("app.sports_tv")
+
+# ---------------------------------------------------------------------------
+# ILIKE wildcard escape
+# ---------------------------------------------------------------------------
+
+def _esc(s: str) -> str:
+    """Escape ILIKE wildcards to prevent unintended broad matches."""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# ---------------------------------------------------------------------------
+# In-memory rate limiting
+# ---------------------------------------------------------------------------
+
+_rate_store: dict[str, list[float]] = defaultdict(list)
+_rate_lock = Lock()
+
+
+def _check_rate_limit(key: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
+    """Returns True if allowed, False if rate limited. Thread-safe."""
+    now = time.monotonic()
+    with _rate_lock:
+        timestamps = _rate_store[key]
+        cutoff = now - window_seconds
+        _rate_store[key] = [t for t in timestamps if t > cutoff]
+        if len(_rate_store[key]) >= max_requests:
+            return False
+        _rate_store[key].append(now)
+        return True
+
 
 router = APIRouter(prefix="/sports-tv", tags=["sports-tv"])
 
@@ -138,6 +171,12 @@ async def list_channels(
     page_size: int = Query(default=24, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ) -> ChannelListResponse:
+    from fastapi import HTTPException
+
+    client_ip = request.client.host if request.client else "unknown"
+    if not _check_rate_limit(f"channels:{client_ip}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
+
     response.headers["Cache-Control"] = CHANNELS_CACHE_HEADER
     response.headers["CDN-Cache-Control"] = CDN_CACHE_HEADER
     response.headers["Vary"] = "Accept-Encoding"
@@ -176,13 +215,13 @@ async def list_channels(
     base_query = select(Channel).where(Channel.is_active.is_(True))
 
     if search:
-        base_query = base_query.where(Channel.name.ilike(f"%{search}%"))
+        base_query = base_query.where(Channel.name.ilike(f"%{_esc(search)}%", escape="\\"))
     if country:
-        base_query = base_query.where(Channel.country.ilike(f"%{country}%"))
+        base_query = base_query.where(Channel.country.ilike(f"%{_esc(country)}%", escape="\\"))
     if category:
-        base_query = base_query.where(Channel.category.ilike(f"%{category}%"))
+        base_query = base_query.where(Channel.category.ilike(f"%{_esc(category)}%", escape="\\"))
     if language:
-        base_query = base_query.where(Channel.language.ilike(f"%{language}%"))
+        base_query = base_query.where(Channel.language.ilike(f"%{_esc(language)}%", escape="\\"))
     if module:
         base_query = base_query.where(Channel.module == module)
 

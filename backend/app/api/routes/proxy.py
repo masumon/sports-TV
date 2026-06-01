@@ -83,8 +83,21 @@ def _merge_stream_forward_headers(
     db_headers: dict[str, str] | None,
 ) -> dict[str, str]:
     """
-    Per-header priority: (1) DB / Playwright-stored, (2) this HTTP request, (3) default UA.
-    No hardcoded origin/referer — only defaults when still missing.
+    Build the upstream request header dict for a single proxied request.
+
+    Priority order for each header name in ``_FORWARD_UPSTREAM_REQUEST_HEADER_NAMES``:
+      1. ``db_headers`` — values captured by Playwright or stored in the DB
+         (most authoritative; carry auth tokens, cookies, specific origins).
+      2. Incoming ``request`` headers — passed through from the viewer's player.
+      3. Hardcoded browser-like defaults — applied only when both of the
+         above are absent, to prevent CDN 403/empty responses.
+
+    No hardcoded origin/referer values are injected when a higher-priority
+    source already supplies them.
+
+    This function is the single source of truth for header merging and is
+    called by :func:`_merge_stream_forward_headers_for_stream_id` after it
+    resolves which DB record's header blob to use.
     """
     base_db = db_headers or {}
     out: dict[str, str] = {}
@@ -117,12 +130,25 @@ def _merge_stream_forward_headers_for_stream_id(
     ds: DynamicStream,
 ) -> dict[str, str]:
     """
-    When ``stream_id`` is present, DB headers must apply to *every* upstream
-    request for that stream (master playlist, sub-playlists, segments, keys) —
-    not only when the URL string-equals the stored m3u8Url.
+    Specialised wrapper around :func:`_merge_stream_forward_headers` for
+    ``stream_id``-based proxy requests (i.e. ``GET /proxy/m3u8?stream_id=…``).
 
-    Priority: primary ``headers_json``; if absent, use ``fallback_headers_json``.
-    Then merge with incoming request and default UA.
+    Unlike the URL-based proxy path, a ``stream_id`` request must attach the
+    same DB-sourced headers to *every* upstream sub-request — master playlist,
+    sub-playlists, segment fetches, and AES-128 key requests — because the
+    upstream CDN validates them on every hop, not just the first.
+
+    Header resolution order for the ``db_headers`` argument passed to
+    :func:`_merge_stream_forward_headers`:
+      1. ``ds.headers_json`` — primary Playwright-captured headers for the
+         current token (preferred; populated after each successful extraction).
+      2. ``ds.fallback_headers_json`` — headers saved from the previous
+         successful extraction, used when the primary blob is absent or
+         unreadable (e.g. during a mid-refresh window).
+
+    After resolving the DB blob this function delegates entirely to
+    :func:`_merge_stream_forward_headers` for the actual per-header priority
+    logic and default injection.
     """
     base: dict[str, str] = {}
     if ds.headers_json:

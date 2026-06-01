@@ -98,6 +98,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         style={{ fontFamily: `var(--font-inter), var(--font-bengali), system-ui, sans-serif` }}>
         <AppProviders>
           <SkipToContentLink />
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "name": "ABO SPORTS TV LIVE",
+                "url": siteUrl,
+                "description": "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং",
+                "potentialAction": {
+                  "@type": "SearchAction",
+                  "target": { "@type": "EntryPoint", "urlTemplate": `${siteUrl}/?q={search_term_string}` },
+                  "query-input": "required name=search_term_string"
+                }
+              }),
+            }}
+          />
           <div id="main-content" className="flex flex-1 flex-col outline-none" tabIndex={-1}>
             {children}
           </div>

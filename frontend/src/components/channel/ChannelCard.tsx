@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { PlayCircle, Radio } from "lucide-react";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
@@ -46,13 +47,14 @@ export function ChannelCard({ channel, active, onSelect, index }: Props) {
       <div className="flex items-center gap-3">
         {/* Logo / initial */}
         {channel.logo_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={channel.logo_url}
             alt=""
+            width={48}
+            height={48}
+            unoptimized
             className="h-12 w-12 shrink-0 rounded-lg object-cover"
             style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-            loading="lazy"
           />
         ) : (
           <div

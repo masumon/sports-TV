@@ -41,6 +41,11 @@ BDIX_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/countries/bd.m3u",
 ]
 
+# iptv-org India country playlist — module="india"
+INDIA_SOURCES: list[str] = [
+    "https://iptv-org.github.io/iptv/countries/in.m3u",
+]
+
 _FETCH_TIMEOUT = 25.0  # GitHub raw can be slow
 _MAX_WORKERS = 4
 _CACHE_TTL_SECONDS = 1800  # 30 min
@@ -236,3 +241,57 @@ def fetch_bdix_channels(
 def invalidate_bdix_cache() -> None:
     """Force next call to re-fetch all BDIX sources."""
     _cache.clear()
+
+
+def _fetch_one_india(url: str) -> list[ParsedChannel]:
+    try:
+        resp = _get_with_retry(url, timeout=_FETCH_TIMEOUT)
+        text = resp.text
+        if not text.lstrip().startswith("#EXTM3U"):
+            return []
+        entries = _parse_bdix_playlist(text, url)
+        for e in entries:
+            e.module = "india"
+            if not e.country or e.country == "Bangladesh":
+                e.country = "India"
+            if not e.language or e.language == "Bengali":
+                e.language = "Hindi"
+        return entries
+    except Exception as exc:
+        logger.warning("India fetch failed for %s: %s", url[:60], exc)
+        return []
+
+
+def fetch_india_channels(
+    extra_sources: list[str] | None = None,
+    force_refresh: bool = False,
+) -> list[ParsedChannel]:
+    """Fetch India channels from iptv-org India playlist."""
+    cache_key = "india_all"
+    now = time.monotonic()
+    if not force_refresh:
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            entries, ts = cached
+            if now - ts < _CACHE_TTL_SECONDS:
+                return list(entries)
+    sources = list(INDIA_SOURCES)
+    if extra_sources:
+        for s in extra_sources:
+            if s and s not in sources:
+                sources.append(s)
+    all_entries: list[ParsedChannel] = []
+    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(sources))) as pool:
+        futures = {pool.submit(_fetch_one_india, url): url for url in sources}
+        for fut in as_completed(futures):
+            try:
+                all_entries.extend(fut.result())
+            except Exception as exc:
+                logger.warning("India fetch error: %s", exc)
+    # Override module to india
+    for e in all_entries:
+        e.module = "india"
+    result = _deduplicate(all_entries)
+    _cache[cache_key] = (result, now)
+    logger.info("India channels: %d after dedup", len(result))
+    return result
