@@ -1170,7 +1170,7 @@ export function ViewerHome() {
 
             {/* ── Sport filter — only when cricket data exists ── */}
             {scheduleFixtures.some((fx) => fx.sport === "Cricket") && (
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5" data-swipe-ignore="true">
                 <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                   Sport:
                 </span>
@@ -1515,7 +1515,7 @@ export function ViewerHome() {
               <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>ক্লিক করে দেখুন →</span>
             </div>
             <div className="relative">
-              <div className="flex gap-1 overflow-x-auto px-3 pb-3 scrollbar-none">
+              <div className="flex gap-1 overflow-x-auto px-3 pb-3 scrollbar-none" data-swipe-ignore="true">
                 {bdPopularChannels.map((ch) => {
                   const isActive = activeChannel?.id === ch.id;
                   return (
@@ -1587,7 +1587,7 @@ export function ViewerHome() {
           /* Sports module: smart sport-type chips (auto-filtered, only non-empty) */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-swipe-ignore="true">
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
@@ -1622,7 +1622,7 @@ export function ViewerHome() {
           /* Regional / FAST / Live: category tabs from parsed group-title */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-swipe-ignore="true">
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
@@ -1745,8 +1745,8 @@ export function ViewerHome() {
         {/* ── Main grid: player + channel list ── */}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
 
-          {/* Player — tablet+ shares row with directory */}
-          <section className="min-w-0 md:col-span-7 lg:col-span-8">
+          {/* Player — hidden on mobile until a channel is selected */}
+          <section className={`min-w-0 md:col-span-7 lg:col-span-8 ${!activeChannel ? "hidden md:block" : ""}`}>
             {activeChannel ? (
               <PremiumPlayer
                 streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
@@ -1775,7 +1775,7 @@ export function ViewerHome() {
                 <div className="flex items-center gap-3">
                   {activeChannel.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={activeChannel.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover" style={{ border: "1px solid var(--border)" }} />
+                    <img src={activeChannel.logo_url} alt="" className="h-10 w-10 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: "var(--primary-accent)" }}>
                       {activeChannel.name.slice(0, 1)}
@@ -1880,7 +1880,7 @@ export function ViewerHome() {
                     >
                       {ch.logo_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" style={{ border: "1px solid var(--border)" }} />
+                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                       ) : (
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: "var(--bg-hover)" }}>
                           {ch.name.slice(0, 1)}
@@ -1994,7 +1994,7 @@ export function ViewerHome() {
               </button>
             </div>
             <div className="relative">
-              <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+              <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" data-swipe-ignore="true" style={{ borderColor: "var(--border)" }}>
               {favoriteChannelObjects.map((ch) => (
                 <button
                   key={ch.id}
@@ -2006,8 +2006,8 @@ export function ViewerHome() {
                 >
                   {ch.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={ch.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover"
-                      style={{ border: "1px solid rgba(245,166,35,0.3)" }} loading="lazy" />
+                    <img src={ch.logo_url} alt="" className="h-10 w-10 rounded-lg object-contain bg-white"
+                      style={{ border: "1px solid rgba(245,166,35,0.3)" }} loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg text-xs font-bold"
                       style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)" }}>
@@ -2049,7 +2049,7 @@ export function ViewerHome() {
               </button>
             </div>
             <div className="relative">
-              <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" style={{ borderColor: "var(--border)" }}>
+              <div className="flex gap-0 overflow-x-auto scrollbar-none divide-x" data-swipe-ignore="true" style={{ borderColor: "var(--border)" }}>
               {recentChannelObjects.map((ch) => (
                 <button
                   key={ch.id}
@@ -2061,8 +2061,8 @@ export function ViewerHome() {
                 >
                   {ch.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={ch.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover"
-                      style={{ border: "1px solid var(--border)" }} loading="lazy" />
+                    <img src={ch.logo_url} alt="" className="h-10 w-10 rounded-lg object-contain bg-white"
+                      style={{ border: "1px solid var(--border)" }} loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg text-xs font-bold"
                       style={{ background: "var(--bg-hover)", color: "var(--primary-accent)" }}>
@@ -2177,7 +2177,7 @@ export function ViewerHome() {
                     <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Recently added →</span>
                   </div>
                   <div className="relative">
-                    <div className="flex gap-2 overflow-x-auto px-4 pb-4 scrollbar-none">
+                    <div className="flex gap-2 overflow-x-auto px-4 pb-4 scrollbar-none" data-swipe-ignore="true">
                       {recentlyAdded.map((ch) => {
                         const isActive = activeChannel?.id === ch.id;
                         return (
