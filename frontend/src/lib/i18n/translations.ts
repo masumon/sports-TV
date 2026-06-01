@@ -103,7 +103,7 @@ export const translations: Record<
     recentlyClear: "Clear",
     shareChannel: "Share",
     shareCopied: "Link copied to clipboard!",
-    tSportsFeatured: "T-Sports — Bangladesh's Premier Sports Channel",
+
     errorRetry: "Retry",
     errorLoadFail: "Failed to load channels",
   },
@@ -206,7 +206,7 @@ export const translations: Record<
     recentlyClear: "মুছুন",
     shareChannel: "শেয়ার",
     shareCopied: "লিংক কপি হয়েছে!",
-    tSportsFeatured: "টি-স্পোর্টস — বাংলাদেশের প্রধান স্পোর্টস চ্যানেল",
+
     errorRetry: "আবার চেষ্টা করুন",
     errorLoadFail: "চ্যানেল লোড ব্যর্থ",
   },

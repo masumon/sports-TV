@@ -5,6 +5,7 @@ import Hls from "hls.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -17,6 +18,7 @@ import {
   PictureInPicture2,
   Play,
   RefreshCw,
+  Settings,
   Tv,
   Volume1,
   Volume2,
@@ -280,6 +282,73 @@ function formatQualityFromHeight(height: number): string {
   if (height >= 720) return "720p";
   if (height >= 480) return "480p";
   return `${height}p`;
+}
+
+/* ── Custom quality picker popup ── */
+function QualityPicker({
+  options,
+  selected,
+  onChange,
+}: {
+  options: QualityOption[];
+  selected: number;
+  onChange: (v: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const currentLabel = options.find((o) => o.value === selected)?.label ?? "Auto";
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Quality"
+        title="Quality"
+        className="control-btn gap-1 px-2.5 text-[11px] font-bold uppercase tracking-wide active:scale-90 transition"
+        style={open ? { background: "rgba(245,166,35,0.22)", borderColor: "rgba(245,166,35,0.55)", color: "#F5A623" } : {}}
+      >
+        <Settings size={13} className="shrink-0" />
+        <span>{currentLabel}</span>
+        <ChevronUp size={9} className={`shrink-0 transition-transform ${open ? "" : "rotate-180"}`} />
+      </button>
+      {open && (
+        <div
+          className="absolute bottom-full mb-2 right-0 z-50 min-w-[120px] overflow-hidden rounded-xl shadow-2xl"
+          style={{ background: "rgba(8,9,18,0.97)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(20px)" }}
+        >
+          <p className="px-3 pt-2.5 pb-1 text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(245,166,35,0.55)" }}>
+            Quality
+          </p>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[12px] font-semibold transition hover:bg-white/[0.07]"
+              style={{ color: selected === opt.value ? "#F5A623" : "rgba(255,255,255,0.75)" }}
+            >
+              <span>{opt.label}</span>
+              {selected === opt.value && <Check size={12} style={{ color: "#F5A623" }} />}
+            </button>
+          ))}
+          <div className="h-px mx-3 my-1" style={{ background: "rgba(255,255,255,0.07)" }} />
+          <p className="px-3 pb-2 text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+            Auto = সেরা মান স্বয়ংক্রিয়
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ExternalPlayerPicker({
@@ -1021,15 +1090,6 @@ export default function PremiumPlayer({
       {/* Click-to-play */}
       <div className="absolute inset-0 z-10 cursor-pointer" onClick={() => void togglePlayPause()} />
 
-      {/* Buffer bar */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 h-[3px] bg-white/[0.07]">
-        <motion.div
-          className="h-full"
-          style={{ background: "linear-gradient(90deg, #F5A623, #f59e0b, #F5A623)", backgroundSize: "200% 100%" }}
-          animate={{ width: `${bufferedPct}%` }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-        />
-      </div>
 
       {/* ── Loading / Switching — Premium branded screen ── */}
       <AnimatePresence>
@@ -1198,36 +1258,22 @@ export default function PremiumPlayer({
       </AnimatePresence>
 
 
-      {/* LIVE + server relay — top inset locked (safe area); avoids “jumping” when bottom panel opens on mobile */}
+      {/* LIVE badge — top-left, always visible */}
       <div
-        className="pointer-events-none absolute left-0 right-0 z-40 flex flex-wrap items-center gap-2 px-3 sm:left-3 sm:right-auto sm:pr-[9.5rem]"
-        style={{
-          top: "max(0.75rem, env(safe-area-inset-top, 0px))",
-        }}
+        className="pointer-events-none absolute left-3 z-40"
+        style={{ top: "max(0.75rem, env(safe-area-inset-top, 0px))" }}
       >
         <span
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white sm:text-[11px]"
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white"
           style={{
-            background: "rgba(229,57,53,0.9)",
+            background: "rgba(220,38,38,0.88)",
             border: "1px solid rgba(255,82,82,0.45)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.35)",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
           }}
         >
           <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-white" />
           LIVE
         </span>
-        {isCurrentRelay && (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest sm:text-[10px]"
-            style={{
-              background: "rgba(16,185,129,0.22)",
-              border: "1px solid rgba(16,185,129,0.45)",
-              color: "#6ee7b7",
-            }}
-          >
-            RELAY
-          </span>
-        )}
       </div>
 
       {/* Custom overlay */}
@@ -1327,101 +1373,141 @@ export default function PremiumPlayer({
         {showControls && (
           <motion.div
             key="controls"
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
             className="absolute inset-x-0 bottom-0 z-40"
           >
-            <div className="glass-panel mx-2 mb-2 overflow-hidden rounded-2xl sm:mx-3 sm:mb-3">
-              {/* Now playing header */}
-              <div
-                className="border-b border-white/[0.06] px-3.5 pb-2.5 pt-3 sm:px-4"
-                style={{ background: "linear-gradient(180deg, rgba(245,166,35,0.07) 0%, transparent 100%)" }}
-              >
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  {/* Channel/brand logo thumbnail */}
-                  <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-                    style={{ background: "#fff", border: "1px solid rgba(245,166,35,0.35)" }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
-                      alt=""
-                      className="h-7 w-7 object-contain"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[8px] font-black uppercase tracking-[0.22em]" style={{ color: "rgba(245,166,35,0.7)" }}>
-                      🔴 LIVE NOW
-                    </p>
-                    <p className="truncate text-[13px] font-bold leading-tight text-white">{title}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <span
-                      className="rounded-md px-2 py-0.5 text-[9px] font-bold tabular-nums"
-                      style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.28)" }}
-                    >
-                      {currentQualityLabel}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowExternalPanel((v) => !v)}
-                      className="flex min-h-[34px] items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-semibold uppercase tracking-wide transition active:scale-95 sm:px-2.5 sm:text-[10px]"
-                      style={{
-                        background: showExternalPanel ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.06)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        color: showExternalPanel ? "var(--primary-accent)" : "var(--text-muted)",
-                      }}
-                    >
-                      <Tv size={12} className="shrink-0" />
-                      <span className="hidden min-[380px]:inline">Players</span>
-                      {showExternalPanel ? <ChevronUp size={10} className="shrink-0" /> : <ChevronDown size={10} className="shrink-0" />}
-                    </button>
-                  </div>
+            {/* Live buffer bar — edge-to-edge at very bottom */}
+            <div className="absolute bottom-0 left-0 right-0 h-[3px]" style={{ background: "rgba(255,255,255,0.06)", zIndex: 1 }}>
+              <motion.div
+                className="h-full rounded-r-full"
+                style={{ background: "linear-gradient(90deg, #F5A623 0%, #f59e0b 60%, rgba(245,166,35,0.4) 100%)" }}
+                animate={{ width: `${bufferedPct}%` }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              />
+            </div>
+
+            <div
+              className="mx-2 mb-[7px] overflow-hidden rounded-2xl sm:mx-3"
+              style={{
+                background: "rgba(6,7,14,0.88)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                backdropFilter: "blur(24px) saturate(160%)",
+                WebkitBackdropFilter: "blur(24px) saturate(160%)",
+                boxShadow: "0 -4px 32px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.04)",
+              }}
+            >
+              {/* ── Now playing row ── */}
+              <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-2 sm:px-4 sm:pt-3">
+                {/* Channel logo */}
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+                  style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.4)", boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
+                    alt=""
+                    className="h-7 w-7 object-contain"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
+                  />
                 </div>
+                {/* Title */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full animate-pulse shrink-0" style={{ background: "#ef4444" }} />
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em]" style={{ color: "rgba(245,166,35,0.75)" }}>LIVE NOW</span>
+                    {isCurrentRelay && (
+                      <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase tracking-wider" style={{ background: "rgba(16,185,129,0.18)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
+                        RELAY
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-[13px] font-bold leading-tight text-white">{title}</p>
+                </div>
+                {/* External players toggle */}
+                <button
+                  type="button"
+                  onClick={() => setShowExternalPanel((v) => !v)}
+                  className="shrink-0 flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition active:scale-95"
+                  style={{
+                    background: showExternalPanel ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.07)",
+                    border: `1px solid ${showExternalPanel ? "rgba(245,166,35,0.45)" : "rgba(255,255,255,0.1)"}`,
+                    color: showExternalPanel ? "#F5A623" : "rgba(255,255,255,0.55)",
+                  }}
+                  aria-label="External players"
+                >
+                  <Tv size={12} className="shrink-0" />
+                  <span className="hidden min-[360px]:inline">Players</span>
+                  {showExternalPanel ? <ChevronUp size={9} className="shrink-0" /> : <ChevronDown size={9} className="shrink-0" />}
+                </button>
               </div>
 
-              {/* Main controls */}
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none px-2.5 pb-3 pt-1.5 sm:gap-2 sm:px-4 sm:pb-3.5">
-                {/* Play/Pause — larger, prominent */}
+              {/* ── Divider ── */}
+              <div className="mx-3 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
+
+              {/* ── Main controls row ── */}
+              <div className="flex items-center gap-1.5 px-2.5 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
+                {/* Play / Pause — primary CTA */}
                 <button
-                  className="shrink-0 flex h-11 w-11 items-center justify-center rounded-xl transition active:scale-90"
                   type="button"
                   onClick={() => void togglePlayPause()}
                   aria-label={isPlaying ? "Pause" : "Play"}
+                  className="shrink-0 flex h-11 w-11 items-center justify-center rounded-xl transition-all active:scale-90"
                   style={{
-                    background: isPlaying ? "rgba(245,166,35,0.2)" : "rgba(255,255,255,0.1)",
-                    border: isPlaying ? "1px solid rgba(245,166,35,0.5)" : "1px solid rgba(255,255,255,0.15)",
-                    color: isPlaying ? "var(--primary-accent)" : "#fff",
-                    boxShadow: isPlaying ? "0 0 16px rgba(245,166,35,0.15)" : "none",
+                    background: isPlaying ? "rgba(245,166,35,0.22)" : "rgba(255,255,255,0.12)",
+                    border: isPlaying ? "1.5px solid rgba(245,166,35,0.6)" : "1.5px solid rgba(255,255,255,0.18)",
+                    color: isPlaying ? "#F5A623" : "#fff",
+                    boxShadow: isPlaying ? "0 0 18px rgba(245,166,35,0.18)" : "none",
                   }}
                 >
-                  {isPlaying ? <Pause size={19} /> : <Play size={19} />}
+                  {isPlaying ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
                 </button>
 
-                <button className="control-btn shrink-0 active:scale-90 transition" type="button" onClick={toggleMute} aria-label="Toggle mute">
+                {/* Volume */}
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  aria-label="Mute"
+                  className="control-btn shrink-0 active:scale-90 transition"
+                >
                   <VolumeIcon size={17} />
                 </button>
                 {!isTouchDevice && (
-                  <input type="range" min={0} max={1} step={0.05}
+                  <input
+                    type="range" min={0} max={1} step={0.05}
                     value={isMuted ? 0 : volume}
                     onChange={(e) => setVolumeLevel(Number(e.target.value))}
-                    className="volume-slider w-16 sm:w-20 shrink-0" aria-label="Volume" />
+                    className="volume-slider w-14 shrink-0 sm:w-20"
+                    aria-label="Volume"
+                  />
                 )}
-                <select className="quality-select shrink-0" value={selectedQuality}
-                  onChange={(e) => changeQuality(Number(e.target.value))} aria-label="Quality">
-                  {qualityOptions.map((opt) => (
-                    <option key={`${opt.label}-${opt.value}`} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                <button className="control-btn shrink-0 active:scale-90 transition" type="button" onClick={() => void togglePictureInPicture()} aria-label="PiP" title="Picture-in-Picture">
-                  <PictureInPicture2 size={17} />
-                </button>
+
+                {/* Spacer */}
+                <div className="flex-1" />
+
+                {/* Quality picker */}
+                <QualityPicker
+                  options={qualityOptions}
+                  selected={selectedQuality}
+                  onChange={changeQuality}
+                />
+
+                {/* PiP */}
                 <button
+                  type="button"
+                  onClick={() => void togglePictureInPicture()}
+                  aria-label="Picture-in-Picture"
+                  title="PiP"
                   className="control-btn shrink-0 active:scale-90 transition"
+                >
+                  <PictureInPicture2 size={16} />
+                </button>
+
+                {/* Theater */}
+                <button
                   type="button"
                   onClick={() => {
                     if (isMobileSheet) {
@@ -1432,24 +1518,34 @@ export default function PremiumPlayer({
                   }}
                   aria-label="Theater mode"
                   title="Theater (T)"
-                  style={isTheaterMode ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "var(--primary-accent)" } : {}}
+                  className="control-btn shrink-0 active:scale-90 transition"
+                  style={isTheaterMode ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
                 >
-                  <Tv size={17} />
+                  <Tv size={16} />
                 </button>
-                <button className="control-btn shrink-0 active:scale-90 transition" type="button" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title="Fullscreen (F)">
-                  {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
+
+                {/* Fullscreen */}
+                <button
+                  type="button"
+                  onClick={() => void toggleFullscreen()}
+                  aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  title="Fullscreen (F)"
+                  className="control-btn shrink-0 active:scale-90 transition"
+                  style={isFullscreen ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
+                >
+                  {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
                 </button>
               </div>
 
-              {/* External players: bottom sheet on mobile (no in-player height jump). Inline on sm+ */}
+              {/* External players — inline on sm+, portal bottom-sheet on mobile */}
               {!isMobileSheet && (
                 <div
-                  className="grid border-t border-white/[0.07] transition-[grid-template-rows] duration-200 ease-out"
+                  className="grid transition-[grid-template-rows] duration-200 ease-out"
                   style={{ gridTemplateRows: showExternalPanel ? "1fr" : "0fr" }}
                 >
                   <div className="min-h-0 overflow-hidden">
                     {showExternalPanel && (
-                      <div className="px-2 pb-3 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3">
+                      <div className="border-t border-white/[0.06] px-3 pb-4 pt-3 sm:px-4">
                         <ExternalPlayerPicker
                           idPrefix={externalPanelTitleId}
                           streamUrl={sharePlaybackUrl}

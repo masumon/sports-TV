@@ -107,20 +107,6 @@ async def lifespan(app: FastAPI):
         settings.admin_email,
     )
 
-    # Warn if T-Sports CDN cookie is expired (Expires=<unix_ts> embedded in value)
-    _tsports_cookie = (settings.stream_profile_tsports_cookie or "").strip()
-    if _tsports_cookie:
-        import re as _re, time as _time
-        _m = _re.search(r"Expires=(\d+)", _tsports_cookie)
-        if _m and int(_m.group(1)) < _time.time():
-            import datetime as _dt
-            _exp = _dt.datetime.fromtimestamp(int(_m.group(1)), tz=_dt.timezone.utc)
-            logger.warning(
-                "STREAM_PROFILE_TSPORTS_COOKIE expired on %s — T-Sports proxy will return 403. "
-                "Rotate the cookie in Render env vars (STREAM_PROFILE_TSPORTS_COOKIE).",
-                _exp.strftime("%Y-%m-%d"),
-            )
-
     Base.metadata.create_all(bind=engine)
     try:
         ensure_user_subscription_tier(engine)

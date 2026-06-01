@@ -2,9 +2,6 @@
 IPTV Aggregation API Routes
 
 Endpoints:
-  GET /api/v1/aggregator/tsports
-      T-Sports stream info, best variant URL, required headers, proxy URL.
-
   GET /api/v1/aggregator/jagobd
       Extract m3u8 URLs from a JagoBD page via regex (no Playwright).
 
@@ -36,7 +33,6 @@ from app.db.session import get_db
 from app.models.channel import Channel
 from app.services.bdix_aggregator import BDIX_SOURCES, fetch_bdix_channels
 from app.services.jagobd_extractor import JAGOBD_LIVE_URL, extract_jagobd
-from app.services.tsports_extractor import TSPORTS_MASTER_URL, extract_tsports
 
 logger = logging.getLogger("app.aggregator")
 
@@ -59,68 +55,6 @@ def _proxy_stream_url(target: str, header_profile: str | None = None) -> str:
     if header_profile:
         base += f"&header_profile={urllib.parse.quote(header_profile, safe='')}"
     return base
-
-
-# ─────────────────────────────── T-Sports ─────────────────────────────────
-
-@router.get("/tsports", summary="T-Sports stream info and proxy URL")
-async def tsports_info(
-    cookie: str | None = Query(
-        default=None,
-        description="Edge-Cache-Cookie override (uses STREAM_PROFILE_TSPORTS_COOKIE env if omitted)",
-    ),
-) -> Response:
-    """
-    Return T-Sports master playlist metadata, available quality variants,
-    and a pre-built proxy URL that injects the required Akamai headers.
-    """
-    env_cookie = (settings.stream_profile_tsports_cookie or "").strip() or None
-    env_ua = (settings.stream_profile_tsports_user_agent or "").strip() or None
-    effective_cookie = cookie or env_cookie
-
-    result = await run_in_threadpool(extract_tsports, effective_cookie, env_ua)
-
-    playback = result.best_url or result.master_url
-    body: dict[str, Any] = {
-        "master_url": result.master_url,
-        "best_url": playback,
-        "proxy_url": _proxy_stream_url(playback, "tsports"),
-        "variants": [
-            {
-                "url": v.url,
-                "proxy_url": _proxy_stream_url(v.url, "tsports"),
-                "bandwidth": v.bandwidth,
-                "resolution": v.resolution,
-                "quality": v.quality_label,
-            }
-            for v in result.variants
-        ],
-        "required_headers": {
-            "host": "live.tsports.com",
-            "user-agent": env_ua or "Tsports (Linux; Android 14)",
-        },
-        "validated": result.validated,
-        "error": result.error,
-        "epg_id": "tsports",
-        "channel": {
-            "name": "T-Sports",
-            "country": "Bangladesh",
-            "category": "Sports",
-            "language": "Bengali",
-            "logo_url": "https://i.imgur.com/tsports_logo.png",
-            "module": "bangladesh",
-        },
-    }
-    return Response(
-        content=json.dumps(body, ensure_ascii=False),
-        media_type="application/json",
-        headers={**_CORS, **(_SHORT_CACHE if result.validated else _NO_CACHE)},
-    )
-
-
-@router.options("/tsports")
-async def tsports_preflight() -> Response:
-    return Response(status_code=204, headers=_CORS)
 
 
 # ─────────────────────────────── JagoBD ───────────────────────────────────

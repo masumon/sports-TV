@@ -642,15 +642,13 @@ export function ViewerHome() {
       list = list.filter((c) => c.language.toLowerCase().includes(f));
     }
 
-    // Geo-based T-Sports priority: Bangladesh channels first in WC module
+    // WC 2026: Bangladesh first, India second
     if (activeModule === "world_cup_2026") {
       list = [...list].sort((a, b) => {
         const pri = (c: typeof a) => {
-          const n = c.name.toLowerCase();
-          if (n.includes("t-sport") || n.includes("tsport")) return 0;
-          if (c.country.toLowerCase() === "bangladesh") return 1;
-          if (c.country.toLowerCase() === "india") return 2;
-          return 3;
+          if (c.country.toLowerCase() === "bangladesh") return 0;
+          if (c.country.toLowerCase() === "india") return 1;
+          return 2;
         };
         return pri(a) - pri(b);
       });
@@ -671,13 +669,6 @@ export function ViewerHome() {
       list = [...list].sort((a, b) => {
         const pd = bdCatPri(a.category) - bdCatPri(b.category);
         if (pd !== 0) return pd;
-        // within Sports: T-Sports first
-        if (bdCatPri(a.category) === 0) {
-          const an = a.name.toLowerCase();
-          const bn = b.name.toLowerCase();
-          if (an.includes("t sport") || an.includes("tsport")) return -1;
-          if (bn.includes("t sport") || bn.includes("tsport")) return 1;
-        }
         return 0;
       });
     }
@@ -837,11 +828,6 @@ export function ViewerHome() {
     [favorites, channelById]
   );
 
-  const tSportsChannel = useMemo(() => {
-    if (activeModule !== "bangladesh") return null;
-    return moduleChannels.find((c) => c.name.toLowerCase().includes("t sport") || c.name.toLowerCase().includes("tsport")) ?? null;
-  }, [activeModule, moduleChannels]);
-
   const bdPopularChannels = useMemo(() => {
     if (activeModule !== "bangladesh") return [];
     const catOrder = (cat: string) => {
@@ -910,8 +896,6 @@ export function ViewerHome() {
         const ft = `${f.home_team} ${f.away_team} ${f.league_name}`.toLowerCase();
         // Name-prefix match (≥6 chars to avoid spurious short matches)
         if (n.length >= 6 && ft.includes(n.slice(0, 6))) return true;
-        // T Sports specifically carries BD/IN live matches
-        if (n.includes("t-sport") || n.includes("tsport") || n === "t sports") return true;
         // Channel country aligns with one of the playing teams
         if (chCountry.length >= 4 && (
           f.home_team.toLowerCase().includes(chCountry) ||
@@ -1913,63 +1897,6 @@ export function ViewerHome() {
             </p>
           </aside>
         </div>
-
-        {/* ── T-Sports Featured Card (Bangladesh tab) ── */}
-        {tSportsChannel && (
-          <div
-            className="relative overflow-hidden rounded-xl p-4 sm:p-5"
-            style={{
-              background: "linear-gradient(135deg, rgba(0,106,78,0.18) 0%, rgba(245,166,35,0.10) 100%)",
-              border: "1px solid rgba(0,166,78,0.35)",
-            }}
-          >
-            <div className="absolute inset-0 opacity-5"
-              style={{ backgroundImage: "radial-gradient(circle at 80% 50%, #00a64e 0%, transparent 60%)" }}
-            />
-            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-4">
-                {tSportsChannel.logo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={tSportsChannel.logo_url}
-                    alt={tSportsChannel.name}
-                    className="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20"
-                    style={{ border: "2px solid rgba(0,166,78,0.4)", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}
-                  />
-                ) : (
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl text-lg font-black sm:h-20 sm:w-20"
-                    style={{ background: "rgba(0,106,78,0.3)", border: "2px solid rgba(0,166,78,0.4)", color: "#00a64e" }}>
-                    🏏
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                      style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}>
-                      🔴 LIVE
-                    </span>
-                    <span className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                      style={{ background: "rgba(0,166,78,0.15)", color: "#00a64e", border: "1px solid rgba(0,166,78,0.3)" }}>
-                      🇧🇩 FEATURED
-                    </span>
-                  </div>
-                  <h3 className="mt-1 text-lg font-black sm:text-xl" style={{ color: "var(--text-main)" }}>
-                    {tSportsChannel.name}
-                  </h3>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{t("tSportsFeatured")}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => selectChannel(tSportsChannel)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-black transition hover:opacity-90 active:scale-95 sm:ml-auto sm:shrink-0"
-                style={{ background: "linear-gradient(135deg, #00a64e, #006a3e)", color: "#fff", boxShadow: "0 4px 16px rgba(0,106,78,0.4)" }}
-              >
-                ▶ Watch Now
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* ── Favorites ── */}
         {favoriteChannelObjects.length > 0 && (
