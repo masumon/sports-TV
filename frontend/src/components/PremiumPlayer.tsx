@@ -446,6 +446,7 @@ export default function PremiumPlayer({
   onToggleTheaterMode,
   overlay,
   headerProfile = null,
+  geoHint = false,
   channelLogoUrl = null,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
