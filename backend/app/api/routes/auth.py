@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import secrets
 import time
@@ -29,6 +30,10 @@ logger = logging.getLogger("app.auth")
 
 # In-process rate limit for password reset (per email; fine for single Render instance)
 _last_admin_password_reset_at: dict[str, float] = {}
+
+# Pre-computed bcrypt hash — ensures verify_password always runs even for unknown emails
+# to prevent timing-based email enumeration (OWASP Authentication Cheat Sheet).
+_DUMMY_BCRYPT_HASH = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
 
 
 def _hash_reset_token(raw: str) -> str:
@@ -60,7 +65,13 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(payload.password, user.password_hash):
+    # Always call verify_password regardless of whether the user exists so that
+    # response time is constant — prevents timing-based email enumeration.
+    password_valid = verify_password(
+        payload.password,
+        user.password_hash if user else _DUMMY_BCRYPT_HASH,
+    )
+    if not user or not password_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = create_access_token(subject=str(user.id), is_admin=user.is_admin)
@@ -123,7 +134,9 @@ async def admin_reset_password(
     user = result.scalar_one_or_none()
     if not user or not user.is_admin:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset request.")
-    if not user.password_reset_token_hash or user.password_reset_token_hash != token_h:
+    if not user.password_reset_token_hash or not hmac.compare_digest(
+        user.password_reset_token_hash, token_h
+    ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token.")
     if not user.password_reset_expires_at or user.password_reset_expires_at < datetime.now(tz=timezone.utc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token expired. Request a new one.")

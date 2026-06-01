@@ -144,6 +144,29 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          {
+            key: "Content-Security-Policy",
+            // media-src * — IPTV streams come from arbitrary CDNs/origins
+            // img-src * data: blob: — channel logos from arbitrary CDNs
+            // connect-src * blob: — HLS segment fetches + API
+            // worker-src 'self' blob: — HLS.js web workers + SW
+            // unsafe-inline/unsafe-eval required by Next.js runtime and HLS.js
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://www.googletagmanager.com",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src * data: blob:",
+              "media-src * blob:",
+              "connect-src * blob:",
+              "font-src 'self' data:",
+              "worker-src 'self' blob:",
+              "frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join("; "),
+          },
         ],
       },
     ];

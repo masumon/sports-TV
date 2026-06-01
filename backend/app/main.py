@@ -106,6 +106,17 @@ async def lifespan(app: FastAPI):
         settings.app_env,
         settings.admin_email,
     )
+    _is_prod = (settings.app_env or "").lower() in {"production", "prod"}
+    if _is_prod and settings.admin_password == "Admin12345!":
+        logger.critical(
+            "SECURITY: Default admin password 'Admin12345!' is in use in PRODUCTION. "
+            "Set ADMIN_PASSWORD env var immediately to prevent unauthorized access."
+        )
+    if _is_prod and settings.admin_email == "admin@test.com":
+        logger.critical(
+            "SECURITY: Default admin email 'admin@test.com' is in use in PRODUCTION. "
+            "Set ADMIN_EMAIL env var immediately."
+        )
 
     Base.metadata.create_all(bind=engine)
     try:
@@ -353,8 +364,9 @@ app.add_middleware(
     # Vercel Preview: https://<name>-<hash>-<team>.vercel.app — list custom domains in CORS_ORIGINS.
     allow_origin_regex=r"^https://[a-zA-Z0-9-]+\.vercel\.app$",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Range", "X-Sync-Secret"],
+    expose_headers=["Content-Length", "Content-Range", "Accept-Ranges"],
 )
 # Compress JSON/text on slow mobile links (free-tier friendly; skips tiny bodies).
 app.add_middleware(GZipMiddleware, minimum_size=512)
