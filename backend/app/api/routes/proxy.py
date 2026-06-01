@@ -188,17 +188,6 @@ def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
     """Server-side allowlisted presets only (no arbitrary client-supplied headers)."""
     if not name:
         return {}
-    key = name.strip().lower()
-    if key == "tsports":
-        ua = (settings.stream_profile_tsports_user_agent or "").strip()
-        cookie = (settings.stream_profile_tsports_cookie or "").strip()
-        h: dict[str, str] = {
-            "host": "live-cdn.tsports.com",
-            "user-agent": ua if ua else "(Linux;Android 14)",
-        }
-        if cookie:
-            h["cookie"] = cookie
-        return h
     return {}
 
 

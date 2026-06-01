@@ -88,17 +88,6 @@ class Settings(BaseSettings):
         description="e.g. http://user:pass@host:port — applied to playlist + stream fetches",
     )
 
-    # Allowlisted preset for /proxy/stream?header_profile=tsports — merged server-side only (see proxy.py).
-    # Env: STREAM_PROFILE_TSPORTS_COOKIE, STREAM_PROFILE_TSPORTS_USER_AGENT
-    stream_profile_tsports_cookie: str | None = Field(
-        default=None,
-        description="e.g. Edge-Cache-Cookie=URLPrefix=... (rotate when upstream returns 403)",
-    )
-    stream_profile_tsports_user_agent: str | None = Field(
-        default=None,
-        description="Sent as User-Agent for tsports profile; default (Linux;Android 14) if unset",
-    )
-
     # BDIX IPTV Aggregation — extra community M3U sources appended to Bangladesh sync.
     # Comma-separated. Leave empty to use BDIX_SOURCES defaults in bdix_aggregator.py.
     bdix_extra_sources: str = Field(
