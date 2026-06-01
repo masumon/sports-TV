@@ -2319,15 +2319,24 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
               alt=""
               className="absolute inset-0 h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
+              onError={(e) => {
+                const t = e.currentTarget;
+                t.style.display = "none";
+                const fb = t.nextElementSibling as HTMLElement | null;
+                if (fb) fb.style.display = "flex";
+              }}
             />
-          ) : (
-            <div
-              className="absolute inset-0 flex items-center justify-center text-2xl font-black"
-              style={{ color: "var(--primary-accent)" }}
-            >
-              {channel.name.slice(0, 2).toUpperCase()}
-            </div>
-          )}
+          ) : null}
+          <div
+            className="absolute inset-0 items-center justify-center text-2xl font-black"
+            style={{
+              color: "var(--primary-accent)",
+              background: "linear-gradient(135deg,rgba(229,9,20,0.08),rgba(245,166,35,0.06))",
+              display: channel.logo_url ? "none" : "flex",
+            }}
+          >
+            {channel.name.slice(0, 2).toUpperCase()}
+          </div>
 
           {/* LIVE overlay when active */}
           {active && (

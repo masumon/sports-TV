@@ -442,9 +442,6 @@ export default function PremiumPlayer({
   const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
   const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
 
-  const playerWatermarkSrc = (channelLogoUrl?.trim() || DEFAULT_PLAYER_BRAND_LOGO).trim();
-  const playerWatermarkIsChannel = Boolean(channelLogoUrl?.trim());
-  const playerWatermarkIsDefaultBrand = !playerWatermarkIsChannel;
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
@@ -1018,26 +1015,54 @@ export default function PremiumPlayer({
         />
       </div>
 
-      {/* Loading / Switching spinner */}
+      {/* Loading / Switching — ABO SPORTS TV branded screen */}
       <AnimatePresence>
         {(isSwitching || (isLoading && !playbackStartedRef.current)) && !hasError && !geoRestricted && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3"
-            style={{ background: "rgba(7,8,15,0.6)", backdropFilter: "blur(4px)" }}
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4"
+            style={{ background: "rgba(7,8,15,0.88)", backdropFilter: "blur(6px)" }}
           >
-            <div className="relative flex h-14 w-14 items-center justify-center">
-              <span className="absolute inset-0 animate-ping rounded-full opacity-25" style={{ background: "var(--primary-accent)" }} />
-              <Loader2 className="h-10 w-10 animate-spin" style={{ color: "var(--primary-accent)" }} />
+            {/* Logo with pulse rings */}
+            <div className="relative flex h-20 w-20 items-center justify-center">
+              <span className="absolute inset-0 animate-ping rounded-2xl opacity-10" style={{ background: "var(--primary-accent)", animationDuration: "1.4s" }} />
+              <span className="absolute inset-[-6px] animate-ping rounded-2xl opacity-[0.06]" style={{ background: "var(--primary-accent)", animationDuration: "2s", animationDelay: "0.3s" }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icons/original-logo.jpeg"
+                alt="ABO Sports TV"
+                className="relative h-16 w-16 rounded-2xl object-contain"
+                style={{
+                  border: "1.5px solid rgba(229,9,20,0.45)",
+                  boxShadow: "0 0 24px rgba(229,9,20,0.25), 0 8px 32px rgba(0,0,0,0.6)",
+                }}
+              />
             </div>
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.45)" }}>
-              {isSwitching
-                ? (isCurrentRelay ? "Server relay…" : "Switching stream…")
-                : (isCurrentRelay ? "Server relay…" : "Loading stream…")}
-            </p>
+
+            {/* Brand name */}
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-xs font-black uppercase tracking-[0.22em]" style={{ color: "var(--primary-accent)" }}>
+                ABO SPORTS TV
+              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                {isSwitching
+                  ? (isCurrentRelay ? "সার্ভার রিলে…" : "ব্যাকআপে যাচ্ছে…")
+                  : (isCurrentRelay ? "সার্ভার রিলে…" : "সংযোগ হচ্ছে…")}
+              </p>
+            </div>
+
+            {/* Animated progress bar */}
+            <div className="h-[2px] w-28 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: "linear-gradient(90deg, var(--primary-accent), #f59e0b)" }}
+                animate={{ x: ["-100%", "200%"] }}
+                transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1113,36 +1138,6 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* Channel or app brand watermark (default: abo-logo.svg) */}
-      <div
-        className="pointer-events-none absolute z-[38] rounded-xl p-0.5"
-        style={{
-          top: "max(0.75rem, env(safe-area-inset-top, 0px))",
-          right: "max(0.75rem, env(safe-area-inset-right, 0px))",
-          background: "rgba(7,8,15,0.45)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={playerWatermarkSrc}
-          alt=""
-          className={
-            playerWatermarkIsChannel
-              ? "h-10 w-10 rounded-lg object-cover sm:h-11 sm:w-11"
-              : "block h-9 max-w-[7.25rem] object-contain object-center sm:h-10 sm:max-w-[8rem]"
-          }
-          style={
-            playerWatermarkIsDefaultBrand
-              ? {
-                  mixBlendMode: "screen",
-                  filter: "brightness(1.14) contrast(1.24) saturate(1.2)",
-                }
-              : undefined
-          }
-        />
-      </div>
 
       {/* LIVE + server relay — top inset locked (safe area); avoids “jumping” when bottom panel opens on mobile */}
       <div
