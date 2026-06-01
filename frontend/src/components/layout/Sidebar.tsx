@@ -116,12 +116,12 @@ export function Sidebar() {
           <div className="flex items-center gap-3 min-w-0">
             <div className="relative h-14 w-14 shrink-0">
               <Image
-                src="/icons/original-logo.jpeg"
+                src="/icons/abo-sports-tv-logo.png"
                 alt="ABO Sports TV"
                 width={56}
                 height={56}
                 className="rounded-xl object-contain logo-brand-glow"
-                style={{ border: "1.5px solid rgba(229,9,20,0.3)" }}
+                style={{ background: "#fff", padding: 3, border: "1.5px solid rgba(245,166,35,0.4)" }}
               />
               {/* Live dot */}
               <span

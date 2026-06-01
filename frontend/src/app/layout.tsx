@@ -43,8 +43,11 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: [{ url: "/icons/icon-192.svg", type: "image/svg+xml", sizes: "192x192" }],
-    apple: [{ url: "/icons/icon-192.svg", type: "image/svg+xml" }],
+    icon: [
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
   },
   metadataBase: new URL(siteUrl),
   openGraph: {

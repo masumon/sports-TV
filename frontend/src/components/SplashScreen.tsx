@@ -77,15 +77,15 @@ export function SplashScreen({ ready }: { ready: boolean }) {
           }}
         >
           <Image
-            src="/icons/original-logo.jpeg"
-            alt="Brand"
+            src="/icons/abo-sports-tv-logo.png"
+            alt="ABO Sports TV"
             width={72}
             height={72}
             style={{
-              borderRadius: 16,
+              borderRadius: 14,
               objectFit: "contain",
-              mixBlendMode: "screen",
-              filter: "brightness(1.14) contrast(1.24) saturate(1.2)",
+              background: "#fff",
+              padding: 4,
             }}
             priority
           />

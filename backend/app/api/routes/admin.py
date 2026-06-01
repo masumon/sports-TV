@@ -45,14 +45,19 @@ async def admin_stats(
     _: User = Depends(get_current_admin_user),
 ) -> AdminStatsResponse:
     u = (await db.execute(select(func.count()).select_from(User.__table__))).scalar() or 0
-    c = (await db.execute(select(func.count()).select_from(Channel.__table__))).scalar() or 0
+    # Use consistent ORM-based counts for both total and active
+    total = (await db.execute(select(func.count()).select_from(Channel))).scalar() or 0
     active = (
         await db.execute(select(func.count()).select_from(Channel).where(Channel.is_active.is_(True)))
     ).scalar() or 0
+    inactive = (
+        await db.execute(select(func.count()).select_from(Channel).where(Channel.is_active.is_(False)))
+    ).scalar() or 0
     return AdminStatsResponse(
         users=int(u),
-        channels=int(c),
+        channels=int(total),
         active_channels=int(active),
+        inactive_channels=int(inactive),
         cache_ttl_seconds=settings.cache_ttl_seconds,
         scheduled_sync_minutes=settings.scheduled_sync_interval_minutes,
         last_sync_at=get_last_sync_iso(),

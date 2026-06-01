@@ -56,10 +56,28 @@ def _persist_sweep_state() -> None:
         pass
 
 
-def check_sync_allowed() -> None:
-    """Raises HTTPException 429 if called too soon after previous successful sync."""
-    from fastapi import HTTPException, status
+_REDIS_SYNC_LOCK_KEY = "gstv:sync:running"
+_REDIS_SYNC_LOCK_TTL = 360  # seconds — auto-expires if worker dies mid-sync
 
+
+def check_sync_allowed() -> None:
+    """Raises HTTPException 429 if a sync is already running or rate-limited.
+
+    Uses Redis distributed lock when available so multiple Render workers
+    (or concurrent admin clicks) cannot trigger duplicate syncs simultaneously.
+    Falls back to in-process timestamp check when Redis is absent.
+    """
+    from fastapi import HTTPException, status
+    from app.core.redis_client import safe_get, safe_set
+
+    # Distributed lock: check if any worker already has a sync running.
+    if safe_get(_REDIS_SYNC_LOCK_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Sync already running on this server. Please wait for it to complete.",
+        )
+
+    # In-process rate limit fallback.
     global _last_sync_at
     now = time.time()
     if _last_sync_at and (now - _last_sync_at) < settings.sync_rate_limit_seconds:
@@ -69,6 +87,17 @@ def check_sync_allowed() -> None:
             detail=f"Sync rate limited. Retry after ~{retry}s.",
         )
 
+    # Acquire Redis lock (best-effort; if Redis is down, proceed without lock).
+    safe_set(_REDIS_SYNC_LOCK_KEY, "1", ttl=_REDIS_SYNC_LOCK_TTL)
+
+
+def _release_sync_lock() -> None:
+    try:
+        from app.core.redis_client import safe_delete
+        safe_delete(_REDIS_SYNC_LOCK_KEY)
+    except Exception:
+        pass
+
 
 def mark_sync_success() -> None:
     global _last_sync_at, _last_sync_completed_at, _last_sync_status, _last_sync_error
@@ -77,6 +106,7 @@ def mark_sync_success() -> None:
     _last_sync_completed_at = now
     _last_sync_status = "success"
     _last_sync_error = None
+    _release_sync_lock()
     _persist_state()
 
 
@@ -93,6 +123,7 @@ def mark_sync_failure(error: str) -> None:
     _last_sync_completed_at = time.time()
     _last_sync_status = "failed"
     _last_sync_error = error[:500]
+    _release_sync_lock()
     _persist_state()
 
 

@@ -50,6 +50,10 @@ _INVALIDATE_PREFIXES: tuple[str, ...] = (
 def invalidate_list_caches() -> None:
     """Invalidate channel and filter list caches (after sync or admin writes)."""
     global _cache_version
+    # Always bump version so in-process cache keys built with vN are instantly stale.
+    # Previously this was only incremented when Redis was DOWN — causing stale counts
+    # to persist forever when Redis was active (bug: channel count never updated).
+    _cache_version += 1
     r = get_shared_redis()
     if r:
         try:
@@ -58,8 +62,6 @@ def invalidate_list_caches() -> None:
                     r.delete(k)
         except Exception as e:
             logger.warning("redis invalidate: %s", e)
-    else:
-        _cache_version += 1
     with _mem_lock:
         drop = [k for k in _mem if any(k.startswith(p) for p in _INVALIDATE_PREFIXES)]
         for k in drop:

@@ -486,7 +486,13 @@ export default function AdminDashboardPage() {
 
   const fetchStats = async () => {
     if (!authToken) return;
-    try { setStats(await apiClient.adminStats(authToken)); } catch { /* optional */ }
+    try {
+      const s = await apiClient.adminStats(authToken);
+      setStats(s);
+    } catch (err) {
+      // Don't silently swallow — log so dev tools surface the error
+      console.warn("[Admin] fetchStats failed:", err instanceof Error ? err.message : err);
+    }
   };
 
   useEffect(() => {
@@ -510,10 +516,17 @@ export default function AdminDashboardPage() {
     setSyncing(true);
     const fallback = setTimeout(() => setSyncing(false), 6 * 60 * 1000);
     try {
-      await apiClient.adminSyncChannels(authToken);
+      const result = await apiClient.adminSyncChannels(authToken);
       await fetchAdminData();
       await fetchStats();
-      toast.success("✓ M3U sync সম্পন্ন");
+      const created = result?.created ?? 0;
+      const updated = result?.updated ?? 0;
+      const total = result?.total ?? 0;
+      if (total === 0 && created === 0 && updated === 0) {
+        toast.warning("⚠️ Sync সম্পন্ন — কিন্তু কোনো channel parse হয়নি। M3U source check করুন।");
+      } else {
+        toast.success(`✓ Sync সম্পন্ন — ${created} নতুন, ${updated} আপডেট, ${total} মোট`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "M3U Sync ব্যর্থ হয়েছে");
     } finally {
@@ -752,7 +765,7 @@ export default function AdminDashboardPage() {
         <header className="sticky top-0 z-20 -mx-4 mb-2 border-b border-white/[0.06] bg-[#07080f]/90 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <Image src="/icons/original-logo.jpeg" alt="" width={40} height={40}
+              <Image src="/icons/abo-sports-tv-logo.png" alt="" width={40} height={40}
                 className="h-10 w-10 shrink-0 rounded-xl ring-1 ring-white/10 object-contain mix-blend-screen brightness-110 contrast-125 saturate-125" />
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>
@@ -856,7 +869,7 @@ export default function AdminDashboardPage() {
               <p className="mt-1 text-3xl font-bold tabular-nums text-white">{stats.active_channels.toLocaleString()}</p>
               <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] tabular-nums text-zinc-400">
                 <span><span className="text-emerald-400">●</span> Active <span className="font-semibold text-zinc-200">{stats.active_channels.toLocaleString()}</span></span>
-                <span><span className="text-zinc-500">○</span> Inactive <span className="font-semibold text-zinc-300">{adminDbInactive.toLocaleString()}</span></span>
+                <span><span className="text-red-400">●</span> Inactive <span className="font-semibold text-zinc-300">{(stats.inactive_channels ?? adminDbInactive).toLocaleString()}</span></span>
               </div>
             </div>
 

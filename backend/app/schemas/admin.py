@@ -5,13 +5,17 @@ from pydantic import BaseModel, Field
 
 class AdminStatsResponse(BaseModel):
     users: int
-    channels: int
-    active_channels: int
+    channels: int          # total rows in DB (active + inactive)
+    active_channels: int   # is_active=True
+    inactive_channels: int = 0  # is_active=False (deactivated / dead links)
     cache_ttl_seconds: int
     scheduled_sync_minutes: int
     last_sync_at: str | None = None
     last_sync_status: str | None = None
     last_sync_error: str | None = None
+    # Last sync result counts
+    last_sync_created: int = 0
+    last_sync_updated: int = 0
     # Health sweep stats
     last_sweep_at: str | None = None
     last_sweep_checked: int = 0

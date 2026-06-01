@@ -43,18 +43,15 @@ export function SiteFooter() {
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-3 px-4 sm:flex-row sm:gap-6 sm:text-left">
           <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-            style={{
-              background: "var(--bg-card2)",
-              border: "1px solid var(--border)",
-            }}
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: "#fff", border: "2px solid rgba(245,166,35,0.35)", padding: 3 }}
           >
             <Image
-              src="/icons/original-logo.jpeg"
-              alt="Brand"
-              width={36}
-              height={36}
-              className="object-contain mix-blend-screen brightness-110 contrast-125 saturate-125"
+              src="/icons/abo-sports-tv-logo.png"
+              alt="ABO Sports TV"
+              width={48}
+              height={48}
+              className="object-contain"
             />
           </div>
           <div className="min-w-0 flex-1 text-center sm:text-left">

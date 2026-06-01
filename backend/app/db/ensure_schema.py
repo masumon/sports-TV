@@ -49,7 +49,7 @@ def ensure_channel_columns(engine: Engine) -> None:
     """Add module and alternate_urls to channels if missing (no Alembic migration)."""
     _add_column_if_missing(
         engine, "channels", "module",
-        "VARCHAR(40) NOT NULL DEFAULT 'sports'"
+        "VARCHAR(40) NOT NULL DEFAULT 'global_sports'"
     )
     _add_column_if_missing(
         engine, "channels", "alternate_urls",

@@ -83,18 +83,32 @@ def run_channel_sync(*, include_discovery: bool = True, source: str = "scheduler
 
         result = _retry(_do_sync, operation_name=f"channel_sync[{source}]")
         invalidate_list_caches()
-        mark_sync_success()
-        logger.info(
-            "channel_sync success source=%s duration_seconds=%.2f created=%s updated=%s total=%s "
-            "deactivated=%s duplicates_removed=%s",
-            source,
-            (datetime.now(tz=timezone.utc) - started_at).total_seconds(),
-            result.get("created", 0),
-            result.get("updated", 0),
-            result.get("total", 0),
-            result.get("deactivated", 0),
-            result.get("duplicates_removed", 0),
-        )
+        created = result.get("created", 0)
+        updated = result.get("updated", 0)
+        total = result.get("total", 0)
+        # Only mark success if we actually parsed channels; zero total = upstream sources all failed.
+        if total == 0 and created == 0 and updated == 0:
+            mark_sync_failure("Sync completed but no channels were parsed from any source. "
+                              "Check M3U source URLs and network connectivity.")
+            logger.warning(
+                "channel_sync partial-failure source=%s duration_seconds=%.2f — "
+                "no channels returned from any source",
+                source,
+                (datetime.now(tz=timezone.utc) - started_at).total_seconds(),
+            )
+        else:
+            mark_sync_success()
+            logger.info(
+                "channel_sync success source=%s duration_seconds=%.2f created=%s updated=%s total=%s "
+                "deactivated=%s duplicates_removed=%s",
+                source,
+                (datetime.now(tz=timezone.utc) - started_at).total_seconds(),
+                created,
+                updated,
+                total,
+                result.get("deactivated", 0),
+                result.get("duplicates_removed", 0),
+            )
         return result
     except Exception as exc:
         db.rollback()

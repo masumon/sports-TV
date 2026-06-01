@@ -61,9 +61,11 @@ class Settings(BaseSettings):
     source_discovery_interval_hours: int = 1
     # Deactivate iptv-org channels not refreshed for this many days.
     channel_stale_days: int = 3
-    # Engine pool (PostgreSQL). Keep low on free-tier DBs (e.g. Neon allows 25 connections).
-    db_pool_size: int = 5
-    db_max_overflow: int = 10
+    # Engine pool (PostgreSQL). Neon free tier allows 25 total connections.
+    # Render free tier = 1 worker; pool_size=3 + overflow=5 = max 8 connections — safe.
+    # On paid/multi-worker deploys set DB_POOL_SIZE=5, DB_MAX_OVERFLOW=10 via env.
+    db_pool_size: int = 3
+    db_max_overflow: int = 5
     # Dynamic .m3u8 token refresh — how often to check (Playwright). 0 = disabled.
     # Default 0: Playwright on a small Render free instance is a common OOM / CPU source.
     m3u8_refresh_interval_minutes: int = 0
