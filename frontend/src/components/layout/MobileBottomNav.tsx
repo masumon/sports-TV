@@ -82,12 +82,12 @@ export function MobileBottomNav() {
             style={{ color: active ? tab.activeColor : "var(--text-muted)" }}
           >
             <div
-              className="flex h-8 w-12 items-center justify-center rounded-xl transition-all"
+              className="flex h-7 w-9 items-center justify-center rounded-lg transition-all min-[375px]:h-8 min-[375px]:w-10 min-[400px]:w-12 min-[400px]:rounded-xl"
               style={{ background: active ? tab.activeBg : "transparent" }}
             >
-              <span className="text-[1.25rem] leading-none" aria-hidden>{tab.emoji}</span>
+              <span className="text-[1.1rem] leading-none min-[375px]:text-[1.2rem]" aria-hidden>{tab.emoji}</span>
             </div>
-            <span className="max-w-[3.5rem] truncate text-[9px] leading-none tracking-wide" style={{ fontWeight: active ? 800 : 500 }}>
+            <span className="max-w-[2.8rem] truncate text-[8px] leading-none tracking-wide min-[375px]:max-w-[3.2rem] min-[375px]:text-[9px]" style={{ fontWeight: active ? 800 : 500 }}>
               {tab.label}
             </span>
           </button>

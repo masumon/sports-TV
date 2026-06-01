@@ -61,7 +61,7 @@ body {
   min-height: 100%;
   background: var(--bg-dark);
   color: var(--text-main);
-  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  font-family: var(--font-inter), var(--font-bengali), "Inter", "Hind Siliguri", system-ui, sans-serif;
   transition: background 0.2s, color 0.2s;
 }
 
@@ -516,7 +516,30 @@ button.ch-card:focus-visible {
   outline: none;
 }
 
-/* ── Search input focus ring (keyboard: double ring avoided via focus-visible) ── */
+/* ── Search input — text always visible on all mobile browsers ── */
+.search-input {
+  color: var(--text-main) !important;
+  /* iOS/Android: ensure typed text is always white */
+  -webkit-text-fill-color: var(--text-main) !important;
+  caret-color: var(--primary-accent);
+  /* Prevent iOS zoom on focus (font-size must be >= 16px or use touch-action) */
+  font-size: 16px;
+}
+@media (min-width: 640px) {
+  .search-input { font-size: 0.875rem; }
+}
+/* Autofill — override browser yellow/blue background & white text */
+.search-input:-webkit-autofill,
+.search-input:-webkit-autofill:hover,
+.search-input:-webkit-autofill:focus,
+.search-input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text-main) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--bg-card) inset !important;
+  box-shadow: 0 0 0px 1000px var(--bg-card) inset !important;
+  color: var(--text-main) !important;
+  caret-color: var(--primary-accent) !important;
+  transition: background-color 9999s ease-in-out 0s;
+}
 .search-input:focus {
   border-color: rgba(245, 166, 35, 0.5) !important;
   box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.15);
@@ -528,13 +551,19 @@ button.ch-card:focus-visible {
   outline: 2px solid var(--primary-accent);
   outline-offset: 2px;
 }
-/* Light mode: darker border so the box is clearly visible on a white background */
+/* Light mode */
 html.light .search-input {
   border-color: rgba(0,0,0,0.18) !important;
+  -webkit-text-fill-color: var(--text-main) !important;
 }
 html.light .search-input::placeholder {
   opacity: 0.55;
   color: #566080;
+}
+html.light .search-input:-webkit-autofill,
+html.light .search-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-main) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--bg-card) inset !important;
 }
 
 /* ── Scrollbar utilities ── */

@@ -1756,29 +1756,31 @@ export function ViewerHome() {
             {activeChannel && (
               <div
                 key={activeChannel.id}
-                className="mt-3 rounded-xl px-4 py-3"
+                className="mt-2 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Logo */}
                   {activeChannel.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={activeChannel.logo_url} alt="" className="h-10 w-10 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                    <img src={activeChannel.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white sm:h-10 sm:w-10" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                   ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: "var(--primary-accent)" }}>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white sm:h-10 sm:w-10" style={{ background: "var(--primary-accent)" }}>
                       {activeChannel.name.slice(0, 1)}
                     </div>
                   )}
+                  {/* Channel info */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
-                    <p className="truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>{activeChannel.name}</p>
-                    <p className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                      <span>{flagFromCountryName(activeChannel.country)}</span>
-                      <span>{activeChannel.country} · {activeChannel.category} · {activeChannel.quality_tag.toUpperCase()}</span>
+                    <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
+                    <p className="truncate text-sm font-bold leading-tight" style={{ color: "var(--text-main)" }}>{activeChannel.name}</p>
+                    <p className="truncate text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      {flagFromCountryName(activeChannel.country)} {activeChannel.country} · {activeChannel.quality_tag.toUpperCase()}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
-                      <span className="pulse-dot" style={{ width: 6, height: 6 }} /> LIVE
+                  {/* Actions — LIVE badge + share */}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
+                      <span className="pulse-dot" style={{ width: 5, height: 5 }} /> LIVE
                     </span>
                     <button
                       type="button"
@@ -1795,10 +1797,12 @@ export function ViewerHome() {
                           }
                         } catch { /* user cancelled or no clipboard */ }
                       }}
-                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition hover:opacity-80"
+                      className="flex items-center justify-center gap-1 rounded-full p-1.5 text-xs font-semibold transition hover:opacity-80 sm:gap-1.5 sm:px-2.5 sm:py-1"
                       style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                      aria-label={t("shareChannel")}
                     >
-                      <Share2 size={12} /> {t("shareChannel")}
+                      <Share2 size={12} />
+                      <span className="hidden sm:inline">{t("shareChannel")}</span>
                     </button>
                   </div>
                 </div>

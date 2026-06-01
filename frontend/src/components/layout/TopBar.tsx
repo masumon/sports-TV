@@ -86,53 +86,51 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         WebkitBackdropFilter: "blur(20px) saturate(180%)",
       }}
     >
-      <div className="flex min-h-14 items-center gap-1.5 px-2 sm:gap-2 md:min-h-16 md:gap-2 md:px-4">
+      {/* Mobile: tighter gap; Desktop: normal gap */}
+      <div className="flex min-h-14 items-center gap-1 px-2 sm:gap-2 md:min-h-16 md:px-4">
+
         {/* Mobile menu button */}
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-lg p-2 transition hover:bg-white/10 md:hidden"
+          className="inline-flex shrink-0 items-center justify-center rounded-lg p-2 transition hover:bg-white/10 md:hidden"
           style={{ color: "var(--text-muted)" }}
           onClick={toggleSidebar}
           aria-label="Menu"
         >
-          <Menu size={22} />
+          <Menu size={20} />
         </button>
 
         {/* Logo */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="relative">
-            <div
-              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl md:h-10 md:w-10"
-              style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.45)", boxShadow: "0 2px 12px rgba(245,166,35,0.2), 0 0 0 2px rgba(245,166,35,0.08)" }}
-            >
-              <Image
-                src="/icons/abo-sports-tv-logo.png"
-                alt="ABO Sports TV"
-                width={36}
-                height={36}
-                className="object-contain"
-                style={{ padding: 2 }}
-              />
-            </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:h-9 sm:w-9 md:h-10 md:w-10"
+            style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.45)", boxShadow: "0 2px 12px rgba(245,166,35,0.2)" }}
+          >
+            <Image
+              src="/icons/abo-sports-tv-logo.png"
+              alt="ABO Sports TV"
+              width={32}
+              height={32}
+              className="object-contain"
+              style={{ padding: 2 }}
+            />
           </div>
-          <div className="hidden min-[360px]:flex flex-col">
-            <p className="text-[11px] font-black uppercase tracking-[0.06em] leading-none" style={{ color: "#F5A623" }}>
-              ABO SPORTS TV
+          {/* Brand text — hidden on small screens to save space */}
+          <div className="hidden min-[420px]:flex flex-col">
+            <p className="text-[10px] font-black uppercase tracking-[0.06em] leading-none sm:text-[11px]" style={{ color: "#F5A623" }}>
+              ABO SPORTS
             </p>
-            <div className="mt-0.5 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "#ef4444" }} />
-              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: "#ef4444" }}>
-                LIVE
-              </span>
-            </div>
+            <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: "#ef4444" }}>
+              ● LIVE
+            </span>
           </div>
         </div>
 
-        {/* Search + Go */}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 mx-1 md:mx-2">
+        {/* Search bar — takes all remaining space */}
+        <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-1.5">
           <div className="relative min-w-0 flex-1" ref={searchWrapRef}>
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:h-4 sm:w-4 sm:left-3"
               style={{ color: "var(--text-muted)" }}
             />
             <input
@@ -149,11 +147,11 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
               inputMode="search"
               autoComplete="off"
               autoCorrect="off"
-              className="search-input min-h-11 w-full rounded-xl py-2.5 pl-9 pr-8 text-[15px] placeholder:opacity-70 focus:outline-none sm:text-sm md:min-h-10 md:py-2"
+              spellCheck={false}
+              className="search-input min-h-11 w-full rounded-xl py-2.5 pl-8 pr-7 placeholder:opacity-60 focus:outline-none sm:pl-9 sm:pr-8 md:min-h-10 md:py-2"
               style={{
                 background: "var(--bg-card)",
                 border: "1px solid var(--border)",
-                color: "var(--text-main)",
               }}
             />
             {searchQuery && (
@@ -161,10 +159,10 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
                 type="button"
                 aria-label="Clear search"
                 onClick={() => { onSearch(""); setShowSuggestions(false); document.getElementById("gstv-search")?.focus(); }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition hover:bg-white/10"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 transition hover:bg-white/10"
                 style={{ color: "var(--text-muted)" }}
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             )}
             {/* Suggestions dropdown */}
@@ -203,43 +201,43 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
               </div>
             )}
           </div>
+
+          {/* Search Go button — icon only on mobile */}
           <button
             type="button"
             onClick={commitSearchNavigation}
-            className="shrink-0 rounded-xl px-2.5 py-2.5 sm:px-3 sm:py-2 text-sm font-semibold transition hover:opacity-90 min-h-11 md:min-h-10"
-            style={{
-              background: "var(--primary-accent)",
-              color: "#0a0a0f",
-              border: "1px solid rgba(255,255,255,0.08)",
-            }}
+            className="shrink-0 rounded-xl p-2.5 sm:px-3 sm:py-2 text-sm font-semibold transition hover:opacity-90 min-h-11 md:min-h-10"
+            style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
             aria-label={t("searchGo")}
           >
-            <Search size={16} className="sm:hidden" aria-hidden />
-            <span className="hidden sm:inline">{t("searchGo")}</span>
+            <Search size={15} aria-hidden />
           </button>
         </div>
 
-        {/* Live badge */}
+        {/* LIVE badge — desktop only (player has its own LIVE badge on mobile) */}
         <div
           role="status"
           aria-label="Live HLS"
-          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[10px]"
+          className="hidden sm:inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
           style={{ background: "rgba(229,57,53,0.12)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}
         >
-          <Radio size={11} className="shrink-0 animate-pulse" aria-hidden />
-          <span className="hidden min-[400px]:inline">LIVE</span>
+          <Radio size={10} className="shrink-0 animate-pulse" aria-hidden />
+          LIVE
         </div>
 
-        {/* Network & Clock — removed (was fake/misleading) */}
-
-        {/* Premium badge */}
-        {tier === "premium" ? (
-          <span className="inline-flex max-w-[7rem] shrink-0 items-center gap-0.5 overflow-hidden text-ellipsis rounded-full px-1.5 py-0.5 text-[9px] font-bold sm:max-w-none sm:gap-1 sm:px-2.5 sm:py-1 sm:text-[10px]" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }} title={t("premium")}>
-            <Sparkles size={11} className="shrink-0" /> <span className="min-w-0 truncate sm:whitespace-nowrap">{t("premium")}</span>
+        {/* Premium badge — icon only on mobile */}
+        {tier === "premium" && (
+          <span
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-1 sm:gap-1 sm:px-2.5 sm:py-1"
+            style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
+            title={t("premium")}
+          >
+            <Sparkles size={11} className="shrink-0" />
+            <span className="hidden sm:inline text-[10px] font-bold">{t("premium")}</span>
           </span>
-        ) : null}
+        )}
 
-        {/* Theme toggle — hidden on mobile to save space */}
+        {/* Theme toggle — desktop only */}
         {mounted && (
           <button
             type="button"
@@ -252,19 +250,20 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           </button>
         )}
 
-        {/* Language toggle */}
+        {/* Language toggle — globe icon only on mobile, text on sm+ */}
         <button
           type="button"
           onClick={() => setLocale(locale === "en" ? "bn" : "en")}
-          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold transition hover:bg-white/10"
+          className="flex shrink-0 items-center justify-center gap-1 rounded-lg p-2 sm:px-2 sm:py-1.5 transition hover:bg-white/10"
           style={{ color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
-          title="Language"
+          title="Language / ভাষা"
+          aria-label="Toggle language"
         >
-          <Globe size={14} />
-          {locale.toUpperCase()}
+          <Globe size={15} />
+          <span className="hidden sm:inline text-xs font-semibold">{locale.toUpperCase()}</span>
         </button>
 
-        {/* Admin / Sign-in */}
+        {/* Admin link — desktop only */}
         {user?.is_admin && (
           <Link
             href="/admin/dashboard"
