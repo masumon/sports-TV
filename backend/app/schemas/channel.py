@@ -15,8 +15,7 @@ class ChannelBase(BaseModel):
     quality_tag: str = Field(default="auto", max_length=40)
     module: str = Field(default="global_sports", max_length=40)
     is_active: bool = True
-    # Optional proxy header profile key (e.g. "tsports") — matched server-side in /proxy/stream.
-    # DB channels default to None; M3U catalog entries may carry a value via streamCatalog.ts.
+    # Optional proxy header profile key — matched server-side in /proxy/stream.
     header_profile: str | None = None
     # Hint to show VPN/geo warning in the player UI (e.g. FanCode, some Indian networks).
     geo_hint: bool = False
