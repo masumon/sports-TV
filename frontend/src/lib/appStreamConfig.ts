@@ -5,20 +5,6 @@ import type { PremiumDirectSportEntry } from "@/lib/types";
  * `bangladesh_and_bdix` maps to the Bangladesh viewer tab.
  */
 export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
-  // ── Bangladesh / BDIX ──────────────────────────────────────────────────────
-  {
-    name: "T-Sports",
-    module: "bangladesh_and_bdix",
-    category: "Sports",
-    country: "Bangladesh",
-    stream_urls: [
-      "https://live.tsports.com/mobile_hls/tsports_live_1/playlist.m3u8",
-      "https://live.tsports.com/mobile_hls/tsports_live_2/playlist.m3u8",
-    ],
-    header_profile: "tsports",
-    logo_url: "https://upload.wikimedia.org/wikipedia/en/thumb/9/92/T_Sports_logo.png/200px-T_Sports_logo.png",
-  },
-
   // ── India ──────────────────────────────────────────────────────────────────
   {
     name: "Sony Ten 1 HD",
@@ -71,18 +57,6 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
   },
 
   // ── World Cup 2026 ─────────────────────────────────────────────────────────
-  {
-    name: "T-Sports",
-    module: "world_cup_2026",
-    category: "Sports",
-    country: "Bangladesh",
-    stream_urls: [
-      "https://live.tsports.com/mobile_hls/tsports_live_1/playlist.m3u8",
-      "https://live.tsports.com/mobile_hls/tsports_live_2/playlist.m3u8",
-    ],
-    header_profile: "tsports",
-    logo_url: "https://upload.wikimedia.org/wikipedia/en/thumb/9/92/T_Sports_logo.png/200px-T_Sports_logo.png",
-  },
   {
     name: "Star Sports 1 HD",
     module: "world_cup_2026",

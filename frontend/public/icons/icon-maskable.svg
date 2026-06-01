@@ -1,24 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ABO Sports TV">
   <defs>
-    <linearGradient id="bgM512" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0D0F1C"/>
-      <stop offset="100%" stop-color="#07080F"/>
-    </linearGradient>
-    <linearGradient id="aGoldM512" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#F5A623"/>
-      <stop offset="100%" stop-color="#C9A227"/>
+    <linearGradient id="bgm" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111320"/>
+      <stop offset="100%" stop-color="#06070e"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" fill="url(#bgM512)"/>
-  <g transform="translate(46 200) scale(1.92)">
-    <polygon points="8,60 26,12 44,60" fill="url(#aGoldM512)"/>
-    <rect x="16.5" y="42" width="19" height="5" fill="#080A14"/>
-    <rect x="50" y="12" width="6" height="48" fill="url(#aGoldM512)"/>
-    <path d="M56 12 Q76 12 76 27 Q76 36 56 36" fill="url(#aGoldM512)"/>
-    <path d="M56 36 Q78 36 78 49 Q78 60 56 60" fill="url(#aGoldM512)"/>
-    <circle cx="105" cy="38" r="20" fill="none" stroke="url(#aGoldM512)" stroke-width="6"/>
-    <path d="M108,18 C114,5 128,10 120,24 C128,8 140,18 130,32" fill="#CC2828"/>
-    <text x="136" y="34" font-size="15" font-family="Arial Black,sans-serif" fill="#E8E8F0" font-weight="900" letter-spacing="1">SPORTS</text>
-    <text x="136" y="54" font-size="13" font-family="Arial Black,sans-serif" fill="#C9A227" font-weight="900" letter-spacing="3">TV LIVE</text>
-  </g>
+
+  <!-- Full bleed background (maskable safe zone = center 80%) -->
+  <rect width="512" height="512" fill="url(#bgm)"/>
+
+  <!-- White icon container — within safe zone -->
+  <rect x="106" y="106" width="300" height="300" rx="56" fill="white"/>
+  <rect x="106" y="106" width="300" height="300" rx="56" fill="none" stroke="#F5A623" stroke-width="3" stroke-opacity="0.5"/>
+
+  <!-- ABO text -->
+  <text x="256" y="234" text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial Black, Impact, sans-serif" font-weight="900"
+        font-size="84" fill="#0a0d18" letter-spacing="6">ABO</text>
+
+  <!-- SPORTS TV -->
+  <text x="256" y="310" text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial Black, Impact, sans-serif" font-weight="900"
+        font-size="32" fill="#C9A227" letter-spacing="8">SPORTS TV</text>
 </svg>
