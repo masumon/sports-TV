@@ -33,10 +33,10 @@ import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
 import { fetchAllChannels, apiClient } from "@/lib/apiClient";
 import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
-import { fetchFanCodeLiveChannels } from "@/lib/fancodeLive";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import {
   loadFullCatalogWithLive,
+  fetchAllLiveMatchChannels,
   replaceLiveMatches,
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
@@ -456,8 +456,11 @@ export function ViewerHome() {
 
   const refreshLiveMatchesOnly = useCallback(async () => {
     try {
-      const live = await fetchFanCodeLiveChannels();
-      setAllChannels((prev) => replaceLiveMatches(prev, live));
+      // Fetch all live-match sources (FanCode JSON + M3U) so none are lost on refresh
+      const live = await fetchAllLiveMatchChannels();
+      if (live.length > 0) {
+        setAllChannels((prev) => replaceLiveMatches(prev, live));
+      }
     } catch {
       /* silent background refresh */
     }

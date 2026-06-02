@@ -9,12 +9,11 @@ export type ParsedM3UEntry = {
   referer?: string | null;
 };
 
-const ATTR = /([a-zA-Z0-9_-]+)="([^"]*)"/g;
-
+// Note: regex created inside function to avoid shared lastIndex state across calls.
 function parseAttrString(attrStr: string): { logo: string | null; group: string | null } {
+  const ATTR = /([a-zA-Z0-9_-]+)="([^"]*)"/g;
   const attrs: Record<string, string> = {};
   let m: RegExpExecArray | null;
-  ATTR.lastIndex = 0;
   while ((m = ATTR.exec(attrStr)) !== null) {
     attrs[m[1].toLowerCase()] = m[2];
   }

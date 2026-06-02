@@ -342,7 +342,7 @@ export async function countStaticCatalogChannels(): Promise<number> {
 export async function countFullViewerCatalogChannels(): Promise<number> {
   const staticCount = await countStaticCatalogChannels();
   try {
-    const live = await fetchFanCodeLiveChannels();
+    const live = await fetchAllLiveMatchChannels();
     return staticCount + live.length;
   } catch {
     return staticCount;
@@ -365,11 +365,37 @@ export async function loadFullCatalogWithLive(): Promise<Channel[]> {
     ...(crichd.status === "fulfilled" ? crichd.value : []),
   ];
 
-  // Dedup live entries against the static base (same primary stream URL = skip)
-  const baseSeen = new Set(base.map((c) => c.stream_url.trim()));
-  const dedupedLive = live.filter((c) => !baseSeen.has(c.stream_url.trim()));
+  // Dedup live entries against the static base AND within the live array itself.
+  // Using a single growing Set ensures no URL appears twice regardless of source.
+  const allSeen = new Set(base.map((c) => c.stream_url.trim()));
+  const dedupedLive = live.filter((c) => {
+    const url = c.stream_url.trim();
+    if (allSeen.has(url)) return false;
+    allSeen.add(url);
+    return true;
+  });
 
   return [...base, ...dedupedLive];
+}
+
+/** All live-match channel sources merged — used by the 30-minute background refresh. */
+export async function fetchAllLiveMatchChannels(): Promise<Channel[]> {
+  const [fancodeJson, fancodeM3u] = await Promise.allSettled([
+    fetchFanCodeLiveChannels(),
+    fetchFanCodeM3UChannels(),
+  ]);
+  const combined: Channel[] = [
+    ...(fancodeJson.status === "fulfilled" ? fancodeJson.value : []),
+    ...(fancodeM3u.status === "fulfilled" ? fancodeM3u.value : []),
+  ];
+  // Dedup within the combined live array
+  const seen = new Set<string>();
+  return combined.filter((c) => {
+    const url = c.stream_url.trim();
+    if (seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
 }
 
 export function replaceLiveMatches(channels: Channel[], live: Channel[]): Channel[] {
