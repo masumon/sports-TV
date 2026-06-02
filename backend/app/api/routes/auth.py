@@ -8,7 +8,8 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -42,28 +43,43 @@ def _hash_reset_token(raw: str) -> str:
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
-    existing = await db.execute(select(User).where(User.email == payload.email))
+    # Normalize email to lowercase so case-insensitive uniqueness is enforced
+    normalized_email = payload.email.strip().lower()
+
+    existing = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     user = User(
         full_name=payload.full_name.strip(),
-        email=payload.email.strip(),
+        email=normalized_email,
         password_hash=get_password_hash(payload.password),
         is_admin=False,
         is_active=True,
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Race condition: another request registered the same email simultaneously
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
     await db.refresh(user)
 
-    token = create_access_token(subject=str(user.id), is_admin=user.is_admin)
+    try:
+        token = create_access_token(subject=str(user.id), is_admin=user.is_admin)
+    except Exception:
+        logger.exception("Token creation failed after register for user %s", user.id)
+        raise HTTPException(status_code=500, detail="Authentication service error")
     return TokenResponse(access_token=token, user=UserRead.model_validate(user))
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
-    result = await db.execute(select(User).where(User.email == payload.email))
+    normalized_email = payload.email.strip().lower()
+    result = await db.execute(select(User).where(func.lower(User.email) == normalized_email))
     user = result.scalar_one_or_none()
     # Always call verify_password regardless of whether the user exists so that
     # response time is constant — prevents timing-based email enumeration.
@@ -74,7 +90,11 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
     if not user or not password_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token(subject=str(user.id), is_admin=user.is_admin)
+    try:
+        token = create_access_token(subject=str(user.id), is_admin=user.is_admin)
+    except Exception:
+        logger.exception("Token creation failed for user %s", user.id)
+        raise HTTPException(status_code=500, detail="Authentication service error")
     return TokenResponse(access_token=token, user=UserRead.model_validate(user))
 
 
@@ -99,7 +119,7 @@ async def admin_request_password_reset(
         )
     _last_admin_password_reset_at[email] = now
 
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(select(User).where(func.lower(User.email) == email))
     user = result.scalar_one_or_none()
     if not user or not user.is_admin:
         return AdminPasswordResetResponseSchema(
@@ -114,7 +134,7 @@ async def admin_request_password_reset(
         minutes=settings.password_reset_token_ttl_minutes
     )
     await db.commit()
-    if settings.app_env.lower() in {"production", "prod"}:
+    if (settings.app_env or "").lower() in {"production", "prod"}:
         logger.info("Admin password reset token issued for %s (token not logged)", email)
     return AdminPasswordResetResponseSchema(
         detail="Copy the token below, then set a new password on the reset page. It is not sent by email.",
@@ -130,7 +150,7 @@ async def admin_reset_password(
 ) -> dict[str, str]:
     email = payload.email.strip().lower()
     token_h = _hash_reset_token(payload.token)
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(select(User).where(func.lower(User.email) == email))
     user = result.scalar_one_or_none()
     if not user or not user.is_admin:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset request.")

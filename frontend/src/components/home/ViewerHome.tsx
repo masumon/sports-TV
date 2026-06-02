@@ -350,19 +350,35 @@ export function ViewerHome() {
 
   const requestMatchNotification = useCallback(async (fx: LiveFixture) => {
     if (!("Notification" in window)) return;
-    const perm = await Notification.requestPermission();
-    if (perm !== "granted") return;
+    const fxKey = fx.external_id || String(fx.id);
+    // Remember user's denial so we don't prompt again
+    const deniedKey = `gstv-notif-denied`;
+    try { if (localStorage.getItem(deniedKey)) { toast("নোটিফিকেশন বন্ধ আছে। Browser settings থেকে চালু করুন।", { duration: 3000 }); return; } } catch { /* */ }
+    const currentPerm = typeof Notification !== "undefined" ? Notification.permission : "default";
+    if (currentPerm === "denied") {
+      try { localStorage.setItem(deniedKey, "1"); } catch { /* */ }
+      toast("নোটিফিকেশন ব্লক করা আছে। Browser settings থেকে Allow করুন।", { duration: 3000 });
+      return;
+    }
+    const perm = currentPerm === "granted" ? "granted" : await Notification.requestPermission();
+    if (perm !== "granted") {
+      try { localStorage.setItem(deniedKey, "1"); } catch { /* */ }
+      return;
+    }
     const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
     const msUntil = startMs - Date.now();
-    if (msUntil > 0 && msUntil < 60 * 60 * 1000) { // within 1 hour
+    if (msUntil > 0 && msUntil < 60 * 60 * 1000) {
       setTimeout(() => {
         new Notification(`🔴 Match Starting: ${fx.home_team} vs ${fx.away_team}`, {
           body: fx.league_name || "Live match",
           icon: "/icons/icon-192.png",
         });
-      }, Math.max(0, msUntil - 60_000)); // notify 1 min before
+      }, Math.max(0, msUntil - 60_000));
+      toast.success(`🔔 ${fx.home_team} vs ${fx.away_team} — শুরুর আগে জানাবো।`, { duration: 2500 });
+    } else {
+      toast("ম্যাচ শুরু হওয়ার ১ ঘণ্টার মধ্যে নোটিফিকেশন দেওয়া যাবে।", { duration: 3000 });
     }
-    setNotifyIds((prev) => new Set([...prev, fx.external_id || String(fx.id)]));
+    setNotifyIds((prev) => new Set([...prev, fxKey]));
   }, []);
 
   const transitionSetActiveModule = useCallback(
@@ -588,20 +604,23 @@ export function ViewerHome() {
   // Deep link: /?channel_id=ID — auto-select and play a specific channel
   const channelIdParam = searchParams.get("channel_id");
   useEffect(() => {
-    if (!channelIdParam || !allChannels.length) return;
+    if (!channelIdParam || !allChannels.length || loading) return;
     if (deepLinkAppliedRef.current === channelIdParam) return;
     const id = Number(channelIdParam);
     if (!Number.isInteger(id)) return;
-    const ch = allChannels.find((c) => c.id === id);
-    if (!ch) return;
     deepLinkAppliedRef.current = channelIdParam;
+    const ch = allChannels.find((c) => c.id === id);
+    if (!ch) {
+      toast.error("চ্যানেলটি পাওয়া যায়নি বা সরিয়ে নেওয়া হয়েছে।");
+      return;
+    }
     startTransition(() => {
       setActiveModule(ch.module as ViewerModule);
     });
     startTransition(() => {
       setActiveChannel(ch);
     });
-  }, [channelIdParam, allChannels, setActiveModule, setActiveChannel]);
+  }, [channelIdParam, allChannels, loading, setActiveModule, setActiveChannel]);
 
   useEffect(() => {
     let m = searchParams.get("module")?.toLowerCase().trim();
@@ -924,13 +943,25 @@ export function ViewerHome() {
     setModuleCounts({ gsCount, bdCount, inCount, fastCount, liveCount, wcCount });
   }, [gsCount, bdCount, inCount, fastCount, liveCount, wcCount, setModuleCounts]);
 
-  // Sync search suggestions to store so TopBar dropdown can show them
+  // Sync search suggestions to store — filtered to active module so results are relevant
   useEffect(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q || q.length < 2) { setSearchSuggestions([]); return; }
-    const matches = allChannels.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 6);
-    setSearchSuggestions(matches);
-  }, [searchQuery, allChannels, setSearchSuggestions]);
+    // First try matching within the active module (most relevant)
+    const inModule = allChannels.filter(
+      (c) => c.module === activeModule && c.name.toLowerCase().includes(q)
+    ).slice(0, 6);
+    // If fewer than 3 results in current module, supplement with other modules
+    const suggestions = inModule.length >= 3
+      ? inModule
+      : [
+          ...inModule,
+          ...allChannels
+            .filter((c) => c.module !== activeModule && c.name.toLowerCase().includes(q))
+            .slice(0, 6 - inModule.length),
+        ];
+    setSearchSuggestions(suggestions);
+  }, [searchQuery, allChannels, activeModule, setSearchSuggestions]);
 
   // EPG-lite: map channel id → live fixture text for sport channels
   const liveEpgMap = useMemo(() => {
@@ -1013,7 +1044,7 @@ export function ViewerHome() {
                     <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(245,166,35,0.15)" }}>
                       <div
                         className="h-full rounded-full transition-all duration-1000"
-                        style={{ background: "var(--primary-accent)", width: `${Math.min(100, (coldStartSeconds / 60) * 100)}%` }}
+                        style={{ background: "var(--primary-accent)", width: `${Math.min(80, (coldStartSeconds / 60) * 100)}%` }}
                       />
                     </div>
                     <span className="shrink-0 text-[10px] tabular-nums font-bold" style={{ color: "var(--primary-accent)" }}>
@@ -1859,9 +1890,10 @@ export function ViewerHome() {
                         try {
                           if (navigator.share) {
                             await navigator.share({ title: activeChannel.name, url });
+                            toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
                           } else {
                             await navigator.clipboard.writeText(url);
-                            toast.success(t("shareCopied"));
+                            toast.success(`🔗 ${t("shareCopied")}`);
                           }
                         } catch { /* user cancelled or no clipboard */ }
                       }}
@@ -2192,7 +2224,7 @@ export function ViewerHome() {
                       <span className="text-base leading-none" aria-hidden>✨</span>
                       <h3 className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: "var(--primary-accent)" }}>নতুন চ্যানেল</h3>
                     </div>
-                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Recently added →</span>
+                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>সম্প্রতি যোগ →</span>
                   </div>
                   <div className="relative">
                     <div className="flex gap-2 overflow-x-auto px-4 pb-4 scrollbar-none" data-swipe-ignore="true">

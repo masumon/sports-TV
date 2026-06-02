@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/authStore";
 import { useUiStore } from "@/store/uiStore";
 
 /**
  * Mobile bottom navigation (hidden on md+).
  * Tabs: Bangladesh · Live · WC 2026 · Sports · Search · India
+ * Admin users also see an Admin shortcut icon.
  */
 export function MobileBottomNav() {
   const pathname = usePathname();
@@ -13,6 +16,7 @@ export function MobileBottomNav() {
   const activeModule = useUiStore((s) => s.activeModule);
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
+  const user = useAuthStore((s) => s.user);
 
   const isHome = pathname === "/";
 
@@ -93,6 +97,27 @@ export function MobileBottomNav() {
           </button>
         );
       })}
+
+      {/* Admin shortcut — only visible to admin users */}
+      {user?.is_admin && (
+        <Link
+          href="/admin/dashboard"
+          onClick={haptic}
+          aria-label="Admin"
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-90"
+          style={{ color: pathname.startsWith("/admin") ? "#10b981" : "var(--text-muted)" }}
+        >
+          <div
+            className="flex h-7 w-9 items-center justify-center rounded-lg transition-all min-[375px]:h-8 min-[375px]:w-10 min-[400px]:w-12 min-[400px]:rounded-xl"
+            style={{ background: pathname.startsWith("/admin") ? "rgba(16,185,129,0.12)" : "transparent" }}
+          >
+            <span className="text-[1.1rem] leading-none" aria-hidden>⚙️</span>
+          </div>
+          <span className="text-[8px] leading-none min-[375px]:text-[9px]" style={{ fontWeight: pathname.startsWith("/admin") ? 800 : 500 }}>
+            Admin
+          </span>
+        </Link>
+      )}
     </nav>
   );
 }

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 
@@ -35,20 +34,39 @@ def _esc(s: str) -> str:
 # In-memory rate limiting
 # ---------------------------------------------------------------------------
 
-_rate_store: dict[str, list[float]] = defaultdict(list)
+_rate_store: dict[str, list[float]] = {}
 _rate_lock = Lock()
 
 
 def _check_rate_limit(key: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
-    """Returns True if allowed, False if rate limited. Thread-safe."""
+    """Returns True if allowed, False if rate limited. Thread-safe sliding-window.
+    Bounded memory: empty keys are deleted; emergency clear if >5000 unique IPs."""
     now = time.monotonic()
     with _rate_lock:
-        timestamps = _rate_store[key]
         cutoff = now - window_seconds
-        _rate_store[key] = [t for t in timestamps if t > cutoff]
-        if len(_rate_store[key]) >= max_requests:
+        pruned = [t for t in _rate_store.get(key, []) if t > cutoff]
+
+        if len(pruned) >= max_requests:
+            _rate_store[key] = pruned  # keep pruned but don't add new timestamp
             return False
-        _rate_store[key].append(now)
+
+        pruned.append(now)
+
+        if pruned:
+            _rate_store[key] = pruned
+        else:
+            _rate_store.pop(key, None)  # shouldn't happen, but guard
+
+        # Emergency cleanup when too many unique IPs are tracked
+        if len(_rate_store) > 5_000:
+            stale = [k for k, v in list(_rate_store.items())
+                     if not v or v[-1] < cutoff]
+            for k in stale:
+                del _rate_store[k]
+            if len(_rate_store) > 5_000:
+                _rate_store.clear()
+                logger.warning("rate_store emergency clear: >5000 active IPs")
+
         return True
 
 
@@ -225,20 +243,25 @@ async def list_channels(
     if module:
         base_query = base_query.where(Channel.module == module)
 
-    subq = base_query.subquery()
-    total = (await db.execute(select(func.count()).select_from(subq))).scalar() or 0
+    try:
+        subq = base_query.subquery()
+        total = (await db.execute(select(func.count()).select_from(subq))).scalar() or 0
 
-    channels = list(
-        (
-            await db.execute(
-                base_query.order_by(Channel.updated_at.desc(), Channel.name.asc())
-                .offset((page - 1) * page_size)
-                .limit(page_size)
+        channels = list(
+            (
+                await db.execute(
+                    base_query.order_by(Channel.updated_at.desc(), Channel.name.asc())
+                    .offset((page - 1) * page_size)
+                    .limit(page_size)
+                )
             )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
+    except SQLAlchemyError as exc:
+        logger.warning("channels query failed: %s", exc)
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(status_code=503, detail="Database temporarily unavailable. Please try again.")
 
     result = ChannelListResponse(
         total=total,
