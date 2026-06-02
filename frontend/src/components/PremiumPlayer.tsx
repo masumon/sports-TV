@@ -1128,11 +1128,11 @@ export default function PremiumPlayer({
               </p>
               <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
                 {geoRestricted || geoHint
-                  ? <>এই চ্যানেলটি আপনার দেশে সরাসরি চলে না।<br />
-                    <span style={{ color: "rgba(167,139,250,0.8)" }}>VPN চালু করে India সার্ভার বেছে নিন।</span></>
+                  ? <>এই চ্যানেলটি আপনার অঞ্চলে সীমাবদ্ধ।<br />
+                    <span style={{ color: "rgba(167,139,250,0.8)" }}>① VPN (India/BD সার্ভার) চালু করুন অথবা<br/>② নিচের External Player ব্যবহার করুন।</span></>
                   : isConstrainedNetwork()
                   ? <>নেটওয়ার্ক সংযোগ দুর্বল।<br />WiFi বা ভালো 4G-তে চেষ্টা করুন।</>
-                  : <>চ্যানেলটি এখন offline বা source পরিবর্তন হয়েছে।<br />একটু পরে আবার চেষ্টা করুন।</>}
+                  : <>চ্যানেলটি এখন unavailable অথবা source পরিবর্তন হয়েছে।<br />External Player চেষ্টা করুন বা একটু পরে আবার চেষ্টা করুন।</>}
               </p>
               {autoRetryCountdown > 0 && (
                 <div className="mt-1 flex items-center justify-center gap-1.5">

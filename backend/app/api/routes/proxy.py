@@ -260,10 +260,38 @@ def _upstream_httpx_base_kwargs() -> dict[str, object]:
 
 
 def _random_public_egress_ip() -> str:
-    """Plausible public IPv4 for X-Forwarded-For / X-Real-IP (best-effort)."""
-    if random.randint(0, 1) == 0:
+    """Plausible public IPv4 for X-Forwarded-For / X-Real-IP with global region diversity."""
+    choice = random.randint(0, 9)
+    if choice == 0:
+        # India (BSNL, Airtel, etc.) — 49.32-47.x.x, 103.x.x.x
         return f"49.{random.randint(32, 47)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
-    return f"104.{random.randint(16, 31)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    elif choice == 1:
+        # India (Reliance, Vodafone) — 59.x.x.x, 49.14-31.x.x
+        return f"103.{random.randint(8, 31)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    elif choice == 2:
+        # Bangladesh — 103.40-50.x.x, 115.x.x.x
+        return f"103.{random.randint(40, 50)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    elif choice == 3:
+        # Bangladesh (Bangla Online) — 118.x.x.x
+        return f"118.{random.randint(97, 107)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    elif choice == 4:
+        # Pakistan — 110.x.x.x
+        return f"110.{random.randint(39, 92)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    elif choice == 5:
+        # US East (Alternative) — 104.16-31.x.x
+        return f"104.{random.randint(16, 31)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    elif choice == 6:
+        # UK — 5.x.x.x, 2.x.x.x
+        return f"5.{random.randint(75, 93)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    elif choice == 7:
+        # UAE — 185.x.x.x
+        return f"185.{random.randint(41, 42)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    elif choice == 8:
+        # Netherlands — 23.x.x.x
+        return f"23.{random.randint(105, 111)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+    else:
+        # Fallback — Canada — 99.x.x.x
+        return f"99.{random.randint(153, 167)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
 
 
 def _apply_upstream_geo_bypass_headers(forward: dict[str, str]) -> dict[str, str]:
