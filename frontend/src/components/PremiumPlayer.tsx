@@ -446,6 +446,7 @@ export default function PremiumPlayer({
   onToggleTheaterMode,
   overlay,
   headerProfile = null,
+  geoHint = false,
   channelLogoUrl = null,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1025,10 +1026,11 @@ export default function PremiumPlayer({
     setRetryKey((k) => k + 1);
   }, []);
 
-  // Auto-retry countdown: when error appears, count down 10s then auto-retry
+  // Auto-retry countdown: when error or geo-block appears, count down 15s then auto-retry
   useEffect(() => {
-    if (!hasError) { setAutoRetryCountdown(0); return; }
-    setAutoRetryCountdown(10);
+    if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
+    const secs = geoRestricted ? 15 : 10;
+    setAutoRetryCountdown(secs);
     const interval = setInterval(() => {
       setAutoRetryCountdown((c) => {
         if (c <= 1) { clearInterval(interval); retryStream(); return 0; }
@@ -1036,7 +1038,7 @@ export default function PremiumPlayer({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [hasError, retryStream]);
+  }, [hasError, geoRestricted, retryStream]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1191,41 +1193,9 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* Geo-restricted overlay */}
+      {/* ── Error / Geo-restricted overlay ── */}
       <AnimatePresence>
-        {geoRestricted && (
-          <motion.div
-            key="geo"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 p-6"
-            style={{ background: "rgba(7,8,15,0.92)" }}
-          >
-            <div className="flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.45)" }}>
-              <Globe className="h-7 w-7 text-indigo-300" />
-            </div>
-            <div className="max-w-sm text-center">
-              <p className="text-sm font-bold text-white">Geo-restricted content</p>
-              <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                This premium content is geo-restricted. Please connect to a VPN server (e.g. India) to watch.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={retryStream}
-              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white transition"
-              style={{ background: "rgba(245,166,35,0.18)", border: "1px solid rgba(245,166,35,0.4)" }}
-            >
-              <RefreshCw size={13} /> Try again
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Error overlay ── */}
-      <AnimatePresence>
-        {hasError && !geoRestricted && (
+        {(hasError || geoRestricted) && (
           <motion.div
             key="error"
             initial={{ opacity: 0, scale: 0.98 }}
@@ -1239,23 +1209,37 @@ export default function PremiumPlayer({
             <div className="relative flex h-16 w-16 items-center justify-center">
               <motion.div
                 className="absolute inset-0 rounded-full"
-                style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.35)" }}
+                style={{
+                  background: geoRestricted ? "rgba(99,102,241,0.12)" : "rgba(239,68,68,0.12)",
+                  border: geoRestricted ? "1px solid rgba(99,102,241,0.35)" : "1px solid rgba(239,68,68,0.35)",
+                }}
                 animate={{ scale: [1, 1.06, 1] }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
-              <AlertTriangle className="h-7 w-7 text-red-400" />
+              {geoRestricted ? (
+                <Globe className="h-7 w-7 text-indigo-300" />
+              ) : (
+                <AlertTriangle className="h-7 w-7 text-red-400" />
+              )}
             </div>
             {/* Message */}
             <div className="text-center space-y-1.5">
-              <p className="text-sm font-bold text-white">স্ট্রিম পাওয়া যাচ্ছে না</p>
+              <p className="text-sm font-bold text-white">
+                {geoRestricted ? "লোকেশন সীমাবদ্ধতা" : "স্ট্রিম পাওয়া যাচ্ছে না"}
+              </p>
               <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
-                চ্যানেলটি এখন offline বা source পরিবর্তন হয়েছে।<br />অন্য চ্যানেল বা external player ব্যবহার করুন।
+                {geoRestricted || geoHint ? (
+                  <>এই চ্যানেলটি আপনার দেশে সরাসরি চলে না।<br />
+                  <span style={{ color: "rgba(167,139,250,0.8)" }}>VPN চালু করে India সার্ভার বেছে নিন।</span></>
+                ) : (
+                  <>চ্যানেলটি এখন offline বা source পরিবর্তন হয়েছে।<br />একটু পরে আবার চেষ্টা করুন।</>
+                )}
               </p>
               {autoRetryCountdown > 0 && (
                 <div className="mt-1 flex items-center justify-center gap-1.5">
                   <Loader2 size={11} className="animate-spin" style={{ color: "var(--primary-accent)" }} />
                   <p className="text-[11px] font-semibold" style={{ color: "var(--primary-accent)" }}>
-                    {autoRetryCountdown}s পরে আবার চেষ্টা…
+                    {autoRetryCountdown}s পরে স্বয়ংক্রিয়ভাবে চেষ্টা হবে…
                   </p>
                 </div>
               )}
