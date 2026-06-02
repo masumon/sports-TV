@@ -22,7 +22,7 @@ import re
 import socket
 import time
 import urllib.parse
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from threading import Lock
 from typing import AsyncGenerator
 
@@ -37,6 +37,23 @@ from app.db.session import get_db
 from app.models.dynamic_stream import DynamicStream
 
 logger = logging.getLogger("app.proxy")
+
+# Rate limiting: prevent DoS attacks on proxy endpoints (per IP, per minute)
+_rate_limit_window_sec = 60
+_rate_limit_max_requests = 120  # 2 requests per second max
+_rate_limit_requests: dict[str, list[float]] = defaultdict(list)
+_rate_limit_lock = Lock()
+
+def _check_rate_limit(client_ip: str) -> None:
+    """Raise HTTPException if client exceeds rate limit."""
+    now = time.time()
+    with _rate_limit_lock:
+        requests = _rate_limit_requests[client_ip]
+        # Prune old requests outside the window
+        requests[:] = [t for t in requests if now - t < _rate_limit_window_sec]
+        if len(requests) >= _rate_limit_max_requests:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded — too many requests")
+        requests.append(now)
 
 router = APIRouter(prefix="/proxy", tags=["proxy"])
 
@@ -874,7 +891,12 @@ async def proxy_stream(
     SSRF mitigations:
     - URL scheme restricted to http/https
     - Hostname resolved to IP; private/reserved ranges blocked
+    - Rate limiting per client IP to prevent DoS
     """
+    # Rate limiting check
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+
     try:
         target_url = _validate_stream_url(url)
         m3u8_src = _m3u8_src_param(request)
@@ -1053,8 +1075,13 @@ async def proxy_playlist_raw(
     HLS master/media playlists are rewritten so segments and child manifests route through
     ``/api/v1/proxy/stream`` (``m3u8`` parse + fallback line rewriter).
 
+    Rate limited to prevent DoS attacks on playlist endpoint.
+
     Cached in Redis + small in-process LRU; TTL from ``proxy_playlist_cache_ttl_seconds``.
     """
+    # Rate limiting check
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
     try:
         target_url = _validate_stream_url(url)
         hp = (header_profile or "").strip() or None
