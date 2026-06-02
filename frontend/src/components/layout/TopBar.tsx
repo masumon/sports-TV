@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { Globe, Menu, Moon, Search, Sun, Sparkles, Shield, Radio, X } from "lucide-react";
+import { Globe, Menu, Moon, Search, Sun, Sparkles, Radio, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
@@ -263,19 +263,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           <span className="hidden sm:inline text-xs font-semibold">{locale.toUpperCase()}</span>
         </button>
 
-        {/* Admin link — desktop only */}
-        {user?.is_admin && (
-          <Link
-            href="/admin/dashboard"
-            className="hidden min-h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold md:inline-flex"
-            style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#10B981" }}
-            aria-label={t("admin")}
-            title={t("admin")}
-          >
-            <Shield size={15} className="shrink-0" />
-            <span className="hidden lg:inline">{t("admin")}</span>
-          </Link>
-        )}
+        {/* Admin link hidden from UI — direct URL /admin still accessible to admins */}
       </div>
     </header>
   );

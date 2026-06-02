@@ -23,6 +23,25 @@ function ThemeAccentSync() {
   return null;
 }
 
+/** Silent background refresh of content on app launch */
+function BackgroundAutoRefresh() {
+  useEffect(() => {
+    const silentRefresh = async () => {
+      try {
+        await Promise.all([
+          fetch("/api/channels", { method: "GET" }).catch(() => {}),
+          fetch("/api/categories", { method: "GET" }).catch(() => {}),
+          fetch("/api/fixtures", { method: "GET" }).catch(() => {}),
+        ]);
+      } catch {
+        // Silent failure — user experience not interrupted
+      }
+    };
+    silentRefresh();
+  }, []);
+  return null;
+}
+
 function AdSenseScript() {
   const { adsensePublisherId, adsenseEnabled } = useSiteSettingsStore();
   if (!adsenseEnabled || !adsensePublisherId) return null;
@@ -42,6 +61,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <I18nProvider>
         <ThemeAccentSync />
         <AdSenseScript />
+        <BackgroundAutoRefresh />
         <AuthSessionSync />
         {children}
         <PwaInstallBanner />

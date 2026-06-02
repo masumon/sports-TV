@@ -15,6 +15,10 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "bn",
     dir: "ltr",
     prefer_related_applications: false,
+    screenshots: [
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", form_factor: "wide" },
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", form_factor: "narrow" },
+    ],
     icons: [
       { src: "/icons/icon-192.png",    sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png",    sizes: "512x512", type: "image/png", purpose: "any" },

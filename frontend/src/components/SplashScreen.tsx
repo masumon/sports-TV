@@ -174,7 +174,7 @@ export function SplashScreen({ ready }: { ready: boolean }) {
           letterSpacing: "0.04em",
         }}
       >
-        চ্যানেল লোড হচ্ছে…
+        সর্বশেষ চ্যানেল লোড হচ্ছে…
       </p>
 
       <style>{`

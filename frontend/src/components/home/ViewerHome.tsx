@@ -107,16 +107,12 @@ const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKey
 ];
 
 const BD_CATEGORIES: Record<string, string> = {
+  sports: "🏆",
   news: "📰",
   entertainment: "🎭",
-  drama: "🎬",
-  sports: "🏆",
-  music: "🎵",
-  kids: "🧒",
   movies: "🎥",
-  general: "📺",
-  religious: "🕌",
-  cooking: "🍽️",
+  kids: "🧒",
+  music: "🎵",
 };
 
 const SPORT_ICONS: Record<string, string> = {
@@ -913,7 +909,7 @@ export function ViewerHome() {
 
   const bdCategoryOptions = useMemo(() => {
     if (activeModule !== "bangladesh") return categoryOptions;
-    const BD_CAT_ORDER = ["sports", "news", "entertainment", "drama", "general", "music", "movies", "religious", "kids", "cooking"];
+    const BD_CAT_ORDER = ["sports", "news", "entertainment", "movies", "kids", "music"];
     return [...categoryOptions].sort((a, b) => {
       const ai = BD_CAT_ORDER.findIndex((k) => a.toLowerCase().includes(k));
       const bi = BD_CAT_ORDER.findIndex((k) => b.toLowerCase().includes(k));
@@ -1031,14 +1027,14 @@ export function ViewerHome() {
               <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold leading-snug" style={{ color: "var(--text-main)" }}>
-                  🚀 Backend starting up…
+                  📺 Loading latest content…
                 </p>
                 <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
                   {coldStartSeconds < 15
-                    ? "Waking up the server — usually takes 10–30 seconds on first load."
+                    ? "Getting the latest channels and content ready for you."
                     : coldStartSeconds < 40
-                      ? "Still loading… Free-tier servers take a moment to start. Almost there!"
-                      : "Taking longer than usual. Please wait or refresh if this persists."}
+                      ? "Still preparing — this is normal on first visit. Almost ready!"
+                      : "Content is taking longer to load. Please wait a moment."}
                 </p>
                 {coldStartSeconds > 0 && (
                   <div className="mt-1.5 flex items-center gap-2">

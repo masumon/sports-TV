@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     template: "%s · ABO SPORTS TV LIVE",
   },
   description:
-    "ABO Sports TV Live — বিশ্বের সকল দেশের সব ধরনের খেলাধুলার চ্যানেল লাইভ স্ট্রিমিং। HD quality, PWA support.",
+    "Watch live sports from around the world. Global channels, HD quality, mobile-optimized streaming.",
   applicationName: "ABO SPORTS TV LIVE",
   authors: [{ name: "ABO ENTERPRISE", url: "https://aboenterprise.netlify.app/" }],
   keywords: ["sports", "live tv", "streaming", "HLS", "football", "cricket", "basketball", "tennis", "ABO SPORTS TV LIVE", "ABO Enterprise", "Next.js", "PWA", "global sports"],
