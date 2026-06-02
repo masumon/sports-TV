@@ -42,6 +42,7 @@ import {
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
 import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
 import { useSwipeGesture } from "@/lib/useSwipeGesture";
+import { CHANNEL_GRID_INITIAL, CHANNEL_GRID_BATCH } from "@/lib/constants";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
@@ -97,8 +98,7 @@ function inferLeague(name: string): string {
   return "🌐 Other Sports";
 }
 
-/** Main grid: only this many cards mount at a time so 10k+ catalogs stay responsive (browser + PWA). */
-const CHANNEL_GRID_BATCH = 96;
+// CHANNEL_GRID_INITIAL and CHANNEL_GRID_BATCH are imported from @/lib/constants
 
 // Top-level sport-type filter: matches by DB category field OR inferred league
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
@@ -247,7 +247,7 @@ export function ViewerHome() {
   const reduceM = useReducedMotion();
   const tier = useSubscriptionStore((s) => s.tier);
   const gridSentinelRef = useRef<HTMLDivElement | null>(null);
-  const [gridVisibleCount, setGridVisibleCount] = useState(CHANNEL_GRID_BATCH);
+  const [gridVisibleCount, setGridVisibleCount] = useState(CHANNEL_GRID_INITIAL);
   const [scheduleFixtures, setScheduleFixtures] = useState<LiveFixture[]>([]);
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
@@ -749,8 +749,9 @@ export function ViewerHome() {
     [activeModule, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague]
   );
 
+  // Reset to initial count when module/filter changes so user always starts fresh
   useEffect(() => {
-    setGridVisibleCount(CHANNEL_GRID_BATCH);
+    setGridVisibleCount(CHANNEL_GRID_INITIAL);
   }, [gridFilterKey]);
 
   useEffect(() => {
@@ -2271,24 +2272,37 @@ export function ViewerHome() {
               {gridHasMore ? (
                 <>
                   <div ref={gridSentinelRef} className="h-1 w-full" aria-hidden />
-                  <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        startTransition(() => {
-                          setGridVisibleCount((c) => Math.min(c + CHANNEL_GRID_BATCH, filtered.length));
-                        });
-                      }}
-                      className="rounded-lg px-4 py-2.5 text-sm font-semibold transition hover:opacity-90"
+                  {/* "Show More" — prominent card-style button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      startTransition(() => {
+                        setGridVisibleCount((c) => Math.min(c + CHANNEL_GRID_BATCH, filtered.length));
+                      });
+                    }}
+                    className="group w-full rounded-2xl py-5 text-center transition-all active:scale-[0.98]"
+                    style={{
+                      background: "var(--bg-card)",
+                      border: "1.5px dashed rgba(255,255,255,0.12)",
+                    }}
+                  >
+                    <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>
+                      📺 আরও চ্যানেল দেখুন
+                    </p>
+                    <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      {filtered.length - gridSlice.length} টি চ্যানেল বাকি আছে
+                    </p>
+                    <span
+                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition group-hover:opacity-90"
                       style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
                     >
-                      {t("gridLoadMore")} (+{Math.min(CHANNEL_GRID_BATCH, filtered.length - gridSlice.length)})
-                    </button>
-                  </div>
+                      আরও {Math.min(CHANNEL_GRID_BATCH, filtered.length - gridSlice.length)} টি দেখুন ↓
+                    </span>
+                  </button>
                 </>
-              ) : filtered.length > CHANNEL_GRID_BATCH ? (
-                <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
-                  {t("gridEnd")}
+              ) : filtered.length > CHANNEL_GRID_INITIAL ? (
+                <p className="text-center text-xs py-2" style={{ color: "var(--text-muted)" }}>
+                  ✅ সব {filtered.length} টি চ্যানেল দেখানো হয়েছে
                 </p>
               ) : null}
             </div>
