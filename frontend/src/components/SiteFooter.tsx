@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { usePlayerStore } from "@/store/playerStore";
 import {
   ExternalLink,
@@ -29,6 +31,7 @@ const LEGAL_PDF = {
 
 export function SiteFooter() {
   const activeChannel = usePlayerStore((s) => s.activeChannel);
+  const [bdExpanded, setBdExpanded] = useState(true);
 
   return (
     <footer
@@ -38,10 +41,11 @@ export function SiteFooter() {
         borderTop: "1px solid var(--border)",
       }}
     >
+      {/* Brand header */}
       <div
         className="relative overflow-hidden py-8"
         style={{
-          background: "linear-gradient(135deg, rgba(229,9,20,0.04) 0%, rgba(245,166,35,0.03) 100%)",
+          background: "linear-gradient(135deg, rgb(var(--primary-rgb)/0.05) 0%, rgb(var(--primary-rgb)/0.02) 100%)",
           borderBottom: "1px solid var(--border)",
         }}
       >
@@ -106,7 +110,35 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Mobile collapsible header */}
+      <div className="mx-auto w-full max-w-6xl px-4 py-3 sm:hidden">
+        <button
+          type="button"
+          onClick={() => setBdExpanded(!bdExpanded)}
+          className="flex w-full items-center justify-between rounded-xl px-3 py-2 transition"
+          style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
+        >
+          <span className="text-xs font-bold" style={{ color: "var(--text-main)" }}>
+            বাংলাদেশ / সংযোগ
+          </span>
+          <ChevronDown
+            size={16}
+            style={{
+              color: "var(--text-muted)",
+              transform: bdExpanded ? "rotate(0deg)" : "rotate(-90deg)",
+              transition: "transform 150ms ease",
+            }}
+          />
+        </button>
+      </div>
+
+      {/* Footer content grid — collapsible on mobile */}
+      <div
+        className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8 transition-all"
+        style={{
+          display: bdExpanded || typeof window === "undefined" || window.innerWidth >= 640 ? "block" : "none",
+        }}
+      >
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-3">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>

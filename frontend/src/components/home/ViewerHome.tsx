@@ -2373,7 +2373,7 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
           style={{
             aspectRatio: "1 / 1",
             background: active
-              ? "linear-gradient(135deg,rgba(229,9,20,0.18),rgba(229,9,20,0.06))"
+              ? "linear-gradient(135deg,rgb(var(--primary-rgb)/0.16),rgb(var(--primary-rgb)/0.05))"
               : "var(--bg-hover)",
           }}
         >
@@ -2395,17 +2395,17 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
           <div
             className="absolute inset-0 flex-col items-center justify-center gap-1"
             style={{
-              background: "linear-gradient(135deg,rgba(14,18,32,0.95) 0%,rgba(20,12,28,0.9) 100%)",
+              background: "linear-gradient(135deg,rgba(8,11,18,0.95) 0%,rgba(16,21,31,0.9) 100%)",
               display: channel.logo_url ? "none" : "flex",
             }}
           >
             <span
               className="flex h-10 w-10 items-center justify-center rounded-xl text-lg font-black"
               style={{
-                background: "linear-gradient(135deg,rgba(229,9,20,0.18),rgba(245,166,35,0.12))",
-                border: "1.5px solid rgba(245,166,35,0.25)",
+                background: "rgb(var(--primary-rgb)/0.15)",
+                border: "1.5px solid rgb(var(--primary-rgb)/0.3)",
                 color: "var(--primary-accent)",
-                boxShadow: "0 4px 16px rgba(229,9,20,0.18)",
+                boxShadow: "var(--glow-accent)",
               }}
             >
               {channel.name.replace(/\s*\[.*?\]/g, "").slice(0, 2).toUpperCase()}

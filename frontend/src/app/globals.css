@@ -2,56 +2,100 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── ABO SPORTS TV LIVE — Design tokens (dark — default) — Premium OTT ── */
+/* ── ABO SPORTS TV LIVE — Design System v2 (Deep Gold) ── */
 :root {
   color-scheme: dark;
-  --bg-dark: #0B0F19;
-  --bg-card: #141927;
-  --bg-card2: #1C2436;
-  --bg-hover: #1e2840;
-  --bg-glass: rgba(11,15,25,0.94);
-  --surface-glass: rgba(20,25,39,0.6);
-  --primary-accent: #e50914;
-  --primary-rgb: 229 9 20;
-  --accent-red: #e50914;
-  --accent-red-rgb: 229 9 20;
-  --accent-blue: #1E6EE8;
-  --accent-blue-rgb: 30 110 232;
-  --accent-green: #10B981;
-  --success: #10B981;
-  --gold: #C9A227;
-  --text-main: #ffffff;
-  --text-muted: #94A3B8;
-  --border: rgba(255,255,255,0.05);
+
+  /* Backgrounds — deeper, clearly layered hierarchy */
+  --bg-dark:    #080B12;
+  --bg-card:    #10151F;
+  --bg-card2:   #181F2E;
+  --bg-hover:   #1C2438;
+  --bg-glass:   rgba(8,11,18,0.96);
+  --surface-glass: rgba(16,21,31,0.72);
+
+  /* Primary accent — ABO Gold (matches logo, unique brand identity) */
+  --primary-accent:  #F5A623;
+  --primary-rgb:     245 166 35;
+
+  /* Semantic accents */
+  --accent-red:      #EF4444;
+  --accent-red-rgb:  239 68 68;
+  --accent-blue:     #2563EB;
+  --accent-blue-rgb: 37 99 235;
+  --accent-green:    #10B981;
+  --success:         #10B981;
+  --gold:            #F5A623;
+
+  /* Typography */
+  --text-main:  #F1F5F9;
+  --text-muted: #64748B;
+
+  /* Borders */
+  --border:        rgba(255,255,255,0.06);
   --border-subtle: rgba(255,255,255,0.04);
-  --border-accent: rgba(229,9,20,0.28);
-  --shadow-card: 0 8px 32px rgba(0,0,0,0.45);
-  --shadow-glass: 0 8px 32px rgba(0,0,0,0.35);
-  --glow-gold: 0 0 14px rgba(229,9,20,0.12);
-  --glow-red: 0 0 20px rgba(229,9,20,0.2);
+  --border-accent: rgba(245,166,35,0.28);
+
+  /* Shadows & glows */
+  --shadow-card:  0 4px 24px rgba(0,0,0,0.55);
+  --shadow-glass: 0 8px 32px rgba(0,0,0,0.45);
+  --glow-accent:  0 0 20px rgba(245,166,35,0.18);
+  --glow-red:     0 0 20px rgba(239,68,68,0.2);
+
+  /* Radii */
   --radius-sm: 10px;
   --radius-md: 14px;
 }
 
-/* ── Design tokens (light) ── */
+/* ── Theme: Classic Red ── */
+html[data-accent="red"] {
+  --primary-accent:  #E50914;
+  --primary-rgb:     229 9 20;
+  --gold:            #E50914;
+  --border-accent:   rgba(229,9,20,0.28);
+  --glow-accent:     0 0 20px rgba(229,9,20,0.2);
+}
+
+/* ── Theme: Royal Blue ── */
+html[data-accent="blue"] {
+  --primary-accent:  #2563EB;
+  --primary-rgb:     37 99 235;
+  --gold:            #2563EB;
+  --border-accent:   rgba(37,99,235,0.3);
+  --glow-accent:     0 0 20px rgba(37,99,235,0.2);
+}
+
+/* ── Theme: AMOLED (battery saver) ── */
+html[data-accent="amoled"] {
+  --bg-dark:  #000000;
+  --bg-card:  #0A0A0F;
+  --bg-card2: #111118;
+  --bg-hover: #16161F;
+}
+
+/* ── Light mode — properly co-designed ── */
 html.light {
   color-scheme: light;
-  --bg-dark: #f2f4fa;
-  --bg-card: #ffffff;
-  --bg-card2: #f5f7fc;
-  --bg-hover: #e8ecf5;
-  --bg-glass: rgba(255,255,255,0.94);
-  --surface-glass: rgba(255,255,255,0.7);
-  --primary-accent: #c7780a;
-  --primary-rgb: 199 120 10;
-  --accent-red: #C62828;
-  --accent-blue: #1557D0;
-  --success: #059669;
-  --gold: #B8860B;
-  --text-main: #0D0F1C;
-  --text-muted: #566080;
-  --border: rgba(0,0,0,0.08);
-  --border-accent: rgba(212,137,10,0.3);
+  --bg-dark:    #EEF0F7;
+  --bg-card:    #FFFFFF;
+  --bg-card2:   #F5F7FC;
+  --bg-hover:   #E4E8F2;
+  --bg-glass:   rgba(255,255,255,0.96);
+  --surface-glass: rgba(238,240,247,0.85);
+  --primary-accent:  #D97706;
+  --primary-rgb:     217 119 6;
+  --accent-red:      #DC2626;
+  --accent-blue:     #1D4ED8;
+  --accent-green:    #059669;
+  --success:         #059669;
+  --gold:            #D97706;
+  --text-main:  #0F172A;
+  --text-muted: #64748B;
+  --border:        rgba(0,0,0,0.08);
+  --border-subtle: rgba(0,0,0,0.04);
+  --border-accent: rgba(217,119,6,0.3);
+  --shadow-card:  0 2px 16px rgba(0,0,0,0.1);
+  --glow-accent:  0 0 16px rgba(217,119,6,0.15);
 }
 
 html,
@@ -170,7 +214,7 @@ html.light .glass-panel {
   border: 1px solid rgba(0,0,0,0.07);
 }
 
-/* ── Live badge ── */
+/* ── Live badge — always red regardless of accent theme ── */
 .live-badge {
   display: inline-flex;
   align-items: center;
@@ -181,18 +225,18 @@ html.light .glass-panel {
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  background: rgba(229,57,53,0.15);
-  border: 1px solid rgba(229,57,53,0.4);
-  color: #FF5252;
+  background: rgba(239,68,68,0.14);
+  border: 1px solid rgba(239,68,68,0.38);
+  color: #F87171;
 }
 
 /* ── Glow accents ── */
-.glow-gold { box-shadow: var(--glow-gold); }
-.glow-red  { box-shadow: var(--glow-red); }
+.glow-accent { box-shadow: var(--glow-accent); }
+.glow-red    { box-shadow: var(--glow-red); }
 
 /* ── ABO brand gradient text ── */
 .abo-gradient {
-  background: linear-gradient(135deg, #F5A623 0%, #C9A227 50%, #E8C84A 100%);
+  background: linear-gradient(135deg, #F5A623 0%, #FBBD48 50%, #F59E0B 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -460,9 +504,9 @@ html.light .ch-card {
 /* Scale lift on real pointers */
 @media (hover: hover) and (pointer: fine) {
   .ch-card:hover {
-    border-color: rgba(229,9,20,0.35);
+    border-color: rgb(var(--primary-rgb) / 0.4);
     transform: scale(1.04) translateY(-2px);
-    box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 0 1px rgba(229,9,20,0.15);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 0 1px rgb(var(--primary-rgb) / 0.15);
   }
 }
 
