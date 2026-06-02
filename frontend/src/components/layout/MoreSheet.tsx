@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store/authStore";
 import { useUiStore } from "@/store/uiStore";
 import { useThemeAccentStore, THEME_ACCENTS } from "@/store/themeAccentStore";
 
@@ -21,7 +19,6 @@ const EXTRA_MODULES = [
 export function MoreSheet({ open, onClose }: Props) {
   const router = useRouter();
   const setActiveModule = useUiStore((s) => s.setActiveModule);
-  const user = useAuthStore((s) => s.user);
   const { accent, setAccent } = useThemeAccentStore();
 
   // Close on Escape key
@@ -118,21 +115,7 @@ export function MoreSheet({ open, onClose }: Props) {
           ))}
         </div>
 
-        {/* Admin link */}
-        {user?.is_admin && (
-          <Link
-            href="/admin/dashboard"
-            onClick={onClose}
-            className="flex items-center gap-3 rounded-2xl px-4 py-3.5 transition active:scale-95"
-            style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}
-          >
-            <span className="text-xl">⚙️</span>
-            <div>
-              <p className="text-sm font-bold" style={{ color: "#10b981" }}>Admin Dashboard</p>
-              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>চ্যানেল, সেটিং ম্যানেজ করুন</p>
-            </div>
-          </Link>
-        )}
+        {/* Admin link hidden from UI — direct URL /admin still accessible to admins */}
       </div>
     </>
   );
