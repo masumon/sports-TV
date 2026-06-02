@@ -3,6 +3,10 @@ export type ParsedM3UEntry = {
   streamUrl: string;
   logoUrl: string | null;
   groupTitle: string | null;
+  /** Extracted from #EXTVLCOPT:http-user-agent= or #EXTHTTP User-Agent */
+  userAgent?: string | null;
+  /** Extracted from #EXTVLCOPT:http-referrer= or #EXTHTTP Referer */
+  referer?: string | null;
 };
 
 const ATTR = /([a-zA-Z0-9_-]+)="([^"]*)"/g;
@@ -20,15 +24,41 @@ function parseAttrString(attrStr: string): { logo: string | null; group: string 
   };
 }
 
+/**
+ * Safely extract user-agent and referer from #EXTHTTP JSON line.
+ * Only known safe fields are extracted \u2014 no arbitrary header injection.
+ */
+function parseExtHttp(line: string): { userAgent: string | null; referer: string | null } {
+  try {
+    const jsonStr = line.slice("#EXTHTTP:".length).trim();
+    const obj = JSON.parse(jsonStr) as Record<string, unknown>;
+    const ua = (obj["User-Agent"] ?? obj["user-agent"] ?? null);
+    const ref = (obj["Referer"] ?? obj["referer"] ?? null);
+    return {
+      userAgent: typeof ua === "string" && ua ? ua : null,
+      referer: typeof ref === "string" && ref ? ref : null,
+    };
+  } catch {
+    return { userAgent: null, referer: null };
+  }
+}
+
 /** Parse standard IPTV M3U / M3U8 playlist text into channel rows. */
 export function parseM3UPlaylist(text: string): ParsedM3UEntry[] {
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
   const out: ParsedM3UEntry[] = [];
-  let pending: { name: string; logo: string | null; group: string | null } | null = null;
+  let pending: {
+    name: string;
+    logo: string | null;
+    group: string | null;
+    userAgent: string | null;
+    referer: string | null;
+  } | null = null;
 
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
+
     if (line.startsWith("#EXTINF:")) {
       const rest = line.slice("#EXTINF:".length);
       const commaIdx = rest.indexOf(",");
@@ -37,15 +67,34 @@ export function parseM3UPlaylist(text: string): ParsedM3UEntry[] {
       const metaMatch = meta.match(/^(-?\d+)\s*(.*)$/);
       const attrStr = metaMatch?.[2]?.trim() ?? "";
       const { logo, group } = parseAttrString(attrStr);
-      pending = {
-        name: title || "Unknown",
-        logo,
-        group,
-      };
+      pending = { name: title || "Unknown", logo, group, userAgent: null, referer: null };
       continue;
     }
+
+    // #EXTVLCOPT \u2014 VLC/ExoPlayer options (user-agent, referrer)
+    if (line.startsWith("#EXTVLCOPT:") && pending) {
+      const opt = line.slice("#EXTVLCOPT:".length).trim();
+      const eqIdx = opt.indexOf("=");
+      if (eqIdx !== -1) {
+        const key = opt.slice(0, eqIdx).trim().toLowerCase();
+        const val = opt.slice(eqIdx + 1).trim();
+        if (key === "http-user-agent" && val) pending.userAgent = val;
+        if ((key === "http-referrer" || key === "http-referer") && val) pending.referer = val;
+      }
+      continue;
+    }
+
+    // #EXTHTTP \u2014 JSON headers (OTT Navigator format)
+    if (line.startsWith("#EXTHTTP:") && pending) {
+      const { userAgent, referer } = parseExtHttp(line);
+      if (userAgent && !pending.userAgent) pending.userAgent = userAgent;
+      if (referer && !pending.referer) pending.referer = referer;
+      continue;
+    }
+
     if (line.startsWith("#")) continue;
     if (!pending) continue;
+
     const streamUrl = line;
     const isProxiedPath =
       streamUrl.startsWith("/api/v1/proxy/stream") || streamUrl.startsWith("/api/proxy/");
@@ -59,6 +108,8 @@ export function parseM3UPlaylist(text: string): ParsedM3UEntry[] {
         streamUrl,
         logoUrl: pending.logo,
         groupTitle: pending.group,
+        userAgent: pending.userAgent || null,
+        referer: pending.referer || null,
       });
     }
     pending = null;

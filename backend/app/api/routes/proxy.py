@@ -211,9 +211,31 @@ def _proxy_error_response(
 
 
 def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
-    """Server-side allowlisted presets only (no arbitrary client-supplied headers)."""
+    """
+    Server-side allowlisted header presets — never accepts arbitrary client headers.
+
+    Profiles are applied to upstream stream/playlist requests so CDNs that
+    enforce User-Agent or Referer checks receive the expected values.
+    """
     if not name:
         return {}
+    n = name.strip().lower()
+
+    if n == "tsports":
+        # T Sports (Bangladesh) CDN — requires matching UA and Referer
+        return {
+            "user-agent": "Tsports/2.0 (Linux; Android 14) AndroidXMedia3/1.1.1",
+            "referer": "https://live-cdn.tsports.com/",
+            "origin": "https://tsports.com",
+        }
+
+    if n == "crichd":
+        # CricHD streams require a matching Referer from the playlist host
+        return {
+            "referer": "https://executeandship.com/",
+            "origin": "https://executeandship.com",
+        }
+
     return {}
 
 

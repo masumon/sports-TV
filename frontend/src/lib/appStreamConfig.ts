@@ -511,20 +511,35 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
  * - BDIX sources (Bangladesh ISP network) are included in bangladesh_and_bdix for low-latency BD streams.
  */
 export const APP_STREAM_CONFIG = {
+  // Global sports M3U playlists — filtered to football/cricket by streamCatalog.
+  // Processing order: last wins on name-based dedup within global_sports.
   dynamic_master_playlists: [
+    // iptv-org verified collections (existing)
     "https://iptv-org.github.io/iptv/index.m3u",
     "https://iptv-org.github.io/iptv/categories/sports.m3u",
     "https://iptv-org.github.io/iptv/categories/sport.m3u",
+    // SM-Live-TV combined (hourly update) — BD+India sports channels
+    "https://raw.githubusercontent.com/sm-monirulislam/SM-Live-TV/refs/heads/main/Combined_Live_TV.m3u",
+    // World IP TV (every 6h, auto-verified working channels)
+    "https://romaxa55.github.io/world_ip_tv/output/index.m3u",
+    // Free-TV HD (daily update, free-to-air sports channels)
+    "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
   ],
 
   country_playlists: {
     bangladesh_and_bdix: [
+      // iptv-org Bangladesh + Bengali language (existing)
       "https://iptv-org.github.io/iptv/countries/bd.m3u",
       "https://iptv-org.github.io/iptv/languages/ben.m3u",
-      // BDIX community M3U sources (Bangladesh ISP-local, low latency)
+      // BDIX community M3U sources (Bangladesh ISP-local, low latency) — existing
       "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
       "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
       "https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
+      // T Sports — premium Bangladesh sports channel (updates every 12h)
+      // NS Player format (standard M3U, broad player compatibility)
+      "https://raw.githubusercontent.com/Gtajisan/iptv-TSports/main/NS_Player_Tsports_live.m3u",
+      // OTT Navigator format (has #EXTVLCOPT/#EXTHTTP header hints, auto-detected as "tsports" profile)
+      "https://raw.githubusercontent.com/Gtajisan/iptv-TSports/main/OTT_Navigator_Tspots_live.m3u",
     ],
     india: [
       "https://iptv-org.github.io/iptv/countries/in.m3u",
@@ -541,8 +556,15 @@ export const APP_STREAM_CONFIG = {
   },
 
   secured_endpoints: {
+    // FanCode JSON (existing — direct browser fetch, no proxy cache)
     fancode_live_json:
       "https://raw.githubusercontent.com/byte-capsule/FanCode-Hls-Fetcher/main/Fancode_hls_m3u8.Json",
+    // FanCode M3U (new — direct browser fetch every 7 min via fancodeM3U.ts)
+    fancode_m3u:
+      "https://raw.githubusercontent.com/kajju027/Fancode-Events-Json/main/fancode.m3u",
+    // CricHD M3U (new — direct browser fetch every 30 min via crichdLive.ts, tokenized URLs)
+    crichd_m3u:
+      "https://raw.githubusercontent.com/sm-monirulislam/CricHD-Auto-Update-Playlist/main/crichd.m3u",
   },
 
   premium_direct_sports: PREMIUM_DIRECT_SPORTS,

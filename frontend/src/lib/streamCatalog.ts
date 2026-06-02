@@ -1,5 +1,7 @@
 import { APP_STREAM_CONFIG } from "@/lib/appStreamConfig";
 import { fetchFanCodeLiveChannels } from "@/lib/fancodeLive";
+import { fetchFanCodeM3UChannels } from "@/lib/fancodeM3U";
+import { fetchCricHDChannels } from "@/lib/crichdLive";
 import { parseM3UPlaylist } from "@/lib/m3uParser";
 import { fetchPlaylistText } from "@/lib/playlistFetch";
 import type { Channel, PremiumDirectModule, ViewerModule } from "@/lib/types";
@@ -99,8 +101,26 @@ function deduplicateByModuleName(channels: Channel[]): Channel[] {
   return [...byKey.values()];
 }
 
+/**
+ * Auto-detect backend header profile from stream URL or extracted M3U headers.
+ * Only sets known allowlisted profiles — no arbitrary header injection.
+ */
+function detectHeaderProfile(
+  streamUrl: string,
+  userAgent?: string | null,
+): string | null {
+  const url = streamUrl.toLowerCase();
+  const ua = (userAgent ?? "").toLowerCase();
+  if (
+    url.includes("tsports") ||
+    url.includes("live-cdn.tsports") ||
+    ua.includes("tsports")
+  ) return "tsports";
+  return null;
+}
+
 function entryToChannel(
-  e: { name: string; streamUrl: string; logoUrl: string | null; groupTitle: string | null },
+  e: { name: string; streamUrl: string; logoUrl: string | null; groupTitle: string | null; userAgent?: string | null; referer?: string | null },
   module: ViewerModule,
   countryFallback: string
 ): Channel {
@@ -118,7 +138,7 @@ function entryToChannel(
     quality_tag: "auto",
     module,
     is_active: true,
-    header_profile: null,
+    header_profile: detectHeaderProfile(e.streamUrl, e.userAgent),
     geo_hint: false,
     ...emptyTs,
   };
@@ -331,12 +351,25 @@ export async function countFullViewerCatalogChannels(): Promise<number> {
 
 export async function loadFullCatalogWithLive(): Promise<Channel[]> {
   const base = await loadStaticCatalogChannels();
-  try {
-    const live = await fetchFanCodeLiveChannels();
-    return [...base, ...live];
-  } catch {
-    return base;
-  }
+
+  // Parallel fetch all live/direct sources — each fails silently to empty array.
+  const [fancodeJson, fancodeM3u, crichd] = await Promise.allSettled([
+    fetchFanCodeLiveChannels(),   // JSON, live_matches, 7-min update
+    fetchFanCodeM3UChannels(),    // M3U, live_matches, 7-min update
+    fetchCricHDChannels(),        // M3U, global_sports, 30-min update
+  ]);
+
+  const live: Channel[] = [
+    ...(fancodeJson.status === "fulfilled" ? fancodeJson.value : []),
+    ...(fancodeM3u.status === "fulfilled" ? fancodeM3u.value : []),
+    ...(crichd.status === "fulfilled" ? crichd.value : []),
+  ];
+
+  // Dedup live entries against the static base (same primary stream URL = skip)
+  const baseSeen = new Set(base.map((c) => c.stream_url.trim()));
+  const dedupedLive = live.filter((c) => !baseSeen.has(c.stream_url.trim()));
+
+  return [...base, ...dedupedLive];
 }
 
 export function replaceLiveMatches(channels: Channel[], live: Channel[]): Channel[] {
