@@ -28,13 +28,23 @@ function BackgroundAutoRefresh() {
   useEffect(() => {
     const silentRefresh = async () => {
       try {
-        await Promise.all([
-          fetch("/api/channels", { method: "GET" }).catch(() => {}),
-          fetch("/api/categories", { method: "GET" }).catch(() => {}),
-          fetch("/api/fixtures", { method: "GET" }).catch(() => {}),
+        await Promise.allSettled([
+          fetch("/api/channels", { method: "GET" }).catch((err) => {
+            console.warn("Failed to preload channels:", err);
+            return undefined;
+          }),
+          fetch("/api/categories", { method: "GET" }).catch((err) => {
+            console.warn("Failed to preload categories:", err);
+            return undefined;
+          }),
+          fetch("/api/fixtures", { method: "GET" }).catch((err) => {
+            console.warn("Failed to preload fixtures:", err);
+            return undefined;
+          }),
         ]);
-      } catch {
+      } catch (err) {
         // Silent failure — user experience not interrupted
+        console.debug("Background preload batch error:", err);
       }
     };
     silentRefresh();

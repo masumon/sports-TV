@@ -108,14 +108,14 @@ async def lifespan(app: FastAPI):
     )
     _is_prod = (settings.app_env or "").lower() in {"production", "prod"}
     if _is_prod and settings.admin_password == "Admin12345!":
-        logger.critical(
-            "SECURITY: Default admin password 'Admin12345!' is in use in PRODUCTION. "
-            "Set ADMIN_PASSWORD env var immediately to prevent unauthorized access."
+        raise RuntimeError(
+            "SECURITY FATAL: Default admin password 'Admin12345!' detected in PRODUCTION. "
+            "This is a critical security issue. Set ADMIN_PASSWORD environment variable immediately."
         )
     if _is_prod and settings.admin_email == "admin@test.com":
-        logger.critical(
-            "SECURITY: Default admin email 'admin@test.com' is in use in PRODUCTION. "
-            "Set ADMIN_EMAIL env var immediately."
+        raise RuntimeError(
+            "SECURITY FATAL: Default admin email 'admin@test.com' detected in PRODUCTION. "
+            "Set ADMIN_EMAIL environment variable immediately."
         )
 
     Base.metadata.create_all(bind=engine)

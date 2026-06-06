@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     admin_password: str = "Admin12345!"
     admin_full_name: str = "Platform Admin"
     # When true, each process startup deletes all users except ADMIN_EMAIL (seeding above). Set false only if you need public registration to persist.
-    prune_non_default_users_on_startup: bool = True
+    # CHANGED DEFAULT: False to prevent accidental data loss on restart. Set explicitly to True if desired.
+    prune_non_default_users_on_startup: bool = False
 
     cors_origins: str = "http://localhost:3000"
     scraper_source_url: str = "https://iptv-org.github.io/iptv/categories/sports.m3u"

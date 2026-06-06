@@ -31,10 +31,21 @@ def _cache_key(url: str) -> str:
 
 
 def _classify(status_code: int | None) -> str:
+    """Classify stream health status.
+    
+    - 200, 206: Alive (content delivered)
+    - 401: Auth required (might work with correct headers)
+    - 403: Ambiguous - could be geo-blocked OR permission denied; assume temporary
+    - 451: Legally blocked (country-specific censorship; clearly geo-blocked)
+    - 404, 410: Dead (not found / gone)
+    - None/timeout: Unreachable (dead)
+    """
     if status_code in (200, 206):
         return "alive"
-    if status_code in (401, 403, 451):
-        return "geo_blocked"
+    if status_code == 451:
+        return "geo_blocked"  # Clear legal block
+    if status_code in (401, 403):
+        return "geo_blocked"  # Treat as temp geo-block; system will retry or fallback
     return "dead"
 
 

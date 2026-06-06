@@ -206,6 +206,12 @@ async def list_channels(
         or request.headers.get("X-Country")
         or ""
     ).upper()[:2]
+    # Log if geo-detection is missing (for debugging production issues)
+    if not cf_country:
+        logger.debug(
+            "No geo-country detected. CF-IPCountry and X-Country headers missing. "
+            "Ensure Cloudflare is active or set X-Country header for geo-sorting to work."
+        )
 
     params = {
         "search": search,

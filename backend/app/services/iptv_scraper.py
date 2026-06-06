@@ -368,7 +368,9 @@ def sync_channels_from_entries(
         )
 
     for primary, alts in grouped:
-        alt_json = json.dumps(alts) if alts else None
+        # Filter out any alternate_urls that are already primary stream_urls in existing_by_url (prevent duplicates)
+        clean_alts = [u for u in alts if u not in existing_by_url]
+        alt_json = json.dumps(clean_alts) if clean_alts else None
         normalized_name = _display_channel_name(primary.name)[:255]
         channel = existing_by_url.get(primary.stream_url)
 

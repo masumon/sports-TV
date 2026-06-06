@@ -50,6 +50,7 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
         select(User).where(func.lower(User.email) == normalized_email)
     )
     if existing.scalar_one_or_none():
+        logger.info("Register attempt: email already exists %s", normalized_email)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     user = User(
@@ -62,17 +63,19 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     db.add(user)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         # Race condition: another request registered the same email simultaneously
         await db.rollback()
+        logger.warning("Register IntegrityError (race condition): %s", exc)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
     await db.refresh(user)
 
     try:
         token = create_access_token(subject=str(user.id), is_admin=user.is_admin)
-    except Exception:
-        logger.exception("Token creation failed after register for user %s", user.id)
+    except Exception as exc:
+        logger.exception("Token creation failed after register for user %s: %s", user.id, exc)
         raise HTTPException(status_code=500, detail="Authentication service error")
+    logger.info("Register successful: user_id=%s email=%s", user.id, normalized_email)
     return TokenResponse(access_token=token, user=UserRead.model_validate(user))
 
 
@@ -88,13 +91,16 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
         user.password_hash if user else _DUMMY_BCRYPT_HASH,
     )
     if not user or not password_valid:
+        logger.warning("Login failed: email=%s user_exists=%s password_valid=%s", 
+                      normalized_email, user is not None, password_valid)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     try:
         token = create_access_token(subject=str(user.id), is_admin=user.is_admin)
-    except Exception:
-        logger.exception("Token creation failed for user %s", user.id)
+    except Exception as exc:
+        logger.exception("Token creation failed for user %s: %s", user.id, exc)
         raise HTTPException(status_code=500, detail="Authentication service error")
+    logger.info("Login successful: user_id=%s email=%s is_admin=%s", user.id, normalized_email, user.is_admin)
     return TokenResponse(access_token=token, user=UserRead.model_validate(user))
 
 
