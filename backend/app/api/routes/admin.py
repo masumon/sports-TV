@@ -12,7 +12,6 @@ from app.core.cache import invalidate_list_caches
 from app.core.config import settings
 from app.core.security import get_current_admin_user
 from app.core.sync_rate_limit import (
-    check_sync_allowed,
     get_last_sync_iso,
     get_last_sync_status,
     get_last_sync_error,
@@ -113,7 +112,6 @@ async def sync_channels(
     _: User = Depends(get_current_admin_user),
 ) -> dict[str, int]:
     del _db
-    check_sync_allowed()
     try:
         result = await run_in_threadpool(_sync_m3u_blocking)
         return result
@@ -154,13 +152,13 @@ async def purge_inactive_channels(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> dict[str, int]:
-    """Permanently delete all channels with is_active=False from the database."""
-    result = await db.execute(
-        delete(Channel).where(Channel.is_active.is_(False))
-    )
-    await db.commit()
-    invalidate_list_caches()
-    return {"deleted": result.rowcount}
+    """Legacy endpoint retained for API compatibility.
+
+    Production safety policy keeps inactive channel rows for audit/recovery, so
+    this route no longer performs physical deletes.
+    """
+    del db
+    return {"deleted": 0}
 
 
 @router.get("/channels", response_model=list[ChannelRead])
@@ -244,9 +242,10 @@ async def admin_delete_channel(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> Response:
-    r = await db.execute(delete(Channel).where(Channel.id == channel_id))
-    if r.rowcount == 0:
+    channel = await db.get(Channel, channel_id)
+    if channel is None:
         raise HTTPException(status_code=404, detail="Channel not found.")
+    channel.is_active = False
     await db.commit()
     invalidate_list_caches()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

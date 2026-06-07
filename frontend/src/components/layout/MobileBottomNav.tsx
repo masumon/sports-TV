@@ -67,7 +67,7 @@ export function MobileBottomNav() {
           bottom: "max(0.75rem, env(safe-area-inset-bottom, 0.75rem))",
           left: "0.75rem",
           right: "0.75rem",
-          height: "3.75rem",
+          minHeight: "3.75rem",
           background: "rgba(8,11,18,0.92)",
           border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: "1.25rem",
@@ -86,21 +86,23 @@ export function MobileBottomNav() {
               aria-label={tab.label}
               aria-current={active ? "page" : undefined}
               onClick={() => navigate(tab.id)}
-              className="flex flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-90"
-              style={{ color: active ? tab.activeColor : "var(--text-muted)" }}
+              className="flex flex-1 flex-col items-center justify-center gap-0.5 transition-all active:scale-90 px-2 py-3"
+              style={{ color: active ? tab.activeColor : "var(--text-muted)", minHeight: "3.75rem" }}
             >
               <div
-                className="flex h-7 w-9 items-center justify-center rounded-xl transition-all min-[375px]:h-8 min-[375px]:w-11"
+                className="flex items-center justify-center rounded-xl transition-all"
                 style={{
+                  width: "2.75rem",
+                  height: "2rem",
                   background: active ? tab.activeBg : (isMore && moreOpen ? "rgba(255,255,255,0.08)" : "transparent"),
                 }}
               >
-                <span className={`leading-none ${isMore ? "text-[1.1rem] font-black" : "text-[1.1rem] min-[375px]:text-[1.2rem]"}`} aria-hidden>
+                <span className={`leading-none ${isMore ? "text-lg font-black" : "text-xl"}`} aria-hidden>
                   {tab.emoji}
                 </span>
               </div>
               <span
-                className="max-w-[3.2rem] truncate text-[8px] leading-none tracking-wide min-[375px]:text-[9px]"
+                className="max-w-[3.2rem] truncate text-[8px] leading-none tracking-wide"
                 style={{ fontWeight: active ? 800 : 500 }}
               >
                 {tab.label}

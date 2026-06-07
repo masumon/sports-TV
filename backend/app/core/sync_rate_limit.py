@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from threading import Lock
 
 from app.core.config import settings
 
@@ -11,6 +12,8 @@ _last_sync_started_at: float = 0.0
 _last_sync_status: str | None = None
 _last_sync_error: str | None = None
 _SYNC_STATE_KEY = "gstv:sync:state"
+_sync_lock = Lock()
+_sync_running = False
 
 # Health sweep state (in-memory; best-effort Redis persistence)
 _last_sweep_at: float = 0.0
@@ -60,6 +63,38 @@ _REDIS_SYNC_LOCK_KEY = "gstv:sync:running"
 _REDIS_SYNC_LOCK_TTL = 360  # seconds — auto-expires if worker dies mid-sync
 
 
+def _try_acquire_redis_sync_lock() -> bool | None:
+    """Return True/False when Redis is available, None when unavailable."""
+    try:
+        from app.core.redis_client import get_shared_redis
+
+        redis = get_shared_redis()
+        if redis is None:
+            return None
+        return bool(redis.set(_REDIS_SYNC_LOCK_KEY, "1", ex=_REDIS_SYNC_LOCK_TTL, nx=True))
+    except Exception:
+        return None
+
+
+def _acquire_local_sync_lock() -> bool:
+    global _sync_running
+    with _sync_lock:
+        if _sync_running:
+            return False
+        _sync_running = True
+        return True
+
+
+def _release_local_sync_lock() -> None:
+    global _sync_running
+    with _sync_lock:
+        _sync_running = False
+
+
+def _sync_rate_limited(now: float) -> bool:
+    return bool(_last_sync_at and (now - _last_sync_at) < settings.sync_rate_limit_seconds)
+
+
 def check_sync_allowed() -> None:
     """Raises HTTPException 429 if a sync is already running or rate-limited.
 
@@ -68,27 +103,58 @@ def check_sync_allowed() -> None:
     Falls back to in-process timestamp check when Redis is absent.
     """
     from fastapi import HTTPException, status
-    from app.core.redis_client import safe_get, safe_set
+    from app.core.redis_client import safe_delete
 
-    # Distributed lock: check if any worker already has a sync running.
-    if safe_get(_REDIS_SYNC_LOCK_KEY):
+    redis_acquired = _try_acquire_redis_sync_lock()
+    local_acquired = False
+    if redis_acquired is False:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Sync already running on this server. Please wait for it to complete.",
         )
+    if redis_acquired is None:
+        local_acquired = _acquire_local_sync_lock()
+        if not local_acquired:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Sync already running on this server. Please wait for it to complete.",
+            )
 
     # In-process rate limit fallback.
-    global _last_sync_at
     now = time.time()
-    if _last_sync_at and (now - _last_sync_at) < settings.sync_rate_limit_seconds:
+    if _sync_rate_limited(now):
+        if redis_acquired:
+            safe_delete(_REDIS_SYNC_LOCK_KEY)
+        if local_acquired:
+            _release_local_sync_lock()
         retry = int(settings.sync_rate_limit_seconds - (now - _last_sync_at)) + 1
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Sync rate limited. Retry after ~{retry}s.",
         )
 
-    # Acquire Redis lock (best-effort; if Redis is down, proceed without lock).
-    safe_set(_REDIS_SYNC_LOCK_KEY, "1", ttl=_REDIS_SYNC_LOCK_TTL)
+
+def try_acquire_sync_lock() -> bool:
+    """Best-effort sync lock for non-HTTP callers such as schedulers.
+
+    Returns False when Redis reports another sync is already running. If Redis is
+    unavailable, returns True so local/dev environments keep working.
+    """
+    redis_acquired = _try_acquire_redis_sync_lock()
+    local_acquired = False
+    if redis_acquired is False:
+        return False
+    if redis_acquired is None:
+        local_acquired = _acquire_local_sync_lock()
+        if not local_acquired:
+            return False
+    if _sync_rate_limited(time.time()):
+        if redis_acquired:
+            _release_sync_lock()
+        elif local_acquired:
+            _release_local_sync_lock()
+        return False
+    return True
 
 
 def _release_sync_lock() -> None:
@@ -97,6 +163,7 @@ def _release_sync_lock() -> None:
         safe_delete(_REDIS_SYNC_LOCK_KEY)
     except Exception:
         pass
+    _release_local_sync_lock()
 
 
 def mark_sync_success() -> None:

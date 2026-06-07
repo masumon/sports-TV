@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import json
 from datetime import datetime, timezone
 from typing import Callable, TypeVar
 
@@ -8,7 +9,13 @@ from sqlalchemy import select, text
 
 from app.core.cache import invalidate_list_caches
 from app.core.config import settings
-from app.core.sync_rate_limit import mark_sync_failure, mark_sync_started, mark_sync_success, mark_sweep_complete
+from app.core.sync_rate_limit import (
+    mark_sync_failure,
+    mark_sync_started,
+    mark_sync_success,
+    mark_sweep_complete,
+    try_acquire_sync_lock,
+)
 from app.db.session import SessionLocal
 from app.models.channel import Channel
 from app.services.channel_cleanup import run_full_cleanup
@@ -23,6 +30,37 @@ T = TypeVar("T")
 SYNC_RETRY_DELAYS_SECONDS: tuple[int, ...] = (1, 2, 4, 8)
 MAX_SYNC_ATTEMPTS = 5
 DB_STATEMENT_TIMEOUT_MS = 60_000
+
+
+def _channel_validation_urls(channel: Channel) -> list[str]:
+    urls = [channel.stream_url]
+    if channel.alternate_urls:
+        try:
+            parsed = json.loads(channel.alternate_urls)
+            if isinstance(parsed, list):
+                urls.extend(str(url).strip() for url in parsed if str(url).strip())
+        except Exception:
+            logger.debug("Invalid alternate_urls JSON for channel_id=%s", channel.id)
+
+    seen: set[str] = set()
+    out: list[str] = []
+    for url in urls:
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        out.append(url)
+    return out
+
+
+def _dead_channels_after_fallback_validation(rows: list[Channel], max_workers: int) -> tuple[list[Channel], int]:
+    channel_urls = {ch.id: _channel_validation_urls(ch) for ch in rows}
+    urls = sorted({url for values in channel_urls.values() for url in values})
+    results = validate_stream_urls(urls, max_workers=max_workers)
+    dead = [
+        ch for ch in rows
+        if not any(results.get(url, False) for url in channel_urls.get(ch.id, []))
+    ]
+    return dead, len(urls)
 
 
 def _apply_db_statement_timeout(db) -> None:
@@ -66,6 +104,9 @@ def run_channel_sync(*, include_discovery: bool = True, source: str = "scheduler
     """
     started_at = datetime.now(tz=timezone.utc)
     logger.info("channel_sync start source=%s started_at=%s", source, started_at.isoformat())
+    if not try_acquire_sync_lock():
+        logger.warning("channel_sync skipped source=%s reason=sync_already_running", source)
+        return {"created": 0, "updated": 0, "total": 0, "skipped": 1}
     mark_sync_started()
 
     db = SessionLocal()
@@ -154,7 +195,7 @@ def run_channel_health_check(
     max_workers: int = 20,
     resync_on_dead: bool = True,
 ) -> dict[str, int]:
-    """Validate a rotating sample of active streams and deactivate dead URLs."""
+    """Validate a rotating sample of active streams and soft-deactivate dead URLs."""
     started_at = datetime.now(tz=timezone.utc)
     logger.info(
         "channel_health_check start sample_limit=%d max_workers=%d",
@@ -177,12 +218,10 @@ def run_channel_health_check(
             logger.info("channel_health_check skipped reason=no_active_channels")
             return {"checked": 0, "deactivated": 0}
 
-        url_map = {ch.stream_url: ch for ch in rows}
-        results = validate_stream_urls(list(url_map.keys()), max_workers=max_workers)
-        dead = [ch for url, ch in url_map.items() if not results.get(url, False)]
+        dead, checked_urls = _dead_channels_after_fallback_validation(rows, max_workers=max_workers)
 
         for channel in dead:
-            db.delete(channel)
+            channel.is_active = False
         if dead:
             db.commit()
             invalidate_list_caches()
@@ -196,9 +235,10 @@ def run_channel_health_check(
                 logger.exception("channel_health_check recovery sync failed")
 
         logger.info(
-            "channel_health_check complete duration_seconds=%.2f checked=%d deleted=%d recovered=%d",
+            "channel_health_check complete duration_seconds=%.2f checked=%d checked_urls=%d deactivated=%d recovered=%d",
             (datetime.now(tz=timezone.utc) - started_at).total_seconds(),
             len(rows),
+            checked_urls,
             len(dead),
             recovered,
         )
@@ -214,7 +254,7 @@ def run_channel_health_check(
 def run_health_sweep(*, max_workers: int = 30) -> dict[str, int]:
     """Full dead-link sweep — checks ALL active channels (no sample limit).
 
-    Deactivates every channel whose primary stream_url is unreachable.
+    Soft-deactivates every channel whose primary stream_url is unreachable.
     Intended for manual admin triggers; too heavy for the scheduler.
     """
     started_at = datetime.now(tz=timezone.utc)
@@ -231,21 +271,20 @@ def run_health_sweep(*, max_workers: int = 30) -> dict[str, int]:
             logger.info("health_sweep skipped reason=no_active_channels")
             return {"checked": 0, "deactivated": 0}
 
-        url_map = {ch.stream_url: ch for ch in rows}
-        results = validate_stream_urls(list(url_map.keys()), max_workers=max_workers)
-        dead = [ch for url, ch in url_map.items() if not results.get(url, False)]
+        dead, checked_urls = _dead_channels_after_fallback_validation(rows, max_workers=max_workers)
 
         for ch in dead:
-            db.delete(ch)
+            ch.is_active = False
         if dead:
             db.commit()
             invalidate_list_caches()
 
         elapsed = (datetime.now(tz=timezone.utc) - started_at).total_seconds()
         logger.info(
-            "health_sweep complete duration_seconds=%.2f checked=%d deleted=%d",
+            "health_sweep complete duration_seconds=%.2f checked=%d checked_urls=%d deactivated=%d",
             elapsed,
             len(rows),
+            checked_urls,
             len(dead),
         )
         mark_sweep_complete(checked=len(rows), deactivated=len(dead))

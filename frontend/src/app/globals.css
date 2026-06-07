@@ -122,16 +122,51 @@ body {
 /* Mobile: remove tap highlight flash, ensure minimum 44px touch targets for buttons */
 button, [role="button"], a {
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
+
 @media (max-width: 767px) {
-  button, [role="button"] {
+  button, [role="button"], a {
     min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
+
   /* Filter chips and category tabs need adequate touch targets on mobile */
   .filter-chip, .cat-tab, .module-tab {
-    min-height: 36px;
-    padding-top: 0.375rem;
-    padding-bottom: 0.375rem;
+    min-height: 40px;
+    min-width: 40px;
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Input fields on mobile */
+  input[type="search"],
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    min-height: 44px;
+    padding: 0.75rem;
+    font-size: 16px; /* prevents zoom on iOS */
+  }
+
+  /* Channel grid items clickability */
+  [role="button"][data-channel],
+  .channel-item,
+  .stream-button {
+    min-height: 44px;
+    padding: 0.5rem;
+  }
+
+  /* Improved touch feedback */
+  button:active,
+  [role="button"]:active,
+  a:active {
+    opacity: 0.7;
+    transform: scale(0.98);
   }
 }
 
@@ -327,6 +362,28 @@ html.light .glass-panel {
 @keyframes shimmer {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(200%); }
+}
+
+/* ── Skeleton loading shimmer effect ── */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 0%,
+    var(--bg-hover) 50%,
+    var(--bg-card) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* ── Progressive image loading ── */
+img[data-loading="blur"] {
+  filter: blur(8px);
+  transition: filter 0.3s ease;
+}
+
+img[data-loading="loaded"] {
+  filter: blur(0);
 }
 
 @keyframes pulse-live {

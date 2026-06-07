@@ -3,6 +3,8 @@
 import { TopBar } from "@/components/layout/TopBar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { NetworkStatusBar } from "@/components/NetworkStatusBar";
 
 type Props = {
   children: React.ReactNode;
@@ -12,23 +14,26 @@ type Props = {
 
 export function AppShell({ children, searchQuery, onSearch }: Props) {
   return (
-    <div className="flex min-h-screen antialiased" style={{ background: "var(--bg-dark)", color: "var(--text-main)" }}>
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar onSearch={onSearch} searchQuery={searchQuery} />
-        <main
-          className="flex-1 overflow-x-hidden px-3 py-3 sm:px-5 sm:py-6 md:px-6 md:pb-8 lg:px-8 xl:px-10 2xl:px-12"
-          style={{
-            paddingLeft: "max(0.75rem, env(safe-area-inset-left, 0px))",
-            paddingRight: "max(0.75rem, env(safe-area-inset-right, 0px))",
-            /* bottom nav height (3.75rem) + gap (0.75rem) + safe-area */
-            paddingBottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))",
-          }}
-        >
-          {children}
-        </main>
-        <MobileBottomNav />
+    <ErrorBoundary>
+      <NetworkStatusBar />
+      <div className="flex min-h-screen antialiased" style={{ background: "var(--bg-dark)", color: "var(--text-main)" }}>
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TopBar onSearch={onSearch} searchQuery={searchQuery} />
+          <main
+            className="flex-1 overflow-x-hidden px-3 py-3 sm:px-5 sm:py-6 md:px-6 md:pb-8 lg:px-8 xl:px-10 2xl:px-12"
+            style={{
+              paddingLeft: "max(0.75rem, env(safe-area-inset-left, 0px))",
+              paddingRight: "max(0.75rem, env(safe-area-inset-right, 0px))",
+              /* bottom nav height (3.75rem) + gap (0.75rem) + safe-area */
+              paddingBottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))",
+            }}
+          >
+            {children}
+          </main>
+          <MobileBottomNav />
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }

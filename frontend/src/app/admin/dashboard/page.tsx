@@ -552,7 +552,7 @@ export default function AdminDashboardPage() {
 
   const runHealthSweep = async () => {
     if (!authToken) return;
-    if (!window.confirm("এই অপারেশন সব active channel চেক করবে এবং dead link গুলো DB থেকে permanently delete করবে। চালাবেন?")) return;
+    if (!window.confirm("এই অপারেশন সব active channel চেক করবে এবং dead link গুলো inactive করবে। চালাবেন?")) return;
     setSweeping(true);
     setSweepResult(null);
     const fallback = setTimeout(() => setSweeping(false), 11 * 60 * 1000);
@@ -561,7 +561,7 @@ export default function AdminDashboardPage() {
       setSweepResult(res);
       await fetchAdminData();
       await fetchStats();
-      toast.success(`✓ Sweep সম্পন্ন — ${res.checked} checked, ${res.deactivated} dead link DB থেকে deleted`);
+      toast.success(`✓ Sweep সম্পন্ন — ${res.checked} checked, ${res.deactivated} dead link inactive`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Health sweep ব্যর্থ হয়েছে");
     } finally {
@@ -608,7 +608,7 @@ export default function AdminDashboardPage() {
     try {
       await apiClient.adminDeleteChannel(authToken, id);
       setChannels(prev => prev.filter(c => c.id !== id));
-      toast.success(`✓ "${name}" deleted`);
+      toast.success(`✓ "${name}" inactive`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     }
@@ -616,12 +616,12 @@ export default function AdminDashboardPage() {
 
   const purgeInactive = async () => {
     if (!authToken) return;
-    if (!window.confirm("সব inactive channel DB থেকে permanently delete করবেন?")) return;
+    if (!window.confirm("Inactive channel rows production safety-এর জন্য রাখা হবে। চালাবেন?")) return;
     try {
-      const res = await apiClient.adminPurgeInactive(authToken);
+      await apiClient.adminPurgeInactive(authToken);
       await fetchAdminData();
       await fetchStats();
-      toast.success(`✓ ${res.deleted} inactive channel permanently deleted`);
+      toast.success("✓ Inactive channel rows kept for recovery");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Purge failed");
     }
@@ -794,7 +794,7 @@ export default function AdminDashboardPage() {
                   <Calendar size={16} />{syncingFixtures ? "Syncing…" : "Sync Fixtures"}
                 </button>
               </Tooltip>
-              <Tooltip text="সব active channel চেক করে dead link DB থেকে permanently delete করবে। Heavy operation — কয়েক মিনিট লাগতে পারে।">
+              <Tooltip text="সব active channel চেক করে dead link inactive করবে। Heavy operation — কয়েক মিনিট লাগতে পারে।">
                 <button type="button" onClick={() => void runHealthSweep()} disabled={sweeping}
                   className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-3.5 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:from-rose-500 hover:to-rose-600 disabled:cursor-not-allowed disabled:opacity-60">
                   <Zap size={16} className={sweeping ? "animate-pulse" : ""} />
@@ -953,7 +953,7 @@ export default function AdminDashboardPage() {
                 <p className="text-xs text-zinc-400">
                   <span className="text-zinc-200 font-semibold">{sweepResult.checked}</span> channels checked ·{" "}
                   <span className={sweepResult.deactivated > 0 ? "text-rose-300 font-semibold" : "text-emerald-400 font-semibold"}>
-                    {sweepResult.deactivated} dead link{sweepResult.deactivated !== 1 ? "s" : ""} deleted from DB
+                    {sweepResult.deactivated} dead link{sweepResult.deactivated !== 1 ? "s" : ""} inactive
                   </span>
                   {sweepResult.duration_seconds != null && (
                     <> · {sweepResult.duration_seconds}s</>

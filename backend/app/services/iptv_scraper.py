@@ -30,6 +30,10 @@ _CHAN_NORM_RE = re.compile(
     r"[\]\)]\s*",
     re.IGNORECASE,
 )
+_CHAN_SUFFIX_NORM_RE = re.compile(
+    r"\s+(?:\d{3,4}p|fhd|uhd|4k|hd|sd|live|auto|main|primary)\s*$",
+    re.IGNORECASE,
+)
 
 REQUEST_TIMEOUT_SECONDS = 8
 FETCH_RETRY_DELAYS_SECONDS = (1, 2, 4, 8)
@@ -260,6 +264,7 @@ def fetch_all_sports_m3u(extra_urls: list[str] | None = None) -> list[str]:
 
 def _display_channel_name(name: str) -> str:
     cleaned = _CHAN_NORM_RE.sub(" ", name)
+    cleaned = _CHAN_SUFFIX_NORM_RE.sub(" ", cleaned)
     return " ".join(cleaned.split()).strip() or name.strip()
 
 

@@ -53,9 +53,15 @@ function normKey(url: string): string {
  * both URLs available as failover.
  */
 const CHAN_NORM_RE = /\s*[\[(](?:\d{3,4}p|fhd|uhd|4k|hd|sd|geo[\s-]?block(?:ed)?|stream\s*\d*|backup\s*\d*|mirror\s*\d*|alt\s*\d*|live|auto|main|primary)[\])]\s*/gi;
+const CHAN_SUFFIX_NORM_RE = /\s+(?:\d{3,4}p|fhd|uhd|4k|hd|sd|live|auto|main|primary)\s*$/i;
 
 function normalizeNameForDedup(name: string): string {
-  return name.replace(CHAN_NORM_RE, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  return name
+    .replace(CHAN_NORM_RE, " ")
+    .replace(CHAN_SUFFIX_NORM_RE, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 /**
