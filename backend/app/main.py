@@ -169,8 +169,8 @@ async def lifespan(app: FastAPI):
             try:
                 run_channel_health_check(
                     sample_limit=max(0, settings.stream_validation_sample_limit),
-                    max_workers=20,
-                    resync_on_dead=True,
+                    max_workers=5,
+                    resync_on_dead=False,
                 )
             except Exception:
                 logger.exception("Scheduled stream validation failed")
@@ -523,3 +523,4 @@ app.include_router(sports_tv.router, prefix=settings.api_v1_prefix)
 app.include_router(admin.router, prefix=settings.api_v1_prefix)
 app.include_router(proxy.router, prefix=settings.api_v1_prefix)
 app.include_router(aggregator.router, prefix=settings.api_v1_prefix)
+

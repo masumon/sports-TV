@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     sync_rate_limit_seconds: int = 60
     # Legacy DB M3U sync interval (admin / GET /sports-tv/channels). Viewer catalog is client-side M3U.
     # Default 0 = scheduler disabled. Set e.g. 30 only if you still rely on DB channel rows.
-    scheduled_sync_interval_minutes: int = 15
+    scheduled_sync_interval_minutes: int = 0
     # Real fixture schedule sync (OpenLigaDB + optional football-data.org). 0 = disabled.
     live_fixtures_sync_interval_minutes: int = 15
     live_fixtures_days_ahead: int = 14
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     cricapi_key: str | None = None
     # Auto-discover new M3U sources every N hours (0 = disabled).
     # Default 0: free-tier Render workers should not run discovery + sync load unless explicitly enabled.
-    source_discovery_interval_hours: int = 1
+    source_discovery_interval_hours: int = 24
     # Deactivate iptv-org channels not refreshed for this many days.
     channel_stale_days: int = 3
     # Engine pool (PostgreSQL). Neon free tier allows 25 total connections.
@@ -73,9 +73,9 @@ class Settings(BaseSettings):
     # Sample active channels and deactivate dead URLs. 0 = do not run scheduled checks.
     # When >0, runs on this interval. Was previously hardcoded to 15m whenever M3U sync was on
     # (harsh for free tier + datacenter-IP false negatives). Set e.g. 60–120 on paid/stable hosts.
-    stream_validation_interval_minutes: int = 10
+    stream_validation_interval_minutes: int = 60
     # 0 means validate all active channels in each scheduled pass.
-    stream_validation_sample_limit: int = 0
+    stream_validation_sample_limit: int = 100
 
     # Raw M3U text for GET /proxy/playlist — Redis + in-process fallback (free-tier friendly).
     # Env: PROXY_PLAYLIST_CACHE_TTL_SECONDS (default 5400 = 90 min, within 60–120m guidance).
@@ -222,3 +222,4 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
