@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
@@ -8,10 +9,17 @@ import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
 import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { MatchCard } from "@/components/matches/MatchCard";
-import { apiClient } from "@/lib/apiClient";
+import { apiClient, fetchDbChannelsForMerge } from "@/lib/apiClient";
 import { loadFullCatalogWithLive } from "@/lib/streamCatalog";
+import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
+import { mergeDbChannelsIntoViewerCatalog, viewerCatalogFromDbChannels } from "@/lib/viewerCatalogMerge";
 import { isFixtureLive } from "@/lib/matchPresentation";
 import type { Channel, LiveFixture } from "@/lib/types";
+
+const PremiumPlayer = dynamic(
+  () => import("@/components/PremiumPlayer").then((m) => m.default),
+  { ssr: false, loading: () => <div className="h-full w-full animate-pulse bg-black/80" /> },
+);
 
 export default function LivePage() {
   const router = useRouter();
@@ -39,10 +47,18 @@ export default function LivePage() {
   const loadChannels = useCallback(async () => {
     setChannelsLoading(true);
     try {
+      const db = await fetchDbChannelsForMerge({}, true).catch(() => [] as Channel[]);
+      if (db.length > 0) {
+        setChannels(
+          viewerCatalogFromDbChannels(db).filter((ch) => ch.module === "live_matches" || ch.is_active),
+        );
+        setChannelsLoading(false);
+      }
       const catalog = await loadFullCatalogWithLive();
-      setChannels(catalog.filter((ch) => ch.module === "live_matches" || ch.is_active));
+      const merged = mergeDbChannelsIntoViewerCatalog(catalog, db);
+      setChannels(merged.filter((ch) => ch.module === "live_matches" || ch.is_active));
     } catch {
-      setChannels([]);
+      /* keep DB snapshot if M3U leg fails */
     } finally {
       setChannelsLoading(false);
     }
@@ -65,6 +81,12 @@ export default function LivePage() {
   }, [loadFixtures]);
 
   const featured = fixtures[0];
+  const featuredChannel = featured?.suggested_channels?.[0];
+  const featuredPlaybackUrls = useMemo(
+    () => (featuredChannel ? orderedStreamUrlsForChannel(featuredChannel) : []),
+    [featuredChannel],
+  );
+
   const countryOptions = useMemo(
     () => [...new Set(channels.map((c) => c.country.trim()).filter(Boolean))].sort(),
     [channels],
@@ -95,7 +117,14 @@ export default function LivePage() {
           </button>
         </div>
 
-        {featured && (
+        {fixturesLoading && !featured ? (
+          <section className="space-y-3">
+            <div className="aspect-video animate-pulse rounded-2xl bg-surface-elevated" />
+            <div className="h-32 animate-pulse rounded-2xl bg-surface-elevated" />
+          </section>
+        ) : null}
+
+        {featured ? (
           <section className="space-y-3">
             <HeroVideoPlayer
               isLive
@@ -111,18 +140,35 @@ export default function LivePage() {
                 />
               }
             >
-              <div className="relative flex h-full w-full flex-col items-center justify-center gap-2 bg-black/70 px-4 text-center">
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Match preview</p>
-                <p className="text-sm text-white/80">Tap a channel below or open home to watch live TV</p>
-                {featured.thumb_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={featured.thumb_url} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-40" />
-                ) : null}
-              </div>
+              {featuredChannel && featuredPlaybackUrls.length > 0 ? (
+                <PremiumPlayer
+                  streamUrl={featuredPlaybackUrls[0] ?? featuredChannel.stream_url}
+                  streamUrls={featuredPlaybackUrls}
+                  title={`${featured.home_team} vs ${featured.away_team}`}
+                  isTheaterMode={false}
+                  onToggleTheaterMode={() => {}}
+                  headerProfile={featuredChannel.header_profile ?? null}
+                  geoHint={Boolean(featuredChannel.geo_hint)}
+                  channelLogoUrl={featuredChannel.logo_url}
+                />
+              ) : (
+                <div className="relative flex h-full w-full flex-col items-center justify-center gap-2 bg-black/70 px-4 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Match preview</p>
+                  <p className="text-sm text-white/80">Tap a channel below or open home to watch live TV</p>
+                  {featured.thumb_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={featured.thumb_url} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-40" />
+                  ) : null}
+                </div>
+              )}
             </HeroVideoPlayer>
             <MatchCard match={featured} isLive stadium={featured.league_name} format={featured.sport} />
           </section>
-        )}
+        ) : null}
+
+        {!fixturesLoading && fixtures.length === 0 && !error ? (
+          <p className="text-sm text-foreground-muted">No live matches right now. Check back soon.</p>
+        ) : null}
 
         {error && fixtures.length === 0 && (
           <button

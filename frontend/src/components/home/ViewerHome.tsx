@@ -47,7 +47,10 @@ import {
   replaceLiveMatches,
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
-import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
+import {
+  mergeDbChannelsIntoViewerCatalog,
+  viewerCatalogFromDbChannels,
+} from "@/lib/viewerCatalogMerge";
 import { useSwipeGesture } from "@/lib/useSwipeGesture";
 import { CHANNEL_GRID_INITIAL, CHANNEL_GRID_BATCH } from "@/lib/constants";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
@@ -316,6 +319,7 @@ export function ViewerHome() {
   const selectChannel = useCallback(
     (ch: Channel) => {
       startTransition(() => {
+        setActiveModule(ch.module as ViewerModule);
         setActiveChannel(ch);
       });
       setShowErrorSuggestions(false);
@@ -336,7 +340,7 @@ export function ViewerHome() {
         });
       }
     },
-    [setActiveChannel]
+    [setActiveChannel, setActiveModule]
   );
   const requestMatchNotification = useCallback(async (fx: LiveFixture) => {
     if (!("Notification" in window)) return;
@@ -398,14 +402,25 @@ export function ViewerHome() {
         setLoading(true);
       }
       setError(null);
+
+      let db: Channel[] = [];
+      try {
+        db = await fetchDbChannelsForMerge({}, !hasCache).catch(() => []);
+        if (db.length > 0) {
+          const quick = viewerCatalogFromDbChannels(db);
+          setAllChannels(quick);
+          setChannelListCache(quick);
+          if (!silent) setLoading(false);
+        }
+      } catch {
+        /* DB leg failed — fall through to full catalog attempt */
+      }
+
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          const merged = Promise.all([
-            loadFullCatalogWithLive(),
-            fetchDbChannelsForMerge({}, !hasCache).catch(() => []),
-          ]).then(([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db));
-          void merged
+          void loadFullCatalogWithLive()
+            .then((viewer) => mergeDbChannelsIntoViewerCatalog(viewer, db))
             .then((d) => {
               clearTimeout(id);
               resolve(d);
@@ -419,10 +434,15 @@ export function ViewerHome() {
         setChannelListCache(data);
         if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
       } catch (e) {
-        if (silent) return;
-        const msg = e instanceof Error ? e.message : "Load failed";
-        setError(msg);
-        toast.error(msg);
+        if (db.length > 0) {
+          if (showToast) {
+            toast.error(e instanceof Error ? e.message : "M3U refresh failed");
+          }
+        } else if (!silent) {
+          const msg = e instanceof Error ? e.message : "Load failed";
+          setError(msg);
+          toast.error(msg);
+        }
       } finally {
         if (!silent) setLoading(false);
       }
@@ -620,8 +640,10 @@ export function ViewerHome() {
       const lastCh = lastId ? allChannels.find((c) => c.id === lastId) : undefined;
       const pick =
         lastCh ??
-        allChannels.find((c) => c.module === "live_matches" && c.is_active) ??
-        allChannels.find((c) => c.module === "global_sports" && c.is_active) ??
+        allChannels.find((c) => c.module === "global_sports" && c.is_active && !c.geo_hint) ??
+        allChannels.find((c) => c.module === "bangladesh" && c.is_active && !c.geo_hint) ??
+        allChannels.find((c) => c.module === "india" && c.is_active && !c.geo_hint) ??
+        allChannels.find((c) => c.module === "live_matches" && c.is_active && !c.geo_hint) ??
         moduleChannels[0];
       if (pick) {
         startTransition(() => {

@@ -48,7 +48,7 @@ export async function fetchFanCodeM3UChannels(): Promise<Channel[]> {
       .map((e) => ({
         id: stableId(`fancode-m3u:${e.streamUrl}`),
         name: e.name.trim() || "FanCode Live",
-        country: "India",
+        country: "International",
         category: (e.groupTitle || "live").trim(),
         language: "en",
         logo_url: e.logoUrl ?? null,

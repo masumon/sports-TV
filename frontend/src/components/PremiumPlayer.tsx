@@ -173,7 +173,9 @@ function relayHlsXhrUrlIfNeeded(
   }
 }
 
+const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
+const RETRY_KEY_MIN_INTERVAL_MS = 2000;
 const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
 const recentlyFailedUrlUntil = new Map<string, number>();
 
@@ -254,6 +256,10 @@ export default function PremiumPlayer({
   const dashRef = useRef<ReturnType<ReturnType<typeof dashjs.MediaPlayer>["create"]> | null>(null);
   /** After first `playing`, do not show the full-screen loader on routine rebuffering. */
   const playbackStartedRef = useRef(false);
+  const loadGenRef = useRef(0);
+  const lastRetryAtRef = useRef(0);
+  const retryPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stablePlaybackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -264,6 +270,7 @@ export default function PremiumPlayer({
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [bufferedPct, setBufferedPct] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [everPlayed, setEverPlayed] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [serverWaking, setServerWaking] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -315,6 +322,17 @@ export default function PremiumPlayer({
   const [streamResolution, setStreamResolution] = useState("—");
   const [streamCodec, setStreamCodec] = useState("HLS");
   const lastTapRef = useRef(0);
+
+  const scheduleRetryKey = useCallback(() => {
+    if (retryPendingRef.current) clearTimeout(retryPendingRef.current);
+    const elapsed = Date.now() - lastRetryAtRef.current;
+    const delay = Math.max(300, elapsed >= RETRY_KEY_MIN_INTERVAL_MS ? 300 : RETRY_KEY_MIN_INTERVAL_MS - elapsed);
+    retryPendingRef.current = setTimeout(() => {
+      retryPendingRef.current = null;
+      lastRetryAtRef.current = Date.now();
+      setRetryKey((k) => k + 1);
+    }, delay);
+  }, []);
 
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
@@ -375,15 +393,12 @@ export default function PremiumPlayer({
   }, [dataSaver]);
 
   useEffect(() => {
-    if (isPlaying) warmBackupStreams(allUrlsList, urlIdx);
-  }, [isPlaying, allUrlsList, urlIdx]);
-
-  useEffect(() => {
     urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setIsSwitching(false);
     setGeoRestricted(false);
     setServerWaking(false);
+    setEverPlayed(false);
     linkRetryRef.current = 0;
     hlsRecoveryRef.current = 0;
     firstHideDoneRef.current = false;
@@ -393,6 +408,14 @@ export default function PremiumPlayer({
     if (linkRetryTimerRef.current) {
       clearTimeout(linkRetryTimerRef.current);
       linkRetryTimerRef.current = null;
+    }
+    if (retryPendingRef.current) {
+      clearTimeout(retryPendingRef.current);
+      retryPendingRef.current = null;
+    }
+    if (stablePlaybackTimerRef.current) {
+      clearTimeout(stablePlaybackTimerRef.current);
+      stablePlaybackTimerRef.current = null;
     }
   }, [streamIdentity]);
 
@@ -419,7 +442,13 @@ export default function PremiumPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    const loadGen = ++loadGenRef.current;
     const cleanup = () => {
+      try {
+        video.pause();
+      } catch {
+        /* */
+      }
       healthTrackerRef.current?.destroy();
       healthTrackerRef.current = null;
       const hls = hlsRef.current;
@@ -482,8 +511,7 @@ export default function PremiumPlayer({
           setUrlIdx(nextIdx);
           setIsSwitching(true);
           setIsLoading(true);
-          /* dash.js typings omit in-place source swap; remount via retryKey like HLS destroy path */
-          setRetryKey((k) => k + 1);
+          scheduleRetryKey();
         } else {
           setIsSwitching(false);
           setHasError(true);
@@ -537,11 +565,21 @@ export default function PremiumPlayer({
               linkRetryTimerRef.current = setTimeout(() => {
                 linkRetryTimerRef.current = null;
                 setServerWaking(false);
-                setRetryKey((k) => k + 1);
+                if (loadGen === loadGenRef.current) scheduleRetryKey();
               }, 8000);
               return;
             }
             setServerWaking(false);
+            if (xhr.status === 403 || xhr.status === 401) {
+              if (tryFailover()) {
+                setGeoRestricted(false);
+                return;
+              }
+              setGeoRestricted(true);
+              setIsLoading(false);
+              setIsSwitching(false);
+              return;
+            }
             if (xhr.status >= 500 || xhr.status === 429) {
               if (tryFailover()) return;
               setIsLoading(false);
@@ -550,16 +588,17 @@ export default function PremiumPlayer({
               if (hlsRef.current === hlsInstance) hlsRef.current = null;
               return;
             }
-            if (!parseGeoFromXhr(xhr)) return;
-            if (tryFailover()) {
-              setGeoRestricted(false);
-              return;
+            if (parseGeoFromXhr(xhr)) {
+              if (tryFailover()) {
+                setGeoRestricted(false);
+                return;
+              }
+              setGeoRestricted(true);
+              setIsLoading(false);
+              setIsSwitching(false);
+              hlsInstance?.destroy();
+              if (hlsRef.current === hlsInstance) hlsRef.current = null;
             }
-            setGeoRestricted(true);
-            setIsLoading(false);
-            setIsSwitching(false);
-            hlsInstance?.destroy();
-            if (hlsRef.current === hlsInstance) hlsRef.current = null;
           };
           xhr.addEventListener("loadend", onEnd);
         },
@@ -577,6 +616,7 @@ export default function PremiumPlayer({
         setIsSwitching(true);
         setIsLoading(true);
         try {
+          hls.stopLoad();
           hls.loadSource(allUrls[nextIdx]!);
           hls.startLoad(-1);
         } catch {
@@ -645,7 +685,7 @@ export default function PremiumPlayer({
             if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
             linkRetryTimerRef.current = setTimeout(() => {
               linkRetryTimerRef.current = null;
-              setRetryKey((k) => k + 1);
+              if (loadGen === loadGenRef.current) scheduleRetryKey();
             }, linkRetryDelayMs(retries));
             return;
           }
@@ -719,7 +759,7 @@ export default function PremiumPlayer({
     }
 
     return cleanup;
-  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile, dataSaver, lowLatencyMode, isMobilePlayer]);
+  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile, isMobilePlayer, scheduleRetryKey]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -735,7 +775,7 @@ export default function PremiumPlayer({
         stallCountRef.current += 1;
         if (stallCountRef.current >= 4) {
           stallCountRef.current = 0;
-          setRetryKey((k) => k + 1);
+          scheduleRetryKey();
         }
         return;
       }
@@ -743,13 +783,18 @@ export default function PremiumPlayer({
     };
     const onPlaying = () => {
       playbackStartedRef.current = true;
+      setEverPlayed(true);
       autoRetryCountRef.current = 0;
       stallCountRef.current = 0;
       hlsRecoveryRef.current = 0;
       healthTrackerRef.current?.recordPlaying();
       setIsLoading(false);
       setHasError(false);
-      warmBackupStreams(allUrlsList, urlIdx);
+      if (stablePlaybackTimerRef.current) clearTimeout(stablePlaybackTimerRef.current);
+      stablePlaybackTimerRef.current = setTimeout(() => {
+        stablePlaybackTimerRef.current = null;
+        warmBackupStreams(allUrlsList, urlIdx);
+      }, 10_000);
     };
     const onCanPlay = () => setIsLoading(false);
     const onError = () => { setHasError(true); setIsLoading(false); };
@@ -797,7 +842,7 @@ export default function PremiumPlayer({
       video.removeEventListener("enterpictureinpicture", onEnterPiP);
       video.removeEventListener("leavepictureinpicture", onLeavePiP);
     };
-  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx]);
+  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey]);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -945,6 +990,8 @@ export default function PremiumPlayer({
     () => () => {
       tryUnlockPlaybackOrientation();
       clearHideTimer();
+      if (retryPendingRef.current) clearTimeout(retryPendingRef.current);
+      if (stablePlaybackTimerRef.current) clearTimeout(stablePlaybackTimerRef.current);
       healthTrackerRef.current?.destroy();
       healthTrackerRef.current = null;
       const hls = hlsRef.current;
@@ -1362,7 +1409,7 @@ export default function PremiumPlayer({
                 {title || "ABO SPORTS TV"}
               </p>
               <p className="text-[11px] font-medium tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.75)" }}>
-                {serverWaking ? "Server জাগছে… একটু অপেক্ষা করুন" : RECONNECT_MSG}
+                {serverWaking ? "Server জাগছে… একটু অপেক্ষা করুন" : everPlayed ? RECONNECT_MSG : LOADING_MSG}
               </p>
             </div>
 

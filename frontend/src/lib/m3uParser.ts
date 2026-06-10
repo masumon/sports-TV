@@ -42,7 +42,45 @@ function parseExtHttp(line: string): { userAgent: string | null; referer: string
   }
 }
 
-/** Parse standard IPTV M3U / M3U8 playlist text into channel rows. */
+/** Reject titles polluted by malformed EXTINF metadata (user-agent strings, etc.). */
+function isValidChannelName(name: string): boolean {
+  const t = name.trim();
+  if (!t || t.length > 200) return false;
+  const lower = t.toLowerCase();
+  if (
+    lower.includes("mozilla/") ||
+    lower.includes("like gecko") ||
+    lower.includes("chrome/") ||
+    lower.includes("safari/") ||
+    lower.includes("user-agent") ||
+    lower.includes("group-title=")
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Pull a clean title from a messy EXTINF tail (malformed attribute blobs). */
+function sanitizeExtInfTitle(rawTitle: string, parsedGroup: string | null): string {
+  let title = rawTitle.trim();
+  if (!title) return "Unknown";
+
+  const groupMatch = title.match(/group-title="([^"]*)"\s*,\s*(.+)$/i);
+  if (groupMatch?.[2]) title = groupMatch[2].trim();
+
+  const lastComma = title.lastIndexOf(",");
+  if (lastComma > 0 && (title.includes("http-") || title.includes('="'))) {
+    const after = title.slice(lastComma + 1).trim();
+    if (after && !after.includes('="')) title = after;
+  }
+
+  if (!isValidChannelName(title) && parsedGroup) {
+    const fromGroup = parsedGroup.split(";")[0]?.trim();
+    if (fromGroup && isValidChannelName(fromGroup)) return fromGroup;
+  }
+
+  return isValidChannelName(title) ? title : "";
+}
 export function parseM3UPlaylist(text: string): ParsedM3UEntry[] {
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
   const out: ParsedM3UEntry[] = [];
@@ -66,7 +104,12 @@ export function parseM3UPlaylist(text: string): ParsedM3UEntry[] {
       const metaMatch = meta.match(/^(-?\d+)\s*(.*)$/);
       const attrStr = metaMatch?.[2]?.trim() ?? "";
       const { logo, group } = parseAttrString(attrStr);
-      pending = { name: title || "Unknown", logo, group, userAgent: null, referer: null };
+      const cleanTitle = sanitizeExtInfTitle(title || "Unknown", group);
+      if (!cleanTitle) {
+        pending = null;
+        continue;
+      }
+      pending = { name: cleanTitle, logo, group, userAgent: null, referer: null };
       continue;
     }
 
