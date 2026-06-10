@@ -81,7 +81,28 @@ export default function MatchDetailPage() {
           </h1>
           <p className="mt-2 text-sm text-foreground-secondary">{kickoff}</p>
           <p className="text-sm text-foreground-muted">{fixture.league_name}</p>
+          <p className="mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)" }}>
+            Status: {fixture.status || "Scheduled"}
+          </p>
         </header>
+
+        {fixture.suggested_channels.length > 0 && (
+          <div className="rounded-2xl border border-border-subtle bg-surface-secondary p-4">
+            <p className="mb-3 text-sm font-semibold text-foreground">Watch on TV</p>
+            <div className="flex flex-wrap gap-2">
+              {fixture.suggested_channels.map((ch) => (
+                <Link
+                  key={ch.id}
+                  href={`/?channel_id=${ch.id}`}
+                  className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                  style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
+                >
+                  {ch.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         <HeadToHead
           homeTeam={fixture.home_team}

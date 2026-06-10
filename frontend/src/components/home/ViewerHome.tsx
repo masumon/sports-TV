@@ -34,6 +34,7 @@ import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { isFixtureLive } from "@/lib/matchPresentation";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
+import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
 import { fetchAllChannels, apiClient } from "@/lib/apiClient";
 import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
@@ -251,6 +252,7 @@ export function ViewerHome() {
   const [scheduleFixtures, setScheduleFixtures] = useState<LiveFixture[]>([]);
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
+  const [fixturesLoadError, setFixturesLoadError] = useState(false);
   const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
   const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
   const [fixturesSince, setFixturesSince] = useState(0);
@@ -463,31 +465,30 @@ export function ViewerHome() {
 
   const loadFixturesSchedule = useCallback(async () => {
     setFixturesLoading(true);
+    setFixturesLoadError(false);
     try {
       const res = await apiClient.getLiveFixtures({ hours_back: 6, days_ahead: 14 });
       setScheduleFixtures(res.items);
       setScheduleUpdated(res.updated_hint ?? null);
     } catch {
       setScheduleFixtures([]);
+      setFixturesLoadError(true);
     } finally {
       setFixturesLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
     void loadFixturesSchedule();
-  }, [activeModule, loadFixturesSchedule]);
+  }, [loadFixturesSchedule]);
 
-  // Poll every 90 seconds so live scores/statuses feel real-time.
-  // Skip fetch when the tab is hidden — saves battery and bandwidth on mobile.
+  // Poll every 90s when tab visible — keeps live/upcoming status fresh on home dashboard.
   useEffect(() => {
-    if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
     const id = setInterval(() => {
       if (!document.hidden) void loadFixturesSchedule();
     }, 90_000);
     return () => clearInterval(id);
-  }, [activeModule, loadFixturesSchedule]);
+  }, [loadFixturesSchedule]);
 
   // Count seconds since last fixtures refresh (for "last updated X sec ago" badge)
   useEffect(() => {
@@ -967,6 +968,18 @@ export function ViewerHome() {
     [scheduleFixtures],
   );
 
+  const dashboardFeatured = useMemo(
+    () => scheduleGroups.live[0] ?? scheduleGroups.upcoming[0] ?? null,
+    [scheduleGroups],
+  );
+
+  const popularSportsChannels = useMemo(() => {
+    if (activeModule === "bangladesh") return bdPopularChannels;
+    return [...allChannels]
+      .filter((c) => c.module === "global_sports" || c.category.toLowerCase().includes("sport"))
+      .slice(0, 12);
+  }, [activeModule, bdPopularChannels, allChannels]);
+
   // Swipe gesture: left/right to cycle modules
   const swipeContainerRef = useRef<HTMLDivElement | null>(null);
   const onSwipe = useCallback((dir: "left" | "right" | "up" | "down") => {
@@ -1043,6 +1056,28 @@ export function ViewerHome() {
           activeCategory={activeModule}
           onChange={(id) => transitionSetActiveModule(id as ViewerModule)}
         />
+
+        {activeModule !== "live_matches" && activeModule !== "world_cup_2026" && (
+          <HomeSportsDashboard
+            live={scheduleGroups.live}
+            upcoming={scheduleGroups.upcoming}
+            featured={dashboardFeatured}
+            popularChannels={popularSportsChannels}
+            continueWatching={recentChannelObjects}
+            countryModules={moduleCategoryTabs.map((t) => ({
+              id: t.id as ViewerModule,
+              label: t.label,
+              icon: t.icon,
+              count: t.count,
+            }))}
+            fixturesLoading={fixturesLoading}
+            fixturesError={fixturesLoadError}
+            onSelectChannel={selectChannel}
+            onSelectModule={transitionSetActiveModule}
+            onOpenLiveCenter={() => transitionSetActiveModule("live_matches")}
+            onRefreshFixtures={() => void loadFixturesSchedule()}
+          />
+        )}
 
         {/* ── Live Matches: full premium standalone view ── */}
         {activeModule === "live_matches" && (
