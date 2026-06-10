@@ -2034,8 +2034,8 @@ export function ViewerHome() {
           </div>
         )}
 
-        {/* ── Recently Watched ── */}
-        {recentChannelObjects.length > 0 && (
+        {/* ── Recently Watched (dashboard modules use Continue Watching instead) ── */}
+        {recentChannelObjects.length > 0 && activeModule === "world_cup_2026" && (
           <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="flex items-center gap-2">
