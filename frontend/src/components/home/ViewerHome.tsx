@@ -984,14 +984,6 @@ export function ViewerHome() {
       .slice(0, 12);
   }, [allChannels, scheduleGroups.live]);
 
-  const recommendedChannels = useMemo(() => {
-    const seen = new Set(recentlyWatched);
-    return [...allChannels]
-      .filter((c) => c.is_active && !seen.has(c.id))
-      .filter((c) => c.module === activeModule || c.module === "global_sports")
-      .slice(0, 12);
-  }, [allChannels, recentlyWatched, activeModule]);
-
   // Swipe gesture: left/right to cycle modules
   const swipeContainerRef = useRef<HTMLDivElement | null>(null);
   const onSwipe = useCallback((dir: "left" | "right" | "up" | "down") => {
@@ -1066,20 +1058,191 @@ export function ViewerHome() {
           onChange={(id) => transitionSetActiveModule(id as ViewerModule)}
         />
 
+        {/* ── Live Player (first content section) ── */}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
+          <section ref={playerSectionRef} className="min-w-0 md:col-span-7 lg:col-span-8">
+            {activeChannel && (
+              <button
+                type="button"
+                onClick={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
+                className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
+              </button>
+            )}
+            <HeroVideoPlayer
+              isLive={Boolean(activeChannel)}
+              title={activeChannel?.name ?? t("noChannel")}
+              overlay={
+                featuredLiveFixture && isFixtureLive(featuredLiveFixture) ? (
+                  <LiveStatsOverlay
+                    homeTeam={featuredLiveFixture.home_team}
+                    awayTeam={featuredLiveFixture.away_team}
+                    period={featuredLiveFixture.status}
+                    venue={featuredLiveFixture.league_name}
+                    format={featuredLiveFixture.sport}
+                    series={featuredLiveFixture.league_name}
+                  />
+                ) : undefined
+              }
+            >
+              {activeChannel ? (
+                <PremiumPlayer
+                  streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
+                  streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
+                  alternateUrls={[]}
+                  title={activeChannel.name}
+                  isTheaterMode={isTheaterMode}
+                  onToggleTheaterMode={toggleTheaterMode}
+                  headerProfile={activeChannel.header_profile ?? null}
+                  geoHint={Boolean(activeChannel.geo_hint)}
+                  channelLogoUrl={activeChannel.logo_url}
+                  onStreamError={() => setShowErrorSuggestions(true)}
+                />
+              ) : null}
+            </HeroVideoPlayer>
+
+            {activeChannel && (
+              <div
+                key={activeChannel.id}
+                className="mt-2 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {activeChannel.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={activeChannel.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white sm:h-10 sm:w-10" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                  ) : (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white sm:h-10 sm:w-10" style={{ background: "var(--primary-accent)" }}>
+                      {activeChannel.name.slice(0, 1)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
+                    <p className="truncate text-sm font-bold leading-tight" style={{ color: "var(--text-main)" }}>{activeChannel.name}</p>
+                    <p className="truncate text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      {flagFromCountryName(activeChannel.country)} {activeChannel.country} · {activeChannel.quality_tag.toUpperCase()}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
+                      <span className="pulse-dot" style={{ width: 5, height: 5 }} /> LIVE
+                    </span>
+                    <button
+                      type="button"
+                      title={t("shareChannel")}
+                      onClick={async () => {
+                        if (!activeChannel) return;
+                        const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
+                        try {
+                          if (navigator.share) {
+                            await navigator.share({ title: activeChannel.name, url });
+                            toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
+                          } else {
+                            await navigator.clipboard.writeText(url);
+                            toast.success(`🔗 ${t("shareCopied")}`);
+                          }
+                        } catch { /* user cancelled */ }
+                      }}
+                      className="flex items-center justify-center gap-1 rounded-full p-1.5 text-xs font-semibold transition hover:opacity-80 sm:gap-1.5 sm:px-2.5 sm:py-1"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                      aria-label={t("shareChannel")}
+                    >
+                      <Share2 size={12} />
+                      <span className="hidden sm:inline">{t("shareChannel")}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showErrorSuggestions && activeChannel && filtered.length > 1 && (
+              <div className="mt-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <p className="mb-2 text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>অন্য চ্যানেল চেষ্টা করুন:</p>
+                <div className="flex flex-wrap gap-2">
+                  {filtered.filter((c) => c.id !== activeChannel.id).slice(0, 4).map((ch) => (
+                    <button key={ch.id} type="button"
+                      onClick={() => { selectChannel(ch); setShowErrorSuggestions(false); }}
+                      className="rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
+                      style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}>
+                      {ch.name.slice(0, 20)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <aside className="flex min-w-0 flex-col gap-3 md:col-span-5 lg:col-span-4">
+            {tier === "free" && <AdSlot variant="inline" />}
+            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("quickPicks")}</h2>
+                  <span className="text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
+                </div>
+              </div>
+              <div
+                className="max-h-[min(40dvh,22rem)] overflow-y-auto overscroll-y-contain divide-y md:max-h-[min(52dvh,26rem)] lg:max-h-[26.25rem]"
+                style={{ borderColor: "var(--border)" }}
+              >
+                {loading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
+                      <div className="h-9 w-9 rounded-lg" style={{ background: "var(--bg-hover)" }} />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 w-2/3 rounded" style={{ background: "var(--bg-hover)" }} />
+                        <div className="h-2.5 w-1/2 rounded" style={{ background: "var(--bg-hover)" }} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  filtered.slice(0, 12).map((ch) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => selectChannel(ch)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
+                      style={{
+                        background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
+                        borderLeft: activeChannel?.id === ch.id ? "3px solid var(--primary-accent)" : "3px solid transparent",
+                      }}
+                    >
+                      {ch.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      ) : (
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: "var(--bg-hover)" }}>
+                          {ch.name.slice(0, 1)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium" style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }} title={ch.name}>
+                          {ch.name}
+                        </p>
+                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                          {flagFromCountryName(ch.country)} {ch.country}
+                        </p>
+                      </div>
+                      {activeChannel?.id === ch.id && <span className="pulse-dot shrink-0" />}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+
         {activeModule !== "live_matches" && activeModule !== "world_cup_2026" && (
           <HomeSportsDashboard
             live={scheduleGroups.live}
             upcoming={scheduleGroups.upcoming}
-            recentResults={scheduleGroups.recentResults}
             featured={dashboardFeatured}
             totalChannels={allChannels.length}
-            watchingNow={activeChannel ? 1 : 0}
-            popularChannels={popularSportsChannels}
             continueWatching={recentChannelObjects}
-            favorites={favoriteChannelObjects}
             trendingChannels={trendingChannels.length ? trendingChannels : popularSportsChannels}
             recentlyWatched={recentChannelObjects}
-            recommendedChannels={recommendedChannels.length ? recommendedChannels : popularSportsChannels}
             countryModules={moduleCategoryTabs.map((t) => ({
               id: t.id as ViewerModule,
               label: t.label,
@@ -1795,224 +1958,6 @@ export function ViewerHome() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-
-        {/* ── Main grid: player + channel list ── */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
-
-          {/* Player — hidden on mobile until a channel is selected */}
-          <section ref={playerSectionRef} className={`min-w-0 md:col-span-7 lg:col-span-8 ${!activeChannel ? "hidden md:block" : ""}`}>
-            {/* Mobile back button */}
-            {activeChannel && (
-              <button
-                type="button"
-                onClick={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
-                className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
-              </button>
-            )}
-            <HeroVideoPlayer
-              isLive={Boolean(activeChannel)}
-              title={activeChannel?.name ?? t("noChannel")}
-              overlay={
-                featuredLiveFixture ? (
-                  <LiveStatsOverlay
-                    homeTeam={featuredLiveFixture.home_team}
-                    awayTeam={featuredLiveFixture.away_team}
-                    period={featuredLiveFixture.status}
-                    venue={featuredLiveFixture.league_name}
-                    format={featuredLiveFixture.sport}
-                    series={featuredLiveFixture.league_name}
-                  />
-                ) : undefined
-              }
-            >
-              {activeChannel ? (
-                <PremiumPlayer
-                  streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
-                  streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                  alternateUrls={[]}
-                  title={activeChannel.name}
-                  isTheaterMode={isTheaterMode}
-                  onToggleTheaterMode={toggleTheaterMode}
-                  headerProfile={activeChannel.header_profile ?? null}
-                  geoHint={Boolean(activeChannel.geo_hint)}
-                  channelLogoUrl={activeChannel.logo_url}
-                  onStreamError={() => setShowErrorSuggestions(true)}
-                />
-              ) : null}
-            </HeroVideoPlayer>
-
-            {/* Now playing info strip */}
-            {activeChannel && (
-              <div
-                key={activeChannel.id}
-                className="mt-2 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  {/* Logo */}
-                  {activeChannel.logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={activeChannel.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white sm:h-10 sm:w-10" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                  ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white sm:h-10 sm:w-10" style={{ background: "var(--primary-accent)" }}>
-                      {activeChannel.name.slice(0, 1)}
-                    </div>
-                  )}
-                  {/* Channel info */}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
-                    <p className="truncate text-sm font-bold leading-tight" style={{ color: "var(--text-main)" }}>{activeChannel.name}</p>
-                    <p className="truncate text-[10px]" style={{ color: "var(--text-muted)" }}>
-                      {flagFromCountryName(activeChannel.country)} {activeChannel.country} · {activeChannel.quality_tag.toUpperCase()}
-                    </p>
-                  </div>
-                  {/* Actions — LIVE badge + share */}
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
-                      <span className="pulse-dot" style={{ width: 5, height: 5 }} /> LIVE
-                    </span>
-                    <button
-                      type="button"
-                      title={t("shareChannel")}
-                      onClick={async () => {
-                        if (!activeChannel) return;
-                        const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
-                        try {
-                          if (navigator.share) {
-                            await navigator.share({ title: activeChannel.name, url });
-                            toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
-                          } else {
-                            await navigator.clipboard.writeText(url);
-                            toast.success(`🔗 ${t("shareCopied")}`);
-                          }
-                        } catch { /* user cancelled or no clipboard */ }
-                      }}
-                      className="flex items-center justify-center gap-1 rounded-full p-1.5 text-xs font-semibold transition hover:opacity-80 sm:gap-1.5 sm:px-2.5 sm:py-1"
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
-                      aria-label={t("shareChannel")}
-                    >
-                      <Share2 size={12} />
-                      <span className="hidden sm:inline">{t("shareChannel")}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {showErrorSuggestions && activeChannel && filtered.length > 1 && (
-              <div className="mt-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                <p className="mb-2 text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>অন্য চ্যানেল চেষ্টা করুন:</p>
-                <div className="flex flex-wrap gap-2">
-                  {filtered.filter((c) => c.id !== activeChannel.id).slice(0, 4).map((ch) => (
-                    <button key={ch.id} type="button"
-                      onClick={() => { selectChannel(ch); setShowErrorSuggestions(false); }}
-                      className="rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
-                      style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}>
-                      {ch.name.slice(0, 20)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-          </section>
-
-          {/* Sidebar: upcoming channels */}
-          <aside className="flex min-w-0 flex-col gap-3 md:col-span-5 lg:col-span-4">
-            {tier === "free" && <AdSlot variant="inline" />}
-
-            {/* Featured channels quick list */}
-            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("quickPicks")}</h2>
-                  <span className="text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
-                </div>
-                <p className="mt-0.5 text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>{t("quickPicksHint")}</p>
-                {!loading && (
-                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
-                    <span>
-                      {t("showingFirst")} {Math.min(12, filtered.length)} {t("ofTotal")} {filtered.length}
-                    </span>
-                    {filtered.length > 12 && (
-                      <button
-                        type="button"
-                        onClick={() => document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                        className="font-semibold transition hover:underline"
-                        style={{ color: "var(--primary-accent)" }}
-                      >
-                        {t("scrollToGrid")} ↓
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div
-                className="max-h-[min(50dvh,26rem)] overflow-y-auto overscroll-y-contain divide-y sm:max-h-[min(55dvh,28rem)] md:max-h-[min(52dvh,26rem)] lg:max-h-[26.25rem]"
-                style={{ borderColor: "var(--border)" }}
-              >
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
-                      <div className="h-9 w-9 rounded-lg" style={{ background: "var(--bg-hover)" }} />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3 w-2/3 rounded" style={{ background: "var(--bg-hover)" }} />
-                        <div className="h-2.5 w-1/2 rounded" style={{ background: "var(--bg-hover)" }} />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  filtered.slice(0, 12).map((ch) => (
-                    <button
-                      key={ch.id}
-                      type="button"
-                      onClick={() => {
-                        selectChannel(ch);
-                      }}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
-                      style={{
-                        background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
-                        borderLeft: activeChannel?.id === ch.id ? "3px solid var(--primary-accent)" : "3px solid transparent",
-                      }}
-                    >
-                      {ch.logo_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                      ) : (
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: "var(--bg-hover)" }}>
-                          {ch.name.slice(0, 1)}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className="truncate text-sm font-medium"
-                          style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }}
-                          title={ch.name}
-                        >
-                          {ch.name}
-                        </p>
-                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${ch.country} · ${ch.language}`}>
-                          {flagFromCountryName(ch.country)} {ch.country} · {ch.language} · {ch.quality_tag.toUpperCase()}
-                        </p>
-                      </div>
-                      {activeChannel?.id === ch.id && (
-                        <span className="pulse-dot shrink-0" />
-                      )}
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Install hint */}
-            <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
-              {t("installHint")}
-            </p>
-          </aside>
         </div>
 
         {/* ── Favorites ── */}

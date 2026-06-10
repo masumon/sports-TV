@@ -282,11 +282,14 @@ a {
 }
 
 .glass-player-bar {
-  background: rgba(20, 20, 30, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
-  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.55), 0 0 24px rgba(245, 197, 24, 0.04);
+  background: rgba(12, 14, 22, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 -4px 32px rgba(0, 0, 0, 0.55),
+    0 0 28px rgba(245, 197, 24, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 /* ── Premium UI utilities (Task 1) ── */
@@ -618,10 +621,13 @@ html.light .quality-select {
   align-items: center;
   gap: var(--space-2);
   overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 2px;
+  padding: 2px 2px 4px;
+  mask-image: linear-gradient(to right, #000 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 92%, transparent);
 }
 
 .cat-tab {

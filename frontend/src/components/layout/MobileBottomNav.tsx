@@ -93,13 +93,15 @@ export function MobileBottomNav() {
                   height: "2rem",
                   background: active ? tab.activeBg : (isMore && moreOpen ? "rgba(255,255,255,0.08)" : "transparent"),
                   boxShadow: active ? tab.glow : "none",
+                  outline: active ? `1.5px solid ${tab.activeColor}` : "none",
+                  outlineOffset: active ? 1 : 0,
                 }}
               >
-                <Icon size={20} strokeWidth={active ? 2.5 : 2} aria-hidden />
+                <Icon size={20} strokeWidth={active ? 2.75 : 2} aria-hidden />
               </div>
               <span
                 className="max-w-[3.2rem] truncate text-[8px] leading-none tracking-wide font-bengali"
-                style={{ fontWeight: active ? 800 : 500 }}
+                style={{ fontWeight: active ? 900 : 500 }}
               >
                 {tab.label}
               </span>

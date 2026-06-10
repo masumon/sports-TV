@@ -7,6 +7,7 @@ import {
   Zap, Flame, Trophy,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
+import { APP_META, LEGAL_LINKS } from "@/lib/constants";
 import { useUiStore } from "@/store/uiStore";
 
 const SPORTS_CATEGORIES = [
@@ -323,8 +324,15 @@ export function Sidebar() {
             ABO ENTERPRISE
           </a>
           <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>
-            SUMONIX AI · © 2026
+            v{APP_META.version} · Build {APP_META.build}
           </p>
+          <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>
+            {APP_META.developer} · {APP_META.copyright}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-[9px] font-semibold">
+            <a href={LEGAL_LINKS.privacy} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Privacy</a>
+            <a href={LEGAL_LINKS.terms} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Terms</a>
+          </div>
         </div>
       </aside>
     </>

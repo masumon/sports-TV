@@ -28,10 +28,10 @@ export function CategoryTabs({ tabs, activeCategory, onChange, className }: Cate
           onClick={() => onChange(tab.id)}
           icon={tab.icon ? <span aria-hidden>{tab.icon}</span> : undefined}
         >
-          {tab.label}
+          <span className="font-semibold">{tab.label}</span>
           {tab.count != null && tab.count > 0 ? (
-            <span className="ml-1 rounded-full bg-black/25 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
-              {tab.count > 9999 ? "9999+" : tab.count}
+            <span className="ml-0.5 text-[9px] font-medium tabular-nums opacity-70">
+              ({tab.count > 9999 ? "9999+" : tab.count})
             </span>
           ) : null}
         </PillTab>
