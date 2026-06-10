@@ -9,10 +9,11 @@ import {
   Tv2,
   ChevronRight,
   Star,
-  X,
   Share2,
   Clock,
   AlertTriangle,
+  Search,
+  Radio,
 } from "lucide-react";
 import {
   startTransition,
@@ -31,7 +32,7 @@ import { CategoryTabs } from "@/components/home/CategoryTabs";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
 import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
-import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
+import { CategorySkeletonRow, ChannelSkeletonGrid, PlayerSkeleton } from "@/components/ui/ChannelSkeleton";
 import { isFixtureLive, groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
@@ -257,16 +258,13 @@ export function ViewerHome() {
   const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [coldStart, setColdStart] = useState(false);
-  const [coldStartDismissed, setColdStartDismissed] = useState(false);
-  const coldStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [coldStartSeconds, setColdStartSeconds] = useState(0);
-  const coldStartCounterRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
+  const launchRestoreDoneRef = useRef(false);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
   const setSearchSuggestions = useUiStore((s) => s.setSearchSuggestions);
+  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
 
   const activeChannel = usePlayerStore((state) => state.activeChannel);
   const isTheaterMode = usePlayerStore((state) => state.isTheaterMode);
@@ -389,28 +387,6 @@ export function ViewerHome() {
         setLoading(true);
       }
       setError(null);
-      // Cold-start detection: if backend takes > 3s, show wakeup banner
-      if (!silent) {
-        setColdStartDismissed(false);
-        setColdStart(false);
-        setColdStartSeconds(0);
-        if (coldStartTimerRef.current) {
-          clearTimeout(coldStartTimerRef.current);
-          coldStartTimerRef.current = null;
-        }
-        if (coldStartCounterRef.current) {
-          clearInterval(coldStartCounterRef.current);
-          coldStartCounterRef.current = null;
-        }
-        coldStartTimerRef.current = setTimeout(() => {
-          setColdStart(true);
-          setColdStartSeconds(0);
-          if (coldStartCounterRef.current) clearInterval(coldStartCounterRef.current);
-          coldStartCounterRef.current = setInterval(() => {
-            setColdStartSeconds((s) => s + 1);
-          }, 1000);
-        }, 3000);
-      }
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
@@ -437,16 +413,7 @@ export function ViewerHome() {
         setError(msg);
         toast.error(msg);
       } finally {
-        if (!silent) {
-          setLoading(false);
-          setColdStart(false);
-          setColdStartSeconds(0);
-          if (coldStartTimerRef.current) clearTimeout(coldStartTimerRef.current);
-          if (coldStartCounterRef.current) {
-            clearInterval(coldStartCounterRef.current);
-            coldStartCounterRef.current = null;
-          }
-        }
+        if (!silent) setLoading(false);
       }
     },
     [t]
@@ -558,17 +525,6 @@ export function ViewerHome() {
     return () => clearInterval(id);
   }, [refreshLiveMatchesOnly]);
 
-  useEffect(() => {
-    return () => {
-      if (coldStartTimerRef.current) {
-        clearTimeout(coldStartTimerRef.current);
-      }
-      if (coldStartCounterRef.current) {
-        clearInterval(coldStartCounterRef.current);
-      }
-    };
-  }, []);
-
   // Deep link: /?module=…
   const qParam = searchParams.get("q")?.trim() ?? "";
   useEffect(() => {
@@ -629,22 +585,60 @@ export function ViewerHome() {
     [allChannels, activeModule]
   );
 
-  // Auto-select first channel of active module; clear selection if this module has no rows (e.g. India not synced)
+  // Launch: restore last channel or featured live; then module-aware selection
   useEffect(() => {
-    if (moduleChannels.length === 0) {
-      if (activeChannel && activeChannel.module !== activeModule) {
+    if (loading || !allChannels.length || channelIdParam) return;
+
+    if (!launchRestoreDoneRef.current) {
+      launchRestoreDoneRef.current = true;
+      let lastId: number | undefined = recentlyWatched[0];
+      if (!lastId) {
+        try {
+          const stored = localStorage.getItem("gstv-recently-watched");
+          if (stored) {
+            const parsed: unknown = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+              const found = parsed.find((x): x is number => typeof x === "number");
+              if (typeof found === "number") lastId = found;
+            }
+          }
+        } catch { /* */ }
+      }
+      const lastCh = lastId ? allChannels.find((c) => c.id === lastId) : undefined;
+      const pick =
+        lastCh ??
+        allChannels.find((c) => c.module === "live_matches" && c.is_active) ??
+        allChannels.find((c) => c.module === "global_sports" && c.is_active) ??
+        moduleChannels[0];
+      if (pick) {
         startTransition(() => {
-          setActiveChannel(null);
+          setActiveModule(pick.module as ViewerModule);
+          setActiveChannel(pick);
         });
       }
       return;
     }
-    if (!activeChannel || activeChannel.module !== activeModule) {
-      startTransition(() => {
-        setActiveChannel(moduleChannels[0]!);
-      });
+
+    if (moduleChannels.length === 0) {
+      if (activeChannel && activeChannel.module !== activeModule) {
+        startTransition(() => setActiveChannel(null));
+      }
+      return;
     }
-  }, [moduleChannels, activeModule, activeChannel, setActiveChannel]);
+    if (!activeChannel || activeChannel.module !== activeModule) {
+      startTransition(() => setActiveChannel(moduleChannels[0]!));
+    }
+  }, [
+    loading,
+    allChannels,
+    channelIdParam,
+    recentlyWatched,
+    moduleChannels,
+    activeModule,
+    activeChannel,
+    setActiveChannel,
+    setActiveModule,
+  ]);
 
   const filtered = useMemo(() => {
     let list = moduleChannels;
@@ -1004,53 +998,6 @@ export function ViewerHome() {
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
-        {/* ── Cold-start banner ── */}
-        <AnimatePresence>
-          {coldStart && !coldStartDismissed && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              className="flex items-center gap-3 rounded-xl px-4 py-3"
-              style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
-            >
-              <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold leading-snug" style={{ color: "var(--text-main)" }}>
-                  Preparing your experience…
-                </p>
-                <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                  {coldStartSeconds < 15
-                    ? "Your channels and live sports are getting ready."
-                    : coldStartSeconds < 40
-                      ? "Almost there — premium sports streaming loading in the background."
-                      : "Still preparing — enjoy the splash while we finish setup."}
-                </p>
-                {coldStartSeconds > 0 && (
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(245,166,35,0.15)" }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-1000"
-                        style={{ background: "var(--primary-accent)", width: `${Math.min(85, 20 + coldStartSeconds * 1.2)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setColdStartDismissed(true)}
-                className="shrink-0 rounded p-1 hover:bg-white/10"
-                style={{ color: "var(--text-muted)" }}
-                aria-label={t("coldStartDismiss")}
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <CategoryTabs
           className="hidden md:flex pb-1"
           tabs={moduleCategoryTabs}
@@ -1071,37 +1018,56 @@ export function ViewerHome() {
                 <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
               </button>
             )}
-            <HeroVideoPlayer
-              isLive={Boolean(activeChannel)}
-              title={activeChannel?.name ?? t("noChannel")}
-              overlay={
-                featuredLiveFixture && isFixtureLive(featuredLiveFixture) ? (
-                  <LiveStatsOverlay
-                    homeTeam={featuredLiveFixture.home_team}
-                    awayTeam={featuredLiveFixture.away_team}
-                    period={featuredLiveFixture.status}
-                    venue={featuredLiveFixture.league_name}
-                    format={featuredLiveFixture.sport}
-                    series={featuredLiveFixture.league_name}
+            {loading && !activeChannel ? (
+              <PlayerSkeleton />
+            ) : (
+              <HeroVideoPlayer
+                isLive={Boolean(activeChannel)}
+                title={activeChannel?.name ?? t("noChannel")}
+                overlay={
+                  featuredLiveFixture && isFixtureLive(featuredLiveFixture) ? (
+                    <LiveStatsOverlay
+                      homeTeam={featuredLiveFixture.home_team}
+                      awayTeam={featuredLiveFixture.away_team}
+                      period={featuredLiveFixture.status}
+                      venue={featuredLiveFixture.league_name}
+                      format={featuredLiveFixture.sport}
+                      series={featuredLiveFixture.league_name}
+                    />
+                  ) : undefined
+                }
+              >
+                {activeChannel ? (
+                  <PremiumPlayer
+                    streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
+                    streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
+                    alternateUrls={[]}
+                    title={activeChannel.name}
+                    isTheaterMode={isTheaterMode}
+                    onToggleTheaterMode={toggleTheaterMode}
+                    headerProfile={activeChannel.header_profile ?? null}
+                    geoHint={Boolean(activeChannel.geo_hint)}
+                    channelLogoUrl={activeChannel.logo_url}
+                    onStreamError={() => setShowErrorSuggestions(true)}
                   />
-                ) : undefined
-              }
-            >
-              {activeChannel ? (
-                <PremiumPlayer
-                  streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
-                  streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                  alternateUrls={[]}
-                  title={activeChannel.name}
-                  isTheaterMode={isTheaterMode}
-                  onToggleTheaterMode={toggleTheaterMode}
-                  headerProfile={activeChannel.header_profile ?? null}
-                  geoHint={Boolean(activeChannel.geo_hint)}
-                  channelLogoUrl={activeChannel.logo_url}
-                  onStreamError={() => setShowErrorSuggestions(true)}
-                />
-              ) : null}
-            </HeroVideoPlayer>
+                ) : null}
+              </HeroVideoPlayer>
+            )}
+
+            {!activeChannel && recentChannelObjects[0] && (
+              <button
+                type="button"
+                onClick={() => selectChannel(recentChannelObjects[0]!)}
+                className="mt-2 flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-left transition active:scale-[0.99]"
+                style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.3)" }}
+              >
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-accent-gold">Continue Watching</p>
+                  <p className="truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>{recentChannelObjects[0].name}</p>
+                </div>
+                <ChevronRight size={16} className="shrink-0 text-accent-gold" />
+              </button>
+            )}
 
             {activeChannel && (
               <div
@@ -1232,6 +1198,29 @@ export function ViewerHome() {
               </div>
             </div>
           </aside>
+        </div>
+
+        {/* Quick Actions — directly below player */}
+        <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none" data-swipe-ignore="true">
+          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("bangladesh")}>
+            <Tv2 size={13} aria-hidden /> Live TV
+          </button>
+          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("global_sports")}>
+            <Globe size={13} aria-hidden /> Sports
+          </button>
+          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("live_matches")}>
+            <Radio size={13} aria-hidden /> Matches
+          </button>
+          <button
+            type="button"
+            className="filter-chip shrink-0"
+            onClick={() => {
+              requestSearchFocus();
+              queueMicrotask(() => document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+            }}
+          >
+            <Search size={13} aria-hidden /> Search
+          </button>
         </div>
 
         {activeModule !== "live_matches" && activeModule !== "world_cup_2026" && (
@@ -1802,9 +1791,11 @@ export function ViewerHome() {
 
         {/* ── Category / Sport-type tabs ── */}
         {activeModule === "global_sports" ? (
-          /* Sports module: smart sport-type chips (auto-filtered, only non-empty) */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
+          {loading ? (
+            <CategorySkeletonRow />
+          ) : (
           <div className="cat-tab-row" data-swipe-ignore="true">
             <button
               type="button"
@@ -1831,15 +1822,17 @@ export function ViewerHome() {
                 }}
               >
                 {sport.label}
-                <span className="module-tab-badge">{sportChannelCount[sport.id]}</span>
               </button>
             ))}
           </div>
+          )}
           </div>
         ) : (
-          /* Regional / FAST / Live: category tabs from parsed group-title */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
+          {loading ? (
+            <CategorySkeletonRow />
+          ) : (
           <div className="cat-tab-row" data-swipe-ignore="true">
             <button
               type="button"
@@ -1863,6 +1856,7 @@ export function ViewerHome() {
               </button>
             ))}
           </div>
+          )}
           </div>
         )}
 

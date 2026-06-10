@@ -9,7 +9,7 @@ import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { I18nProvider } from "@/lib/i18n/LocaleContext";
 import { SplashScreen } from "@/components/SplashScreen";
 import { buildApiUrl } from "@/lib/apiClient";
-import { hydrateChannelListCache } from "@/lib/channelListCache";
+import { getChannelListCache, hydrateChannelListCache } from "@/lib/channelListCache";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
 import { useThemeAccentStore } from "@/store/themeAccentStore";
 
@@ -47,8 +47,9 @@ function AppSplashGate({ children }: { children: React.ReactNode }) {
     const finish = () => {
       if (!cancelled) setReady(true);
     };
+    const hasCache = (getChannelListCache()?.length ?? 0) > 0;
     void hydrateChannelListCache().finally(finish);
-    const t = setTimeout(finish, 1800);
+    const t = setTimeout(finish, hasCache ? 420 : 1000);
     return () => {
       cancelled = true;
       clearTimeout(t);
