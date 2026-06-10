@@ -1,10 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getChannelListCache } from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
+import { BRAND } from "@/lib/branding";
 
 export default function OfflinePage() {
   const { t } = useI18n();
@@ -22,7 +24,6 @@ export default function OfflinePage() {
   useEffect(() => {
     function handleOnline() {
       setIsOnline(true);
-      // Auto-redirect to home when connection is restored
       setTimeout(() => router.push("/"), 800);
     }
     window.addEventListener("online", handleOnline);
@@ -48,10 +49,7 @@ export default function OfflinePage() {
       className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 px-4 py-8 text-center safe-pb"
       style={{ background: "var(--bg-dark)" }}
     >
-      <div className="flex h-20 w-20 items-center justify-center rounded-2xl text-4xl"
-        style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)" }}>
-        📡
-      </div>
+      <Image src={BRAND.logo.png} alt={BRAND.name} width={80} height={80} className="object-contain opacity-90" />
 
       {isOnline ? (
         <>

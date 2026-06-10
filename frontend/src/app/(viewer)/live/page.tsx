@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { ViewerPageShell } from "@/components/layout/ViewerPageShell";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
-import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { MatchCard } from "@/components/matches/MatchCard";
 import { apiClient, fetchDbChannelsForMerge } from "@/lib/apiClient";
@@ -129,16 +128,6 @@ export default function LivePage() {
             <HeroVideoPlayer
               isLive
               title={`${featured.home_team} vs ${featured.away_team}`}
-              overlay={
-                <LiveStatsOverlay
-                  homeTeam={featured.home_team}
-                  awayTeam={featured.away_team}
-                  period={featured.status}
-                  venue={featured.league_name}
-                  format={featured.sport}
-                  series={featured.league_name}
-                />
-              }
             >
               {featuredChannel && featuredPlaybackUrls.length > 0 ? (
                 <PremiumPlayer
@@ -150,6 +139,7 @@ export default function LivePage() {
                   headerProfile={featuredChannel.header_profile ?? null}
                   geoHint={Boolean(featuredChannel.geo_hint)}
                   channelLogoUrl={featuredChannel.logo_url}
+                  isLive
                 />
               ) : (
                 <div className="relative flex h-full w-full flex-col items-center justify-center gap-2 bg-black/70 px-4 text-center">

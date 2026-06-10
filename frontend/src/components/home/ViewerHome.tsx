@@ -32,9 +32,8 @@ import { MoreSheet } from "@/components/layout/MoreSheet";
 import { CategoryTabs } from "@/components/home/CategoryTabs";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
-import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
 import { CategorySkeletonRow, ChannelSkeletonGrid, PlayerSkeleton } from "@/components/ui/ChannelSkeleton";
-import { isFixtureLive, groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
+import { groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
@@ -986,11 +985,6 @@ export function ViewerHome() {
     [transitionSetActiveModule],
   );
 
-  const featuredLiveFixture = useMemo(
-    () => scheduleFixtures.find(isFixtureLive) ?? null,
-    [scheduleFixtures],
-  );
-
   const dashboardFeatured = useMemo(
     () => scheduleGroups.live[0] ?? scheduleGroups.upcoming[0] ?? null,
     [scheduleGroups],
@@ -1065,19 +1059,8 @@ export function ViewerHome() {
                     headerProfile={activeChannel.header_profile ?? null}
                     geoHint={Boolean(activeChannel.geo_hint)}
                     channelLogoUrl={activeChannel.logo_url}
+                    isLive
                     onStreamError={() => setShowErrorSuggestions(true)}
-                    overlay={
-                      featuredLiveFixture && isFixtureLive(featuredLiveFixture) ? (
-                        <LiveStatsOverlay
-                          homeTeam={featuredLiveFixture.home_team}
-                          awayTeam={featuredLiveFixture.away_team}
-                          period={featuredLiveFixture.status}
-                          venue={featuredLiveFixture.league_name}
-                          format={featuredLiveFixture.sport}
-                          series={featuredLiveFixture.league_name}
-                        />
-                      ) : undefined
-                    }
                   />
                 ) : null}
               </HeroVideoPlayer>

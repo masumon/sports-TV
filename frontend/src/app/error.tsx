@@ -1,6 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect } from "react";
+import { BRAND } from "@/lib/branding";
 
 export default function GlobalError({
   error,
@@ -15,7 +17,7 @@ export default function GlobalError({
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-[#080a11] px-4 text-center text-white">
-      <div className="mb-6 text-6xl">⚠️</div>
+      <Image src={BRAND.logo.png} alt={BRAND.name} width={72} height={72} className="mb-6 object-contain opacity-90" />
       <h1 className="mb-2 text-2xl font-bold text-amber-400">কিছু একটা সমস্যা হয়েছে</h1>
       <p className="mb-1 text-sm text-zinc-400">পেজটি লোড করা যায়নি।</p>
       {error.digest && (

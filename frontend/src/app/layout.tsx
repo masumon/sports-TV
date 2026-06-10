@@ -4,6 +4,7 @@ import { AppProviders } from "@/components/providers/AppProviders";
 import { SkipToContentLink } from "@/components/SkipToContentLink";
 import { SiteFooter } from "@/components/SiteFooter";
 import "./globals.css";
+import { BRAND } from "@/lib/branding";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -53,7 +54,7 @@ export const metadata: Metadata = {
   description:
     "Watch live sports from around the world. Global channels, HD quality, mobile-optimized streaming.",
   applicationName: "ABO SPORTS TV LIVE",
-  authors: [{ name: "ABO ENTERPRISE", url: "https://aboenterprise.netlify.app/" }],
+  authors: [{ name: "ABO ENTERPRISE", url: BRAND.developerWebsiteUrl }],
   keywords: ["sports", "live tv", "streaming", "HLS", "football", "cricket", "basketball", "tennis", "ABO SPORTS TV LIVE", "ABO Enterprise", "Next.js", "PWA", "global sports"],
   appleWebApp: {
     capable: true,
@@ -81,9 +82,9 @@ export const metadata: Metadata = {
     description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং প্ল্যাটফর্ম",
     images: [
       {
-        url: `${siteUrl}/icons/icon-512.svg`,
-        width: 512,
-        height: 512,
+        url: `${siteUrl}${BRAND.icons.og}`,
+        width: 1200,
+        height: 630,
         alt: "ABO SPORTS TV LIVE",
       },
     ],
@@ -92,7 +93,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "ABO SPORTS TV LIVE",
     description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং",
-    images: [`${siteUrl}/icons/icon-512.svg`],
+    images: [`${siteUrl}${BRAND.icons.og}`],
   },
 };
 

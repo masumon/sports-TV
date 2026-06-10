@@ -8,6 +8,7 @@ import Image from "next/image";
 import { FormEvent, useState } from "react";
 
 import { apiClient } from "@/lib/apiClient";
+import { BRAND } from "@/lib/branding";
 import { useAuthStore } from "@/store/authStore";
 
 export default function AdminLoginPage() {
@@ -49,11 +50,11 @@ export default function AdminLoginPage() {
       >
         <div className="mb-5 flex items-center gap-3">
           <Image
-            src="/icons/abo-sports-tv-logo.png"
-            alt=""
+            src={BRAND.logo.png}
+            alt={BRAND.name}
             width={40}
             height={40}
-            className="h-10 w-10 rounded-xl ring-1 ring-white/10 object-contain mix-blend-screen brightness-110 contrast-125 saturate-125"
+            className="h-10 w-10 rounded-full object-contain"
           />
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>

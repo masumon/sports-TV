@@ -1,23 +1,46 @@
-<svg viewBox="0 0 220 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="ABO Sports TV Live">
   <defs>
-    <linearGradient id="aGold" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#F5A623"/>
-      <stop offset="100%" stop-color="#C9A227"/>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F5C518"/>
+      <stop offset="50%" stop-color="#E8A820"/>
+      <stop offset="100%" stop-color="#C9921A"/>
     </linearGradient>
+    <linearGradient id="redRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E83535"/>
+      <stop offset="100%" stop-color="#B81E1E"/>
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.18"/>
+    </filter>
   </defs>
-  <!-- A -->
-  <polygon points="8,60 26,12 44,60" fill="url(#aGold)"/>
-  <rect x="16.5" y="42" width="19" height="5" fill="#080A14"/>
-  <!-- B -->
-  <rect x="50" y="12" width="6" height="48" fill="url(#aGold)"/>
-  <path d="M56 12 Q76 12 76 27 Q76 36 56 36" fill="url(#aGold)"/>
-  <path d="M56 36 Q78 36 78 49 Q78 60 56 60" fill="url(#aGold)"/>
-  <!-- O -->
-  <circle cx="105" cy="38" r="20" fill="none" stroke="url(#aGold)" stroke-width="6"/>
-  <!-- Flame on O -->
-  <path d="M108,18 C114,5 128,10 120,24 C128,8 140,18 130,32" fill="#CC2828"/>
+
+  <!-- Outer red ring -->
+  <circle cx="256" cy="256" r="248" stroke="url(#redRing)" stroke-width="16" fill="none"/>
+  <!-- Gold inner ring -->
+  <circle cx="256" cy="256" r="228" stroke="url(#gold)" stroke-width="5" fill="#FFFFFF"/>
+
+  <g filter="url(#softShadow)">
+    <!-- A — gold triangle with strike -->
+    <polygon points="118,168 156,92 194,168" fill="url(#gold)"/>
+    <rect x="134" y="138" width="44" height="7" rx="1.5" fill="#1A1A1A"/>
+
+    <!-- B -->
+    <path fill="url(#gold)" d="M208 92h14v76h-14c0 0-22 0-22-19 0-10 8-16 16-16-10 0-16-7-16-16 0-14 20-25 28-25zm14 14v18c8 0 14-4 14-9s-6-9-14-9v0zm0 32v20c10 0 16-5 16-10s-6-10-16-10v0z"/>
+
+    <!-- O — circle with TV icon -->
+    <circle cx="318" cy="130" r="38" stroke="url(#gold)" stroke-width="10" fill="none"/>
+    <!-- TV inside O -->
+    <rect x="298" y="122" width="40" height="26" rx="3" stroke="url(#gold)" stroke-width="3" fill="none"/>
+    <line x1="304" y1="128" x2="332" y2="128" stroke="url(#gold)" stroke-width="2"/>
+    <path d="M308 122 L312 112 M332 122 L328 112" stroke="url(#gold)" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Red accent ears on O -->
+    <ellipse cx="348" cy="108" rx="10" ry="14" fill="#E83535" transform="rotate(25 348 108)"/>
+    <ellipse cx="358" cy="118" rx="8" ry="11" fill="#E83535" transform="rotate(15 358 118)"/>
+  </g>
+
   <!-- SPORTS -->
-  <text x="136" y="34" font-size="15" font-family="Arial Black,sans-serif" fill="#E8E8F0" font-weight="900" letter-spacing="1">SPORTS</text>
+  <text x="256" y="228" text-anchor="middle" font-family="Arial Black, Impact, Helvetica Neue, sans-serif" font-weight="900" font-size="52" fill="#E83535" letter-spacing="6">SPORTS</text>
+
   <!-- TV LIVE -->
-  <text x="136" y="54" font-size="13" font-family="Arial Black,sans-serif" fill="#C9A227" font-weight="900" letter-spacing="3">TV LIVE</text>
+  <text x="256" y="278" text-anchor="middle" font-family="Arial Black, Impact, Helvetica Neue, sans-serif" font-weight="900" font-size="34" fill="url(#gold)" letter-spacing="8">TV LIVE</text>
 </svg>

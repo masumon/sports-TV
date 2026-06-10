@@ -41,6 +41,7 @@ import {
   isDashProxiedStreamUrl,
   parseDynamicM3U8IdFromStreamUrl,
 } from "@/lib/streamRelay";
+import { BRAND } from "@/lib/branding";
 
 /* ─────────────────────────────────────────────────────────── Types ── */
 type QualityOption = { label: string; value: number };
@@ -82,10 +83,12 @@ export type PremiumPlayerProps = {
   epgProgramTitle?: string | null;
   /** Called when all stream sources have errored out. */
   onStreamError?: () => void;
+  /** Live IPTV hides seek bar and shows LIVE badge only. */
+  isLive?: boolean;
 };
 
-/** Matches `TopBar` / `Sidebar` — always shown on the player when channel has no logo. */
-const DEFAULT_PLAYER_BRAND_LOGO = "/icons/abo-sports-tv-logo.png";
+/** App brand logo for loading, buffering, and fallback states. */
+const DEFAULT_PLAYER_BRAND_LOGO = BRAND.logo.png;
 const DATA_SAVER_KEY = "gstv-data-saver";
 
 function useMatchMediaQuery(query: string, defaultValue = false): boolean {
@@ -243,10 +246,10 @@ export default function PremiumPlayer({
   overlay,
   headerProfile = null,
   geoHint = false,
-  channelLogoUrl = null,
   liveMatchTitle = null,
   epgProgramTitle = null,
   onStreamError,
+  isLive = true,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -270,6 +273,7 @@ export default function PremiumPlayer({
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [bufferedPct, setBufferedPct] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [everPlayed, setEverPlayed] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [serverWaking, setServerWaking] = useState(false);
@@ -770,6 +774,7 @@ export default function PremiumPlayer({
     const onWaiting = () => {
       healthTrackerRef.current?.recordStall();
       if (playbackStartedRef.current) {
+        setIsBuffering(true);
         const hls = hlsRef.current;
         if (hls && trySilentHlsRecovery(hls)) return;
         stallCountRef.current += 1;
@@ -782,6 +787,7 @@ export default function PremiumPlayer({
       setIsLoading(true);
     };
     const onPlaying = () => {
+      setIsBuffering(false);
       playbackStartedRef.current = true;
       setEverPlayed(true);
       autoRetryCountRef.current = 0;
@@ -796,7 +802,10 @@ export default function PremiumPlayer({
         warmBackupStreams(allUrlsList, urlIdx);
       }, 10_000);
     };
-    const onCanPlay = () => setIsLoading(false);
+    const onCanPlay = () => {
+      setIsLoading(false);
+      setIsBuffering(false);
+    };
     const onError = () => { setHasError(true); setIsLoading(false); };
     const onProgress = () => {
       if (!video.buffered.length) return;
@@ -861,11 +870,9 @@ export default function PremiumPlayer({
     let touchStartY = 0;
     let touchStartX = 0;
     let touchStartVol = 1;
-    let touchStartBright = 1;
     let touchStartScale = 1;
     let initialPinchDist = 0;
     let isSwiping = false;
-    let swipeMode: "volume" | "brightness" | null = null;
 
     function showSeekRipple(dir: "left" | "right", secs: number) {
       if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
@@ -876,12 +883,6 @@ export default function PremiumPlayer({
     function showVolOverlay(vol: number) {
       if (volFeedbackTimerRef.current) clearTimeout(volFeedbackTimerRef.current);
       setVolFeedback(Math.round(vol * 100));
-      volFeedbackTimerRef.current = setTimeout(() => setVolFeedback(null), 1200);
-    }
-
-    function showBrightOverlay(level: number) {
-      if (volFeedbackTimerRef.current) clearTimeout(volFeedbackTimerRef.current);
-      setVolFeedback(Math.round(level * 100));
       volFeedbackTimerRef.current = setTimeout(() => setVolFeedback(null), 1200);
     }
 
@@ -898,9 +899,7 @@ export default function PremiumPlayer({
       touchStartY = touch.clientY;
       touchStartX = touch.clientX - rect.left;
       touchStartVol = video!.volume;
-      touchStartBright = brightnessPct;
       isSwiping = false;
-      swipeMode = null;
 
       const now = Date.now();
       const tapX = touch.clientX - rect.left;
@@ -932,20 +931,14 @@ export default function PremiumPlayer({
       if (!isSwiping && Math.abs(deltaY) < 20) return;
       isSwiping = true;
       const rect = container!.getBoundingClientRect();
-      if (!swipeMode) swipeMode = touchStartX < rect.width / 2 ? "brightness" : "volume";
+      if (touchStartX < rect.width / 2) return;
       const delta = deltaY / rect.height;
-      if (swipeMode === "volume") {
-        const newVol = Math.min(1, Math.max(0, touchStartVol + delta));
-        video!.volume = newVol;
-        video!.muted = newVol === 0;
-        setVolumeState(newVol);
-        setIsMuted(newVol === 0);
-        showVolOverlay(newVol);
-      } else {
-        const newBright = Math.min(100, Math.max(10, Math.round(touchStartBright + delta * 100)));
-        setBrightnessPct(newBright);
-        showBrightOverlay(newBright);
-      }
+      const newVol = Math.min(1, Math.max(0, touchStartVol + delta));
+      video!.volume = newVol;
+      video!.muted = newVol === 0;
+      setVolumeState(newVol);
+      setIsMuted(newVol === 0);
+      showVolOverlay(newVol);
     }
 
     container.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -1388,17 +1381,16 @@ export default function PremiumPlayer({
                 animate={{ scale: [1, 1.06, 1], opacity: [0.5, 1, 0.5] }}
                 transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
               />
-              {/* Logo */}
+              {/* Logo — always ABO Sports TV brand */}
               <div
-                className="relative flex h-[56px] w-[56px] items-center justify-center rounded-xl overflow-hidden"
-                style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.5)", boxShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,166,35,0.1)" }}
+                className="relative flex h-[56px] w-[56px] items-center justify-center rounded-full overflow-hidden"
+                style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,166,35,0.15)" }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
-                  alt={title || "ABO Sports TV"}
-                  className="h-[48px] w-[48px] object-contain"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
+                  src={DEFAULT_PLAYER_BRAND_LOGO}
+                  alt="ABO Sports TV"
+                  className="h-[52px] w-[52px] object-contain"
                 />
               </div>
             </div>
@@ -1421,6 +1413,34 @@ export default function PremiumPlayer({
                 animate={{ x: ["-100%", "300%"] }}
                 transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
               />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Buffering — compact branded indicator during rebuffer ── */}
+      <AnimatePresence>
+        {isBuffering && playbackStartedRef.current && !hasError && !geoRestricted && (
+          <motion.div
+            key="buffering"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-none absolute inset-0 z-25 flex items-center justify-center"
+          >
+            <div
+              className="flex flex-col items-center gap-2 rounded-2xl px-5 py-4"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                backdropFilter: "blur(20px)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={DEFAULT_PLAYER_BRAND_LOGO} alt="" className="h-10 w-10 object-contain animate-pulse" />
+              <Loader2 size={16} className="animate-spin text-amber-400" aria-hidden />
             </div>
           </motion.div>
         )}
@@ -1495,8 +1515,8 @@ export default function PremiumPlayer({
       </AnimatePresence>
 
 
-      {/* Custom overlay */}
-      {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30">{overlay}</div> : null}
+      {/* Custom overlay slot — reserved for non-obstructive UI; match metadata removed */}
+      {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30 hidden">{overlay}</div> : null}
 
       {/* ── Seek ripple overlay (double-tap ±10s) ── */}
       <AnimatePresence>
@@ -1594,19 +1614,18 @@ export default function PremiumPlayer({
             isPlaying={isPlaying}
             isMuted={isMuted}
             volume={volume}
-            brightness={brightnessPct}
             isFullscreen={isFullscreen}
             settingsOpen={showSettingsPanel}
+            isLive={isLive}
             currentTime={currentTime}
             duration={duration}
             bufferedPct={bufferedPct}
             VolumeIcon={VolumeIcon}
             onTogglePlay={() => void togglePlayPause()}
             onVolumeChange={setVolumeFromPct}
-            onBrightnessChange={setBrightnessFromPct}
             onOpenSettings={() => setShowSettingsPanel(true)}
             onToggleFullscreen={() => void toggleFullscreen()}
-            onSeek={handleSeek}
+            onSeek={isLive ? undefined : handleSeek}
           />
         ) : null}
       </AnimatePresence>
@@ -1675,6 +1694,8 @@ export default function PremiumPlayer({
           source: `Mirror ${urlIdx + 1}/${allUrlsList.length}`,
         }}
         onReportIssue={reportStreamIssue}
+        brightness={brightnessPct}
+        onBrightnessChange={setBrightnessFromPct}
       />
     </motion.div>
   );

@@ -35,6 +35,7 @@ import {
 import Image from "next/image";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { BRAND } from "@/lib/branding";
 import type { AdminStats, Channel, StreamProbeItem, StreamProbeStatus } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
@@ -757,8 +758,8 @@ export default function AdminDashboardPage() {
         <header className="sticky top-0 z-20 -mx-4 mb-2 border-b border-white/[0.06] bg-[#07080f]/90 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <Image src="/icons/abo-sports-tv-logo.png" alt="" width={40} height={40}
-                className="h-10 w-10 shrink-0 rounded-xl ring-1 ring-white/10 object-contain mix-blend-screen brightness-110 contrast-125 saturate-125" />
+              <Image src={BRAND.logo.png} alt={BRAND.name} width={40} height={40}
+                className="h-10 w-10 shrink-0 rounded-full object-contain" />
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>
                 <h1 className="truncate text-xl font-bold tracking-tight text-white sm:text-2xl">Control center</h1>

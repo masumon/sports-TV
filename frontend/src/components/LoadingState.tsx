@@ -1,13 +1,24 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
+import { BRAND } from "@/lib/branding";
 
 interface LoadingStateProps {
-  variant?: "spinner" | "skeleton" | "pulse" | "shimmer";
+  variant?: "spinner" | "skeleton" | "pulse" | "shimmer" | "brand";
   message?: string;
 }
 
 export function LoadingState({ variant = "spinner", message }: LoadingStateProps) {
+  if (variant === "brand") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-12">
+        <Image src={BRAND.logo.png} alt={BRAND.name} width={64} height={64} className="object-contain animate-pulse" />
+        {message && <p className="text-sm" style={{ color: "var(--text-muted)" }}>{message}</p>}
+      </div>
+    );
+  }
+
   if (variant === "spinner") {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-12">
@@ -38,7 +49,7 @@ export function LoadingState({ variant = "spinner", message }: LoadingStateProps
         transition={{ duration: 2, repeat: Infinity }}
         className="flex items-center justify-center py-8"
       >
-        <div className="h-8 w-8 rounded-full" style={{ background: "var(--primary-accent)", opacity: 0.3 }} />
+        <Image src={BRAND.logo.png} alt="" width={48} height={48} className="object-contain opacity-70" />
       </motion.div>
     );
   }

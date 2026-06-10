@@ -4,12 +4,13 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePlayerStore } from "@/store/playerStore";
+import { BRAND } from "@/lib/branding";
+import { DeveloperBrandCard } from "@/components/branding/DeveloperBrandCard";
 import {
   ChevronDown,
   ExternalLink,
   Mail,
   Phone,
-  Globe,
   Shield,
   FileText,
   BookOpen,
@@ -50,15 +51,12 @@ export function SiteFooter() {
         }}
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-4 px-4 sm:flex-row sm:gap-8 sm:text-left">
-          <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl"
-            style={{ background: "#fff", border: "2px solid rgba(245,166,35,0.35)", padding: 3 }}
-          >
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center">
             <Image
-              src="/icons/abo-sports-tv-logo.png"
-              alt="ABO Sports TV"
-              width={48}
-              height={48}
+              src={BRAND.logo.png}
+              alt={BRAND.name}
+              width={64}
+              height={64}
               className="object-contain"
             />
           </div>
@@ -74,7 +72,7 @@ export function SiteFooter() {
                 backgroundClip: "text",
               }}
             >
-              ABO SPORTS TV LIVE
+              {BRAND.nameFull}
             </h2>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
               Global live sports, India &amp; Bangladesh TV — one app.
@@ -94,36 +92,7 @@ export function SiteFooter() {
             </div>
           </div>
 
-          {/* ABO Enterprise credit */}
-          <div className="shrink-0 text-center sm:text-right">
-            <p className="text-[9px] uppercase tracking-[0.18em] mb-1.5" style={{ color: "var(--text-muted)" }}>Powered by</p>
-            <a
-              href="https://aboenterprise.netlify.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block transition hover:opacity-80"
-              aria-label="ABO Enterprise"
-            >
-              <Image
-                src="/icons/abo-enterprise-logo.png"
-                alt="ABO Enterprise"
-                width={100}
-                height={38}
-                className="object-contain"
-              />
-            </a>
-            <a
-              href="https://mumainsumon.netlify.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Developer website"
-              title="mumainsumon.netlify.app"
-              className="mt-1.5 inline-flex h-7 w-7 items-center justify-center rounded-lg transition hover:opacity-80"
-              style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
-            >
-              <Globe size={13} aria-hidden />
-            </a>
-          </div>
+          <DeveloperBrandCard size="md" className="shrink-0" />
         </div>
       </div>
 
@@ -247,7 +216,7 @@ export function SiteFooter() {
               { icon: <Shield size={11} />, label: "Privacy", href: LEGAL_PDF.privacy },
               { icon: <FileText size={11} />, label: "Terms", href: LEGAL_PDF.terms },
               { icon: <BookOpen size={11} />, label: "License", href: LEGAL_PDF.license },
-              { icon: <Globe size={11} />, label: "International", href: LEGAL_PDF.international },
+              { icon: <FileText size={11} />, label: "International", href: LEGAL_PDF.international },
             ].map(({ icon, label, href }) => (
               <a
                 key={label}
@@ -269,9 +238,9 @@ export function SiteFooter() {
             </p>
             <p className="mt-0.5 max-w-prose text-[10px] leading-snug">
               Third-party streams ·{" "}
-              <a href="https://aboenterprise.netlify.app/" target="_blank" rel="noopener noreferrer"
+              <a href={BRAND.developerWebsiteUrl} target="_blank" rel="noopener noreferrer"
                 className="whitespace-nowrap hover:opacity-80 transition" style={{ color: "var(--primary-accent)" }}>
-                ABO Enterprise
+                {BRAND.developer}
               </a>
             </p>
           </div>

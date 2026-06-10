@@ -14,6 +14,7 @@ import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { cn } from "@/lib/cn";
+import { BRAND } from "@/lib/branding";
 import type { Channel } from "@/lib/types";
 
 const RECENT_SEARCHES_KEY = "gstv-recent-searches";
@@ -148,13 +149,13 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
           </button>
 
           <Link href="/" className="flex shrink-0 items-center gap-2.5 transition-opacity hover:opacity-90">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-accent-gold/45 bg-white shadow-glow-gold sm:h-10 sm:w-10">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-10 sm:w-10">
               <Image
-                src="/icons/abo-sports-tv-logo.png"
-                alt="ABO Sports TV"
-                width={36}
-                height={36}
-                className="object-contain p-0.5"
+                src={BRAND.logo.png}
+                alt={BRAND.name}
+                width={40}
+                height={40}
+                className="object-contain"
               />
             </div>
             <div className="hidden min-[380px]:flex flex-col leading-none">

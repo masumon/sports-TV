@@ -11,6 +11,7 @@ import {
   PictureInPicture2,
   RefreshCw,
   Subtitles,
+  Sun,
   Volume2,
   X,
   Zap,
@@ -57,6 +58,8 @@ type Props = {
     source: string;
   };
   onReportIssue?: () => void;
+  brightness?: number;
+  onBrightnessChange?: (pct: number) => void;
 };
 
 export function PlayerSettingsPanel({
@@ -84,6 +87,8 @@ export function PlayerSettingsPanel({
   onLowLatencyModeChange,
   streamInfo,
   onReportIssue,
+  brightness = 100,
+  onBrightnessChange,
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>("quality");
 
@@ -182,6 +187,24 @@ export function PlayerSettingsPanel({
             onSelect={(id) => onPlaybackSpeedChange(Number(id))}
           />
         </SettingsSection>
+
+        {onBrightnessChange ? (
+          <SettingsSection title="Brightness" icon={<Sun size={14} />} open={expanded === "brightness"} onToggle={() => toggle("brightness")}>
+            <div className="flex items-center gap-3 px-1 py-2">
+              <Sun size={14} className="shrink-0 text-white/50" aria-hidden />
+              <input
+                type="range"
+                min={10}
+                max={100}
+                value={brightness}
+                onChange={(e) => onBrightnessChange(Number(e.target.value))}
+                className="player-live-timeline flex-1"
+                aria-label="Brightness"
+              />
+              <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/70">{brightness}%</span>
+            </div>
+          </SettingsSection>
+        ) : null}
 
         <SettingsSection title="Cast" icon={<Cast size={14} />} open={expanded === "cast"} onToggle={() => toggle("cast")}>
           <p className="py-2 text-xs text-white/45">
