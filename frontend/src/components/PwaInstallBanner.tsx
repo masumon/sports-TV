@@ -60,7 +60,7 @@ export function PwaInstallBanner() {
         className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl"
         style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.4)" }}
       >
-        <Image src="/icons/abo-sports-tv-logo.png" alt="ABO Sports TV" width={40} height={40} className="object-contain p-0.5" />
+        <Image src="/icons/abo-logo.svg" alt="ABO Sports TV" width={40} height={40} className="object-contain p-0.5" unoptimized />
       </div>
 
       <div className="min-w-0 flex-1">

@@ -51,10 +51,10 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+      { url: "/icons/icon-192.svg", type: "image/svg+xml", sizes: "192x192" },
+      { url: "/icons/icon-512.svg", type: "image/svg+xml", sizes: "512x512" },
     ],
-    apple: [{ url: "/icons/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+    apple: [{ url: "/icons/icon-192.svg", type: "image/svg+xml", sizes: "192x192" }],
   },
   metadataBase: new URL(siteUrl),
   openGraph: {
@@ -66,7 +66,7 @@ export const metadata: Metadata = {
     description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং প্ল্যাটফর্ম",
     images: [
       {
-        url: `${siteUrl}/icons/icon-512.png`,
+        url: `${siteUrl}/icons/icon-512.svg`,
         width: 512,
         height: 512,
         alt: "ABO SPORTS TV LIVE",
@@ -77,7 +77,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "ABO SPORTS TV LIVE",
     description: "বিশ্বের সকল দেশের সব ধরনের খেলাধুলার লাইভ স্ট্রিমিং",
-    images: [`${siteUrl}/icons/icon-512.png`],
+    images: [`${siteUrl}/icons/icon-512.svg`],
   },
 };
 

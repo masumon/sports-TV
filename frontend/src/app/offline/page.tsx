@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getChannelListCache } from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 
 export default function OfflinePage() {
@@ -14,13 +15,8 @@ export default function OfflinePage() {
   const [cacheCount, setCacheCount] = useState<number | null>(null);
 
   useEffect(() => {
-    try {
-      const cached = localStorage.getItem('gstv-channel-list-cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) setCacheCount(parsed.length);
-      }
-    } catch { /* */ }
+    const cached = getChannelListCache();
+    if (cached?.length) setCacheCount(cached.length);
   }, []);
 
   useEffect(() => {

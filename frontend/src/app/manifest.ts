@@ -1,5 +1,10 @@
 import type { MetadataRoute } from "next";
 
+/** Icons live under /public/icons as SVG — PNG paths were broken and blocked install. */
+const ICON_192 = "/icons/icon-192.svg";
+const ICON_512 = "/icons/icon-512.svg";
+const ICON_MASKABLE = "/icons/icon-maskable.svg";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "ABO SPORTS TV LIVE",
@@ -15,37 +20,32 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "bn",
     dir: "ltr",
     prefer_related_applications: false,
-    screenshots: [
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", form_factor: "wide" },
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", form_factor: "narrow" },
-    ],
     icons: [
-      { src: "/icons/icon-192.png",    sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png",    sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-      { src: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png", purpose: "any" },
+      { src: ICON_192, sizes: "192x192", type: "image/svg+xml", purpose: "any" },
+      { src: ICON_512, sizes: "512x512", type: "image/svg+xml", purpose: "any" },
+      { src: ICON_MASKABLE, sizes: "512x512", type: "image/svg+xml", purpose: "maskable" },
     ],
     shortcuts: [
       {
-        name: "🌍 Sports TV",
+        name: "Sports TV",
         short_name: "Sports",
-        description: "বিশ্বের সকল স্পোর্টস চ্যানেল লাইভ",
-        url: "/?module=sports",
-        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+        description: "Global sports channels live",
+        url: "/?module=global_sports",
+        icons: [{ src: ICON_192, sizes: "192x192", type: "image/svg+xml" }],
       },
       {
-        name: "🇮🇳 India TV",
-        short_name: "India",
-        description: "India — all types of live channels",
-        url: "/?module=india",
-        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+        name: "Live Matches",
+        short_name: "Live",
+        description: "Live match center",
+        url: "/live",
+        icons: [{ src: ICON_192, sizes: "192x192", type: "image/svg+xml" }],
       },
       {
-        name: "🇧🇩 Bangladesh TV",
-        short_name: "BD TV",
-        description: "বাংলাদেশের সকল টিভি চ্যানেল লাইভ",
+        name: "Bangladesh TV",
+        short_name: "BD",
+        description: "Bangladesh live channels",
         url: "/?module=bangladesh",
-        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: ICON_192, sizes: "192x192", type: "image/svg+xml" }],
       },
     ],
   };
