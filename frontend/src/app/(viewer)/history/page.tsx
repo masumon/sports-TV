@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Clock, Trash2 } from 'lucide-react';
 
@@ -44,7 +45,16 @@ export default function HistoryPage() {
         {history.slice().reverse().map((entry, i) => (
           <Link key={i} href={`/?channel_id=${entry.id}`} className="flex items-center gap-3 rounded-xl p-3 transition hover:opacity-80" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             {entry.logo_url
-              ? <img src={entry.logo_url} alt="" className="h-10 w-10 rounded-lg object-contain bg-white" />
+              ? (
+                <Image
+                  src={entry.logo_url}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 rounded-lg object-contain bg-white"
+                  loading="lazy"
+                />
+              )
               : <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold" style={{ background: 'var(--primary-accent)', color: '#fff' }}>{entry.name.slice(0,1)}</div>
             }
             <div className="min-w-0 flex-1">

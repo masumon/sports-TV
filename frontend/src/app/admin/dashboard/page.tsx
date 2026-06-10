@@ -417,8 +417,6 @@ export default function AdminDashboardPage() {
     return counts;
   }, [channels]);
 
-  const adminDbInactive = stats ? Math.max(0, stats.channels - stats.active_channels) : 0;
-
   /* ─── Effects ─────────────────────────────────────────────────── */
 
   // Auto-dismiss error
