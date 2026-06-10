@@ -120,6 +120,13 @@ export default function SportsPage() {
                 <RefreshCw size={13} /> Retry
               </button>
             </GlassPanel>
+          ) : fixtures.length === 0 ? (
+            <GlassPanel className="py-12 text-center">
+              <p className="text-sm font-semibold text-foreground">No upcoming matches in schedule</p>
+              <p className="mt-1 text-xs text-foreground-muted">
+                সিডিউল খালি — অ্যাডমিনে fixture sync চালান বা FOOTBALL_DATA_ORG_API_TOKEN সেট করুন
+              </p>
+            </GlassPanel>
           ) : dayFixtures.length === 0 ? (
             <GlassPanel className="py-12 text-center">
               <p className="text-sm font-semibold text-foreground">No matches on this date</p>

@@ -21,6 +21,10 @@ logger = logging.getLogger("app.live_fixtures")
 OPENLIGADB_BASE = "https://api.openligadb.de"
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 REQUEST_TIMEOUT = 45
+# football-data.org /matches rejects ranges > 10 days (errorCode 400).
+FOOTBALL_DATA_MAX_DATE_SPAN_DAYS = 10
+# OpenLigaDB only hosts German domestic leagues — not UEFA CL/EL (use football-data.org).
+OPENLIGADB_INVALID_KEYS = frozenset({"ucl", "cl", "el", "ecl", "champions", "europa"})
 
 
 def _fetch_json(url: str, headers: dict[str, str] | None = None) -> Any | None:
@@ -28,7 +32,14 @@ def _fetch_json(url: str, headers: dict[str, str] | None = None) -> Any | None:
         r = requests.get(url, timeout=REQUEST_TIMEOUT, headers=headers or {})
         if r.status_code == 404:
             return None
-        r.raise_for_status()
+        if r.status_code >= 400:
+            logger.warning(
+                "Fixture fetch HTTP %s url=%s body=%s",
+                r.status_code,
+                url[:120],
+                (r.text or "")[:240],
+            )
+            return None
         return r.json()
     except Exception as exc:
         logger.warning("Fixture fetch failed url=%s error=%s", url[:120], exc)
@@ -187,7 +198,16 @@ def _sync_football_data(db: Session, word_index: dict[str, list[int]]) -> int:
     now = datetime.now(tz=timezone.utc)
     # Include recent past matches (up to 8 h back) so "just finished" fixtures appear
     df = (now - timedelta(hours=8)).date()
-    dt_to = now.date() + timedelta(days=max(1, settings.live_fixtures_days_ahead))
+    requested_days = max(1, settings.live_fixtures_days_ahead)
+    # API limit: dateTo - dateFrom must be <= 10 days
+    span_days = min(requested_days, FOOTBALL_DATA_MAX_DATE_SPAN_DAYS)
+    dt_to = df + timedelta(days=span_days)
+    if requested_days > FOOTBALL_DATA_MAX_DATE_SPAN_DAYS:
+        logger.info(
+            "football-data.org: capping date span to %d days (LIVE_FIXTURES_DAYS_AHEAD=%d exceeds API limit)",
+            FOOTBALL_DATA_MAX_DATE_SPAN_DAYS,
+            requested_days,
+        )
     comps = (settings.football_data_competitions or "").strip() or "PL,BL1,PD,SA,FL1,WC"
     url = (
         f"{FOOTBALL_DATA_BASE}/matches?"
@@ -288,9 +308,16 @@ def sync_live_fixtures(db: Session) -> dict[str, int]:
     total_rows = 0
 
     seasons_to_try = {datetime.now(tz=timezone.utc).year, datetime.now(tz=timezone.utc).year - 1}
-    leagues = [x.strip() for x in (settings.openligadb_league_keys or "").split(",") if x.strip()]
-    if not leagues:
-        leagues = ["bl1", "bl2"]
+    raw_leagues = [x.strip().lower() for x in (settings.openligadb_league_keys or "").split(",") if x.strip()]
+    leagues: list[str] = []
+    for league in raw_leagues or ["bl1", "bl2"]:
+        if league in OPENLIGADB_INVALID_KEYS:
+            logger.warning(
+                "openligadb: skipping invalid league key %r (use FOOTBALL_DATA_ORG_API_TOKEN for CL/EL/WC)",
+                league,
+            )
+            continue
+        leagues.append(league)
 
     for league in leagues:
         for season in sorted(seasons_to_try, reverse=True):

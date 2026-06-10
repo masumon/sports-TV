@@ -58,8 +58,9 @@ services:
         value: "14"
       # bl1=Bundesliga1, bl2=Bundesliga2, ucl=UEFA CL, dfb=DFB Pokal
       # football-data.org also syncs if FOOTBALL_DATA_ORG_API_TOKEN is set (free tier = PL,CL,BL1,SA,PD,FL1,EL)
+      # ucl is NOT valid on OpenLigaDB — use FOOTBALL_DATA_ORG_API_TOKEN for CL/EL/WC
       - key: OPENLIGADB_LEAGUE_KEYS
-        value: "bl1,bl2,ucl,dfb"
+        value: "bl1,bl2,dfb"
       - key: FOOTBALL_DATA_ORG_API_TOKEN
         sync: false
       # CricAPI free tier (100 calls/day) — https://cricapi.com/register
@@ -81,7 +82,7 @@ services:
       - key: INTERNAL_SYNC_SECRET
         sync: false
       - key: ADMIN_EMAIL
-        value: admin@test.com
+        sync: false
       - key: ADMIN_PASSWORD
         sync: false
       - key: ADMIN_FULL_NAME

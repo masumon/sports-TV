@@ -134,6 +134,9 @@ export default function LivePage() {
           ) : fixtures.length === 0 ? (
             <div className="rounded-2xl border border-border-subtle bg-surface-secondary p-6 text-center">
               <p className="text-sm text-foreground-muted">No live matches right now.</p>
+              <p className="mt-1 text-xs text-foreground-muted">
+                Fixture sync may be empty — check Sports Calendar or admin sync.
+              </p>
               <Link href="/sports" className="mt-2 inline-block text-xs font-semibold text-accent-cyan hover:text-accent-gold">
                 View upcoming schedule →
               </Link>

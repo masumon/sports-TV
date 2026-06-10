@@ -381,7 +381,7 @@ app.add_middleware(
     allow_origins=settings.cors_origins_list,
     # Vercel Preview: https://<name>-<hash>-<team>.vercel.app — list custom domains in CORS_ORIGINS.
     allow_origin_regex=r"^https://[a-zA-Z0-9-]+\.vercel\.app$",
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Range", "X-Sync-Secret"],
     expose_headers=["Content-Length", "Content-Range", "Accept-Ranges"],
