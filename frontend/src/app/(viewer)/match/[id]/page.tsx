@@ -1,15 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { ViewerPageShell } from "@/components/layout/ViewerPageShell";
 import { Button } from "@/components/ui/Button";
-import { HeadToHead } from "@/components/matches/HeadToHead";
-import { LineupList } from "@/components/matches/LineupList";
 import { apiClient } from "@/lib/apiClient";
-import { isFixtureLive, presentationFromFixture } from "@/lib/matchPresentation";
+import { isFixtureLive } from "@/lib/matchPresentation";
 import type { LiveFixture } from "@/lib/types";
 
 export default function MatchDetailPage() {
@@ -32,11 +30,6 @@ export default function MatchDetailPage() {
     void load();
   }, [load]);
 
-  const presentation = useMemo(
-    () => (fixture ? presentationFromFixture(fixture) : null),
-    [fixture],
-  );
-
   if (loading) {
     return (
       <ViewerPageShell>
@@ -48,7 +41,7 @@ export default function MatchDetailPage() {
     );
   }
 
-  if (!fixture || !presentation) {
+  if (!fixture) {
     return (
       <ViewerPageShell>
         <div className="mx-auto max-w-3xl py-16 text-center">
@@ -84,9 +77,12 @@ export default function MatchDetailPage() {
           <p className="mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)" }}>
             Status: {fixture.status || "Scheduled"}
           </p>
+          {fixture.data_attribution ? (
+            <p className="mt-3 text-xs text-foreground-muted">{fixture.data_attribution}</p>
+          ) : null}
         </header>
 
-        {fixture.suggested_channels.length > 0 && (
+        {fixture.suggested_channels.length > 0 ? (
           <div className="rounded-2xl border border-border-subtle bg-surface-secondary p-4">
             <p className="mb-3 text-sm font-semibold text-foreground">Watch on TV</p>
             <div className="flex flex-wrap gap-2">
@@ -102,21 +98,14 @@ export default function MatchDetailPage() {
               ))}
             </div>
           </div>
+        ) : (
+          <div className="rounded-2xl border border-border-subtle bg-surface-secondary p-4 text-center">
+            <p className="text-sm text-foreground-muted">No linked TV channels for this match yet.</p>
+            <Link href="/" className="mt-2 inline-block text-xs font-semibold text-accent-cyan hover:text-accent-gold">
+              Browse live channels →
+            </Link>
+          </div>
         )}
-
-        <HeadToHead
-          homeTeam={fixture.home_team}
-          awayTeam={fixture.away_team}
-          homeForm={presentation.homeForm}
-          awayForm={presentation.awayForm}
-          stadium={presentation.stadium}
-          capacity="50,000+"
-          homeWins={presentation.homeWins}
-          awayWins={presentation.awayWins}
-          draws={presentation.draws}
-        />
-
-        <LineupList home={presentation.homeLineup} away={presentation.awayLineup} />
 
         <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 border-t border-glass-border bg-surface-secondary/95 p-3 backdrop-blur-md md:static md:border-0 md:bg-transparent md:p-0">
           <Button

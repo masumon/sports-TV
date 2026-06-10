@@ -174,6 +174,7 @@ def run_live_fixtures_job(*, source: str = "scheduler") -> dict[str, int]:
             return sync_live_fixtures(db)
 
         out = _retry(_do, operation_name=f"live_fixtures[{source}]")
+        invalidate_list_caches()
         logger.info(
             "live_fixtures_sync success source=%s duration_seconds=%.2f %s",
             source,
