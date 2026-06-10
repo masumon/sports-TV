@@ -555,7 +555,8 @@ export function ViewerHome() {
   }, []);
 
   useEffect(() => {
-    void loadChannels(false);
+    const hasCache = (getChannelListCache()?.length ?? 0) > 0;
+    void loadChannels(false, hasCache);
   }, [loadChannels]);
 
   useEffect(() => {
