@@ -858,6 +858,7 @@ export default function PremiumPlayer({
     directUrls,
     dynamicM3U8Id,
     headerProfile,
+    geoHint,
     isMobilePlayer,
     dataSaver,
     lowLatencyMode,
