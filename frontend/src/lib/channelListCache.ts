@@ -1,14 +1,19 @@
 import type { Channel } from "@/lib/types";
+import {
+  clearChannelCatalogIdb,
+  getChannelCatalogFromIdb,
+  setChannelCatalogToIdb,
+} from "@/lib/channelCatalogIdb";
 
 const KEY = "gstv-channel-catalog-v2";
-const TTL_MS = 10 * 60 * 1000; // 10 min — align with API/CDN ~5m cache; refresh in background
+const TTL_MS = 10 * 60 * 1000; // localStorage mirror — shorter TTL
 
 type Payload = { t: number; items: Channel[] };
 
-/** Drop stale idle writes if a newer catalog finishes loading first. */
 let cacheWriteGeneration = 0;
+let idbHydratePromise: Promise<Channel[] | null> | null = null;
 
-export function getChannelListCache(): Channel[] | null {
+function readLocalStorageCache(): Channel[] | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(KEY);
@@ -25,28 +30,59 @@ export function getChannelListCache(): Channel[] | null {
   }
 }
 
-export function setChannelListCache(channels: Channel[]): void {
+/** Sync read — localStorage only (SSR-safe callers use null on server). */
+export function getChannelListCache(): Channel[] | null {
+  return readLocalStorageCache();
+}
+
+/**
+ * Cache-first hydrate: localStorage → IndexedDB (async).
+ * Call on mount before network; updates React state when IDB returns fresher/larger data.
+ */
+export async function hydrateChannelListCache(): Promise<Channel[] | null> {
+  const local = readLocalStorageCache();
+  if (local?.length) return local;
+
+  if (!idbHydratePromise) {
+    idbHydratePromise = getChannelCatalogFromIdb().finally(() => {
+      idbHydratePromise = null;
+    });
+  }
+  const idb = await idbHydratePromise;
+  if (idb?.length) {
+    setChannelListCache(idb, { skipIdb: true });
+    return idb;
+  }
+  return null;
+}
+
+export function setChannelListCache(
+  channels: Channel[],
+  opts?: { skipIdb?: boolean },
+): void {
   if (typeof window === "undefined") return;
   const gen = ++cacheWriteGeneration;
-  const flush = () => {
+
+  const flushLocal = () => {
     if (gen !== cacheWriteGeneration) return;
     try {
       const p: Payload = { t: Date.now(), items: channels };
       const s = JSON.stringify(p);
-      if (s.length > 4_200_000) {
-        // ~4MB localStorage guard — skip if huge
-        return;
-      }
+      if (s.length > 4_200_000) return;
       localStorage.setItem(KEY, s);
     } catch {
-      /* quota / private mode */
+      /* quota */
     }
   };
-  // Large catalogs: stringify + setItem on the main thread freezes the tab; defer until idle.
+
   if (typeof requestIdleCallback !== "undefined") {
-    requestIdleCallback(flush, { timeout: 4000 });
+    requestIdleCallback(flushLocal, { timeout: 4000 });
   } else {
-    setTimeout(flush, 0);
+    setTimeout(flushLocal, 0);
+  }
+
+  if (!opts?.skipIdb) {
+    void setChannelCatalogToIdb(channels);
   }
 }
 
@@ -57,4 +93,5 @@ export function clearChannelListCache(): void {
   } catch {
     /* */
   }
+  void clearChannelCatalogIdb();
 }

@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import Script from "next/script";
 import { AuthSessionSync } from "@/components/AuthSessionSync";
 import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { I18nProvider } from "@/lib/i18n/LocaleContext";
+import { SplashScreen } from "@/components/SplashScreen";
+import { buildApiUrl } from "@/lib/apiClient";
+import { hydrateChannelListCache } from "@/lib/channelListCache";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
 import { useThemeAccentStore } from "@/store/themeAccentStore";
 
@@ -23,33 +26,41 @@ function ThemeAccentSync() {
   return null;
 }
 
-/** Silent background refresh of content on app launch */
+/** Warm IDB + prefetch API routes silently on launch */
 function BackgroundAutoRefresh() {
   useEffect(() => {
-    const silentRefresh = async () => {
-      try {
-        await Promise.allSettled([
-          fetch("/api/channels", { method: "GET" }).catch((err) => {
-            console.warn("Failed to preload channels:", err);
-            return undefined;
-          }),
-          fetch("/api/categories", { method: "GET" }).catch((err) => {
-            console.warn("Failed to preload categories:", err);
-            return undefined;
-          }),
-          fetch("/api/fixtures", { method: "GET" }).catch((err) => {
-            console.warn("Failed to preload fixtures:", err);
-            return undefined;
-          }),
-        ]);
-      } catch (err) {
-        // Silent failure — user experience not interrupted
-        console.debug("Background preload batch error:", err);
-      }
-    };
-    silentRefresh();
+    void hydrateChannelListCache();
+    void Promise.allSettled([
+      fetch(buildApiUrl("/sports-tv/channels?page=1&page_size=24"), { cache: "default" }),
+      fetch(buildApiUrl("/sports-tv/filters"), { cache: "default" }),
+      fetch(buildApiUrl("/sports-tv/fixtures?hours_back=6&days_ahead=2"), { cache: "default" }),
+    ]);
   }, []);
   return null;
+}
+
+function AppSplashGate({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const finish = () => {
+      if (!cancelled) setReady(true);
+    };
+    void hydrateChannelListCache().finally(finish);
+    const t = setTimeout(finish, 1800);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, []);
+
+  return (
+    <>
+      <SplashScreen ready={ready} />
+      {children}
+    </>
+  );
 }
 
 function AdSenseScript() {
@@ -73,7 +84,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         <AdSenseScript />
         <BackgroundAutoRefresh />
         <AuthSessionSync />
-        {children}
+        <AppSplashGate>{children}</AppSplashGate>
         <PwaInstallBanner />
         <Toaster position="top-center" richColors closeButton />
       </I18nProvider>

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Noto_Sans_Bengali } from "next/font/google";
+import { Inter, Noto_Sans_Bengali, Anek_Bangla, Hind_Siliguri } from "next/font/google";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { SkipToContentLink } from "@/components/SkipToContentLink";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -16,6 +16,20 @@ const notoSansBengali = Noto_Sans_Bengali({
   weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-bengali",
+});
+
+const anekBangla = Anek_Bangla({
+  subsets: ["bengali", "latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-anek-bangla",
+});
+
+const hindSiliguri = Hind_Siliguri({
+  subsets: ["bengali", "latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-hind-siliguri",
 });
 
 // Preview: built-in VERCEL_URL keeps OG/metadataBase off production domain.
@@ -51,10 +65,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
       { url: "/icons/icon-192.svg", type: "image/svg+xml", sizes: "192x192" },
-      { url: "/icons/icon-512.svg", type: "image/svg+xml", sizes: "512x512" },
     ],
-    apple: [{ url: "/icons/icon-192.svg", type: "image/svg+xml", sizes: "192x192" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
   },
   metadataBase: new URL(siteUrl),
   openGraph: {
@@ -95,13 +110,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="bn"
-      className={`${inter.variable} ${notoSansBengali.variable} dark`}
+      className={`${inter.variable} ${notoSansBengali.variable} ${anekBangla.variable} ${hindSiliguri.variable} dark`}
       suppressHydrationWarning
     >
       <body
         className={`flex min-h-dvh min-h-screen flex-col bg-surface font-sans text-foreground antialiased ${inter.className}`}
         style={{
-          fontFamily: `var(--font-inter), var(--font-bengali), "Noto Sans Bengali", system-ui, sans-serif`,
+          fontFamily: `var(--font-anek-bangla), var(--font-hind-siliguri), var(--font-bengali), "Hind Siliguri", "Noto Sans Bengali", system-ui, sans-serif`,
         }}
       >
         <AppProviders>

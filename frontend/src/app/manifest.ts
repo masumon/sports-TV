@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
 
-/** Icons live under /public/icons as SVG — PNG paths were broken and blocked install. */
-const ICON_192 = "/icons/icon-192.svg";
-const ICON_512 = "/icons/icon-512.svg";
-const ICON_MASKABLE = "/icons/icon-maskable.svg";
+const ICON_192_PNG = "/icons/icon-192.png";
+const ICON_512_PNG = "/icons/icon-512.png";
+const ICON_MASKABLE_PNG = "/icons/icon-maskable-512.png";
+const ICON_192_SVG = "/icons/icon-192.svg";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -21,9 +21,10 @@ export default function manifest(): MetadataRoute.Manifest {
     dir: "ltr",
     prefer_related_applications: false,
     icons: [
-      { src: ICON_192, sizes: "192x192", type: "image/svg+xml", purpose: "any" },
-      { src: ICON_512, sizes: "512x512", type: "image/svg+xml", purpose: "any" },
-      { src: ICON_MASKABLE, sizes: "512x512", type: "image/svg+xml", purpose: "maskable" },
+      { src: ICON_192_PNG, sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: ICON_512_PNG, sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: ICON_MASKABLE_PNG, sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: ICON_192_SVG, sizes: "192x192", type: "image/svg+xml", purpose: "any" },
     ],
     shortcuts: [
       {
@@ -31,21 +32,21 @@ export default function manifest(): MetadataRoute.Manifest {
         short_name: "Sports",
         description: "Global sports channels live",
         url: "/?module=global_sports",
-        icons: [{ src: ICON_192, sizes: "192x192", type: "image/svg+xml" }],
+        icons: [{ src: ICON_192_PNG, sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Live Matches",
         short_name: "Live",
         description: "Live match center",
         url: "/live",
-        icons: [{ src: ICON_192, sizes: "192x192", type: "image/svg+xml" }],
+        icons: [{ src: ICON_192_PNG, sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Bangladesh TV",
         short_name: "BD",
         description: "Bangladesh live channels",
         url: "/?module=bangladesh",
-        icons: [{ src: ICON_192, sizes: "192x192", type: "image/svg+xml" }],
+        icons: [{ src: ICON_192_PNG, sizes: "192x192", type: "image/png" }],
       },
     ],
   };
