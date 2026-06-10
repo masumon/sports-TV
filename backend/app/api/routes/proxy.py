@@ -253,6 +253,31 @@ def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
             "origin": "https://executeandship.com",
         }
 
+    if n == "star_sports":
+        # Star Sports / Disney+ Hotstar CDN — Indian sports mirror servers expect mobile Chrome UA
+        # and Hotstar-like origin to satisfy CDN referer/UA checks on Indian content delivery nodes.
+        return {
+            "user-agent": (
+                "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+            ),
+            "referer": "https://www.hotstar.com/",
+            "origin": "https://www.hotstar.com",
+            "accept-language": "en-IN,en;q=0.9,hi;q=0.8",
+        }
+
+    if n == "sony_sports":
+        # Sony LIV CDN — Sony Ten / Sony Sports channels on Indian IPTV mirrors expect SonyLIV UA/referer.
+        return {
+            "user-agent": (
+                "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+            ),
+            "referer": "https://www.sonyliv.com/",
+            "origin": "https://www.sonyliv.com",
+            "accept-language": "en-IN,en;q=0.9,hi;q=0.8",
+        }
+
     return {}
 
 
@@ -280,38 +305,44 @@ def _upstream_httpx_base_kwargs() -> dict[str, object]:
 
 
 def _random_public_egress_ip() -> str:
-    """Plausible public IPv4 for X-Forwarded-For / X-Real-IP with global region diversity."""
+    """
+    Plausible public IPv4 for X-Forwarded-For / X-Real-IP.
+
+    Heavily weighted toward Indian ISP residential ranges (BSNL, Airtel, Jio, ACT, Hathway,
+    Vodafone-Idea) since most geo-restricted sports content (Star Sports, Sony Sports, T Sports)
+    is region-locked to India/South Asia. Remaining slots cover BD, PK, UK, UAE, and US.
+    """
     choice = random.randint(0, 9)
     if choice == 0:
-        # India (BSNL, Airtel, etc.) — 49.32-47.x.x, 103.x.x.x
-        return f"49.{random.randint(32, 47)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # India (BSNL) — 59.90-183.x.x
+        return f"59.{random.randint(90, 183)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     elif choice == 1:
-        # India (Reliance, Vodafone) — 59.x.x.x, 49.14-31.x.x
-        return f"103.{random.randint(8, 31)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # India (Airtel broadband) — 182.64-77.x.x
+        return f"182.{random.randint(64, 77)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     elif choice == 2:
-        # Bangladesh — 103.40-50.x.x, 115.x.x.x
-        return f"103.{random.randint(40, 50)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # India (Jio Fiber / mobile) — 49.32-47.x.x
+        return f"49.{random.randint(32, 47)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     elif choice == 3:
-        # Bangladesh (Bangla Online) — 118.x.x.x
-        return f"118.{random.randint(97, 107)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # India (ACT Fibernet / Hathway) — 115.97-99.x.x
+        return f"115.{random.randint(97, 99)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     elif choice == 4:
-        # Pakistan — 110.x.x.x
-        return f"110.{random.randint(39, 92)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # India (Vodafone-Idea / Vi) — 117.196-202.x.x
+        return f"117.{random.randint(196, 202)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     elif choice == 5:
-        # US East (Alternative) — 104.16-31.x.x
-        return f"104.{random.randint(16, 31)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # India (Tata Teleservices / Docomo) — 103.8-31.x.x
+        return f"103.{random.randint(8, 31)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     elif choice == 6:
-        # UK — 5.x.x.x, 2.x.x.x
-        return f"5.{random.randint(75, 93)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # Bangladesh (Grameenphone / BTCL) — 103.40-50.x.x
+        return f"103.{random.randint(40, 50)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     elif choice == 7:
-        # UAE — 185.x.x.x
-        return f"185.{random.randint(41, 42)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # Pakistan (PTCL/Jazz) — 110.88-93.x.x
+        return f"110.{random.randint(88, 93)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     elif choice == 8:
-        # Netherlands — 23.x.x.x
-        return f"23.{random.randint(105, 111)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # UK (BT/Sky/Virgin) — 5.148-151.x.x
+        return f"5.{random.randint(148, 151)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
     else:
-        # Fallback — Canada — 99.x.x.x
-        return f"99.{random.randint(153, 167)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+        # UAE (du/Etisalat) — 5.62-76.x.x
+        return f"5.{random.randint(62, 76)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
 
 
 def _apply_upstream_geo_bypass_headers(forward: dict[str, str]) -> dict[str, str]:
@@ -388,7 +419,7 @@ def _merge_stream_client_headers(upstream_safe: dict[str, str]) -> dict[str, str
     return h
 # Upstream may block a region; try alternate host / header set (primary vs fallback) before failing.
 _GEO_BLOCK_STATUS = (401, 403, 451)
-_GEO_IP_RETRY_ATTEMPTS = 4
+_GEO_IP_RETRY_ATTEMPTS = 6
 
 # Headers forwarded from upstream to the client (allow-list to avoid leaking internals).
 _FORWARD_UPSTREAM_HEADERS = {

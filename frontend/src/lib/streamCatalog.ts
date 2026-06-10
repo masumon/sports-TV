@@ -118,11 +118,53 @@ function detectHeaderProfile(
 ): string | null {
   const url = streamUrl.toLowerCase();
   const ua = (userAgent ?? "").toLowerCase();
+
   if (
     url.includes("tsports") ||
     url.includes("live-cdn.tsports") ||
     ua.includes("tsports")
   ) return "tsports";
+
+  // Star Sports / Disney+ Hotstar CDN patterns
+  if (
+    url.includes("starsports") ||
+    url.includes("star-sports") ||
+    url.includes("star_sports") ||
+    url.includes("hotstar") ||
+    ua.includes("hotstar") ||
+    ua.includes("starsports")
+  ) return "star_sports";
+
+  // Sony LIV / Sony Sports / Sony Ten CDN patterns
+  if (
+    url.includes("sonyliv") ||
+    url.includes("sony_ten") ||
+    url.includes("sonyten") ||
+    url.includes("sonysports") ||
+    url.includes("sony-sports") ||
+    ua.includes("sonyliv")
+  ) return "sony_sports";
+
+  return null;
+}
+
+/**
+ * Infer a header profile from channel name when URL-based detection fails.
+ * Used for IP-address-based mirror URLs that carry no CDN fingerprint.
+ */
+function detectHeaderProfileFromName(name: string): string | null {
+  const n = name.toLowerCase();
+  if (n.includes("star sports") || n.includes("starsports") || n.includes("hotstar")) {
+    return "star_sports";
+  }
+  if (
+    n.includes("sony ten") ||
+    n.includes("sony sports") ||
+    n.includes("sonyliv") ||
+    n.includes("sony liv")
+  ) {
+    return "sony_sports";
+  }
   return null;
 }
 
@@ -133,7 +175,14 @@ function entryToChannel(
 ): Channel {
   const group = e.groupTitle?.trim() || "";
   const emptyTs = { created_at: "", updated_at: "" };
-  const geoHint = GEO_BLOCK_HINT_RE.test(`${e.name} ${group}`);
+  // Mark as geo-restricted if name/group contains geo-block keywords, or if channel is a
+  // known Indian sports broadcaster (Star Sports / Sony Sports are India-region-locked).
+  const geoHint =
+    GEO_BLOCK_HINT_RE.test(`${e.name} ${group}`) ||
+    detectHeaderProfileFromName(e.name) !== null;
+  const headerProfile =
+    detectHeaderProfile(e.streamUrl, e.userAgent) ??
+    detectHeaderProfileFromName(e.name);
   return {
     id: stableId(`${module}:${normKey(e.streamUrl)}:${e.name}`),
     name: e.name.trim() || "Channel",
@@ -146,7 +195,7 @@ function entryToChannel(
     quality_tag: "auto",
     module,
     is_active: true,
-    header_profile: detectHeaderProfile(e.streamUrl, e.userAgent),
+    header_profile: headerProfile,
     geo_hint: geoHint,
     ...emptyTs,
   };
