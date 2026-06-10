@@ -1,4 +1,13 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "github": {
+    "autoJobCancelation": true,
+    "silent": false
+  },
   "headers": [
     {
       "source": "/api/v1/proxy/(.*)",
