@@ -348,7 +348,13 @@ export default function PremiumPlayer({
   const [streamCodec, setStreamCodec] = useState("HLS");
   const lastTapRef = useRef(0);
 
+  const canAutoReloadBeforePlayback = useCallback(
+    () => !playbackStartedRef.current && !everPlayedRef.current,
+    []
+  );
+
   const scheduleRetryKey = useCallback(() => {
+    if (!canAutoReloadBeforePlayback()) return;
     if (retryPendingRef.current) clearTimeout(retryPendingRef.current);
     const elapsed = Date.now() - lastRetryAtRef.current;
     const delay = Math.max(300, elapsed >= RETRY_KEY_MIN_INTERVAL_MS ? 300 : RETRY_KEY_MIN_INTERVAL_MS - elapsed);
@@ -357,7 +363,7 @@ export default function PremiumPlayer({
       lastRetryAtRef.current = Date.now();
       setRetryKey((k) => k + 1);
     }, delay);
-  }, []);
+  }, [canAutoReloadBeforePlayback]);
 
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
@@ -570,6 +576,13 @@ export default function PremiumPlayer({
       });
       player.initialize(video, effectiveUrl, true);
       const onError = () => {
+        if (!canAutoReloadBeforePlayback()) {
+          setIsSwitching(false);
+          setIsLoading(false);
+          setIsBuffering(false);
+          setHasError(true);
+          return;
+        }
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
@@ -626,6 +639,12 @@ export default function PremiumPlayer({
           const onEnd = () => {
             xhr.removeEventListener("loadend", onEnd);
             if (xhr.status === 503) {
+              if (!canAutoReloadBeforePlayback()) {
+                setServerWaking(false);
+                setIsLoading(false);
+                setIsBuffering(true);
+                return;
+              }
               // Backend is hibernating (Render free tier) — show waking message and retry after delay
               setServerWaking(true);
               if (everPlayedRef.current) {
@@ -675,6 +694,7 @@ export default function PremiumPlayer({
       hlsInstance = hls;
       hlsRef.current = hls;
       tryFailover = (): boolean => {
+        if (!canAutoReloadBeforePlayback()) return false;
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
@@ -753,7 +773,7 @@ export default function PremiumPlayer({
 
         if (isNet || isManifest || isLevel || isFrag) {
           const retries = linkRetryRef.current;
-          if (retries < LINK_RETRY_ATTEMPTS - 1) {
+          if (canAutoReloadBeforePlayback() && retries < LINK_RETRY_ATTEMPTS - 1) {
             linkRetryRef.current = retries + 1;
             if (!playbackStartedRef.current && !everPlayedRef.current) {
               setIsLoading(true);
@@ -769,7 +789,7 @@ export default function PremiumPlayer({
             return;
           }
           linkRetryRef.current = 0;
-          if (tryFailover()) return;
+          if (canAutoReloadBeforePlayback() && tryFailover()) return;
         }
 
         setIsSwitching(false);
@@ -846,7 +866,7 @@ export default function PremiumPlayer({
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
-        if (nextIdx < allUrls.length && loadGen === loadGenRef.current) {
+        if (canAutoReloadBeforePlayback() && nextIdx < allUrls.length && loadGen === loadGenRef.current) {
           urlPlayIndexRef.current = nextIdx;
           setUrlIdx(nextIdx);
           if (everPlayedRef.current) {
@@ -891,6 +911,7 @@ export default function PremiumPlayer({
     lowLatencyMode,
     scheduleRetryKey,
     attemptVideoPlayback,
+    canAutoReloadBeforePlayback,
   ]);
 
   useEffect(() => {
