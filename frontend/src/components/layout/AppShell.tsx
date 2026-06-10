@@ -1,8 +1,8 @@
 "use client";
 
 import { TopBar } from "@/components/layout/TopBar";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { SidebarNav } from "@/components/layout/SidebarNav";
+import { BottomNav } from "@/components/layout/BottomNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NetworkStatusBar } from "@/components/NetworkStatusBar";
 
@@ -16,8 +16,8 @@ export function AppShell({ children, searchQuery, onSearch }: Props) {
   return (
     <ErrorBoundary>
       <NetworkStatusBar />
-      <div className="flex min-h-screen antialiased" style={{ background: "var(--bg-dark)", color: "var(--text-main)" }}>
-        <Sidebar />
+      <div className="flex min-h-screen bg-surface antialiased text-foreground">
+        <SidebarNav />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar onSearch={onSearch} searchQuery={searchQuery} />
           <main
@@ -31,7 +31,7 @@ export function AppShell({ children, searchQuery, onSearch }: Props) {
           >
             {children}
           </main>
-          <MobileBottomNav />
+          <BottomNav />
         </div>
       </div>
     </ErrorBoundary>

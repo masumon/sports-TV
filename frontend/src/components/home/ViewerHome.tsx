@@ -15,7 +15,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import {
-  memo,
   startTransition,
   useCallback,
   useDeferredValue,
@@ -28,7 +27,12 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
+import { CategoryTabs } from "@/components/home/CategoryTabs";
+import { ChannelGrid } from "@/components/channels/ChannelGrid";
+import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
+import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
+import { isFixtureLive } from "@/lib/matchPresentation";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
 import { fetchAllChannels, apiClient } from "@/lib/apiClient";
@@ -323,27 +327,6 @@ export function ViewerHome() {
     },
     [setActiveChannel]
   );
-  const toggleFavorite = useCallback((ch: Channel) => {
-    setFavorites((prev) => {
-      const isAdding = !prev.includes(ch.id);
-      const next = isAdding
-        ? [ch.id, ...prev].slice(0, 30)
-        : prev.filter((id) => id !== ch.id);
-      try { localStorage.setItem("gstv-favorites", JSON.stringify(next)); } catch { /* ignore */ }
-      toast(isAdding ? `⭐ ${ch.name} favorites-এ যোগ হয়েছে` : `${ch.name} favorites থেকে সরানো হয়েছে`, { duration: 2000 });
-      return next;
-    });
-  }, []);
-
-  const shareChannel = useCallback((ch: Channel) => {
-    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/?channel=${encodeURIComponent(ch.name)}`;
-    if (typeof navigator !== "undefined" && navigator.share) {
-      navigator.share({ title: ch.name, text: `Watch ${ch.name} live`, url }).catch(() => null);
-    } else {
-      navigator.clipboard?.writeText(url).then(() => toast(`🔗 লিংক কপি হয়েছে: ${ch.name}`, { duration: 2500 })).catch(() => null);
-    }
-  }, []);
-
   const requestMatchNotification = useCallback(async (fx: LiveFixture) => {
     if (!("Notification" in window)) return;
     const fxKey = fx.external_id || String(fx.id);
@@ -960,38 +943,28 @@ export function ViewerHome() {
     setSearchSuggestions(suggestions);
   }, [searchQuery, allChannels, activeModule, setSearchSuggestions]);
 
-  // EPG-lite: map channel id → live fixture text for sport channels
-  const liveEpgMap = useMemo(() => {
-    const map = new Map<number, string>();
-    const live = scheduleFixtures.filter((f) => f.status === "IN_PROGRESS" || f.status === "LIVE" || f.status === "1H" || f.status === "2H" || f.status === "HT");
-    if (!live.length) return map;
-    for (const ch of moduleChannels) {
-      const n = ch.name.toLowerCase();
-      const chCountry = ch.country.toLowerCase();
-      const matched = live.find((f) => {
-        const ft = `${f.home_team} ${f.away_team} ${f.league_name}`.toLowerCase();
-        // Name-prefix match (≥6 chars to avoid spurious short matches)
-        if (n.length >= 6 && ft.includes(n.slice(0, 6))) return true;
-        // Channel country aligns with one of the playing teams
-        if (chCountry.length >= 4 && (
-          f.home_team.toLowerCase().includes(chCountry) ||
-          f.away_team.toLowerCase().includes(chCountry) ||
-          ft.includes(chCountry)
-        )) return true;
-        return false;
-      });
-      if (matched) {
-        map.set(ch.id, `🔴 ${matched.home_team} vs ${matched.away_team}`);
-      }
-    }
-    return map;
-  }, [scheduleFixtures, moduleChannels]);
-
   // Recently added: top 10 channels by highest id (proxy for DB insertion order)
   const recentlyAdded = useMemo(() => {
     if (activeModule !== "global_sports" && activeModule !== "bangladesh" && activeModule !== "india") return [];
     return [...moduleChannels].sort((a, b) => b.id - a.id).slice(0, 10);
   }, [activeModule, moduleChannels]);
+
+  const moduleCategoryTabs = useMemo(
+    () => [
+      { id: "global_sports", label: "Global Sports", icon: "🌍", count: gsCount },
+      { id: "bangladesh", label: "Bangladesh", icon: "🇧🇩", count: bdCount },
+      { id: "india", label: "India", icon: "🇮🇳", count: inCount },
+      { id: "fast_tv", label: "FAST TV", icon: "⚡", count: fastCount },
+      { id: "live_matches", label: "Live Matches", icon: "🔴", count: liveCount },
+      { id: "world_cup_2026", label: "World Cup", icon: "🏆", count: wcCount },
+    ],
+    [gsCount, bdCount, inCount, fastCount, liveCount, wcCount],
+  );
+
+  const featuredLiveFixture = useMemo(
+    () => scheduleFixtures.find(isFixtureLive) ?? null,
+    [scheduleFixtures],
+  );
 
   // Swipe gesture: left/right to cycle modules
   const swipeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1063,73 +1036,12 @@ export function ViewerHome() {
           )}
         </AnimatePresence>
 
-        {/* ── Module tabs: hidden on mobile (bottom nav handles navigation there) ── */}
-        <div className="hidden md:flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible">
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("global_sports");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "global_sports" ? " active" : ""}`}
-          >
-            🌍 Global Sports
-            {gsCount > 0 && <span className="module-tab-badge">{gsCount}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("bangladesh");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "bangladesh" ? " active bd" : ""}`}
-          >
-            🇧🇩 Bangladesh
-            {bdCount > 0 && <span className="module-tab-badge">{bdCount}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("india");
-            }}
-            className={`module-tab module-tab--in shrink-0 snap-start${activeModule === "india" ? " active" : ""}`}
-          >
-            🇮🇳 India
-            {inCount > 0 && <span className="module-tab-badge">{inCount}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("fast_tv");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "fast_tv" ? " active" : ""}`}
-          >
-            ⚡ FAST TV
-            {fastCount > 0 && <span className="module-tab-badge">{fastCount}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("live_matches");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
-          >
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "#f87171" }} aria-hidden />
-              Live Matches
-            </span>
-            {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("world_cup_2026");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "world_cup_2026" ? " active" : ""}`}
-            style={activeModule === "world_cup_2026" ? { background: "rgba(245,166,35,0.15)", borderColor: "rgba(245,166,35,0.5)" } : {}}
-          >
-            🏆 World Cup 2026
-            {wcCount > 0 && <span className="module-tab-badge">{wcCount}</span>}
-          </button>
-        </div>
+        <CategoryTabs
+          className="hidden md:flex pb-1"
+          tabs={moduleCategoryTabs}
+          activeCategory={activeModule}
+          onChange={(id) => transitionSetActiveModule(id as ViewerModule)}
+        />
 
         {/* ── Live Matches: full premium standalone view ── */}
         {activeModule === "live_matches" && (
@@ -1829,24 +1741,37 @@ export function ViewerHome() {
                 <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
               </button>
             )}
-            {activeChannel ? (
-              <PremiumPlayer
-                streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
-                streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                alternateUrls={[]}
-                title={activeChannel.name}
-                isTheaterMode={isTheaterMode}
-                onToggleTheaterMode={toggleTheaterMode}
-                headerProfile={activeChannel.header_profile ?? null}
-                geoHint={Boolean(activeChannel.geo_hint)}
-                channelLogoUrl={activeChannel.logo_url}
-                onStreamError={() => setShowErrorSuggestions(true)}
-              />
-            ) : (
-              <div className="player-shell flex aspect-video items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
-                {t("noChannel")}
-              </div>
-            )}
+            <HeroVideoPlayer
+              isLive={Boolean(activeChannel)}
+              title={activeChannel?.name ?? t("noChannel")}
+              overlay={
+                featuredLiveFixture ? (
+                  <LiveStatsOverlay
+                    homeTeam={featuredLiveFixture.home_team}
+                    awayTeam={featuredLiveFixture.away_team}
+                    period={featuredLiveFixture.status}
+                    venue={featuredLiveFixture.league_name}
+                    format={featuredLiveFixture.sport}
+                    series={featuredLiveFixture.league_name}
+                  />
+                ) : undefined
+              }
+            >
+              {activeChannel ? (
+                <PremiumPlayer
+                  streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
+                  streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
+                  alternateUrls={[]}
+                  title={activeChannel.name}
+                  isTheaterMode={isTheaterMode}
+                  onToggleTheaterMode={toggleTheaterMode}
+                  headerProfile={activeChannel.header_profile ?? null}
+                  geoHint={Boolean(activeChannel.geo_hint)}
+                  channelLogoUrl={activeChannel.logo_url}
+                  onStreamError={() => setShowErrorSuggestions(true)}
+                />
+              ) : null}
+            </HeroVideoPlayer>
 
             {/* Now playing info strip */}
             {activeChannel && (
@@ -2248,23 +2173,19 @@ export function ViewerHome() {
               )}
 
 
-              <div role="list" className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
-                {gridSlice.map((ch) => (
-                  <div key={ch.id} role="listitem">
-                    <PremiumChannelCard
-                      channel={ch}
-                      active={activeChannel?.id === ch.id}
-                      onSelect={selectChannel}
-                      activeModule={activeModule}
-                      isFavorited={favorites.includes(ch.id)}
-                      onToggleFavorite={toggleFavorite}
-                      onShare={shareChannel}
-                      highlight={deferredSearch}
-                      epgText={liveEpgMap.get(ch.id) ?? null}
-                    />
-                  </div>
-                ))}
-              </div>
+              <ChannelGrid
+                channels={gridSlice.map((ch) => ({
+                  id: ch.id,
+                  name: ch.name,
+                  logoUrl: ch.logo_url,
+                }))}
+                activeId={activeChannel?.id ?? null}
+                isLive={false}
+                onSelect={(card) => {
+                  const full = gridSlice.find((ch) => ch.id === card.id);
+                  if (full) selectChannel(full);
+                }}
+              />
               {gridHasMore ? (
                 <>
                   <div ref={gridSentinelRef} className="h-1 w-full" aria-hidden />
@@ -2310,173 +2231,4 @@ export function ViewerHome() {
     </>
   );
 }
-
-/* ── Highlight matching text in search results ── */
-function HighlightText({ text, query }: { text: string; query: string }) {
-  if (!query) return <>{text}</>;
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return <>{text}</>;
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark style={{ background: "rgba(229,9,20,0.35)", color: "#fff", borderRadius: 2, padding: "0 1px" }}>
-        {text.slice(idx, idx + query.length)}
-      </mark>
-      {text.slice(idx + query.length)}
-    </>
-  );
-}
-
-/* ── Premium Channel Card ── */
-const PremiumChannelCard = memo(function PremiumChannelCard({
-  channel,
-  active,
-  onSelect,
-  activeModule,
-  isFavorited,
-  onToggleFavorite,
-  onShare,
-  highlight,
-  epgText,
-}: {
-  channel: Channel;
-  active: boolean;
-  onSelect: (c: Channel) => void;
-  activeModule: ViewerModule;
-  isFavorited: boolean;
-  onToggleFavorite: (c: Channel) => void;
-  onShare: (c: Channel) => void;
-  highlight?: string;
-  epgText?: string | null;
-}) {
-  const isHD =
-    channel.quality_tag.toLowerCase().includes("hd") ||
-    channel.quality_tag.toLowerCase().includes("fhd") ||
-    channel.quality_tag.toLowerCase().includes("4k") ||
-    channel.quality_tag.toLowerCase().includes("1080");
-
-  return (
-    <div className={`ch-card group w-full${active ? " active" : ""}`}>
-      <button
-        type="button"
-        onClick={() => onSelect(channel)}
-        className="w-full text-left"
-        aria-label={channel.name}
-      >
-        {/* ── Thumbnail ── */}
-        <div
-          className="relative w-full overflow-hidden"
-          style={{
-            aspectRatio: "1 / 1",
-            background: active
-              ? "linear-gradient(135deg,rgb(var(--primary-rgb)/0.16),rgb(var(--primary-rgb)/0.05))"
-              : "var(--bg-hover)",
-          }}
-        >
-          {channel.logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={channel.logo_url}
-              alt=""
-              className="absolute inset-0 h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
-              loading="lazy"
-              onError={(e) => {
-                const t = e.currentTarget;
-                t.style.display = "none";
-                const fb = t.nextElementSibling as HTMLElement | null;
-                if (fb) fb.style.display = "flex";
-              }}
-            />
-          ) : null}
-          <div
-            className="absolute inset-0 flex-col items-center justify-center gap-1"
-            style={{
-              background: "linear-gradient(135deg,rgba(8,11,18,0.95) 0%,rgba(16,21,31,0.9) 100%)",
-              display: channel.logo_url ? "none" : "flex",
-            }}
-          >
-            <span
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-lg font-black"
-              style={{
-                background: "rgb(var(--primary-rgb)/0.15)",
-                border: "1.5px solid rgb(var(--primary-rgb)/0.3)",
-                color: "var(--primary-accent)",
-                boxShadow: "var(--glow-accent)",
-              }}
-            >
-              {channel.name.replace(/\s*\[.*?\]/g, "").slice(0, 2).toUpperCase()}
-            </span>
-          </div>
-
-          {/* LIVE overlay when active */}
-          {active && (
-            <div className="absolute inset-0 flex items-end justify-center pb-2"
-              style={{ background: "linear-gradient(to top,rgba(0,0,0,0.7) 0%,transparent 60%)" }}>
-              <span className="live-badge text-[9px]">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" /> LIVE
-              </span>
-            </div>
-          )}
-
-          {/* EPG live match badge */}
-          {!active && epgText && (
-            <div className="absolute bottom-0 left-0 right-0 px-1.5 pb-1.5"
-              style={{ background: "linear-gradient(to top,rgba(0,0,0,0.8) 0%,transparent 100%)" }}>
-              <p className="truncate text-[8px] font-bold leading-tight" style={{ color: "#fbbf24" }}>{epgText}</p>
-            </div>
-          )}
-
-
-          {/* HD badge */}
-          {isHD && (
-            <span
-              className="absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider"
-              style={{ background: "rgba(16,185,129,0.92)", color: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,0.4)" }}
-            >
-              HD
-            </span>
-          )}
-
-          {/* Action buttons: favorite + share (show on hover) */}
-          <div className="absolute right-1 top-1 flex flex-col gap-1 opacity-0 transition-all group-hover:opacity-100">
-            <button
-              type="button"
-              aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
-              onClick={(e) => { e.stopPropagation(); onToggleFavorite(channel); }}
-              className="flex h-6 w-6 items-center justify-center rounded-full text-xs transition hover:scale-110"
-              style={{ background: isFavorited ? "rgba(245,166,35,0.9)" : "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(6px)" }}
-            >
-              {isFavorited ? "⭐" : "☆"}
-            </button>
-            <button
-              type="button"
-              aria-label="Share channel"
-              onClick={(e) => { e.stopPropagation(); onShare(channel); }}
-              className="flex h-6 w-6 items-center justify-center rounded-full text-xs transition hover:scale-110"
-              style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(6px)", color: "#94A3B8" }}
-            >
-              <Share2 size={10} />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Info ── */}
-        <div className="px-2 py-1.5">
-          <p
-            className="truncate text-[11px] font-semibold leading-tight"
-            style={{ color: active ? "var(--primary-accent)" : "var(--text-main)" }}
-            title={channel.name.replace(/\s*\[.*?\]/g, "").trim()}
-          >
-            <HighlightText text={channel.name.replace(/\s*\[.*?\]/g, "").trim()} query={highlight ?? ""} />
-          </p>
-          <p className="mt-0.5 flex items-center gap-0.5 truncate text-[9px] leading-none" style={{ color: "var(--text-muted)" }}>
-            <span className="shrink-0">{flagFromCountryName(channel.country)}</span>
-            <span className="truncate">{categoryEmoji(channel.category, activeModule)} {channel.category}</span>
-          </p>
-        </div>
-      </button>
-    </div>
-  );
-});
-
 

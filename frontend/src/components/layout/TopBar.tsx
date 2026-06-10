@@ -1,17 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Globe, Menu, Moon, Search, Sun, Sparkles, Radio, X } from "lucide-react";
+import { Globe, Menu, Moon, Search, Sparkles, Sun, User, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
+import { Badge } from "@/components/ui/Badge";
 import { useAuthStore } from "@/store/authStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
 import { SearchOverlay } from "@/components/SearchOverlay";
+import { cn } from "@/lib/cn";
 import type { Channel } from "@/lib/types";
 
 const RECENT_SEARCHES_KEY = "gstv-recent-searches";
@@ -39,7 +41,6 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // লোড recent searches
   useEffect(() => {
     try {
       const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
@@ -47,11 +48,10 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         setRecentSearches(JSON.parse(stored));
       }
     } catch {
-      // ডিফল্ট খালি হবে
+      /* keep empty */
     }
   }, []);
 
-  // সাম্প্রতিক সার্চ সংরক্ষণ করুন
   const saveRecentSearch = (query: string) => {
     const trimmed = query.trim();
     if (!trimmed) return;
@@ -61,7 +61,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
       setRecentSearches(updated);
       localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
     } catch {
-      // ব্যর্থ হলে অপরেশন চলতে থাকে
+      /* continue */
     }
   };
 
@@ -70,7 +70,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
       setRecentSearches([]);
       localStorage.removeItem(RECENT_SEARCHES_KEY);
     } catch {
-      // ব্যর্থ হলে অপরেশন চলতে থাকে
+      /* continue */
     }
   };
 
@@ -85,7 +85,10 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
     router.push(q ? `/?q=${encodeURIComponent(q)}` : "/", { scroll: false });
   };
 
-  // Close suggestions on outside click
+  const openMobileSearch = () => {
+    setSearchOverlayOpen(true);
+  };
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
@@ -102,101 +105,94 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
 
   useEffect(() => {
     if (searchFocusNonce === 0) return;
+    if (window.innerWidth < 768) {
+      setSearchOverlayOpen(true);
+      return;
+    }
     document.getElementById("gstv-search")?.focus({ preventScroll: true });
   }, [searchFocusNonce]);
 
-  // After router.push("/") from bottom nav "Search" on admin/offline etc.
   useEffect(() => {
     if (pathname !== "/") return;
     try {
       if (sessionStorage.getItem("gstv-focus-search") === "1") {
         sessionStorage.removeItem("gstv-focus-search");
         requestSearchFocus();
-        queueMicrotask(() => {
-          document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
-        });
+        if (window.innerWidth < 768) {
+          setSearchOverlayOpen(true);
+        } else {
+          queueMicrotask(() => {
+            document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          });
+        }
       }
     } catch {
       /* */
     }
   }, [pathname, requestSearchFocus]);
 
+  const profileInitial = user?.full_name?.trim().charAt(0).toUpperCase() ?? null;
+
   return (
     <>
-      <header
-        className="sticky top-0 z-40"
-        style={{
-          background: "rgba(11,15,25,0.96)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          boxShadow: "0 1px 24px rgba(0,0,0,0.4)",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        }}
-      >
-        {/* Mobile: tighter gap; Desktop: normal gap */}
-        <div className="flex min-h-14 items-center gap-1 px-2 sm:gap-2 md:min-h-16 md:px-4">
-
-          {/* Mobile menu button */}
+      <header className="sticky top-0 z-40 border-b border-border-subtle bg-surface-secondary/80 backdrop-blur-md">
+        <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-2 px-3 sm:gap-3 md:h-16 md:px-4">
+          {/* Left: menu + brand */}
           <button
             type="button"
-            className="inline-flex shrink-0 items-center justify-center rounded-lg p-2 transition hover:bg-white/10 md:hidden"
-            style={{ color: "var(--text-muted)" }}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-foreground-muted transition hover:bg-surface-elevated hover:text-foreground md:hidden"
             onClick={toggleSidebar}
             aria-label="Menu"
           >
             <Menu size={20} />
           </button>
 
-          {/* Logo */}
-          <div className="flex shrink-0 items-center gap-1.5">
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:h-9 sm:w-9 md:h-10 md:w-10"
-              style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.45)", boxShadow: "0 2px 12px rgba(245,166,35,0.2)" }}
-            >
+          <Link href="/" className="flex shrink-0 items-center gap-2.5 transition-opacity hover:opacity-90">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-accent-gold/45 bg-white shadow-glow-gold sm:h-10 sm:w-10">
               <Image
                 src="/icons/abo-sports-tv-logo.png"
                 alt="ABO Sports TV"
-                width={32}
-                height={32}
-                className="object-contain"
-                style={{ padding: 2 }}
+                width={36}
+                height={36}
+                className="object-contain p-0.5"
               />
             </div>
-            {/* Brand text — hidden on small screens to save space */}
-            <div className="hidden min-[420px]:flex flex-col">
-              <p className="text-[10px] font-black uppercase tracking-[0.06em] leading-none sm:text-[11px]" style={{ color: "#F5A623" }}>
-                ABO SPORTS
-              </p>
-              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: "#ef4444" }}>
-                ● LIVE
+            <div className="hidden min-[380px]:flex flex-col leading-none">
+              <span className="text-sm font-bold tracking-wide text-accent-gold sm:text-base">
+                ABO SPORTS TV
+              </span>
+              <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-foreground-muted sm:text-[10px]">
+                Live Streaming
               </span>
             </div>
-          </div>
+          </Link>
 
-          {/* Search bar — takes all remaining space */}
-          <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-1.5">
-            <div className="relative min-w-0 flex-1" ref={searchWrapRef}>
+          {/* Center: desktop search */}
+          <div className="hidden min-w-0 flex-1 items-center justify-center md:flex md:px-4">
+            <div className="relative w-full max-w-xl" ref={searchWrapRef}>
               <Search
-                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:h-4 sm:w-4 sm:left-3"
-                style={{ color: "var(--text-muted)" }}
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted"
+                aria-hidden
               />
               <input
                 id="gstv-search"
                 value={searchQuery}
-                onChange={(e) => { onSearch(e.target.value); setShowSuggestions(true); }}
+                onChange={(e) => {
+                  onSearch(e.target.value);
+                  setShowSuggestions(true);
+                }}
                 onFocus={() => {
-                  // মোবাইলে SearchOverlay খুলুন
-                  if (window.innerWidth < 768) {
-                    setSearchOverlayOpen(true);
-                  } else if (searchSuggestions.length) {
+                  if (searchSuggestions.length) {
                     setShowSuggestions(true);
                   }
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); commitSearchNavigation(); }
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitSearchNavigation();
+                  }
                   if (e.key === "Escape") {
                     setShowSuggestions(false);
-                    setSearchOverlayOpen(false);
                   }
                 }}
                 placeholder={t("search")}
@@ -205,29 +201,25 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="search-input min-h-11 w-full rounded-xl py-2.5 pl-8 pr-7 placeholder:opacity-60 focus:outline-none sm:pl-9 sm:pr-8 md:min-h-10 md:py-2 cursor-pointer md:cursor-text"
-                style={{
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border)",
-                }}
+                className="search-input h-10 w-full rounded-xl border border-glass-border bg-surface-elevated py-2 pl-10 pr-9 text-sm text-foreground placeholder:text-foreground-muted focus:border-accent-cyan/40 focus:outline-none"
               />
-              {searchQuery && (
+              {searchQuery ? (
                 <button
                   type="button"
                   aria-label="Clear search"
-                  onClick={() => { onSearch(""); setShowSuggestions(false); document.getElementById("gstv-search")?.focus(); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 transition hover:bg-white/10"
-                  style={{ color: "var(--text-muted)" }}
+                  onClick={() => {
+                    onSearch("");
+                    setShowSuggestions(false);
+                    document.getElementById("gstv-search")?.focus();
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-foreground-muted transition hover:bg-surface-secondary hover:text-foreground"
                 >
-                  <X size={13} />
+                  <X size={14} />
                 </button>
-              )}
-              {/* Suggestions dropdown — desktop only */}
-              {showSuggestions && searchSuggestions.length > 0 && (
-                <div
-                  className="hidden md:absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl shadow-2xl"
-                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-                >
+              ) : null}
+
+              {showSuggestions && searchSuggestions.length > 0 ? (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-glass-border bg-surface-secondary shadow-glass">
                   {searchSuggestions.map((ch) => (
                     <button
                       key={ch.id}
@@ -239,94 +231,103 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
                         setShowSuggestions(false);
                         router.push(`/?q=${encodeURIComponent(ch.name)}`, { scroll: false });
                       }}
-                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.05]"
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-surface-elevated"
                     >
                       {ch.logo_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ch.logo_url} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" style={{ border: "1px solid var(--border)" }} loading="lazy" />
+                        <img
+                          src={ch.logo_url}
+                          alt=""
+                          className="h-8 w-8 shrink-0 rounded-md border border-glass-border object-cover"
+                          loading="lazy"
+                        />
                       ) : (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold" style={{ background: "var(--bg-hover)", color: "var(--primary-accent)" }}>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-elevated text-xs font-bold text-accent-gold">
                           {ch.name.slice(0, 2)}
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium" style={{ color: "var(--text-main)" }}>{ch.name}</p>
-                        <p className="truncate text-[10px]" style={{ color: "var(--text-muted)" }}>
+                        <p className="truncate text-sm font-medium text-foreground">{ch.name}</p>
+                        <p className="truncate text-[10px] text-foreground-muted">
                           {flagFromCountryName(ch.country)} {ch.country} · {ch.quality_tag.toUpperCase()}
                         </p>
                       </div>
                     </button>
                   ))}
                 </div>
-              )}
+              ) : null}
+            </div>
+          </div>
+
+          {/* Right: actions */}
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
+            {tier === "premium" ? (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-accent-gold/30 bg-accent-gold/10 px-2 py-1 text-accent-gold"
+                title={t("premium")}
+              >
+                <Sparkles size={11} className="shrink-0" aria-hidden />
+                <span className="hidden text-[10px] font-bold sm:inline">{t("premium")}</span>
+              </span>
+            ) : null}
+
+            <div className="hidden lg:block">
+              <Badge variant="live">LIVE</Badge>
             </div>
 
-            {/* Search Go button — icon only on mobile */}
+            {mounted ? (
+              <button
+                type="button"
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                className="hidden h-10 w-10 items-center justify-center rounded-xl text-foreground-muted transition hover:bg-surface-elevated hover:text-foreground sm:inline-flex"
+                aria-label="Toggle theme"
+              >
+                {resolvedTheme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+              </button>
+            ) : null}
+
             <button
               type="button"
-              onClick={commitSearchNavigation}
-              className="shrink-0 rounded-xl p-2.5 sm:px-3 sm:py-2 text-sm font-semibold transition hover:opacity-90 min-h-11 md:min-h-10"
-              style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
-              aria-label={t("searchGo")}
+              onClick={() => setLocale(locale === "en" ? "bn" : "en")}
+              className="hidden h-10 items-center justify-center gap-1 rounded-xl border border-glass-border px-2.5 text-foreground-muted transition hover:bg-surface-elevated hover:text-foreground sm:inline-flex"
+              title="Language / ভাষা"
+              aria-label="Toggle language"
             >
-              <Search size={15} aria-hidden />
+              <Globe size={15} aria-hidden />
+              <span className="text-xs font-semibold">{locale.toUpperCase()}</span>
             </button>
-          </div>
 
-          {/* LIVE badge — desktop only (player has its own LIVE badge on mobile) */}
-          <div
-            role="status"
-            aria-label="Live HLS"
-            className="hidden sm:inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
-            style={{ background: "rgba(229,57,53,0.12)", border: "1px solid rgba(229,57,53,0.3)", color: "#FF5252" }}
-          >
-            <Radio size={10} className="shrink-0 animate-pulse" aria-hidden />
-            LIVE
-          </div>
-
-          {/* Premium badge — icon only on mobile */}
-          {tier === "premium" && (
-            <span
-              className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-1 sm:gap-1 sm:px-2.5 sm:py-1"
-              style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
-              title={t("premium")}
-            >
-              <Sparkles size={11} className="shrink-0" />
-              <span className="hidden sm:inline text-[10px] font-bold">{t("premium")}</span>
-            </span>
-          )}
-
-          {/* Theme toggle — desktop only */}
-          {mounted && (
             <button
               type="button"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              className="hidden sm:inline-flex items-center justify-center rounded-lg p-2 transition hover:bg-white/10"
-              style={{ color: "var(--text-muted)" }}
-              aria-label="Toggle theme"
+              onClick={openMobileSearch}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-foreground-muted transition hover:bg-surface-elevated hover:text-foreground md:hidden"
+              aria-label={t("search")}
             >
-              {resolvedTheme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+              <Search size={18} />
             </button>
-          )}
 
-          {/* Language toggle — globe icon only on mobile, text on sm+ */}
-          <button
-            type="button"
-            onClick={() => setLocale(locale === "en" ? "bn" : "en")}
-            className="flex shrink-0 items-center justify-center gap-1 rounded-lg p-2 sm:px-2 sm:py-1.5 transition hover:bg-white/10 min-h-11 md:min-h-10"
-            style={{ color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
-            title="Language / ভাষা"
-            aria-label="Toggle language"
-          >
-            <Globe size={15} />
-            <span className="hidden sm:inline text-xs font-semibold">{locale.toUpperCase()}</span>
-          </button>
-
-          {/* Admin link hidden from UI — direct URL /admin still accessible to admins */}
+            <Link
+              href="/profile"
+              className={cn(
+                "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-glass-border transition",
+                "text-foreground-muted hover:bg-surface-elevated hover:text-foreground",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
+              )}
+              aria-label="Profile"
+              title={user?.full_name ?? "Profile"}
+            >
+              {profileInitial ? (
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-gold/15 text-xs font-bold text-accent-gold">
+                  {profileInitial}
+                </span>
+              ) : (
+                <User size={18} />
+              )}
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* মোবাইল সার্চ ওভারলে */}
       <SearchOverlay
         isOpen={searchOverlayOpen}
         onClose={() => setSearchOverlayOpen(false)}
@@ -352,5 +353,3 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
     </>
   );
 }
-
-

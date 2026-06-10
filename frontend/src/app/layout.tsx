@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Hind_Siliguri } from "next/font/google";
+import { Inter, Noto_Sans_Bengali } from "next/font/google";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { SkipToContentLink } from "@/components/SkipToContentLink";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -11,7 +11,7 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const hindSiliguri = Hind_Siliguri({
+const notoSansBengali = Noto_Sans_Bengali({
   subsets: ["bengali"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
@@ -83,8 +83,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#080a11" },
-    { color: "#e8981f" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0E17" },
+    { color: "#F5C518" },
   ],
   colorScheme: "dark light",
   width: "device-width",
@@ -93,9 +93,17 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="bn" className={`${inter.variable} ${hindSiliguri.variable}`} suppressHydrationWarning>
-      <body className={`flex min-h-dvh min-h-screen flex-col antialiased font-sans ${inter.className}`}
-        style={{ fontFamily: `var(--font-inter), var(--font-bengali), system-ui, sans-serif` }}>
+    <html
+      lang="bn"
+      className={`${inter.variable} ${notoSansBengali.variable} dark`}
+      suppressHydrationWarning
+    >
+      <body
+        className={`flex min-h-dvh min-h-screen flex-col bg-surface font-sans text-foreground antialiased ${inter.className}`}
+        style={{
+          fontFamily: `var(--font-inter), var(--font-bengali), "Noto Sans Bengali", system-ui, sans-serif`,
+        }}
+      >
         <AppProviders>
           <SkipToContentLink />
           <script

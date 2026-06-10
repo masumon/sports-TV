@@ -2,47 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── ABO SPORTS TV LIVE — Design System v2 (Deep Gold) ── */
+/* ── ABO SPORTS TV LIVE — Design System v3 (Premium Dark) ── */
 :root {
   color-scheme: dark;
 
-  /* Backgrounds — deeper, clearly layered hierarchy */
-  --bg-dark:    #080B12;
-  --bg-card:    #10151F;
-  --bg-card2:   #181F2E;
-  --bg-hover:   #1C2438;
-  --bg-glass:   rgba(8,11,18,0.96);
-  --surface-glass: rgba(16,21,31,0.72);
+  /* Premium dark theme tokens */
+  --bg-primary:           #0A0E17;
+  --bg-secondary:         #111827;
+  --bg-elevated:          #1A2234;
+  --accent-gold:          #F5C518;
+  --accent-gold-glow:       rgba(245, 197, 24, 0.5);
+  --accent-cyan:          #22D3EE;
+  --accent-neon:          #39FF14;
+  --live-red:             #EF4444;
+  --text-primary:         #F9FAFB;
+  --text-secondary:       #9CA3AF;
+  --text-muted:           #6B7280;
+  --border-subtle-cyan:   rgba(0, 229, 255, 0.15);
+  --glass-bg:             rgba(17, 24, 39, 0.6);
+  --glass-border:         rgba(255, 255, 255, 0.08);
 
-  /* Primary accent — ABO Gold (matches logo, unique brand identity) */
-  --primary-accent:  #F5A623;
-  --primary-rgb:     245 166 35;
+  /* Legacy aliases — existing components keep working */
+  --bg-dark:         var(--bg-primary);
+  --bg-card:         var(--bg-secondary);
+  --bg-card2:        var(--bg-elevated);
+  --bg-hover:        #1C2438;
+  --bg-glass:        rgba(10, 14, 23, 0.96);
+  --surface-glass:   var(--glass-bg);
 
-  /* Semantic accents */
-  --accent-red:      #EF4444;
+  --primary-accent:  var(--accent-gold);
+  --primary-rgb:     245 197 24;
+  --gold:            var(--accent-gold);
+
+  --accent-red:      var(--live-red);
   --accent-red-rgb:  239 68 68;
   --accent-blue:     #2563EB;
   --accent-blue-rgb: 37 99 235;
-  --accent-green:    #10B981;
+  --accent-green:    var(--accent-neon);
   --success:         #10B981;
-  --gold:            #F5A623;
 
-  /* Typography */
-  --text-main:  #F1F5F9;
-  --text-muted: #64748B;
+  --text-main:       var(--text-primary);
 
-  /* Borders */
-  --border:        rgba(255,255,255,0.06);
-  --border-subtle: rgba(255,255,255,0.04);
-  --border-accent: rgba(245,166,35,0.28);
+  --border:          var(--glass-border);
+  --border-subtle:   rgba(255, 255, 255, 0.04);
+  --border-accent:   rgba(245, 197, 24, 0.28);
 
-  /* Shadows & glows */
-  --shadow-card:  0 4px 24px rgba(0,0,0,0.55);
-  --shadow-glass: 0 8px 32px rgba(0,0,0,0.45);
-  --glow-accent:  0 0 20px rgba(245,166,35,0.18);
-  --glow-red:     0 0 20px rgba(239,68,68,0.2);
+  --shadow-card:     0 4px 24px rgba(0, 0, 0, 0.55);
+  --shadow-glass:    0 8px 32px rgba(0, 0, 0, 0.45);
+  --glow-accent:     0 0 12px var(--accent-gold-glow);
+  --glow-red:        0 0 20px rgba(239, 68, 68, 0.2);
 
-  /* Radii */
   --radius-sm: 10px;
   --radius-md: 14px;
 }
@@ -67,21 +76,32 @@ html[data-accent="blue"] {
 
 /* ── Theme: AMOLED (battery saver) ── */
 html[data-accent="amoled"] {
-  --bg-dark:  #000000;
-  --bg-card:  #0A0A0F;
-  --bg-card2: #111118;
-  --bg-hover: #16161F;
+  --bg-primary:   #000000;
+  --bg-secondary: #0A0A0F;
+  --bg-elevated:  #111118;
+  --bg-dark:      #000000;
+  --bg-card:      #0A0A0F;
+  --bg-card2:     #111118;
+  --bg-hover:     #16161F;
 }
 
 /* ── Light mode — properly co-designed ── */
 html.light {
   color-scheme: light;
-  --bg-dark:    #EEF0F7;
-  --bg-card:    #FFFFFF;
-  --bg-card2:   #F5F7FC;
-  --bg-hover:   #E4E8F2;
-  --bg-glass:   rgba(255,255,255,0.96);
-  --surface-glass: rgba(238,240,247,0.85);
+  --bg-primary:     #EEF0F7;
+  --bg-secondary:   #FFFFFF;
+  --bg-elevated:    #F5F7FC;
+  --text-primary:   #0F172A;
+  --text-secondary: #64748B;
+  --text-muted:     #94A3B8;
+  --glass-bg:       rgba(238, 240, 247, 0.85);
+  --glass-border:   rgba(0, 0, 0, 0.07);
+  --bg-dark:        #EEF0F7;
+  --bg-card:        #FFFFFF;
+  --bg-card2:       #F5F7FC;
+  --bg-hover:       #E4E8F2;
+  --bg-glass:       rgba(255, 255, 255, 0.96);
+  --surface-glass:  rgba(238, 240, 247, 0.85);
   --primary-accent:  #D97706;
   --primary-rgb:     217 119 6;
   --accent-red:      #DC2626;
@@ -103,9 +123,11 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: var(--bg-dark);
-  color: var(--text-main);
-  font-family: var(--font-inter), var(--font-bengali), "Inter", "Hind Siliguri", system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-inter), var(--font-bengali), "Inter", "Noto Sans Bengali", "Hind Siliguri", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   transition: background 0.2s, color 0.2s;
 }
 
@@ -237,11 +259,82 @@ a {
 }
 
 .glass-panel {
-  background: var(--surface-glass);
-  border: 1px solid rgba(255,255,255,0.06);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  backdrop-filter: blur(16px) saturate(180%);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
   box-shadow: var(--shadow-glass);
+}
+
+/* ── Premium UI utilities (Task 1) ── */
+.glow-gold {
+  box-shadow: 0 0 12px var(--accent-gold-glow), inset 0 0 0 1px var(--accent-gold);
+}
+
+.neon-border {
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+}
+
+.live-pulse {
+  animation: live-pulse-glow 1.5s ease-in-out infinite;
+}
+
+.font-bengali {
+  font-family: var(--font-bengali), "Noto Sans Bengali", "Hind Siliguri", sans-serif;
+}
+
+@keyframes live-pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(57, 255, 20, 0.45);
+  }
+  50% {
+    opacity: 0.88;
+    box-shadow: 0 0 0 6px rgba(57, 255, 20, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-pulse,
+  .glow-gold,
+  .neon-border {
+    animation: none;
+    box-shadow: none;
+  }
+  .glow-gold {
+    box-shadow: inset 0 0 0 1px var(--accent-gold);
+  }
+  .neon-border {
+    border-color: rgba(34, 211, 238, 0.3);
+  }
+}
+
+/* ── Task 18: interactive polish + hero progress ── */
+.interactive-transition {
+  transition: all 0.2s ease;
+}
+
+.hero-progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--accent-gold);
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 8px var(--accent-gold-glow);
+  cursor: pointer;
+}
+
+.hero-progress::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--accent-gold);
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  cursor: pointer;
 }
 
 html.light .glass-panel {
