@@ -20,6 +20,7 @@ class LiveFixtureRead(BaseModel):
     sport: str
     starts_at_utc: datetime
     status: str
+    score_text: str | None = None
     thumb_url: str | None
     data_attribution: str = Field(
         default="",

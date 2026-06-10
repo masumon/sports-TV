@@ -56,6 +56,10 @@ services:
         value: "60"
       - key: LIVE_FIXTURES_DAYS_AHEAD
         value: "14"
+      - key: LIVE_FIXTURES_HOURS_BACK
+        value: "120"
+      - key: CRICAPI_MAX_PAGES
+        value: "2"
       # bl1=Bundesliga1, bl2=Bundesliga2, ucl=UEFA CL, dfb=DFB Pokal
       # football-data.org also syncs if FOOTBALL_DATA_ORG_API_TOKEN is set (free tier = PL,CL,BL1,SA,PD,FL1,EL)
       # ucl is NOT valid on OpenLigaDB — use FOOTBALL_DATA_ORG_API_TOKEN for CL/EL/WC

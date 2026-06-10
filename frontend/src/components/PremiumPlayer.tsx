@@ -6,19 +6,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   ChevronLeft,
-  Circle,
   ExternalLink,
   Globe,
   Loader2,
   Maximize,
   Minimize,
   Pause,
-  PictureInPicture2,
   Play,
   RefreshCw,
-  Scaling,
   Settings,
-  Share2,
   Volume1,
   Volume2,
   VolumeX,
@@ -39,24 +35,6 @@ import {
 type QualityOption = { label: string; value: number };
 
 export type VideoScaleMode = "contain" | "cover" | "stretch" | "original" | "zoom1" | "zoom1.5" | "zoom2";
-
-const SCALE_OPTIONS: { id: VideoScaleMode; label: string }[] = [
-  { id: "contain", label: "Contain" },
-  { id: "cover", label: "Cover" },
-  { id: "stretch", label: "Stretch" },
-  { id: "original", label: "Original" },
-  { id: "zoom1", label: "Zoom 1x" },
-  { id: "zoom1.5", label: "Zoom 1.5x" },
-  { id: "zoom2", label: "Zoom 2x" },
-];
-
-const BAR_QUALITY_OPTIONS: QualityOption[] = [
-  { label: "Auto", value: -1 },
-  { label: "360p", value: 360 },
-  { label: "480p", value: 480 },
-  { label: "720p", value: 720 },
-  { label: "1080p", value: 1080 },
-];
 
 function videoObjectClass(mode: VideoScaleMode, mobileFullscreen: boolean): string {
   if (mobileFullscreen) return "object-contain";
@@ -320,7 +298,6 @@ export default function PremiumPlayer({
 
   const [dataSaver, setDataSaver] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-  const [showScaleMenu, setShowScaleMenu] = useState(false);
   const [showStreamHealth, setShowStreamHealth] = useState(false);
   const [scaleMode, setScaleMode] = useState<VideoScaleMode>("cover");
   const [videoScale, setVideoScale] = useState(1);
@@ -892,12 +869,12 @@ export default function PremiumPlayer({
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    if (showExternalPanel && isMobileSheet) {
+    if (showExternalPanel) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       return () => { document.body.style.overflow = prev; };
     }
-  }, [showExternalPanel, isMobileSheet]);
+  }, [showExternalPanel]);
 
   const togglePlayPause = useCallback(async () => {
     const video = videoRef.current;
@@ -1040,24 +1017,12 @@ export default function PremiumPlayer({
     return qualityOptions.find((o) => o.value === selectedQuality)?.label ?? "AUTO";
   }, [qualityOptions, selectedQuality]);
 
-  const barQualityOptions = useMemo(
-    () => (qualityOptions.length > 1 ? qualityOptions : BAR_QUALITY_OPTIONS),
-    [qualityOptions],
-  );
-
-  const shareStream = useCallback(async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url: sharePlaybackUrl });
-      } else {
-        await navigator.clipboard.writeText(sharePlaybackUrl);
-      }
-    } catch {
-      /* cancelled */
-    }
-  }, [title, sharePlaybackUrl]);
-
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+
+  const openExternalPlayerFromSettings = useCallback(() => {
+    setShowSettingsPanel(false);
+    setShowExternalPanel(true);
+  }, []);
 
   const handlePlayerPointerLeave = useCallback(() => {
     if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
@@ -1393,13 +1358,12 @@ export default function PremiumPlayer({
             <div
               className="glass-player-bar mx-2 mb-[7px] overflow-hidden rounded-2xl sm:mx-3"
             >
-              <div className="flex items-center gap-1.5 px-2.5 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
-                {/* Play / Pause — primary CTA */}
+              <div className="flex min-w-0 items-center gap-1.5 px-2.5 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
                 <button
                   type="button"
                   onClick={() => void togglePlayPause()}
                   aria-label={isPlaying ? "Pause" : "Play"}
-                  className="shrink-0 flex h-11 w-11 items-center justify-center rounded-xl transition-all active:scale-90"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all active:scale-90"
                   style={{
                     background: isPlaying ? "rgba(245,166,35,0.22)" : "rgba(255,255,255,0.12)",
                     border: isPlaying ? "1.5px solid rgba(245,166,35,0.6)" : "1.5px solid rgba(255,255,255,0.18)",
@@ -1410,108 +1374,23 @@ export default function PremiumPlayer({
                   {isPlaying ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
                 </button>
 
-                {/* Volume */}
                 <button
                   type="button"
                   onClick={toggleMute}
-                  aria-label="Mute"
+                  aria-label={isMuted ? "Unmute" : "Mute"}
                   className="control-btn shrink-0 active:scale-90 transition"
                 >
                   <VolumeIcon size={17} />
                 </button>
-                {!isTouchDevice && (
-                  <input
-                    type="range" min={0} max={1} step={0.05}
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => setVolumeLevel(Number(e.target.value))}
-                    className="volume-slider w-14 shrink-0 sm:w-20"
-                    aria-label="Volume"
-                  />
-                )}
 
-                {/* Record (UI only — no backend) */}
-                <button
-                  type="button"
-                  aria-label="Record"
-                  title="Record"
-                  className="control-btn shrink-0 opacity-50 active:scale-90 transition"
-                  disabled
-                >
-                  <Circle size={16} />
-                </button>
-
-                {/* Scaling */}
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowScaleMenu((v) => !v)}
-                    aria-label="Scaling"
-                    title="Scaling"
-                    className="control-btn active:scale-90 transition"
-                    style={showScaleMenu ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
-                  >
-                    <Scaling size={16} />
-                  </button>
-                  {showScaleMenu && (
-                    <div
-                      className="absolute bottom-full right-0 z-50 mb-2 min-w-[9rem] overflow-hidden rounded-xl border border-white/10 py-1 shadow-2xl"
-                      style={{ background: "rgba(10,11,18,0.92)", backdropFilter: "blur(16px)" }}
-                    >
-                      {SCALE_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => { setScaleMode(opt.id); setShowScaleMenu(false); }}
-                          className="block w-full px-3 py-1.5 text-left text-[11px] font-semibold transition hover:bg-white/10"
-                          style={{ color: scaleMode === opt.id ? "#F5A623" : "rgba(255,255,255,0.75)" }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <select
-                  value={selectedQuality}
-                  onChange={(e) => changeQuality(Number(e.target.value))}
-                  aria-label="Quality"
-                  className="quality-select h-8 max-w-[4.5rem] shrink-0 rounded-lg border border-white/10 bg-black/25 px-1.5 text-[10px] font-semibold text-white"
-                >
-                  {barQualityOptions.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-
-                {typeof document !== "undefined" && document.pictureInPictureEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => void togglePictureInPicture()}
-                    aria-label="Picture-in-Picture"
-                    title="PiP"
-                    className="control-btn shrink-0 active:scale-90 transition"
-                  >
-                    <PictureInPicture2 size={16} />
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => void shareStream()}
-                  aria-label="Share"
-                  title="Share"
-                  className="control-btn shrink-0 active:scale-90 transition"
-                >
-                  <Share2 size={16} />
-                </button>
-
-                <div className="flex-1" />
+                <div className="min-w-0 flex-1" />
 
                 <button
                   type="button"
                   onClick={() => setShowSettingsPanel(true)}
                   aria-label="Settings"
                   title="Settings"
+                  aria-expanded={showSettingsPanel}
                   className="control-btn shrink-0 active:scale-90 transition"
                   style={showSettingsPanel ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
                 >
@@ -1529,38 +1408,18 @@ export default function PremiumPlayer({
                   {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
                 </button>
               </div>
-
-              {/* External players — inline on sm+, portal bottom-sheet on mobile */}
-              {!isMobileSheet && (
-                <div
-                  className="grid transition-[grid-template-rows] duration-200 ease-out"
-                  style={{ gridTemplateRows: showExternalPanel ? "1fr" : "0fr" }}
-                >
-                  <div className="min-h-0 overflow-hidden">
-                    {showExternalPanel && (
-                      <div className="border-t border-white/[0.06] px-3 pb-4 pt-3 sm:px-4">
-                        <ExternalPlayerPicker
-                          idPrefix={externalPanelTitleId}
-                          streamUrl={sharePlaybackUrl}
-                          onClose={() => setShowExternalPanel(false)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {typeof document !== "undefined" && isMobileSheet && showExternalPanel
+      {typeof document !== "undefined" && showExternalPanel
         ? createPortal(
             <div
               role="dialog"
               aria-modal="true"
               aria-labelledby={`${externalPanelTitleId}-ext-title`}
-              className="fixed inset-0 z-[200] flex flex-col justify-end sm:hidden"
+              className="fixed inset-0 z-[200] flex flex-col justify-end sm:items-center sm:justify-center sm:p-4"
             >
               <button
                 type="button"
@@ -1569,7 +1428,7 @@ export default function PremiumPlayer({
                 onClick={() => setShowExternalPanel(false)}
               />
               <div
-                className="relative z-10 max-h-[min(70dvh,32rem)] overflow-hidden rounded-t-2xl border border-white/10 bg-[#080910] shadow-2xl"
+                className="relative z-10 max-h-[min(70dvh,32rem)] w-full max-w-md overflow-hidden rounded-t-2xl border border-white/10 bg-[#080910] shadow-2xl sm:rounded-2xl"
                 style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
               >
                 <div className="flex justify-center pt-2" aria-hidden>
@@ -1623,6 +1482,8 @@ export default function PremiumPlayer({
         sleepRemaining={sleepRemaining}
         onStartSleepTimer={startSleepTimer}
         onCancelSleepTimer={cancelSleepTimer}
+        onReloadStream={retryStream}
+        onOpenExternalPlayer={openExternalPlayerFromSettings}
       />
     </motion.div>
   );

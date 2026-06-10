@@ -82,3 +82,16 @@ export function summarizeFixturesByDate(fixtures: LiveFixture[]): Map<string, Da
   }
   return map;
 }
+
+export function fixtureScoreLabel(fixture: LiveFixture): string | null {
+  const score = (fixture.score_text || "").trim();
+  return score || null;
+}
+
+export function fixtureStatusLabel(fixture: LiveFixture): string {
+  const status = (fixture.status || "").toLowerCase();
+  if (status === "finished") return "Full Time";
+  if (status === "live") return "Live";
+  if (status === "scheduled") return "Scheduled";
+  return fixture.status || "Scheduled";
+}

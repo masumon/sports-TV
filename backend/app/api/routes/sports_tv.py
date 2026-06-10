@@ -78,6 +78,7 @@ CDN_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}"
 _FIXTURE_ATTRIBUTION = {
     "openligadb": "Schedule: OpenLigaDB (api.openligadb.de) — official league fixtures; not affiliated.",
     "football-data.org": "Schedule: football-data.org (free tier / your API token).",
+    "cricapi": "Schedule: CricAPI / CricketData.org (free tier 100 calls/day).",
 }
 
 
@@ -162,6 +163,7 @@ async def list_live_fixtures(
                 sport=r.sport,
                 starts_at_utc=r.starts_at_utc,
                 status=r.status,
+                score_text=r.score_text,
                 thumb_url=r.thumb_url,
                 data_attribution=_FIXTURE_ATTRIBUTION.get(r.source, f"Schedule source: {r.source}"),
                 suggested_channels=sug_reads,
