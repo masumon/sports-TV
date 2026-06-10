@@ -316,9 +316,6 @@ export default function PremiumPlayer({
   const linkRetryRef = useRef(0);
   const linkRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstHideDoneRef = useRef(false);
-  /** Seek ripple feedback: direction "left"|"right" + dismiss timer */
-  const [seekFeedback, setSeekFeedback] = useState<{ dir: "left" | "right"; secs: number; key: number } | null>(null);
-  const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Volume swipe overlay: shown while swiping, dismissed after gesture ends */
   const [volFeedback, setVolFeedback] = useState<number | null>(null);
   const volFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1020,12 +1017,6 @@ export default function PremiumPlayer({
     let initialPinchDist = 0;
     let isSwiping = false;
 
-    function showSeekRipple(dir: "left" | "right", secs: number) {
-      if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
-      setSeekFeedback({ dir, secs, key: Date.now() });
-      seekFeedbackTimerRef.current = setTimeout(() => setSeekFeedback(null), 900);
-    }
-
     function showVolOverlay(vol: number) {
       if (volFeedbackTimerRef.current) clearTimeout(volFeedbackTimerRef.current);
       setVolFeedback(Math.round(vol * 100));
@@ -1726,44 +1717,6 @@ export default function PremiumPlayer({
 
       {/* Custom overlay slot — reserved for non-obstructive UI; match metadata removed */}
       {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30 hidden">{overlay}</div> : null}
-
-      {/* ── Seek ripple overlay (double-tap ±10s) ── */}
-      <AnimatePresence>
-        {seekFeedback && (
-          <motion.div
-            key={`seek-${seekFeedback.key}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="pointer-events-none absolute inset-0 z-35 flex items-center"
-          >
-            <div className={`absolute flex flex-col items-center gap-1 ${seekFeedback.dir === "left" ? "left-[8%]" : "right-[8%]"}`}>
-              <motion.div
-                className="flex h-16 w-16 items-center justify-center rounded-full"
-                style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.3)", backdropFilter: "blur(4px)" }}
-                initial={{ scale: 0.7, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 1.1, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <span className="text-xl font-black" style={{ color: "#F5A623" }}>
-                  {seekFeedback.dir === "left" ? "«" : "»"}
-                </span>
-              </motion.div>
-              <motion.span
-                className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
-                style={{ background: "rgba(0,0,0,0.5)", color: "#F5A623" }}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-              >
-                {seekFeedback.dir === "left" ? `-${seekFeedback.secs}s` : `+${seekFeedback.secs}s`}
-              </motion.span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── Volume swipe indicator ── */}
       <AnimatePresence>
