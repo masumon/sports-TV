@@ -54,7 +54,7 @@ export function SidebarNav() {
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 p-3" aria-label="Sidebar navigation">
-          {PRIMARY_NAV.map((item) => {
+          {PRIMARY_NAV.filter((item) => item.href).map((item) => {
             const active = isNavActive(pathname, item);
             const Icon = item.icon;
             const label = locale === "bn" ? item.labelBn : item.label;
@@ -62,7 +62,7 @@ export function SidebarNav() {
             return (
               <Link
                 key={item.id}
-                href={item.href}
+                href={item.href!}
                 onClick={() => setSidebarOpen(false)}
                 aria-current={active ? "page" : undefined}
                 className={cn(

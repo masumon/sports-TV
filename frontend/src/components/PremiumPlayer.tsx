@@ -27,7 +27,6 @@ import {
 import { ExternalPlayerPicker, tryLaunchPlayer } from "@/components/player/ExternalPlayerPicker";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
 import {
   buildProxyM3U8RequestUrl,
   buildProxyStreamUrl,
@@ -161,6 +160,9 @@ function relayHlsXhrUrlIfNeeded(
 const LINK_RETRY_ATTEMPTS = 3;
 /** Shorter remount delay so we rotate to the next mirror quickly. */
 const LINK_RETRY_DELAY_MS = 800;
+const HLS_MANIFEST_MAX_RETRY = 2;
+const HLS_LEVEL_MAX_RETRY = 1;
+const RECONNECT_MSG = "Reconnecting…";
 const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
 const recentlyFailedUrlUntil = new Map<string, number>();
 
@@ -476,14 +478,12 @@ export default function PremiumPlayer({
           setUrlIdx(nextIdx);
           setIsSwitching(true);
           setIsLoading(true);
-          toast.info("Switching to backup source…");
           /* dash.js typings omit in-place source swap; remount via retryKey like HLS destroy path */
           setRetryKey((k) => k + 1);
         } else {
           setIsSwitching(false);
           setHasError(true);
           setIsLoading(false);
-          toast.error("All streams unavailable — try an external player or another channel");
         }
       };
       player.on(dashjs.MediaPlayer.events.ERROR, onError);
@@ -517,10 +517,10 @@ export default function PremiumPlayer({
         abrBandWidthFactor: lightNet ? 0.9 : 0.95,
         abrBandWidthUpFactor: lightNet ? 0.55 : 0.7,
         manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
-        manifestLoadingMaxRetry: 0,
+        manifestLoadingMaxRetry: HLS_MANIFEST_MAX_RETRY,
         manifestLoadingRetryDelay: 350,
         levelLoadingTimeOut: HLS_LEVEL_LOAD_TIMEOUT_MS,
-        levelLoadingMaxRetry: 0,
+        levelLoadingMaxRetry: HLS_LEVEL_MAX_RETRY,
         levelLoadingRetryDelay: 350,
         fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
         fragLoadingMaxRetry: 1,
@@ -535,7 +535,7 @@ export default function PremiumPlayer({
           const onEnd = () => {
             xhr.removeEventListener("loadend", onEnd);
             if (xhr.status >= 500 || xhr.status === 429) {
-              if (tryFailover("Source server error, switching to backup…")) return;
+              if (tryFailover()) return;
               setIsLoading(false);
               setIsSwitching(false);
               hlsInstance?.destroy();
@@ -543,7 +543,7 @@ export default function PremiumPlayer({
               return;
             }
             if (!parseGeoFromXhr(xhr)) return;
-            if (tryFailover("Switching to backup source…")) {
+            if (tryFailover()) {
               setGeoRestricted(false);
               return;
             }
@@ -558,7 +558,7 @@ export default function PremiumPlayer({
       });
       hlsInstance = hls;
       hlsRef.current = hls;
-      tryFailover = (message?: string): boolean => {
+      tryFailover = (): boolean => {
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
@@ -568,13 +568,6 @@ export default function PremiumPlayer({
         playbackStartedRef.current = false;
         setIsSwitching(true);
         setIsLoading(true);
-        const nextU = allUrls[nextIdx] ?? "";
-        toast.info(
-          message ??
-            (nextU.includes("/proxy/stream") && !(allUrls[cur] ?? "").includes("/proxy/stream")
-              ? "Switching to server relay…"
-              : "Stream unstable, switching to backup server…")
-        );
         try {
           hls.loadSource(allUrls[nextIdx]!);
           hls.startLoad(-1);
@@ -611,14 +604,11 @@ export default function PremiumPlayer({
           data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR;
 
         if (isNet || isManifest || isFrag) {
-          if (tryFailover()) return;
-        }
-
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           const retries = linkRetryRef.current;
           if (retries < LINK_RETRY_ATTEMPTS - 1) {
             linkRetryRef.current = retries + 1;
             setIsLoading(true);
+            setIsSwitching(true);
             if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
             linkRetryTimerRef.current = setTimeout(() => {
               linkRetryTimerRef.current = null;
@@ -626,15 +616,13 @@ export default function PremiumPlayer({
             }, LINK_RETRY_DELAY_MS);
             return;
           }
+          linkRetryRef.current = 0;
+          if (tryFailover()) return;
         }
-
-        linkRetryRef.current = 0;
-        if (tryFailover()) return;
 
         setIsSwitching(false);
         setHasError(true);
         setIsLoading(false);
-        toast.error("All streams unavailable — try an external player or another channel");
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -1073,9 +1061,7 @@ export default function PremiumPlayer({
                 {title || "ABO SPORTS TV"}
               </p>
               <p className="text-[11px] font-medium tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.75)" }}>
-                {isSwitching
-                  ? (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "ব্যাকআপ চ্যানেলে যাচ্ছে…")
-                  : (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "লাইভ সংযোগ হচ্ছে…")}
+                {RECONNECT_MSG}
               </p>
             </div>
 
@@ -1124,7 +1110,7 @@ export default function PremiumPlayer({
             {/* Message */}
             <div className="text-center space-y-1.5">
               <p className="text-sm font-bold text-white">
-                {geoRestricted ? "লোকেশন সীমাবদ্ধতা" : "স্ট্রিম পাওয়া যাচ্ছে না"}
+                {geoRestricted ? "Not available in your region" : "Unable to connect"}
               </p>
               <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
                 {geoRestricted || geoHint
@@ -1138,7 +1124,7 @@ export default function PremiumPlayer({
                 <div className="mt-1 flex items-center justify-center gap-1.5">
                   <Loader2 size={11} className="animate-spin" style={{ color: "var(--primary-accent)" }} />
                   <p className="text-[11px] font-semibold" style={{ color: "var(--primary-accent)" }}>
-                    {autoRetryCountdown}s পরে স্বয়ংক্রিয়ভাবে চেষ্টা হবে…
+                    {autoRetryCountdown}s — {RECONNECT_MSG}
                   </p>
                 </div>
               )}

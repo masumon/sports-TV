@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUiStore } from "@/store/uiStore";
 import { useThemeAccentStore, THEME_ACCENTS } from "@/store/themeAccentStore";
@@ -114,6 +115,15 @@ export function MoreSheet({ open, onClose }: Props) {
             </button>
           ))}
         </div>
+
+        <Link
+          href="/profile"
+          onClick={onClose}
+          className="mb-5 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition active:scale-95"
+          style={{ background: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-main)" }}
+        >
+          Profile
+        </Link>
 
         {/* Admin link hidden from UI — direct URL /admin still accessible to admins */}
       </div>
