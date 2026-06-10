@@ -5,16 +5,19 @@ import Hls from "hls.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
+  Circle,
   ExternalLink,
   Globe,
   Loader2,
   Maximize,
   Minimize,
   Pause,
+  PictureInPicture2,
   Play,
   RefreshCw,
+  Scaling,
   Settings,
-  Tv,
+  Share2,
   Volume1,
   Volume2,
   VolumeX,
@@ -33,6 +36,40 @@ import {
 
 /* ─────────────────────────────────────────────────────────── Types ── */
 type QualityOption = { label: string; value: number };
+
+export type VideoScaleMode = "contain" | "cover" | "stretch" | "original" | "zoom1" | "zoom1.5" | "zoom2";
+
+const SCALE_OPTIONS: { id: VideoScaleMode; label: string }[] = [
+  { id: "contain", label: "Contain" },
+  { id: "cover", label: "Cover" },
+  { id: "stretch", label: "Stretch" },
+  { id: "original", label: "Original" },
+  { id: "zoom1", label: "Zoom 1x" },
+  { id: "zoom1.5", label: "Zoom 1.5x" },
+  { id: "zoom2", label: "Zoom 2x" },
+];
+
+const BAR_QUALITY_OPTIONS: QualityOption[] = [
+  { label: "Auto", value: -1 },
+  { label: "360p", value: 360 },
+  { label: "480p", value: 480 },
+  { label: "720p", value: 720 },
+  { label: "1080p", value: 1080 },
+];
+
+function videoObjectClass(mode: VideoScaleMode, mobileFullscreen: boolean): string {
+  if (mobileFullscreen) return "object-contain";
+  if (mode === "stretch") return "object-fill";
+  if (mode === "original") return "object-none";
+  if (mode === "contain" || mode.startsWith("zoom")) return "object-contain";
+  return "object-cover";
+}
+
+function videoZoomScale(mode: VideoScaleMode): number {
+  if (mode === "zoom1.5") return 1.5;
+  if (mode === "zoom2") return 2;
+  return 1;
+}
 
 export type PremiumPlayerProps = {
   streamUrl: string;
@@ -278,8 +315,9 @@ export default function PremiumPlayer({
 
   const [dataSaver, setDataSaver] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [showScaleMenu, setShowScaleMenu] = useState(false);
   const [showStreamHealth, setShowStreamHealth] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<"cover" | "contain">("cover");
+  const [scaleMode, setScaleMode] = useState<VideoScaleMode>("cover");
   const [videoScale, setVideoScale] = useState(1);
   const [brightnessOverlay, setBrightnessOverlay] = useState(1);
   const [streamBitrate, setStreamBitrate] = useState("—");
@@ -970,6 +1008,23 @@ export default function PremiumPlayer({
     return qualityOptions.find((o) => o.value === selectedQuality)?.label ?? "AUTO";
   }, [qualityOptions, selectedQuality]);
 
+  const barQualityOptions = useMemo(
+    () => (qualityOptions.length > 1 ? qualityOptions : BAR_QUALITY_OPTIONS),
+    [qualityOptions],
+  );
+
+  const shareStream = useCallback(async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url: sharePlaybackUrl });
+      } else {
+        await navigator.clipboard.writeText(sharePlaybackUrl);
+      }
+    } catch {
+      /* cancelled */
+    }
+  }, [title, sharePlaybackUrl]);
+
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
   const handlePlayerPointerLeave = useCallback(() => {
@@ -995,9 +1050,10 @@ export default function PremiumPlayer({
     >
       <video
         ref={videoRef}
-        className={`h-full w-full bg-black ${aspectRatio === "contain" || (isMobileSheet && (isFullscreen || isTheaterMode)) ? "object-contain" : "object-cover"}`}
+        className={`h-full w-full bg-black ${videoObjectClass(scaleMode, isMobileSheet && (isFullscreen || isTheaterMode))}`}
         style={{
-          transform: `scale(${videoScale})`,
+          transform: `scale(${videoZoomScale(scaleMode) * videoScale})`,
+          transformOrigin: "center center",
           filter: brightnessOverlay !== 1 ? `brightness(${brightnessOverlay})` : undefined,
         }}
         autoPlay
@@ -1361,10 +1417,85 @@ export default function PremiumPlayer({
                   />
                 )}
 
-                {/* Spacer */}
+                {/* Record (UI only — no backend) */}
+                <button
+                  type="button"
+                  aria-label="Record"
+                  title="Record"
+                  className="control-btn shrink-0 opacity-50 active:scale-90 transition"
+                  disabled
+                >
+                  <Circle size={16} />
+                </button>
+
+                {/* Scaling */}
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowScaleMenu((v) => !v)}
+                    aria-label="Scaling"
+                    title="Scaling"
+                    className="control-btn active:scale-90 transition"
+                    style={showScaleMenu ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
+                  >
+                    <Scaling size={16} />
+                  </button>
+                  {showScaleMenu && (
+                    <div
+                      className="absolute bottom-full right-0 z-50 mb-2 min-w-[9rem] overflow-hidden rounded-xl border border-white/10 py-1 shadow-2xl"
+                      style={{ background: "rgba(10,11,18,0.92)", backdropFilter: "blur(16px)" }}
+                    >
+                      {SCALE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => { setScaleMode(opt.id); setShowScaleMenu(false); }}
+                          className="block w-full px-3 py-1.5 text-left text-[11px] font-semibold transition hover:bg-white/10"
+                          style={{ color: scaleMode === opt.id ? "#F5A623" : "rgba(255,255,255,0.75)" }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Quality */}
+                <select
+                  value={selectedQuality}
+                  onChange={(e) => changeQuality(Number(e.target.value))}
+                  aria-label="Quality"
+                  className="quality-select hidden h-8 max-w-[4.5rem] shrink-0 rounded-lg border border-white/15 bg-black/40 px-1.5 text-[10px] font-semibold text-white sm:inline-block"
+                >
+                  {barQualityOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+
+                {typeof document !== "undefined" && document.pictureInPictureEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => void togglePictureInPicture()}
+                    aria-label="Picture-in-Picture"
+                    title="PiP"
+                    className="control-btn shrink-0 active:scale-90 transition"
+                  >
+                    <PictureInPicture2 size={16} />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => void shareStream()}
+                  aria-label="Share"
+                  title="Share"
+                  className="control-btn shrink-0 active:scale-90 transition"
+                >
+                  <Share2 size={16} />
+                </button>
+
                 <div className="flex-1" />
 
-                {/* Settings — quality, PiP, sleep, display */}
                 <button
                   type="button"
                   onClick={() => setShowSettingsPanel(true)}
@@ -1376,37 +1507,6 @@ export default function PremiumPlayer({
                   <Settings size={16} />
                 </button>
 
-                {/* Theater / TV mode */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isMobileSheet) {
-                      if (!isTheaterMode) void tryLockLandscapePlayback();
-                      else if (!isFullscreen) tryUnlockPlaybackOrientation();
-                    }
-                    onToggleTheaterMode();
-                  }}
-                  aria-label="Theater mode"
-                  title="Theater (T)"
-                  className="control-btn shrink-0 active:scale-90 transition"
-                  style={isTheaterMode ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
-                >
-                  <Tv size={16} />
-                </button>
-
-                {/* Player selection (external players) */}
-                <button
-                  type="button"
-                  onClick={() => setShowExternalPanel((v) => !v)}
-                  aria-label="External players"
-                  title="Player selection"
-                  className="control-btn shrink-0 active:scale-90 transition"
-                  style={showExternalPanel ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
-                >
-                  <ExternalLink size={16} />
-                </button>
-
-                {/* Fullscreen */}
                 <button
                   type="button"
                   onClick={() => void toggleFullscreen()}
@@ -1504,8 +1604,8 @@ export default function PremiumPlayer({
           urlIndex: urlIdx,
           totalUrls: allUrlsList.length,
         }}
-        aspectRatio={aspectRatio}
-        onAspectRatioChange={setAspectRatio}
+        scaleMode={scaleMode}
+        onScaleModeChange={setScaleMode}
         onTogglePictureInPicture={() => void togglePictureInPicture()}
         pipEnabled={typeof document !== "undefined" && document.pictureInPictureEnabled}
         sleepMinutes={sleepMinutes}

@@ -51,7 +51,7 @@ export function HeroVideoPlayer({
       onMouseMove={showDecorativeControls ? revealControls : undefined}
       onTouchStart={showDecorativeControls ? revealControls : undefined}
     >
-      {isLive ? (
+      {isLive && children ? (
         <Badge variant="live" className="absolute left-3 top-3 z-20">
           LIVE NOW
         </Badge>

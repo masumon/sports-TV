@@ -106,12 +106,12 @@ export function BottomNav() {
               <span
                 className={cn(
                   "flex h-8 w-11 items-center justify-center rounded-xl transition-all duration-200",
-                  active ? "bg-accent-gold/12" : "bg-transparent",
+                  active ? "bg-accent-gold/18 ring-1 ring-accent-gold/40 shadow-glow-gold" : "bg-transparent",
                 )}
               >
-                <Icon size={20} strokeWidth={active ? 2.5 : 2} aria-hidden />
+                <Icon size={20} strokeWidth={active ? 2.75 : 2} aria-hidden />
               </span>
-              <span className={cn("max-w-[3.5rem] truncate text-[9px] tracking-wide", active ? "font-bold" : "font-medium")}>
+              <span className={cn("max-w-[3.5rem] truncate text-[9px] tracking-wide", active ? "font-extrabold" : "font-medium")}>
                 {label}
               </span>
             </Link>

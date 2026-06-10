@@ -72,7 +72,7 @@ export function SearchOverlay({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed left-0 right-0 top-0 z-[50] max-h-[90vh] overflow-y-auto glass-premium border-b border-glass-border"
+            className="fixed left-0 right-0 top-0 z-[50] max-h-[90vh] overflow-y-auto overflow-x-hidden glass-premium border-b border-glass-border"
           >
             {/* সার্চ ইনপুট */}
             <div className="sticky top-0 z-[51] border-b border-glass-border p-4 sm:p-5 glass-premium">
