@@ -5,16 +5,12 @@ import Hls from "hls.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
-  Check,
-  ChevronDown,
-  ChevronUp,
   ExternalLink,
   Globe,
   Loader2,
   Maximize,
   Minimize,
   Pause,
-  PictureInPicture2,
   Play,
   RefreshCw,
   Settings,
@@ -23,7 +19,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { ExternalPlayerPicker, tryLaunchPlayer } from "@/components/player/ExternalPlayerPicker";
+import { ExternalPlayerPicker } from "@/components/player/ExternalPlayerPicker";
 import { PlayerSettingsPanel } from "@/components/player/PlayerSettingsPanel";
 import { warmBackupStreams } from "@/lib/streamWarmup";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -216,73 +212,6 @@ function formatQualityFromHeight(height: number): string {
   if (height >= 720) return "720p";
   if (height >= 480) return "480p";
   return `${height}p`;
-}
-
-/* ── Custom quality picker popup ── */
-function QualityPicker({
-  options,
-  selected,
-  onChange,
-}: {
-  options: QualityOption[];
-  selected: number;
-  onChange: (v: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const currentLabel = options.find((o) => o.value === selected)?.label ?? "Auto";
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
-  return (
-    <div className="relative shrink-0" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Quality"
-        title="Quality"
-        className="control-btn gap-1 px-2.5 text-[11px] font-bold uppercase tracking-wide active:scale-90 transition"
-        style={open ? { background: "rgba(245,166,35,0.22)", borderColor: "rgba(245,166,35,0.55)", color: "#F5A623" } : {}}
-      >
-        <Settings size={13} className="shrink-0" />
-        <span>{currentLabel}</span>
-        <ChevronUp size={9} className={`shrink-0 transition-transform ${open ? "" : "rotate-180"}`} />
-      </button>
-      {open && (
-        <div
-          className="absolute bottom-full mb-2 right-0 z-50 min-w-[120px] overflow-hidden rounded-xl shadow-2xl"
-          style={{ background: "rgba(8,9,18,0.97)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(20px)" }}
-        >
-          <p className="px-3 pt-2.5 pb-1 text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(245,166,35,0.55)" }}>
-            Quality
-          </p>
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => { onChange(opt.value); setOpen(false); }}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[12px] font-semibold transition hover:bg-white/[0.07]"
-              style={{ color: selected === opt.value ? "#F5A623" : "rgba(255,255,255,0.75)" }}
-            >
-              <span>{opt.label}</span>
-              {selected === opt.value && <Check size={12} style={{ color: "#F5A623" }} />}
-            </button>
-          ))}
-          <div className="h-px mx-3 my-1" style={{ background: "rgba(255,255,255,0.07)" }} />
-          <p className="px-3 pb-2 text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>
-            Auto = সেরা মান স্বয়ংক্রিয়
-          </p>
-        </div>
-      )}
-    </div>
-  );
 }
 
 /* ═══════════════════════════════════════════════════════ Component ═══ */
@@ -1360,14 +1289,7 @@ export default function PremiumPlayer({
             </div>
 
             <div
-              className="mx-2 mb-[7px] overflow-hidden rounded-2xl sm:mx-3"
-              style={{
-                background: "rgba(6,7,14,0.88)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                backdropFilter: "blur(24px) saturate(160%)",
-                WebkitBackdropFilter: "blur(24px) saturate(160%)",
-                boxShadow: "0 -4px 32px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.04)",
-              }}
+              className="glass-player-bar mx-2 mb-[7px] overflow-hidden rounded-2xl sm:mx-3"
             >
               {/* ── Now playing row ── */}
               <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-2 sm:px-4 sm:pt-3">
@@ -1397,22 +1319,6 @@ export default function PremiumPlayer({
                   </div>
                   <p className="truncate text-[13px] font-bold leading-tight text-white">{title}</p>
                 </div>
-                {/* External players toggle */}
-                <button
-                  type="button"
-                  onClick={() => setShowExternalPanel((v) => !v)}
-                  className="shrink-0 flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition active:scale-95"
-                  style={{
-                    background: showExternalPanel ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.07)",
-                    border: `1px solid ${showExternalPanel ? "rgba(245,166,35,0.45)" : "rgba(255,255,255,0.1)"}`,
-                    color: showExternalPanel ? "#F5A623" : "rgba(255,255,255,0.55)",
-                  }}
-                  aria-label="External players"
-                >
-                  <Tv size={12} className="shrink-0" />
-                  <span className="hidden min-[360px]:inline">Players</span>
-                  {showExternalPanel ? <ChevronUp size={9} className="shrink-0" /> : <ChevronDown size={9} className="shrink-0" />}
-                </button>
               </div>
 
               {/* ── Divider ── */}
@@ -1458,36 +1364,19 @@ export default function PremiumPlayer({
                 {/* Spacer */}
                 <div className="flex-1" />
 
-                {/* Settings gear */}
+                {/* Settings — quality, PiP, sleep, display */}
                 <button
                   type="button"
                   onClick={() => setShowSettingsPanel(true)}
                   aria-label="Settings"
                   title="Settings"
                   className="control-btn shrink-0 active:scale-90 transition"
+                  style={showSettingsPanel ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
                 >
                   <Settings size={16} />
                 </button>
 
-                {/* Quality picker */}
-                <QualityPicker
-                  options={qualityOptions}
-                  selected={selectedQuality}
-                  onChange={changeQuality}
-                />
-
-                {/* PiP */}
-                <button
-                  type="button"
-                  onClick={() => void togglePictureInPicture()}
-                  aria-label="Picture-in-Picture"
-                  title="PiP"
-                  className="control-btn shrink-0 active:scale-90 transition"
-                >
-                  <PictureInPicture2 size={16} />
-                </button>
-
-                {/* Theater */}
+                {/* Theater / TV mode */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1505,28 +1394,16 @@ export default function PremiumPlayer({
                   <Tv size={16} />
                 </button>
 
-                {/* Sleep timer button */}
+                {/* Player selection (external players) */}
                 <button
                   type="button"
-                  onClick={() => {
-                    const opts = [15, 30, 60, 90];
-                    if (!sleepMinutes) startSleepTimer(opts[0]!);
-                    else {
-                      const next = opts[opts.indexOf(sleepMinutes) + 1];
-                      if (next) startSleepTimer(next); else cancelSleepTimer();
-                    }
-                  }}
-                  className="control-btn relative shrink-0 active:scale-90 transition"
-                  title={sleepMinutes ? `Sleep: ${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, "0")}` : "Sleep timer"}
-                  aria-label="Sleep timer"
-                  style={sleepMinutes ? { color: "var(--primary-accent)" } : {}}
+                  onClick={() => setShowExternalPanel((v) => !v)}
+                  aria-label="External players"
+                  title="Player selection"
+                  className="control-btn shrink-0 active:scale-90 transition"
+                  style={showExternalPanel ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
                 >
-                  <span className="text-sm leading-none">🌙</span>
-                  {sleepMinutes && (
-                    <span className="absolute -top-1 -right-1 rounded-full bg-amber-500 px-1 text-[8px] font-bold text-black">
-                      {Math.ceil(sleepRemaining / 60)}m
-                    </span>
-                  )}
+                  <ExternalLink size={16} />
                 </button>
 
                 {/* Fullscreen */}
@@ -1629,6 +1506,12 @@ export default function PremiumPlayer({
         }}
         aspectRatio={aspectRatio}
         onAspectRatioChange={setAspectRatio}
+        onTogglePictureInPicture={() => void togglePictureInPicture()}
+        pipEnabled={typeof document !== "undefined" && document.pictureInPictureEnabled}
+        sleepMinutes={sleepMinutes}
+        sleepRemaining={sleepRemaining}
+        onStartSleepTimer={startSleepTimer}
+        onCancelSleepTimer={cancelSleepTimer}
       />
     </motion.div>
   );

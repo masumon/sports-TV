@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Globe, MoreHorizontal, Radio, Search, Tv2 } from "lucide-react";
 import { useUiStore } from "@/store/uiStore";
 import { MoreSheet } from "@/components/layout/MoreSheet";
 
@@ -52,33 +53,29 @@ export function MobileBottomNav() {
   }
 
   const tabs = [
-    { id: "bangladesh",   label: "বাংলাদেশ", emoji: "🇧🇩", activeColor: "#10b981", activeBg: "rgba(16,185,129,0.12)" },
-    { id: "live_matches", label: "Live",    emoji: "🔴", activeColor: "#f87171", activeBg: "rgba(239,68,68,0.12)" },
-    { id: "global_sports",label: "Sports",  emoji: "🌍", activeColor: "var(--primary-accent)", activeBg: "rgb(var(--primary-rgb)/0.12)" },
-    { id: "search",       label: "খুঁজুন",  emoji: "🔍", activeColor: "#a78bfa", activeBg: "rgba(139,92,246,0.12)" },
-    { id: "more",         label: "আরও",    emoji: "⋯",  activeColor: "var(--text-muted)", activeBg: "rgba(255,255,255,0.08)" },
+    { id: "bangladesh", label: "বাংলাদেশ", Icon: Tv2, activeColor: "#10b981", activeBg: "rgba(16,185,129,0.15)", glow: "0 0 16px rgba(16,185,129,0.35)" },
+    { id: "live_matches", label: "Live", Icon: Radio, activeColor: "#f87171", activeBg: "rgba(239,68,68,0.15)", glow: "0 0 16px rgba(239,68,68,0.35)" },
+    { id: "global_sports", label: "Sports", Icon: Globe, activeColor: "var(--primary-accent)", activeBg: "rgb(var(--primary-rgb)/0.15)", glow: "0 0 16px var(--accent-gold-glow)" },
+    { id: "search", label: "খুঁজুন", Icon: Search, activeColor: "#a78bfa", activeBg: "rgba(139,92,246,0.15)", glow: "0 0 16px rgba(139,92,246,0.35)" },
+    { id: "more", label: "আরও", Icon: MoreHorizontal, activeColor: "var(--text-muted)", activeBg: "rgba(255,255,255,0.08)", glow: "none" },
   ] as const;
 
   return (
     <>
       <nav
-        className="fixed z-30 flex items-stretch justify-around md:hidden"
+        className="glass-premium fixed z-30 flex items-stretch justify-around md:hidden"
         style={{
           bottom: "max(0.75rem, env(safe-area-inset-bottom, 0.75rem))",
           left: "0.75rem",
           right: "0.75rem",
           minHeight: "3.75rem",
-          background: "rgba(8,11,18,0.92)",
-          border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: "1.25rem",
-          backdropFilter: "blur(24px) saturate(180%)",
-          WebkitBackdropFilter: "blur(24px) saturate(180%)",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)",
         }}
       >
         {tabs.map((tab) => {
           const active = tab.id !== "more" && tab.id !== "search" && isHome && activeModule === tab.id;
           const isMore = tab.id === "more";
+          const Icon = tab.Icon;
           return (
             <button
               key={tab.id}
@@ -95,14 +92,13 @@ export function MobileBottomNav() {
                   width: "2.75rem",
                   height: "2rem",
                   background: active ? tab.activeBg : (isMore && moreOpen ? "rgba(255,255,255,0.08)" : "transparent"),
+                  boxShadow: active ? tab.glow : "none",
                 }}
               >
-                <span className={`leading-none ${isMore ? "text-lg font-black" : "text-xl"}`} aria-hidden>
-                  {tab.emoji}
-                </span>
+                <Icon size={20} strokeWidth={active ? 2.5 : 2} aria-hidden />
               </div>
               <span
-                className="max-w-[3.2rem] truncate text-[8px] leading-none tracking-wide"
+                className="max-w-[3.2rem] truncate text-[8px] leading-none tracking-wide font-bengali"
                 style={{ fontWeight: active ? 800 : 500 }}
               >
                 {tab.label}

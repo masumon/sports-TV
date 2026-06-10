@@ -3,6 +3,7 @@ import { cn } from "@/lib/cn";
 
 export type GlassPanelProps = HTMLAttributes<HTMLDivElement> & {
   padding?: "none" | "sm" | "md" | "lg";
+  variant?: "default" | "premium";
 };
 
 const paddingClasses = {
@@ -13,14 +14,15 @@ const paddingClasses = {
 };
 
 export const GlassPanel = forwardRef<HTMLDivElement, GlassPanelProps>(function GlassPanel(
-  { padding = "md", className, children, ...props },
+  { padding = "md", variant = "default", className, children, ...props },
   ref,
 ) {
   return (
     <div
       ref={ref}
       className={cn(
-        "glass-panel rounded-2xl backdrop-blur-xl",
+        variant === "premium" ? "glass-premium" : "glass-panel",
+        "rounded-2xl backdrop-blur-xl",
         paddingClasses[padding],
         className,
       )}

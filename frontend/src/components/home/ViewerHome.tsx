@@ -32,7 +32,7 @@ import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
 import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
 import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
-import { isFixtureLive } from "@/lib/matchPresentation";
+import { isFixtureLive, groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
@@ -107,8 +107,8 @@ function inferLeague(name: string): string {
 
 // Top-level sport-type filter: matches by DB category field OR inferred league
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
-  { id: "football",   label: "⚽ Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
-  { id: "cricket",    label: "🏏 Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
+  { id: "football",   label: "Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
+  { id: "cricket",    label: "Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
 ];
 
 const BD_CATEGORIES: Record<string, string> = {
@@ -194,7 +194,7 @@ function FilterChips({
   return (
     <div role="group" aria-label={ariaLabel ?? label}>
       <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="filter-chip-row">
         <button
           type="button"
           className={`filter-chip${value === "" ? " active" : ""}`}
@@ -253,7 +253,7 @@ export function ViewerHome() {
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
   const [fixturesLoadError, setFixturesLoadError] = useState(false);
-  const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
+  const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "recent_results">("live");
   const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -468,7 +468,7 @@ export function ViewerHome() {
     setFixturesLoading(true);
     setFixturesLoadError(false);
     try {
-      const res = await apiClient.getLiveFixtures({ hours_back: 6, days_ahead: 14 });
+      const res = await apiClient.getLiveFixtures({ hours_back: FIXTURE_HOURS_BACK, days_ahead: 14 });
       setScheduleFixtures(res.items);
       setScheduleUpdated(res.updated_hint ?? null);
     } catch {
@@ -507,31 +507,15 @@ export function ViewerHome() {
   }, [activeModule]);
 
   const scheduleGroups = useMemo(() => {
-    const now = Date.now();
-    const live: LiveFixture[] = [];
-    const upcoming: LiveFixture[] = [];
-    const finished: LiveFixture[] = [];
     const filtered = fixtureSportFilter === "all"
       ? scheduleFixtures
       : scheduleFixtures.filter((fx) => (fx.sport || "Soccer") === fixtureSportFilter);
-    for (const fx of filtered) {
-      const s = (fx.status || "").toLowerCase();
-      // Compute real-time status from starts_at_utc (avoids stale DB status between 3h syncs)
-      const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
-      const elapsed = startMs > 0 ? (now - startMs) / 60_000 : 0; // minutes since kick-off
-      if (s === "finished" || elapsed > 130) finished.push(fx); // >130 min = likely done
-      else if (startMs > 0 && startMs <= now) live.push(fx); // started but not finished
-      else upcoming.push(fx);
-    }
-    // Sort live by most recently started
-    live.sort((a, b) => new Date(b.starts_at_utc).getTime() - new Date(a.starts_at_utc).getTime());
-    upcoming.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
-    return { live, upcoming, finished };
+    return groupFixtures(filtered);
   }, [scheduleFixtures, fixtureSportFilter]);
 
   const activeScheduleItems = useMemo(() => {
     if (scheduleView === "live") return scheduleGroups.live;
-    if (scheduleView === "finished") return scheduleGroups.finished;
+    if (scheduleView === "recent_results") return scheduleGroups.recentResults;
     return scheduleGroups.upcoming;
   }, [scheduleGroups, scheduleView]);
 
@@ -1086,7 +1070,10 @@ export function ViewerHome() {
           <HomeSportsDashboard
             live={scheduleGroups.live}
             upcoming={scheduleGroups.upcoming}
+            recentResults={scheduleGroups.recentResults}
             featured={dashboardFeatured}
+            totalChannels={allChannels.length}
+            watchingNow={activeChannel ? 1 : 0}
             popularChannels={popularSportsChannels}
             continueWatching={recentChannelObjects}
             favorites={favoriteChannelObjects}
@@ -1189,18 +1176,18 @@ export function ViewerHome() {
               </button>
               <button
                 type="button"
-                onClick={() => setScheduleView("finished")}
+                onClick={() => setScheduleView("recent_results")}
                 className="fixture-stat-tile"
                 style={{
-                  background: scheduleView === "finished" ? "rgba(160,160,176,0.1)" : "var(--bg-card)",
-                  borderColor: scheduleView === "finished" ? "rgba(160,160,176,0.35)" : "var(--border)",
+                  background: scheduleView === "recent_results" ? "rgba(160,160,176,0.1)" : "var(--bg-card)",
+                  borderColor: scheduleView === "recent_results" ? "rgba(160,160,176,0.35)" : "var(--border)",
                 }}
               >
                 <span className="text-2xl font-black tabular-nums" style={{ color: "var(--text-muted)" }}>
-                  {scheduleGroups.finished.length}
+                  {scheduleGroups.recentResults.length}
                 </span>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  FINISHED
+                  LAST 5 DAYS
                 </p>
               </button>
             </div>
@@ -1238,12 +1225,32 @@ export function ViewerHome() {
                   ))}
                 </div>
               ) : activeScheduleItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 rounded-xl py-14 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <span className="text-3xl" aria-hidden>📅</span>
+                <div className="flex flex-col items-center gap-4 rounded-xl py-14 text-center glass-premium">
                   <div>
-                    <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmptyByStatus")}</p>
-                    <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>Switch to a different tab above</p>
+                    <p className="text-sm font-bold font-bengali" style={{ color: "var(--text-main)" }}>{t("scheduleEmptyByStatus")}</p>
+                    <p className="mt-1 text-xs font-bengali" style={{ color: "var(--text-muted)" }}>
+                      {scheduleView === "live"
+                        ? "Browse upcoming fixtures or recent results below."
+                        : scheduleView === "recent_results"
+                          ? "No completed matches in the last 5 days."
+                          : "Switch to Live or Recent Results."}
+                    </p>
                   </div>
+                  {scheduleView === "live" && scheduleGroups.upcoming.length > 0 && (
+                    <div className="w-full max-w-md space-y-2 px-4 text-left">
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Upcoming</p>
+                      {scheduleGroups.upcoming.slice(0, 3).map((fx) => (
+                        <div key={fx.id} className="rounded-xl p-3 text-xs" style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}>
+                          {fx.home_team} vs {fx.away_team}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {scheduleView === "live" && scheduleGroups.recentResults.length > 0 && (
+                    <button type="button" onClick={() => setScheduleView("recent_results")} className="text-xs font-semibold text-accent-gold">
+                      View recent results →
+                    </button>
+                  )}
                 </div>
               ) : (
                 activeScheduleItems.slice(0, 48).map((fx) => {
@@ -1251,7 +1258,7 @@ export function ViewerHome() {
                   const nowMs = Date.now();
                   const elapsedMin = startMs > 0 ? Math.floor((nowMs - startMs) / 60_000) : 0;
                   const isReallyLive = startMs > 0 && startMs <= nowMs && (fx.status || "").toLowerCase() !== "finished" && elapsedMin <= 130;
-                  const isFinished = (fx.status || "").toLowerCase() === "finished" || elapsedMin > 130;
+                  const isFinished = isFixtureFinished(fx);
                   const sportIcon = fx.sport === "Cricket" ? "🏏" : fx.sport === "Soccer" ? "⚽" : "🏆";
                   return (
                     <div
@@ -1635,7 +1642,7 @@ export function ViewerHome() {
           /* Sports module: smart sport-type chips (auto-filtered, only non-empty) */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-swipe-ignore="true">
+          <div className="cat-tab-row" data-swipe-ignore="true">
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
@@ -1646,7 +1653,7 @@ export function ViewerHome() {
                 });
               }}
             >
-              📺 {t("filterAll")}
+              {t("filterAll")}
             </button>
             {SPORT_TYPES.filter((s) => (sportChannelCount[s.id] ?? 0) > 0).map((sport) => (
               <button
@@ -1670,7 +1677,7 @@ export function ViewerHome() {
           /* Regional / FAST / Live: category tabs from parsed group-title */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-swipe-ignore="true">
+          <div className="cat-tab-row" data-swipe-ignore="true">
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
@@ -1678,7 +1685,7 @@ export function ViewerHome() {
                 transitionSetActiveCategory("");
               }}
             >
-              📺 {t("filterAll")}
+              {t("filterAll")}
             </button>
             {(activeModule === "bangladesh" ? bdCategoryOptions : categoryOptions).map((cat) => (
               <button
@@ -1689,7 +1696,7 @@ export function ViewerHome() {
                   transitionSetActiveCategory(activeCategory === cat ? "" : cat);
                 }}
               >
-                {categoryEmoji(cat, activeModule)} {cat}
+                {cat}
               </button>
             ))}
           </div>
@@ -1706,7 +1713,7 @@ export function ViewerHome() {
               🏆 League / Competition
             </p>
             <p className="mb-2 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("leagueFilterHint")}</p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="filter-chip-row">
               <button
                 type="button"
                 className={`filter-chip${filterLeague === "" ? " active" : ""}`}

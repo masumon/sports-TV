@@ -3,10 +3,13 @@
 import { useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { summarizeFixturesByDate, type DateMatchSummary } from "@/lib/matchPresentation";
+import type { LiveFixture } from "@/lib/types";
 
 type MatchCalendarProps = {
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
+  fixtures?: LiveFixture[];
   datesWithMatches?: string[];
   locale?: "en" | "bn";
   onPrevWeek?: () => void;
@@ -28,9 +31,28 @@ function startOfWeek(date: Date): Date {
 const DAY_LABELS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LABELS_BN = ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহ", "শুক্র", "শনি"];
 
+function DateIndicator({ summary }: { summary?: DateMatchSummary }) {
+  if (!summary || summary.total === 0) {
+    return <span className="h-4 min-w-[1rem] text-[9px] text-transparent" aria-hidden>·</span>;
+  }
+  if (summary.live > 0) {
+    return (
+      <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-red-300" style={{ background: "rgba(239,68,68,0.2)" }}>
+        Live
+      </span>
+    );
+  }
+  return (
+    <span className="text-[9px] font-bold tabular-nums text-accent-cyan">
+      {summary.total}
+    </span>
+  );
+}
+
 export function MatchCalendar({
   selectedDate,
   onDateSelect,
+  fixtures = [],
   datesWithMatches = [],
   locale = "en",
   onPrevWeek,
@@ -38,6 +60,7 @@ export function MatchCalendar({
 }: MatchCalendarProps) {
   const weekStart = startOfWeek(selectedDate);
   const matchSet = useMemo(() => new Set(datesWithMatches), [datesWithMatches]);
+  const summaryByDate = useMemo(() => summarizeFixturesByDate(fixtures), [fixtures]);
   const dayLabels = locale === "bn" ? DAY_LABELS_BN : DAY_LABELS_EN;
 
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -52,7 +75,7 @@ export function MatchCalendar({
   });
 
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-secondary p-4">
+    <div className="glass-premium rounded-2xl p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <button
           type="button"
@@ -79,6 +102,7 @@ export function MatchCalendar({
           const selected = toDateKey(selectedDate) === key;
           const hasMatch = matchSet.has(key);
           const isToday = toDateKey(new Date()) === key;
+          const summary = summaryByDate.get(key);
 
           return (
             <button
@@ -92,17 +116,13 @@ export function MatchCalendar({
                   : "border-glass-border bg-surface-elevated text-foreground-secondary hover:border-accent-cyan/30 hover:text-foreground",
               )}
               aria-pressed={selected}
-              aria-label={day.toLocaleDateString()}
+              aria-label={`${day.toLocaleDateString()}${summary?.total ? `, ${summary.total} matches` : ""}`}
             >
               <span className="text-[10px] font-medium">{dayLabels[index]}</span>
               <span className={cn("text-sm font-bold tabular-nums", isToday && !selected && "text-accent-cyan")}>
                 {day.getDate()}
               </span>
-              {hasMatch ? (
-                <span className="h-1.5 w-1.5 rounded-full bg-accent-cyan" aria-hidden />
-              ) : (
-                <span className="h-1.5 w-1.5" aria-hidden />
-              )}
+              {hasMatch ? <DateIndicator summary={summary} /> : <span className="h-4" aria-hidden />}
             </button>
           );
         })}
