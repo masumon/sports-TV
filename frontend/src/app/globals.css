@@ -289,11 +289,212 @@ a {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
 
+.glass-player-bar-premium {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
 .glass-player-header {
   background: rgba(4, 6, 12, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.05);
   -webkit-backdrop-filter: blur(4px) saturate(120%);
   backdrop-filter: blur(4px) saturate(120%);
+}
+
+.player-header-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.player-header-back {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.player-header-brand {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.live-badge-inline {
+  background: rgba(220, 38, 38, 0.82);
+  border: 1px solid rgba(255, 82, 82, 0.35);
+}
+
+.live-dot {
+  animation: live-dot-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes live-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(0.88);
+  }
+}
+
+.player-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease, color 0.18s ease;
+}
+
+.player-control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.player-control-btn:focus-visible {
+  outline: 2px solid var(--primary-accent);
+  outline-offset: 2px;
+}
+
+.player-control-btn:active {
+  transform: scale(0.94);
+}
+
+.player-control-btn-primary {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.player-control-btn-active {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.player-slider-popup {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.player-vertical-slider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 6px;
+  height: 112px;
+  border-radius: 999px;
+  cursor: pointer;
+  accent-color: #ef4444;
+}
+
+.player-vertical-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #ef4444;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+}
+
+.player-vertical-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #ef4444;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+
+.player-live-timeline {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.player-live-timeline::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #ef4444;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+  transition: transform 0.15s ease;
+}
+
+.player-live-timeline::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+
+.player-live-timeline::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #ef4444;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.player-settings-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: -8px 0 40px rgba(0, 0, 0, 0.45);
+}
+
+.player-settings-chip {
+  border-radius: 10px;
+  padding: 0.5rem 0.25rem;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.player-settings-chip-active {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.42);
+  color: #fecaca;
+}
+
+.player-control-shell {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+@media (max-width: 389px) {
+  .player-control-shell .player-control-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
 }
 
 /* ── Premium UI utilities (Task 1) ── */
@@ -553,10 +754,22 @@ img[data-loading="loaded"] {
 /* ── Player shell ── */
 .player-shell {
   background: #0a0d14;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
   overflow: hidden;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+@media (min-width: 640px) {
+  .player-shell {
+    border-radius: 22px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .player-shell {
+    border-radius: 24px;
+  }
 }
 
 html.light .player-shell {

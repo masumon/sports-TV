@@ -5,22 +5,34 @@ import Hls from "hls.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
-  ChevronLeft,
   ExternalLink,
   Globe,
   Loader2,
-  Maximize,
-  Minimize,
-  Pause,
-  Play,
   RefreshCw,
-  Settings,
   Volume1,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import { ExternalPlayerPicker } from "@/components/player/ExternalPlayerPicker";
-import { PlayerSettingsPanel } from "@/components/player/PlayerSettingsPanel";
+import { PlayerControlBar } from "@/components/player/PlayerControlBar";
+import { PlayerHeaderOverlay } from "@/components/player/PlayerHeaderOverlay";
+import {
+  PlayerSettingsPanel,
+  type AudioTrackOption,
+  type SubtitleTrackOption,
+} from "@/components/player/PlayerSettingsPanel";
+import {
+  buildHlsConfig,
+  downgradeHlsQuality,
+  isConstrainedNetwork,
+  isMobilePlayback,
+  linkRetryDelayMs,
+  LINK_RETRY_ATTEMPTS,
+  MAX_HLS_RECOVERY_ATTEMPTS,
+  StreamHealthTracker,
+  trySilentHlsRecovery,
+  upgradeHlsQuality,
+} from "@/lib/hlsPlayback";
 import { warmBackupStreams } from "@/lib/streamWarmup";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -65,6 +77,10 @@ export type PremiumPlayerProps = {
   geoHint?: boolean;
   /** Channel logo on the video; when empty, app brand logo is shown (same as TopBar). */
   channelLogoUrl?: string | null;
+  /** Priority 1 — live match / event title overlay. */
+  liveMatchTitle?: string | null;
+  /** Priority 2 — EPG current program title. */
+  epgProgramTitle?: string | null;
   /** Called when all stream sources have errored out. */
   onStreamError?: () => void;
 };
@@ -115,20 +131,7 @@ function tryUnlockPlaybackOrientation(): void {
 }
 
 /* ────────────────────────────────────────────────────────── Helpers ── */
-const HIDE_CONTROLS_AFTER_MS = 3500;
-/** First-play: keep controls visible longer so new users can orient themselves. */
-const HIDE_CONTROLS_INITIAL_MS = 8000;
-
-type NetConn = { saveData?: boolean; effectiveType?: string };
-
-function isConstrainedNetwork(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const c = (navigator as Navigator & { connection?: NetConn }).connection;
-  if (!c) return false;
-  if (c.saveData) return true;
-  const t = c.effectiveType;
-  return t === "slow-2g" || t === "2g";
-}
+const HIDE_CONTROLS_AFTER_MS = 3000;
 
 /**
  * Backend proxy URLs for each direct URL. When a channel uses
@@ -171,21 +174,9 @@ function relayHlsXhrUrlIfNeeded(
   }
 }
 
-const LINK_RETRY_ATTEMPTS = 3;
-/** Shorter remount delay so we rotate to the next mirror quickly. */
-const LINK_RETRY_DELAY_MS = 800;
-const HLS_MANIFEST_MAX_RETRY = 3;
-const HLS_LEVEL_MAX_RETRY = 2;
-const HLS_FRAG_MAX_RETRY = 2;
-const MAX_HLS_RECOVERY_ATTEMPTS = 4;
 const RECONNECT_MSG = "Reconnecting…";
 const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
 const recentlyFailedUrlUntil = new Map<string, number>();
-
-/** Fail over to the next URL instead of waiting ~10s per dead mirror (HLS.js defaults). */
-const HLS_MANIFEST_LOAD_TIMEOUT_MS = 5500;
-const HLS_LEVEL_LOAD_TIMEOUT_MS = 5500;
-const HLS_FRAG_LOAD_TIMEOUT_MS = 9000;
 
 function isUrlTemporarilyFailed(url: string): boolean {
   const until = recentlyFailedUrlUntil.get(url);
@@ -233,6 +224,14 @@ function formatQualityFromHeight(height: number): string {
 }
 
 /* ═══════════════════════════════════════════════════════ Component ═══ */
+function brightnessPctToFilter(pct: number): number {
+  return 0.35 + ((pct - 10) / 90) * 0.65;
+}
+
+function brightnessPctToDimOpacity(pct: number): number {
+  return Math.max(0, ((100 - pct) / 100) * 0.62);
+}
+
 export default function PremiumPlayer({
   streamUrl,
   streamUrls,
@@ -244,6 +243,8 @@ export default function PremiumPlayer({
   headerProfile = null,
   geoHint = false,
   channelLogoUrl = null,
+  liveMatchTitle = null,
+  epgProgramTitle = null,
   onStreamError,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -289,20 +290,29 @@ export default function PremiumPlayer({
   const hintShownRef = useRef(false);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** Sleep timer */
-  const [sleepMinutes, setSleepMinutes] = useState<number | null>(null);
-  const [sleepRemaining, setSleepRemaining] = useState<number>(0);
-  const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stallCountRef = useRef(0);
   const hlsRecoveryRef = useRef(0);
+  const healthTrackerRef = useRef<StreamHealthTracker | null>(null);
+  const isMobilePlayer = useMemo(() => isMobilePlayback(), []);
 
   const [dataSaver, setDataSaver] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-  const [showStreamHealth, setShowStreamHealth] = useState(false);
-  const [scaleMode, setScaleMode] = useState<VideoScaleMode>("cover");
+  const [scaleMode] = useState<VideoScaleMode>("cover");
   const [videoScale, setVideoScale] = useState(1);
-  const [brightnessOverlay, setBrightnessOverlay] = useState(1);
+  const [brightnessPct, setBrightnessPct] = useState(100);
   const [streamBitrate, setStreamBitrate] = useState("—");
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [lowLatencyMode, setLowLatencyMode] = useState(false);
+  const [audioTracks, setAudioTracks] = useState<AudioTrackOption[]>([]);
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState("default");
+  const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrackOption[]>([]);
+  const [selectedSubtitle, setSelectedSubtitle] = useState("off");
+  const [pipActive, setPipActive] = useState(false);
+  const [streamResolution, setStreamResolution] = useState("—");
+  const [streamCodec, setStreamCodec] = useState("HLS");
+  const lastTapRef = useRef(0);
 
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
@@ -337,9 +347,8 @@ export default function PremiumPlayer({
 
   const scheduleHideControls = useCallback(() => {
     clearHideTimer();
-    const delay = firstHideDoneRef.current ? HIDE_CONTROLS_AFTER_MS : HIDE_CONTROLS_INITIAL_MS;
     firstHideDoneRef.current = true;
-    hideTimerRef.current = setTimeout(() => setShowControls(false), delay);
+    hideTimerRef.current = setTimeout(() => setShowControls(false), HIDE_CONTROLS_AFTER_MS);
   }, [clearHideTimer]);
 
   const showControlsTemporarily = useCallback(() => {
@@ -408,7 +417,18 @@ export default function PremiumPlayer({
     const video = videoRef.current;
     if (!video) return;
     const cleanup = () => {
-      hlsRef.current?.destroy();
+      healthTrackerRef.current?.destroy();
+      healthTrackerRef.current = null;
+      const hls = hlsRef.current;
+      if (hls) {
+        try {
+          hls.stopLoad();
+          hls.detachMedia();
+          hls.destroy();
+        } catch {
+          /* */
+        }
+      }
       hlsRef.current = null;
       if (dashRef.current) {
         try {
@@ -441,6 +461,8 @@ export default function PremiumPlayer({
     const isDash = isDashProxiedStreamUrl(effectiveUrl);
 
     const lightNet = isConstrainedNetwork() || dataSaver;
+    const mobileNet = isMobilePlayer || lightNet;
+    const useLowLatency = lowLatencyMode && !lightNet && !mobileNet;
     if (isDash) {
       const player = dashjs.MediaPlayer().create();
       dashRef.current = player;
@@ -482,31 +504,21 @@ export default function PremiumPlayer({
     if (Hls.isSupported()) {
       let hlsInstance: Hls | null = null;
       let tryFailover: (message?: string) => boolean = () => false;
+      const healthTracker = new StreamHealthTracker(
+        () => {
+          if (hlsRef.current) downgradeHlsQuality(hlsRef.current);
+        },
+        () => {
+          if (hlsRef.current?.autoLevelEnabled) upgradeHlsQuality(hlsRef.current);
+        }
+      );
+      healthTracker.reset();
+      healthTracker.startStableWatch();
+      healthTrackerRef.current = healthTracker;
+
       const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: !lightNet,
-        maxBufferLength: lightNet ? 14 : 32,
-        maxMaxBufferLength: lightNet ? 28 : 65,
-        backBufferLength: lightNet ? 10 : 22,
-        maxBufferSize: lightNet ? 28 * 1000 * 1000 : 65 * 1000 * 1000,
-        maxBufferHole: 0.35,
-        liveSyncDurationCount: lightNet ? 2 : 3,
-        liveMaxLatencyDurationCount: lightNet ? 7 : 11,
-        liveDurationInfinity: true,
-        abrEwmaDefaultEstimate: lightNet ? 400_000 : 1_000_000,
-        abrBandWidthFactor: lightNet ? 0.9 : 0.95,
-        abrBandWidthUpFactor: lightNet ? 0.55 : 0.7,
-        manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
-        manifestLoadingMaxRetry: HLS_MANIFEST_MAX_RETRY,
-        manifestLoadingRetryDelay: 400,
-        levelLoadingTimeOut: HLS_LEVEL_LOAD_TIMEOUT_MS,
-        levelLoadingMaxRetry: HLS_LEVEL_MAX_RETRY,
-        levelLoadingRetryDelay: 400,
-        fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
-        fragLoadingMaxRetry: HLS_FRAG_MAX_RETRY,
-        fragLoadingRetryDelay: lightNet ? 650 : 450,
-        startLevel: -1,
-        capLevelToPlayerSize: true,
+        ...buildHlsConfig({ lightNet, mobile: mobileNet }),
+        lowLatencyMode: useLowLatency,
         xhrSetup: (xhr, requestUrl) => {
           const nextUrl = relayHlsXhrUrlIfNeeded(requestUrl, dynamicM3U8Id, headerProfile);
           if (nextUrl !== requestUrl) {
@@ -562,10 +574,9 @@ export default function PremiumPlayer({
       hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
 
-      hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (!data.fatal) return;
-        const resp = (data as { response?: { code?: number } }).response;
-        const httpCode = resp?.code;
+      const handleFatalHlsError = (data: { type: string; details: string; fatal: boolean; response?: { code?: number } }) => {
+        healthTracker.recordError();
+        const httpCode = data.response?.code;
 
         if (httpCode === 403 || httpCode === 401) {
           if (tryFailover()) return;
@@ -579,9 +590,14 @@ export default function PremiumPlayer({
         const isMedia = data.type === Hls.ErrorTypes.MEDIA_ERROR;
         const isManifest =
           data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+          data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT ||
           data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR;
+        const isLevel =
+          data.details === Hls.ErrorDetails.LEVEL_LOAD_ERROR ||
+          data.details === Hls.ErrorDetails.LEVEL_LOAD_TIMEOUT;
         const isFrag =
           data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+          data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT ||
           data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR;
 
         if (hlsRecoveryRef.current < MAX_HLS_RECOVERY_ATTEMPTS) {
@@ -594,28 +610,27 @@ export default function PremiumPlayer({
               /* fall through */
             }
           }
-          if (isNet || isManifest || isFrag) {
-            try {
-              hls.startLoad(-1);
-              setIsLoading(true);
+          if (isNet || isManifest || isLevel || isFrag) {
+            if (trySilentHlsRecovery(hls)) {
+              if (!playbackStartedRef.current) setIsLoading(true);
               return;
-            } catch {
-              /* fall through */
             }
           }
         }
 
-        if (isNet || isManifest || isFrag) {
+        if (isNet || isManifest || isLevel || isFrag) {
           const retries = linkRetryRef.current;
           if (retries < LINK_RETRY_ATTEMPTS - 1) {
             linkRetryRef.current = retries + 1;
-            setIsLoading(true);
-            setIsSwitching(true);
+            if (!playbackStartedRef.current) {
+              setIsLoading(true);
+              setIsSwitching(true);
+            }
             if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
             linkRetryTimerRef.current = setTimeout(() => {
               linkRetryTimerRef.current = null;
               setRetryKey((k) => k + 1);
-            }, LINK_RETRY_DELAY_MS);
+            }, linkRetryDelayMs(retries));
             return;
           }
           linkRetryRef.current = 0;
@@ -625,12 +640,34 @@ export default function PremiumPlayer({
         setIsSwitching(false);
         setHasError(true);
         setIsLoading(false);
+      };
+
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (!data.fatal) {
+          if (
+            data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR ||
+            data.details === Hls.ErrorDetails.BUFFER_NUDGE_ON_STALL
+          ) {
+            healthTracker.recordStall();
+            if (playbackStartedRef.current) trySilentHlsRecovery(hls);
+          } else if (
+            data.details === Hls.ErrorDetails.LEVEL_LOAD_ERROR ||
+            data.details === Hls.ErrorDetails.LEVEL_LOAD_TIMEOUT ||
+            data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT
+          ) {
+            healthTracker.recordError();
+          }
+          return;
+        }
+        handleFatalHlsError(data);
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         linkRetryRef.current = 0;
         hlsRecoveryRef.current = 0;
-        if (lightNet && hls.levels.length) {
+        healthTracker.reset();
+        healthTracker.startStableWatch();
+        if ((lightNet || mobileNet) && hls.levels.length) {
           const underSd = hls.levels
             .map((level, idx) => (level.height && level.height <= 480 ? idx : -1))
             .filter((idx) => idx >= 0);
@@ -657,6 +694,8 @@ export default function PremiumPlayer({
         setSelectedQuality(data.level);
         const level = hls.levels[data.level];
         if (level?.bitrate) setStreamBitrate(`${Math.round(level.bitrate / 1000)} kbps`);
+        if (level?.height) setStreamResolution(`${level.height}p`);
+        if (level?.codecSet) setStreamCodec(level.codecSet.split(",")[0] ?? "HLS");
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = effectiveUrl;
@@ -664,7 +703,7 @@ export default function PremiumPlayer({
     }
 
     return cleanup;
-  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile, dataSaver]);
+  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile, dataSaver, lowLatencyMode, isMobilePlayer]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -673,9 +712,12 @@ export default function PremiumPlayer({
     const onPause = () => { setIsPlaying(false); setShowControls(true); clearHideTimer(); };
     const onVolumeChange = () => { setIsMuted(video.muted); setVolumeState(video.volume); };
     const onWaiting = () => {
+      healthTrackerRef.current?.recordStall();
       if (playbackStartedRef.current) {
+        const hls = hlsRef.current;
+        if (hls && trySilentHlsRecovery(hls)) return;
         stallCountRef.current += 1;
-        if (stallCountRef.current >= 3) {
+        if (stallCountRef.current >= 4) {
           stallCountRef.current = 0;
           setRetryKey((k) => k + 1);
         }
@@ -686,6 +728,8 @@ export default function PremiumPlayer({
     const onPlaying = () => {
       playbackStartedRef.current = true;
       stallCountRef.current = 0;
+      hlsRecoveryRef.current = 0;
+      healthTrackerRef.current?.recordPlaying();
       setIsLoading(false);
       setHasError(false);
       warmBackupStreams(allUrlsList, urlIdx);
@@ -698,6 +742,17 @@ export default function PremiumPlayer({
       const dur = video.duration;
       if (dur > 0 && Number.isFinite(dur)) setBufferedPct(Math.min(100, (end / dur) * 100));
     };
+    const onTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+      const dur = video.duration;
+      setDuration(Number.isFinite(dur) ? dur : 0);
+    };
+    const onDurationChange = () => {
+      const dur = video.duration;
+      setDuration(Number.isFinite(dur) ? dur : 0);
+    };
+    const onEnterPiP = () => setPipActive(true);
+    const onLeavePiP = () => setPipActive(false);
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("volumechange", onVolumeChange);
@@ -706,6 +761,10 @@ export default function PremiumPlayer({
     video.addEventListener("canplay", onCanPlay);
     video.addEventListener("error", onError);
     video.addEventListener("progress", onProgress);
+    video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("durationchange", onDurationChange);
+    video.addEventListener("enterpictureinpicture", onEnterPiP);
+    video.addEventListener("leavepictureinpicture", onLeavePiP);
     return () => {
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
@@ -715,6 +774,10 @@ export default function PremiumPlayer({
       video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("error", onError);
       video.removeEventListener("progress", onProgress);
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("durationchange", onDurationChange);
+      video.removeEventListener("enterpictureinpicture", onEnterPiP);
+      video.removeEventListener("leavepictureinpicture", onLeavePiP);
     };
   }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx]);
 
@@ -772,18 +835,20 @@ export default function PremiumPlayer({
       touchStartY = touch.clientY;
       touchStartX = touch.clientX - rect.left;
       touchStartVol = video!.volume;
-      touchStartBright = brightnessOverlay;
+      touchStartBright = brightnessPct;
       isSwiping = false;
       swipeMode = null;
 
       const now = Date.now();
       const tapX = touch.clientX - rect.left;
-      if (now - lastTapTime < 300 && Math.abs(tapX - lastTapX) < rect.width * 0.6) {
-        const isLeft = tapX < rect.width / 2;
-        const seekDelta = isLeft ? -10 : 10;
-        video!.currentTime = Math.max(0, video!.currentTime + seekDelta);
-        showSeekRipple(isLeft ? "left" : "right", Math.abs(seekDelta));
+      if (now - lastTapTime < 320 && Math.abs(tapX - lastTapX) < rect.width * 0.6) {
         lastTapTime = 0;
+        void (async () => {
+          const el = containerRef.current;
+          if (!el) return;
+          if (document.fullscreenElement) await document.exitFullscreen();
+          else await el.requestFullscreen();
+        })();
       } else {
         lastTapTime = now;
         lastTapX = tapX;
@@ -814,9 +879,9 @@ export default function PremiumPlayer({
         setIsMuted(newVol === 0);
         showVolOverlay(newVol);
       } else {
-        const newBright = Math.min(1.4, Math.max(0.35, touchStartBright + delta * 0.8));
-        setBrightnessOverlay(newBright);
-        showBrightOverlay(Math.min(1, newBright));
+        const newBright = Math.min(100, Math.max(10, Math.round(touchStartBright + delta * 100)));
+        setBrightnessPct(newBright);
+        showBrightOverlay(newBright);
       }
     }
 
@@ -826,7 +891,7 @@ export default function PremiumPlayer({
       container.removeEventListener("touchstart", onTouchStart);
       container.removeEventListener("touchmove", onTouchMove);
     };
-  }, [videoScale, brightnessOverlay]);
+  }, [videoScale, brightnessPct]);
 
   /** Sync orientation when fullscreen is toggled via browser (e.g. ESC) or gesture. */
   useEffect(() => {
@@ -862,7 +927,19 @@ export default function PremiumPlayer({
     () => () => {
       tryUnlockPlaybackOrientation();
       clearHideTimer();
-      hlsRef.current?.destroy();
+      healthTrackerRef.current?.destroy();
+      healthTrackerRef.current = null;
+      const hls = hlsRef.current;
+      if (hls) {
+        try {
+          hls.stopLoad();
+          hls.detachMedia();
+          hls.destroy();
+        } catch {
+          /* */
+        }
+      }
+      hlsRef.current = null;
     },
     [clearHideTimer]
   );
@@ -900,8 +977,32 @@ export default function PremiumPlayer({
   }, []);
 
   const changeQuality = useCallback((level: number) => {
-    setSelectedQuality(level);
-    if (hlsRef.current) hlsRef.current.currentLevel = level;
+    const hls = hlsRef.current;
+    if (!hls) {
+      setSelectedQuality(level);
+      return;
+    }
+    if (level === -1) {
+      hls.currentLevel = -1;
+      setSelectedQuality(-1);
+      return;
+    }
+    let bestIdx = -1;
+    let bestHeight = 0;
+    hls.levels.forEach((lv, idx) => {
+      const h = lv.height ?? 0;
+      if (h <= level && h >= bestHeight) {
+        bestHeight = h;
+        bestIdx = idx;
+      }
+    });
+    if (bestIdx >= 0) {
+      hls.currentLevel = bestIdx;
+      setSelectedQuality(bestIdx);
+      if (hls.levels[bestIdx]?.height) setStreamResolution(`${hls.levels[bestIdx]!.height}p`);
+    } else {
+      setSelectedQuality(level);
+    }
   }, []);
 
   const togglePictureInPicture = useCallback(async () => {
@@ -933,32 +1034,6 @@ export default function PremiumPlayer({
     setUrlIdx(0);
     setRetryKey((k) => k + 1);
   }, []);
-
-  const startSleepTimer = useCallback((minutes: number) => {
-    if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
-    setSleepMinutes(minutes);
-    setSleepRemaining(minutes * 60);
-    sleepTimerRef.current = setInterval(() => {
-      setSleepRemaining((s) => {
-        if (s <= 1) {
-          clearInterval(sleepTimerRef.current!);
-          setSleepMinutes(null);
-          videoRef.current?.pause();
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-  }, []);
-
-  const cancelSleepTimer = useCallback(() => {
-    if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
-    setSleepMinutes(null);
-    setSleepRemaining(0);
-  }, []);
-
-  // Cleanup sleep timer on unmount
-  useEffect(() => () => { if (sleepTimerRef.current) clearInterval(sleepTimerRef.current); }, []);
 
   useEffect(() => {
     onStreamErrorRef.current = onStreamError;
@@ -1017,7 +1092,131 @@ export default function PremiumPlayer({
     return qualityOptions.find((o) => o.value === selectedQuality)?.label ?? "AUTO";
   }, [qualityOptions, selectedQuality]);
 
+  const selectedQualityForPanel = useMemo(() => {
+    if (selectedQuality === -1) return -1;
+    const opt = qualityOptions.find((o) => o.value === selectedQuality);
+    if (!opt) return selectedQuality;
+    const m = opt.label.match(/(\d{3,4})p/i);
+    return m ? Number(m[1]) : selectedQuality;
+  }, [selectedQuality, qualityOptions]);
+
+  const programTitle = useMemo(() => {
+    const match = liveMatchTitle?.trim();
+    if (match) return match;
+    const epg = epgProgramTitle?.trim();
+    if (epg) return epg;
+    const channel = title?.trim();
+    if (channel) return channel;
+    return "Live Broadcast";
+  }, [liveMatchTitle, epgProgramTitle, title]);
+
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+
+  const setVolumeFromPct = useCallback(
+    (pct: number) => setVolumeLevel(pct / 100),
+    [setVolumeLevel]
+  );
+
+  const setBrightnessFromPct = useCallback((pct: number) => {
+    setBrightnessPct(Math.min(100, Math.max(10, pct)));
+  }, []);
+
+  const handleSeek = useCallback((time: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = time;
+    setCurrentTime(time);
+  }, []);
+
+  const handlePlaybackSpeedChange = useCallback((speed: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.playbackRate = speed;
+    setPlaybackSpeed(speed);
+  }, []);
+
+  const handleLowLatencyToggle = useCallback((enabled: boolean) => {
+    setLowLatencyMode(enabled);
+    setRetryKey((k) => k + 1);
+  }, []);
+
+  const syncMediaTracks = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const audio: AudioTrackOption[] = [];
+    const vAudio = (video as HTMLVideoElement & { audioTracks?: { length: number; [i: number]: { id: string; label: string; enabled: boolean } } }).audioTracks;
+    if (vAudio?.length) {
+      for (let i = 0; i < vAudio.length; i++) {
+        const t = vAudio[i];
+        if (t) audio.push({ id: t.id || String(i), label: t.label || `Audio ${i + 1}` });
+      }
+    } else {
+      audio.push({ id: "default", label: "Default" });
+    }
+    setAudioTracks(audio);
+
+    const subs: SubtitleTrackOption[] = [];
+    for (let i = 0; i < video.textTracks.length; i++) {
+      const t = video.textTracks[i];
+      if (t && (t.kind === "subtitles" || t.kind === "captions")) {
+        subs.push({ id: t.id || String(i), label: t.label || `Subtitle ${i + 1}` });
+      }
+    }
+    setSubtitleTracks(subs);
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onMeta = () => syncMediaTracks();
+    video.addEventListener("loadedmetadata", onMeta);
+    return () => video.removeEventListener("loadedmetadata", onMeta);
+  }, [syncMediaTracks, streamIdentity]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    for (let i = 0; i < video.textTracks.length; i++) {
+      const t = video.textTracks[i];
+      if (!t) continue;
+      t.mode = selectedSubtitle !== "off" && t.id === selectedSubtitle ? "showing" : "hidden";
+    }
+  }, [selectedSubtitle, streamIdentity]);
+
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    const level = hls.levels[hls.currentLevel];
+    if (level?.height) setStreamResolution(`${level.height}p`);
+    if (level?.codecSet) setStreamCodec(level.codecSet.split(",")[0] ?? "HLS");
+  }, [selectedQuality, streamIdentity]);
+
+  const handleVideoSurfaceClick = useCallback(
+    (e: React.MouseEvent) => {
+      const now = Date.now();
+      if (now - lastTapRef.current < 320) {
+        lastTapRef.current = 0;
+        e.preventDefault();
+        void toggleFullscreen();
+        return;
+      }
+      lastTapRef.current = now;
+      showControlsTemporarily();
+    },
+    [toggleFullscreen, showControlsTemporarily]
+  );
+
+  const castAvailable =
+    typeof window !== "undefined" &&
+    Boolean((window as Window & { chrome?: { cast?: unknown } }).chrome?.cast);
+
+  const reportStreamIssue = useCallback(() => {
+    const subject = encodeURIComponent(`ABO Sports TV — Stream issue: ${programTitle}`);
+    const body = encodeURIComponent(
+      `Channel: ${title}\nProgram: ${programTitle}\nMirror: ${urlIdx + 1}/${allUrlsList.length}\nQuality: ${currentQualityLabel}\nBitrate: ${streamBitrate}\n`
+    );
+    window.open(`mailto:support@abosportstv.com?subject=${subject}&body=${body}`, "_blank");
+  }, [programTitle, title, urlIdx, allUrlsList.length, currentQualityLabel, streamBitrate]);
 
   const openExternalPlayerFromSettings = useCallback(() => {
     setShowSettingsPanel(false);
@@ -1051,16 +1250,23 @@ export default function PremiumPlayer({
         style={{
           transform: `scale(${videoZoomScale(scaleMode) * videoScale})`,
           transformOrigin: "center center",
-          filter: brightnessOverlay !== 1 ? `brightness(${brightnessOverlay})` : undefined,
+          filter: brightnessPct < 100 ? `brightness(${brightnessPctToFilter(brightnessPct)})` : undefined,
         }}
         autoPlay
         playsInline
         controls={false}
-        preload="metadata"
+        preload={isMobilePlayer ? "metadata" : "auto"}
       />
 
-      {/* Click-to-play */}
-      <div className="absolute inset-0 z-10 cursor-pointer" onClick={() => void togglePlayPause()} />
+      {brightnessPct < 100 ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-[8]"
+          style={{ background: `rgba(0,0,0,${brightnessPctToDimOpacity(brightnessPct)})` }}
+          aria-hidden
+        />
+      ) : null}
+
+      <div className="absolute inset-0 z-10 cursor-pointer" onClick={handleVideoSurfaceClick} aria-hidden />
 
 
       {/* ── Loading / Switching — Premium branded screen ── */}
@@ -1210,37 +1416,12 @@ export default function PremiumPlayer({
       </AnimatePresence>
 
 
-      {/* Player header — single LIVE badge + channel + quality */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center gap-2 px-3 py-2 sm:px-4"
-        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top, 0px))" }}
-      >
-        {isFullscreen ? (
-          <button
-            type="button"
-            onClick={() => void document.exitFullscreen()}
-            className="glass-player-header pointer-events-auto flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold text-white"
-            aria-label="Exit fullscreen"
-          >
-            <ChevronLeft size={16} /> Back
-          </button>
-        ) : null}
-        <div className="glass-player-header pointer-events-none flex min-w-0 flex-1 items-center gap-2 rounded-full px-3 py-1.5">
-          <p className="min-w-0 flex-1 truncate text-xs font-bold text-white sm:text-sm">{title}</p>
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white"
-            style={{ background: "rgba(220,38,38,0.75)", border: "1px solid rgba(255,82,82,0.35)" }}
-          >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-            LIVE
-          </span>
-          {selectedQuality !== -1 ? (
-            <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase text-white/80" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              {currentQualityLabel}
-            </span>
-          ) : null}
-        </div>
-      </div>
+      <PlayerHeaderOverlay
+        programTitle={programTitle}
+        channelLogoUrl={channelLogoUrl}
+        isFullscreen={isFullscreen}
+        onExitFullscreen={() => void document.exitFullscreen()}
+      />
 
       {/* Custom overlay */}
       {overlay}
@@ -1328,89 +1509,34 @@ export default function PremiumPlayer({
               className="rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-wide"
               style={{ background: "rgba(0,0,0,0.38)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(4px)" }}
             >
-              স্পর্শ করুন · ডাবল ট্যাপ ±10s
+              Tap for controls · Double-tap fullscreen
             </span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Controls panel ── */}
       <AnimatePresence>
-        {showControls && (
-          <motion.div
+        {showControls ? (
+          <PlayerControlBar
             key="controls"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-x-0 bottom-0 z-40"
-          >
-            {/* Live buffer bar — edge-to-edge at very bottom */}
-            <div className="absolute bottom-0 left-0 right-0 h-[3px]" style={{ background: "rgba(255,255,255,0.06)", zIndex: 1 }}>
-              <motion.div
-                className="h-full rounded-r-full"
-                style={{ background: "linear-gradient(90deg, #F5A623 0%, #f59e0b 60%, rgba(245,166,35,0.4) 100%)" }}
-                animate={{ width: `${bufferedPct}%` }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-              />
-            </div>
-
-            <div
-              className="glass-player-bar mx-2 mb-[7px] overflow-hidden rounded-2xl sm:mx-3"
-            >
-              <div className="flex min-w-0 items-center gap-1.5 px-2.5 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
-                <button
-                  type="button"
-                  onClick={() => void togglePlayPause()}
-                  aria-label={isPlaying ? "Pause" : "Play"}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all active:scale-90"
-                  style={{
-                    background: isPlaying ? "rgba(245,166,35,0.22)" : "rgba(255,255,255,0.12)",
-                    border: isPlaying ? "1.5px solid rgba(245,166,35,0.6)" : "1.5px solid rgba(255,255,255,0.18)",
-                    color: isPlaying ? "#F5A623" : "#fff",
-                    boxShadow: isPlaying ? "0 0 18px rgba(245,166,35,0.18)" : "none",
-                  }}
-                >
-                  {isPlaying ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={toggleMute}
-                  aria-label={isMuted ? "Unmute" : "Mute"}
-                  className="control-btn shrink-0 active:scale-90 transition"
-                >
-                  <VolumeIcon size={17} />
-                </button>
-
-                <div className="min-w-0 flex-1" />
-
-                <button
-                  type="button"
-                  onClick={() => setShowSettingsPanel(true)}
-                  aria-label="Settings"
-                  title="Settings"
-                  aria-expanded={showSettingsPanel}
-                  className="control-btn shrink-0 active:scale-90 transition"
-                  style={showSettingsPanel ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
-                >
-                  <Settings size={16} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void toggleFullscreen()}
-                  aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                  title="Fullscreen (F)"
-                  className="control-btn shrink-0 active:scale-90 transition"
-                  style={isFullscreen ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
-                >
-                  {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
+            isPlaying={isPlaying}
+            isMuted={isMuted}
+            volume={volume}
+            brightness={brightnessPct}
+            isFullscreen={isFullscreen}
+            settingsOpen={showSettingsPanel}
+            currentTime={currentTime}
+            duration={duration}
+            bufferedPct={bufferedPct}
+            VolumeIcon={VolumeIcon}
+            onTogglePlay={() => void togglePlayPause()}
+            onVolumeChange={setVolumeFromPct}
+            onBrightnessChange={setBrightnessFromPct}
+            onOpenSettings={() => setShowSettingsPanel(true)}
+            onToggleFullscreen={() => void toggleFullscreen()}
+            onSeek={handleSeek}
+          />
+        ) : null}
       </AnimatePresence>
 
       {typeof document !== "undefined" && showExternalPanel
@@ -1447,43 +1573,36 @@ export default function PremiumPlayer({
           )
         : null}
 
-      {showStreamHealth && (
-        <div
-          className="pointer-events-none absolute right-3 top-14 z-40 rounded-lg px-2 py-1 font-mono text-[9px] text-emerald-300/90"
-          style={{ background: "rgba(0,0,0,0.55)", border: "1px solid rgba(16,185,129,0.25)" }}
-        >
-          <div>{streamBitrate}</div>
-          <div>Q: {currentQualityLabel}</div>
-          <div>M {urlIdx + 1}/{allUrlsList.length}</div>
-        </div>
-      )}
-
       <PlayerSettingsPanel
         open={showSettingsPanel}
         onClose={() => setShowSettingsPanel(false)}
-        dataSaver={dataSaver}
-        onDataSaverChange={setDataSaver}
-        selectedQuality={selectedQuality}
+        isMobile={isMobileSheet}
+        selectedQuality={selectedQualityForPanel}
         qualityOptions={qualityOptions}
         onQualityChange={changeQuality}
-        showStreamHealth={showStreamHealth}
-        onToggleStreamHealth={setShowStreamHealth}
-        streamHealth={{
-          bitrate: streamBitrate,
-          level: currentQualityLabel,
-          urlIndex: urlIdx,
-          totalUrls: allUrlsList.length,
-        }}
-        scaleMode={scaleMode}
-        onScaleModeChange={setScaleMode}
-        onTogglePictureInPicture={() => void togglePictureInPicture()}
+        audioTracks={audioTracks}
+        selectedAudioTrack={selectedAudioTrack}
+        onAudioTrackChange={setSelectedAudioTrack}
+        subtitleTracks={subtitleTracks}
+        selectedSubtitle={selectedSubtitle}
+        onSubtitleChange={setSelectedSubtitle}
+        playbackSpeed={playbackSpeed}
+        onPlaybackSpeedChange={handlePlaybackSpeedChange}
+        castAvailable={castAvailable}
         pipEnabled={typeof document !== "undefined" && document.pictureInPictureEnabled}
-        sleepMinutes={sleepMinutes}
-        sleepRemaining={sleepRemaining}
-        onStartSleepTimer={startSleepTimer}
-        onCancelSleepTimer={cancelSleepTimer}
+        pipActive={pipActive}
+        onTogglePictureInPicture={() => void togglePictureInPicture()}
         onReloadStream={retryStream}
         onOpenExternalPlayer={openExternalPlayerFromSettings}
+        lowLatencyMode={lowLatencyMode}
+        onLowLatencyModeChange={handleLowLatencyToggle}
+        streamInfo={{
+          resolution: streamResolution,
+          codec: streamCodec,
+          bitrate: streamBitrate,
+          source: `Mirror ${urlIdx + 1}/${allUrlsList.length}`,
+        }}
+        onReportIssue={reportStreamIssue}
       />
     </motion.div>
   );
