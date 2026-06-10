@@ -1,6 +1,6 @@
 # ABO SPORTS TV — Fix Plan (SSOT)
 
-Status: COMPLETE (pending deploy env verification)
+Status: COMPLETE
 
 ## Phase 0 — Security (P0)
 - [x] proxy: re-validate URLs after redirects (SSRF)
@@ -36,7 +36,7 @@ Status: COMPLETE (pending deploy env verification)
 ## Phase 5 — Validate & Ship
 - [x] frontend lint + build
 - [x] backend compileall
-- [ ] commit + push
+- [x] commit + push
 
 ## Manual actions (user)
 - Render: set `JWT_SECRET_KEY`, `INTERNAL_SYNC_SECRET`, `DATABASE_URL`, rotate `ADMIN_PASSWORD`
