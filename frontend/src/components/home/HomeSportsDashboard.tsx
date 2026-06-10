@@ -16,10 +16,9 @@ import { isFixtureLive } from "@/lib/matchPresentation";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 
 type CountryTab = {
-  id: ViewerModule;
+  id: ViewerModule | "more";
   label: string;
   icon: string;
-  count: number;
 };
 
 type Props = {
@@ -29,12 +28,11 @@ type Props = {
   totalChannels: number;
   continueWatching: Channel[];
   trendingChannels: Channel[];
-  recentlyWatched: Channel[];
   countryModules: CountryTab[];
   fixturesLoading: boolean;
   fixturesError?: boolean;
   onSelectChannel: (ch: Channel) => void;
-  onSelectModule: (m: ViewerModule) => void;
+  onSelectModule: (m: ViewerModule | "more") => void;
   onOpenLiveCenter: () => void;
   onRefreshFixtures: () => void;
 };
@@ -69,13 +67,11 @@ function ChannelChip({ ch, onSelect, isLive }: { ch: Channel; onSelect: () => vo
 function SectionShell({
   title,
   icon,
-  badge,
   action,
   children,
 }: {
   title: string;
   icon: React.ReactNode;
-  badge?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -85,11 +81,6 @@ function SectionShell({
         <div className="flex items-center gap-2">
           {icon}
           <h2 className="text-sm font-bold font-bengali" style={{ color: "var(--text-main)" }}>{title}</h2>
-          {badge ? (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)" }}>
-              {badge}
-            </span>
-          ) : null}
         </div>
         {action}
       </div>
@@ -128,7 +119,6 @@ export function HomeSportsDashboard({
   totalChannels,
   continueWatching,
   trendingChannels,
-  recentlyWatched,
   countryModules,
   fixturesLoading,
   fixturesError,
@@ -142,7 +132,6 @@ export function HomeSportsDashboard({
 
   return (
     <section className="space-y-4" aria-label="Sports dashboard">
-      {/* Continue Watching */}
       <ChannelRow
         title="Continue Watching"
         icon={<Clock size={16} style={{ color: "var(--primary-accent)" }} aria-hidden />}
@@ -150,12 +139,10 @@ export function HomeSportsDashboard({
         onSelect={onSelectChannel}
       />
 
-      {/* Live Now — only when live data exists */}
       {live.length > 0 && (
         <SectionShell
           title="Live Now"
           icon={<Radio size={16} className="text-red-400" aria-hidden />}
-          badge={String(live.length)}
           action={
             <button type="button" onClick={onOpenLiveCenter} className="flex items-center gap-0.5 text-[11px] font-semibold text-accent-gold">
               Match Center <ChevronRight size={14} />
@@ -182,7 +169,6 @@ export function HomeSportsDashboard({
         </SectionShell>
       )}
 
-      {/* Featured Match */}
       {featured && (
         <Link
           href={`/match/${featured.id}` as `/match/${string}`}
@@ -206,42 +192,30 @@ export function HomeSportsDashboard({
         </Link>
       )}
 
-      {/* Categories — name-first */}
       <SectionShell title="Categories" icon={<TrendingUp size={16} className="text-accent-cyan" aria-hidden />}>
-        <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-6">
+        <div className="grid grid-cols-5 gap-2 p-3">
           {countryModules.map((m) => (
             <button
               key={m.id}
               type="button"
               onClick={() => onSelectModule(m.id)}
-              className="flex flex-col items-center gap-1 rounded-xl py-3 transition active:scale-95 hover:border-accent-gold/25"
+              className="flex min-w-0 flex-col items-center gap-1.5 rounded-xl py-3.5 transition active:scale-95 hover:border-accent-gold/25"
               style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
             >
-              <span className="text-lg" aria-hidden>{m.icon}</span>
-              <span className="text-[11px] font-semibold font-bengali text-center leading-tight px-1" style={{ color: "var(--text-main)" }}>{m.label}</span>
-              {m.count > 0 ? (
-                <span className="text-[9px] tabular-nums" style={{ color: "var(--text-muted)" }}>{m.count > 999 ? "999+" : m.count}</span>
-              ) : null}
+              <span className="text-xl leading-none" aria-hidden>{m.icon}</span>
+              <span className="w-full truncate text-center text-[10px] font-semibold font-bengali leading-tight px-0.5 sm:text-[11px]" style={{ color: "var(--text-main)" }}>{m.label}</span>
             </button>
           ))}
         </div>
       </SectionShell>
 
-      {/* Trending / Recent */}
       <ChannelRow
         title="Trending Sports"
         icon={<TrendingUp size={16} style={{ color: "#22d3ee" }} aria-hidden />}
         channels={trendingChannels.slice(0, 12)}
         onSelect={onSelectChannel}
       />
-      <ChannelRow
-        title="Recently Watched"
-        icon={<Clock size={16} className="text-white/50" aria-hidden />}
-        channels={recentlyWatched.slice(0, 10)}
-        onSelect={onSelectChannel}
-      />
 
-      {/* Stats — real backend values only */}
       {hasStats && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {totalChannels > 0 && (

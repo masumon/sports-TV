@@ -201,7 +201,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="search-input h-11 w-full rounded-xl border border-accent-gold/25 bg-surface-elevated py-2 pl-10 pr-9 text-sm text-foreground shadow-glow-gold placeholder:text-foreground-muted focus:border-accent-gold/50 focus:outline-none focus:ring-1 focus:ring-accent-gold/30"
+                className="search-input h-11 w-full rounded-xl border border-accent-gold/40 bg-accent-gold/5 py-2 pl-10 pr-9 text-sm text-foreground shadow-glow-gold placeholder:text-foreground-muted focus:border-accent-gold/60 focus:outline-none focus:ring-2 focus:ring-accent-gold/35"
               />
               {searchQuery ? (
                 <button
