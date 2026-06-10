@@ -22,9 +22,10 @@ import {
   Volume1,
   Volume2,
   VolumeX,
-  X,
 } from "lucide-react";
 import { ExternalPlayerPicker, tryLaunchPlayer } from "@/components/player/ExternalPlayerPicker";
+import { PlayerSettingsPanel } from "@/components/player/PlayerSettingsPanel";
+import { warmBackupStreams } from "@/lib/streamWarmup";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -58,6 +59,7 @@ export type PremiumPlayerProps = {
 
 /** Matches `TopBar` / `Sidebar` — always shown on the player when channel has no logo. */
 const DEFAULT_PLAYER_BRAND_LOGO = "/icons/abo-sports-tv-logo.png";
+const DATA_SAVER_KEY = "gstv-data-saver";
 
 function useMatchMediaQuery(query: string, defaultValue = false): boolean {
   const [matches, setMatches] = useState(defaultValue);
@@ -343,6 +345,15 @@ export default function PremiumPlayer({
   const [sleepMinutes, setSleepMinutes] = useState<number | null>(null);
   const [sleepRemaining, setSleepRemaining] = useState<number>(0);
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stallCountRef = useRef(0);
+
+  const [dataSaver, setDataSaver] = useState(false);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [showStreamHealth, setShowStreamHealth] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<"cover" | "contain">("cover");
+  const [videoScale, setVideoScale] = useState(1);
+  const [brightnessOverlay, setBrightnessOverlay] = useState(1);
+  const [streamBitrate, setStreamBitrate] = useState("—");
 
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
@@ -388,6 +399,26 @@ export default function PremiumPlayer({
     setShowControls(true);
     if (isPlaying) scheduleHideControls();
   }, [isPlaying, scheduleHideControls]);
+
+  useEffect(() => {
+    try {
+      setDataSaver(localStorage.getItem(DATA_SAVER_KEY) === "1");
+    } catch {
+      /* */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DATA_SAVER_KEY, dataSaver ? "1" : "0");
+    } catch {
+      /* */
+    }
+  }, [dataSaver]);
+
+  useEffect(() => {
+    if (isPlaying) warmBackupStreams(allUrlsList, urlIdx);
+  }, [isPlaying, allUrlsList, urlIdx]);
 
   useEffect(() => {
     urlPlayIndexRef.current = 0;
@@ -461,7 +492,7 @@ export default function PremiumPlayer({
     const effectiveUrl = allUrls[bounded] ?? allUrls[0]!;
     const isDash = isDashProxiedStreamUrl(effectiveUrl);
 
-    const lightNet = isConstrainedNetwork();
+    const lightNet = isConstrainedNetwork() || dataSaver;
     if (isDash) {
       const player = dashjs.MediaPlayer().create();
       dashRef.current = player;
@@ -650,14 +681,18 @@ export default function PremiumPlayer({
         if (parsed.length) setQualityOptions([{ label: "Auto", value: -1 }, ...parsed]);
       });
 
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => setSelectedQuality(data.level));
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+        setSelectedQuality(data.level);
+        const level = hls.levels[data.level];
+        if (level?.bitrate) setStreamBitrate(`${Math.round(level.bitrate / 1000)} kbps`);
+      });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = effectiveUrl;
       setIsSwitching(false);
     }
 
     return cleanup;
-  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile]);
+  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile, dataSaver]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -666,13 +701,22 @@ export default function PremiumPlayer({
     const onPause = () => { setIsPlaying(false); setShowControls(true); clearHideTimer(); };
     const onVolumeChange = () => { setIsMuted(video.muted); setVolumeState(video.volume); };
     const onWaiting = () => {
-      if (playbackStartedRef.current) return;
+      if (playbackStartedRef.current) {
+        stallCountRef.current += 1;
+        if (stallCountRef.current >= 3) {
+          stallCountRef.current = 0;
+          setRetryKey((k) => k + 1);
+        }
+        return;
+      }
       setIsLoading(true);
     };
     const onPlaying = () => {
       playbackStartedRef.current = true;
+      stallCountRef.current = 0;
       setIsLoading(false);
       setHasError(false);
+      warmBackupStreams(allUrlsList, urlIdx);
     };
     const onCanPlay = () => setIsLoading(false);
     const onError = () => { setHasError(true); setIsLoading(false); };
@@ -700,7 +744,7 @@ export default function PremiumPlayer({
       video.removeEventListener("error", onError);
       video.removeEventListener("progress", onProgress);
     };
-  }, [clearHideTimer, scheduleHideControls]);
+  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx]);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -717,8 +761,13 @@ export default function PremiumPlayer({
     let lastTapTime = 0;
     let lastTapX = 0;
     let touchStartY = 0;
+    let touchStartX = 0;
     let touchStartVol = 1;
+    let touchStartBright = 1;
+    let touchStartScale = 1;
+    let initialPinchDist = 0;
     let isSwiping = false;
+    let swipeMode: "volume" | "brightness" | null = null;
 
     function showSeekRipple(dir: "left" | "right", secs: number) {
       if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
@@ -732,15 +781,30 @@ export default function PremiumPlayer({
       volFeedbackTimerRef.current = setTimeout(() => setVolFeedback(null), 1200);
     }
 
+    function showBrightOverlay(level: number) {
+      if (volFeedbackTimerRef.current) clearTimeout(volFeedbackTimerRef.current);
+      setVolFeedback(Math.round(level * 100));
+      volFeedbackTimerRef.current = setTimeout(() => setVolFeedback(null), 1200);
+    }
+
     function onTouchStart(e: TouchEvent) {
+      if (e.touches.length === 2) {
+        const [a, b] = [e.touches[0]!, e.touches[1]!];
+        initialPinchDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        touchStartScale = videoScale;
+        return;
+      }
       const touch = e.touches[0];
       if (!touch) return;
+      const rect = container!.getBoundingClientRect();
       touchStartY = touch.clientY;
+      touchStartX = touch.clientX - rect.left;
       touchStartVol = video!.volume;
+      touchStartBright = brightnessOverlay;
       isSwiping = false;
+      swipeMode = null;
 
       const now = Date.now();
-      const rect = container!.getBoundingClientRect();
       const tapX = touch.clientX - rect.left;
       if (now - lastTapTime < 300 && Math.abs(tapX - lastTapX) < rect.width * 0.6) {
         const isLeft = tapX < rect.width / 2;
@@ -755,19 +819,33 @@ export default function PremiumPlayer({
     }
 
     function onTouchMove(e: TouchEvent) {
+      if (e.touches.length === 2 && initialPinchDist > 0) {
+        const [a, b] = [e.touches[0]!, e.touches[1]!];
+        const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        const next = Math.min(2, Math.max(0.75, touchStartScale * (dist / initialPinchDist)));
+        setVideoScale(next);
+        return;
+      }
       const touch = e.touches[0];
       if (!touch) return;
       const deltaY = touchStartY - touch.clientY;
       if (!isSwiping && Math.abs(deltaY) < 20) return;
       isSwiping = true;
       const rect = container!.getBoundingClientRect();
-      const volDelta = deltaY / rect.height;
-      const newVol = Math.min(1, Math.max(0, touchStartVol + volDelta));
-      video!.volume = newVol;
-      video!.muted = newVol === 0;
-      setVolumeState(newVol);
-      setIsMuted(newVol === 0);
-      showVolOverlay(newVol);
+      if (!swipeMode) swipeMode = touchStartX < rect.width / 2 ? "brightness" : "volume";
+      const delta = deltaY / rect.height;
+      if (swipeMode === "volume") {
+        const newVol = Math.min(1, Math.max(0, touchStartVol + delta));
+        video!.volume = newVol;
+        video!.muted = newVol === 0;
+        setVolumeState(newVol);
+        setIsMuted(newVol === 0);
+        showVolOverlay(newVol);
+      } else {
+        const newBright = Math.min(1.4, Math.max(0.35, touchStartBright + delta * 0.8));
+        setBrightnessOverlay(newBright);
+        showBrightOverlay(Math.min(1, newBright));
+      }
     }
 
     container.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -776,8 +854,7 @@ export default function PremiumPlayer({
       container.removeEventListener("touchstart", onTouchStart);
       container.removeEventListener("touchmove", onTouchMove);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [videoScale, brightnessOverlay]);
 
   /** Sync orientation when fullscreen is toggled via browser (e.g. ESC) or gesture. */
   useEffect(() => {
@@ -989,7 +1066,11 @@ export default function PremiumPlayer({
     >
       <video
         ref={videoRef}
-        className={`h-full w-full bg-black ${isMobileSheet && (isFullscreen || isTheaterMode) ? "object-contain" : "object-cover"}`}
+        className={`h-full w-full bg-black ${aspectRatio === "contain" || (isMobileSheet && (isFullscreen || isTheaterMode)) ? "object-contain" : "object-cover"}`}
+        style={{
+          transform: `scale(${videoScale})`,
+          filter: brightnessOverlay !== 1 ? `brightness(${brightnessOverlay})` : undefined,
+        }}
         autoPlay
         playsInline
         controls={false}
@@ -1377,6 +1458,17 @@ export default function PremiumPlayer({
                 {/* Spacer */}
                 <div className="flex-1" />
 
+                {/* Settings gear */}
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsPanel(true)}
+                  aria-label="Settings"
+                  title="Settings"
+                  className="control-btn shrink-0 active:scale-90 transition"
+                >
+                  <Settings size={16} />
+                </button>
+
                 {/* Quality picker */}
                 <QualityPicker
                   options={qualityOptions}
@@ -1507,6 +1599,37 @@ export default function PremiumPlayer({
             document.body
           )
         : null}
+
+      {showStreamHealth && (
+        <div
+          className="pointer-events-none absolute right-3 top-14 z-40 rounded-lg px-2 py-1 font-mono text-[9px] text-emerald-300/90"
+          style={{ background: "rgba(0,0,0,0.55)", border: "1px solid rgba(16,185,129,0.25)" }}
+        >
+          <div>{streamBitrate}</div>
+          <div>Q: {currentQualityLabel}</div>
+          <div>M {urlIdx + 1}/{allUrlsList.length}</div>
+        </div>
+      )}
+
+      <PlayerSettingsPanel
+        open={showSettingsPanel}
+        onClose={() => setShowSettingsPanel(false)}
+        dataSaver={dataSaver}
+        onDataSaverChange={setDataSaver}
+        selectedQuality={selectedQuality}
+        qualityOptions={qualityOptions}
+        onQualityChange={changeQuality}
+        showStreamHealth={showStreamHealth}
+        onToggleStreamHealth={setShowStreamHealth}
+        streamHealth={{
+          bitrate: streamBitrate,
+          level: currentQualityLabel,
+          urlIndex: urlIdx,
+          totalUrls: allUrlsList.length,
+        }}
+        aspectRatio={aspectRatio}
+        onAspectRatioChange={setAspectRatio}
+      />
     </motion.div>
   );
 }

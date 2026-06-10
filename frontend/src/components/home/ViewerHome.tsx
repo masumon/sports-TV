@@ -36,8 +36,8 @@ import { isFixtureLive } from "@/lib/matchPresentation";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
-import { fetchAllChannels, apiClient } from "@/lib/apiClient";
-import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
+import { fetchDbChannelsForMerge, apiClient } from "@/lib/apiClient";
+import { getChannelListCache, hydrateChannelListCache, setChannelListCache } from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import {
   loadFullCatalogWithLive,
@@ -414,9 +414,10 @@ export function ViewerHome() {
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          const merged = Promise.all([loadFullCatalogWithLive(), fetchAllChannels().catch(() => [])]).then(
-            ([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db)
-          );
+          const merged = Promise.all([
+            loadFullCatalogWithLive(),
+            fetchDbChannelsForMerge({}, !hasCache).catch(() => []),
+          ]).then(([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db));
           void merged
             .then((d) => {
               clearTimeout(id);
@@ -544,7 +545,7 @@ export function ViewerHome() {
     );
   }, [scheduleFixtures]);
 
-  /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
+  /** Free-tier UX: show last channel list from localStorage/IDB before network (stale-while-revalidate). */
   useEffect(() => {
     const c = getChannelListCache();
     if (c?.length) {
@@ -553,6 +554,14 @@ export function ViewerHome() {
         setLoading(false);
       });
     }
+    void hydrateChannelListCache().then((idb) => {
+      if (idb?.length && idb.length > (c?.length ?? 0)) {
+        startTransition(() => {
+          setAllChannels(idb);
+          setLoading(false);
+        });
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -980,6 +989,25 @@ export function ViewerHome() {
       .slice(0, 12);
   }, [activeModule, bdPopularChannels, allChannels]);
 
+  const trendingChannels = useMemo(() => {
+    const liveNames = new Set(scheduleGroups.live.flatMap((fx) => [fx.home_team, fx.away_team, fx.league_name].filter(Boolean)));
+    return [...allChannels]
+      .filter((c) => c.module === "live_matches" || c.module === "global_sports")
+      .filter((c) => {
+        const n = c.name.toLowerCase();
+        return [...liveNames].some((t) => t && n.includes(String(t).toLowerCase().slice(0, 6)));
+      })
+      .slice(0, 12);
+  }, [allChannels, scheduleGroups.live]);
+
+  const recommendedChannels = useMemo(() => {
+    const seen = new Set(recentlyWatched);
+    return [...allChannels]
+      .filter((c) => c.is_active && !seen.has(c.id))
+      .filter((c) => c.module === activeModule || c.module === "global_sports")
+      .slice(0, 12);
+  }, [allChannels, recentlyWatched, activeModule]);
+
   // Swipe gesture: left/right to cycle modules
   const swipeContainerRef = useRef<HTMLDivElement | null>(null);
   const onSwipe = useCallback((dir: "left" | "right" | "up" | "down") => {
@@ -1014,26 +1042,23 @@ export function ViewerHome() {
               <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold leading-snug" style={{ color: "var(--text-main)" }}>
-                  📺 Loading latest content…
+                  Preparing your experience…
                 </p>
                 <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
                   {coldStartSeconds < 15
-                    ? "Getting the latest channels and content ready for you."
+                    ? "Your channels and live sports are getting ready."
                     : coldStartSeconds < 40
-                      ? "Still preparing — this is normal on first visit. Almost ready!"
-                      : "Content is taking longer to load. Please wait a moment."}
+                      ? "Almost there — premium sports streaming loading in the background."
+                      : "Still preparing — enjoy the splash while we finish setup."}
                 </p>
                 {coldStartSeconds > 0 && (
                   <div className="mt-1.5 flex items-center gap-2">
                     <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(245,166,35,0.15)" }}>
                       <div
                         className="h-full rounded-full transition-all duration-1000"
-                        style={{ background: "var(--primary-accent)", width: `${Math.min(80, (coldStartSeconds / 60) * 100)}%` }}
+                        style={{ background: "var(--primary-accent)", width: `${Math.min(85, 20 + coldStartSeconds * 1.2)}%` }}
                       />
                     </div>
-                    <span className="shrink-0 text-[10px] tabular-nums font-bold" style={{ color: "var(--primary-accent)" }}>
-                      {coldStartSeconds}s / ~60s
-                    </span>
                   </div>
                 )}
               </div>
@@ -1064,6 +1089,10 @@ export function ViewerHome() {
             featured={dashboardFeatured}
             popularChannels={popularSportsChannels}
             continueWatching={recentChannelObjects}
+            favorites={favoriteChannelObjects}
+            trendingChannels={trendingChannels.length ? trendingChannels : popularSportsChannels}
+            recentlyWatched={recentChannelObjects}
+            recommendedChannels={recommendedChannels.length ? recommendedChannels : popularSportsChannels}
             countryModules={moduleCategoryTabs.map((t) => ({
               id: t.id as ViewerModule,
               label: t.label,
