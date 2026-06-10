@@ -142,27 +142,6 @@ export function HomeSportsDashboard({
 
   return (
     <section className="space-y-4" aria-label="Sports dashboard">
-      {/* Quick Actions */}
-      <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none" data-swipe-ignore="true">
-        <button
-          type="button"
-          onClick={onOpenLiveCenter}
-          className="filter-chip shrink-0 active"
-        >
-          <Radio size={13} aria-hidden /> Live Center
-        </button>
-        {countryModules.slice(0, 4).map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => onSelectModule(m.id)}
-            className="filter-chip shrink-0"
-          >
-            {m.icon} {m.label}
-          </button>
-        ))}
-      </div>
-
       {/* Continue Watching */}
       <ChannelRow
         title="Continue Watching"
