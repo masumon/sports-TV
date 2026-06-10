@@ -72,14 +72,10 @@ export function SearchOverlay({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed left-0 right-0 top-0 z-[50] max-h-[90vh] overflow-y-auto"
-            style={{
-              background: "var(--bg-dark)",
-              borderBottom: "1px solid var(--border)",
-            }}
+            className="fixed left-0 right-0 top-0 z-[50] max-h-[90vh] overflow-y-auto glass-premium border-b border-glass-border"
           >
             {/* সার্চ ইনপুট */}
-            <div className="sticky top-0 z-[51] p-4 sm:p-5" style={{ background: "var(--bg-dark)", borderBottom: "1px solid var(--border)" }}>
+            <div className="sticky top-0 z-[51] border-b border-glass-border p-4 sm:p-5 glass-premium">
               <div className="flex items-center gap-3">
                 <div className="flex-1 relative">
                   <Search
@@ -97,8 +93,7 @@ export function SearchOverlay({
                     }}
                     placeholder="চ্যানেল, স্পোর্টস খুঁজুন..."
                     autoComplete="off"
-                    className="w-full bg-transparent border-0 pl-10 pr-4 py-3 text-base font-medium focus:outline-none placeholder:opacity-50"
-                    style={{ color: "var(--text-main)" }}
+                    className="search-input w-full rounded-xl border border-glass-border bg-surface-elevated/80 pl-10 pr-4 py-3 text-base font-medium backdrop-blur-md focus:outline-none placeholder:opacity-50"
                   />
                 </div>
                 <button
@@ -132,8 +127,7 @@ export function SearchOverlay({
                               onSuggestionClick(ch);
                               onClose();
                             }}
-                            className="w-full flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-white/5 active:bg-white/10"
-                            style={{ textAlign: "left" }}
+                            className="glass-premium w-full flex items-center gap-3 rounded-xl p-3 transition-colors hover:border-accent-gold/30 active:scale-[0.99]"
                           >
                             {ch.logo_url ? (
                               // eslint-disable-next-line @next/next/no-img-element

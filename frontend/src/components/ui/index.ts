@@ -3,3 +3,4 @@ export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from ".
 export { GlassPanel, type GlassPanelProps } from "./GlassPanel";
 export { PillTab, type PillTabProps } from "./PillTab";
 export { ScrollArea, type ScrollAreaProps } from "./ScrollArea";
+export { QuickStatCard, type QuickStatCardProps } from "./QuickStatCard";

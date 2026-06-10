@@ -19,8 +19,15 @@
   --text-secondary:       #9CA3AF;
   --text-muted:           #6B7280;
   --border-subtle-cyan:   rgba(0, 229, 255, 0.15);
-  --glass-bg:             rgba(17, 24, 39, 0.6);
-  --glass-border:         rgba(255, 255, 255, 0.08);
+  --glass-bg:             rgba(20, 20, 30, 0.25);
+  --glass-border:         rgba(255, 255, 255, 0.1);
+  --glass-blur:           blur(20px);
+  --space-2:              8px;
+  --space-3:              12px;
+  --space-4:              16px;
+  --space-6:              24px;
+  --space-8:              32px;
+  --radius-lg:            18px;
 
   /* Legacy aliases — existing components keep working */
   --bg-dark:         var(--bg-primary);
@@ -261,9 +268,25 @@ a {
 .glass-panel {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: var(--glass-blur) saturate(160%);
+  backdrop-filter: var(--glass-blur) saturate(160%);
   box-shadow: var(--shadow-glass);
+}
+
+.glass-premium {
+  background: rgba(20, 20, 30, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(245, 197, 24, 0.06);
+}
+
+.glass-player-bar {
+  background: rgba(20, 20, 30, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.55), 0 0 24px rgba(245, 197, 24, 0.04);
 }
 
 /* ── Premium UI utilities (Task 1) ── */
@@ -589,21 +612,34 @@ html.light .quality-select {
   outline-offset: 2px;
 }
 
-/* ── Category tab ── */
+/* ── Category tab — premium OTT chips, single-line scroll ── */
+.cat-tab-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
 .cat-tab {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 16px;
+  padding: 8px 16px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
   background: rgba(255,255,255,0.04);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s, transform 0.12s;
 }
 
 html.light .cat-tab {
@@ -846,12 +882,23 @@ img:not([src]) {
   color: inherit;
 }
 
-/* ── Filter chips ── */
+/* ── Filter chips — clean, no overlap ── */
+.filter-chip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
 .filter-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-card2);
@@ -860,6 +907,8 @@ img:not([src]) {
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+  scroll-snap-align: start;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .filter-chip:hover {

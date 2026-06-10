@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { MapPin } from "lucide-react";
+import { MapPin, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { isFixtureFinished, isFixtureLive } from "@/lib/matchPresentation";
 import type { LiveFixture } from "@/lib/types";
 
 export type MatchCardProps = {
@@ -25,7 +26,10 @@ function teamFlag(team: string): string {
   return "🏳️";
 }
 
-export function MatchCard({ match, isLive = false, stadium, format, onSetReminder, className }: MatchCardProps) {
+
+export function MatchCard({ match, isLive: isLiveProp, stadium, format, onSetReminder, className }: MatchCardProps) {
+  const isLive = isLiveProp ?? isFixtureLive(match);
+  const finished = isFixtureFinished(match);
   const start = match.starts_at_utc
     ? new Date(match.starts_at_utc).toLocaleString(undefined, {
         weekday: "short",
@@ -37,18 +41,29 @@ export function MatchCard({ match, isLive = false, stadium, format, onSetReminde
   return (
     <article
       className={cn(
-        "relative rounded-2xl border border-border-subtle bg-surface-secondary p-4 transition-all duration-200 hover:border-accent-cyan/25",
+        "glass-premium relative rounded-2xl p-4 transition-all duration-200 hover:border-accent-cyan/25",
         isLive && "neon-border",
         className,
       )}
     >
-      {isLive ? (
-        <Badge variant="live" className="absolute right-3 top-3">
-          LIVE
-        </Badge>
-      ) : null}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-foreground-muted">
+          {match.league_name}
+        </span>
+        {isLive ? (
+          <Badge variant="live">LIVE</Badge>
+        ) : finished ? (
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground-muted" style={{ background: "rgba(255,255,255,0.06)" }}>
+            FT
+          </span>
+        ) : (
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent-gold" style={{ background: "rgba(245,197,24,0.12)" }}>
+            Upcoming
+          </span>
+        )}
+      </div>
 
-      <div className="flex items-center justify-between gap-3 pr-16">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="text-xl" aria-hidden>{teamFlag(match.home_team)}</span>
           <span className="truncate text-sm font-semibold text-foreground">{match.home_team}</span>
@@ -60,10 +75,16 @@ export function MatchCard({ match, isLive = false, stadium, format, onSetReminde
         </div>
       </div>
 
+      {finished && match.status ? (
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-accent-gold">
+          <Trophy size={12} aria-hidden />
+          Final · {match.status}
+        </p>
+      ) : null}
+
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
         <span>{start}</span>
         {format ? <span className="rounded-full bg-accent-cyan/10 px-2 py-0.5 text-accent-cyan">{format}</span> : null}
-        {match.sport ? <span>{match.sport}</span> : null}
       </div>
 
       {stadium ? (
@@ -74,14 +95,16 @@ export function MatchCard({ match, isLive = false, stadium, format, onSetReminde
       ) : null}
 
       <div className="mt-4 flex items-center gap-2">
-        <Button variant="reminder" size="sm" onClick={() => onSetReminder?.(match)}>
-          Set Reminder
-        </Button>
+        {!finished ? (
+          <Button variant="reminder" size="sm" onClick={() => onSetReminder?.(match)}>
+            Set Reminder
+          </Button>
+        ) : null}
         <Link
           href={`/match/${match.id}` as `/match/${string}`}
           className="text-xs font-semibold text-accent-cyan transition hover:text-accent-gold"
         >
-          Match details →
+          {finished ? "Summary & details →" : "Match details →"}
         </Link>
       </div>
     </article>
