@@ -40,7 +40,7 @@ export function VideoControls({
   return (
     <div
       className={cn(
-        "absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-3 pb-3 pt-10 transition-opacity duration-200 sm:px-4",
+        "glass-player-bar absolute inset-x-0 bottom-0 z-20 mx-2 mb-2 rounded-2xl px-3 pb-3 pt-8 transition-opacity duration-200 sm:mx-3 sm:px-4",
         visible ? "opacity-100" : "pointer-events-none opacity-0",
         className,
       )}

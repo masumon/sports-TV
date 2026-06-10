@@ -417,8 +417,6 @@ export default function AdminDashboardPage() {
     return counts;
   }, [channels]);
 
-  const adminDbInactive = stats ? Math.max(0, stats.channels - stats.active_channels) : 0;
-
   /* ─── Effects ─────────────────────────────────────────────────── */
 
   // Auto-dismiss error
@@ -788,7 +786,7 @@ export default function AdminDashboardPage() {
                   <Activity size={16} />{syncing ? "Syncing…" : "M3U Sync"}
                 </button>
               </Tooltip>
-              <Tooltip text="OpenLigaDB + football-data.org থেকে live fixtures sync করবে। FOOTBALL_DATA_ORG_API_TOKEN দরকার।">
+              <Tooltip text="OpenLigaDB + football-data.org + CricAPI থেকে fixtures sync করবে। FOOTBALL_DATA_ORG_API_TOKEN ও/অথবা CRICAPI_KEY দরকার।">
                 <button type="button" onClick={() => void syncFixtures()} disabled={syncingFixtures}
                   className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:from-blue-400 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
                   <Calendar size={16} />{syncingFixtures ? "Syncing…" : "Sync Fixtures"}

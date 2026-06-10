@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import { VideoControls } from "./VideoControls";
 
@@ -44,6 +43,7 @@ export function HeroVideoPlayer({
   return (
     <div
       ref={shellRef}
+      aria-label={title ?? (isLive ? "Live player" : "Video player")}
       className={cn(
         "relative aspect-video overflow-hidden rounded-2xl border border-border-subtle bg-surface-secondary shadow-glass",
         className,
@@ -51,11 +51,6 @@ export function HeroVideoPlayer({
       onMouseMove={showDecorativeControls ? revealControls : undefined}
       onTouchStart={showDecorativeControls ? revealControls : undefined}
     >
-      {isLive && !children ? (
-        <Badge variant="live" className="absolute left-3 top-3 z-20">
-          LIVE NOW
-        </Badge>
-      ) : null}
 
       {overlay}
 

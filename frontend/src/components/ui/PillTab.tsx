@@ -16,7 +16,7 @@ export const PillTab = forwardRef<HTMLButtonElement, PillTabProps>(function Pill
       type={type}
       aria-pressed={active}
       className={cn(
-        "inline-flex shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-full border px-4 py-2 text-xs font-medium transition-all duration-200 sm:text-sm",
+        "inline-flex shrink-0 snap-start items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2.5 text-xs font-medium transition-all duration-200 sm:px-5 sm:py-3 sm:text-sm",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
         active
           ? "glow-gold border-accent-gold bg-accent-gold/10 text-accent-gold font-semibold"

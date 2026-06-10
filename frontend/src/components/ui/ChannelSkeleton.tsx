@@ -1,3 +1,24 @@
+export function PlayerSkeleton() {
+  return (
+    <div className="relative aspect-video overflow-hidden rounded-2xl border border-border-subtle bg-surface-secondary shadow-glass">
+      <div className="absolute inset-0 skeleton-shimmer" style={{ background: "var(--bg-hover)" }} />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-[var(--primary-accent)]" />
+      </div>
+    </div>
+  );
+}
+
+export function CategorySkeletonRow({ count = 6 }: { count?: number }) {
+  return (
+    <div className="flex gap-2 overflow-hidden py-1">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="h-9 w-24 shrink-0 animate-pulse rounded-full" style={{ background: "var(--bg-hover)" }} />
+      ))}
+    </div>
+  );
+}
+
 export function ChannelSkeletonGrid({ count = 12 }: { count?: number }) {
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">

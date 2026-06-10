@@ -8,9 +8,12 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
         bengali: [
+          "var(--font-anek-bangla)",
+          "var(--font-hind-siliguri)",
           "var(--font-bengali)",
-          "Noto Sans Bengali",
+          "Anek Bangla",
           "Hind Siliguri",
+          "Noto Sans Bengali",
           "sans-serif",
         ],
         display: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],

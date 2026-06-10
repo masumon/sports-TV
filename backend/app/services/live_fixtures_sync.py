@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -14,25 +15,63 @@ from app.core.config import settings
 from app.db.session import engine
 from app.models.channel import Channel
 from app.models.live_fixture import LiveFixture
-from app.services.cricket_fixtures_sync import sync_cricket_fixtures
+from app.services.cricket_fixtures_sync import ensure_score_text_column, sync_cricket_fixtures
 
 logger = logging.getLogger("app.live_fixtures")
 
 OPENLIGADB_BASE = "https://api.openligadb.de"
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 REQUEST_TIMEOUT = 45
+# football-data.org /matches rejects ranges > 10 days (errorCode 400).
+FOOTBALL_DATA_MAX_DATE_SPAN_DAYS = 10
+# OpenLigaDB only hosts German domestic leagues — not UEFA CL/EL (use football-data.org).
+OPENLIGADB_INVALID_KEYS = frozenset({"ucl", "cl", "el", "ecl", "champions", "europa"})
 
 
-def _fetch_json(url: str, headers: dict[str, str] | None = None) -> Any | None:
-    try:
-        r = requests.get(url, timeout=REQUEST_TIMEOUT, headers=headers or {})
-        if r.status_code == 404:
+def _fetch_json(url: str, headers: dict[str, str] | None = None, *, retries: int = 2) -> Any | None:
+    hdrs = headers or {}
+    for attempt in range(retries + 1):
+        try:
+            r = requests.get(url, timeout=REQUEST_TIMEOUT, headers=hdrs)
+            if r.status_code == 404:
+                return None
+            if r.status_code == 429 and attempt < retries:
+                time.sleep(2 ** attempt)
+                continue
+            if r.status_code >= 400:
+                logger.warning(
+                    "Fixture fetch HTTP %s url=%s body=%s",
+                    r.status_code,
+                    url[:120],
+                    (r.text or "")[:240],
+                )
+                return None
+            return r.json()
+        except Exception as exc:
+            if attempt < retries:
+                time.sleep(1)
+                continue
+            logger.warning("Fixture fetch failed url=%s error=%s", url[:120], exc)
             return None
-        r.raise_for_status()
-        return r.json()
-    except Exception as exc:
-        logger.warning("Fixture fetch failed url=%s error=%s", url[:120], exc)
+    return None
+
+
+def _sync_past_buf(now: datetime) -> datetime:
+    hours_back = max(0, settings.live_fixtures_hours_back)
+    return now - timedelta(hours=hours_back)
+
+
+def _format_fd_score(m: dict[str, Any]) -> str | None:
+    score = m.get("score")
+    if not isinstance(score, dict):
         return None
+    ft = score.get("fullTime")
+    if isinstance(ft, dict):
+        home = ft.get("home")
+        away = ft.get("away")
+        if home is not None and away is not None:
+            return f"{home} - {away}"
+    return None
 
 
 _TOKEN_RE = re.compile(r"[a-z0-9]{4,}", re.I)
@@ -119,7 +158,7 @@ def _sync_openligadb_league(db: Session, league: str, season: int, word_index: d
         return 0
     now = datetime.now(tz=timezone.utc)
     ahead = now + timedelta(days=max(1, settings.live_fixtures_days_ahead))
-    past_buf = now - timedelta(hours=8)
+    past_buf = _sync_past_buf(now)
     upserted = 0
     for m in data:
         if not isinstance(m, dict):
@@ -185,30 +224,40 @@ def _sync_football_data(db: Session, word_index: dict[str, list[int]]) -> int:
     if not token:
         return 0
     now = datetime.now(tz=timezone.utc)
-    # Include recent past matches (up to 8 h back) so "just finished" fixtures appear
-    df = (now - timedelta(hours=8)).date()
-    dt_to = now.date() + timedelta(days=max(1, settings.live_fixtures_days_ahead))
-    comps = (settings.football_data_competitions or "").strip() or "PL,BL1,PD,SA,FL1,WC"
-    url = (
-        f"{FOOTBALL_DATA_BASE}/matches?"
-        f"competitions={comps}&dateFrom={df.isoformat()}&dateTo={dt_to.isoformat()}"
-    )
-    data = _fetch_json(url, headers={"X-Auth-Token": token})
-    if not isinstance(data, dict):
-        return 0
-    matches = data.get("matches")
-    if not isinstance(matches, list):
-        return 0
+    past_buf = _sync_past_buf(now)
     ahead = now + timedelta(days=max(1, settings.live_fixtures_days_ahead))
-    past_buf = now - timedelta(hours=8)
+    df = past_buf.date()
+    requested_days = max(1, settings.live_fixtures_days_ahead)
+    comps = (settings.football_data_competitions or "").strip() or "PL,CL,EL,BL1,PD,SA,FL1,EC,WC"
+
+    all_matches: list[dict[str, Any]] = []
+    chunk_start = df
+    final_end = df + timedelta(days=requested_days)
+    while chunk_start <= final_end:
+        chunk_end = min(chunk_start + timedelta(days=FOOTBALL_DATA_MAX_DATE_SPAN_DAYS), final_end)
+        url = (
+            f"{FOOTBALL_DATA_BASE}/matches?"
+            f"competitions={comps}&dateFrom={chunk_start.isoformat()}&dateTo={chunk_end.isoformat()}"
+        )
+        data = _fetch_json(url, headers={"X-Auth-Token": token})
+        if isinstance(data, dict):
+            batch = data.get("matches")
+            if isinstance(batch, list):
+                all_matches.extend(m for m in batch if isinstance(m, dict))
+        chunk_start = chunk_end + timedelta(days=1)
+
     n = 0
-    for m in matches:
+    seen_ext: set[str] = set()
+    for m in all_matches:
         if not isinstance(m, dict):
             continue
         mid = m.get("id")
         if mid is None:
             continue
         ext = f"fd:{mid}"
+        if ext in seen_ext:
+            continue
+        seen_ext.add(ext)
         utc_s = m.get("utcDate")
         starts = _parse_dt_utc(str(utc_s)) if utc_s else None
         if starts is None:
@@ -234,6 +283,7 @@ def _sync_football_data(db: Session, word_index: dict[str, list[int]]) -> int:
         comp_code = str(comp.get("code") or "").strip() or None
         crest = ht.get("crest") or at.get("crest")
         thumb = str(crest).strip() if crest else None
+        score_text = _format_fd_score(m)
 
         sug = _suggest_channel_ids(word_index, home, away, league_name)
         sug_json = json.dumps(sug) if sug else None
@@ -253,6 +303,7 @@ def _sync_football_data(db: Session, word_index: dict[str, list[int]]) -> int:
                     sport="Soccer",
                     starts_at_utc=starts,
                     status=st,
+                    score_text=(score_text or "")[:96] or None,
                     thumb_url=thumb,
                     suggested_channel_ids=sug_json,
                 )
@@ -266,14 +317,17 @@ def _sync_football_data(db: Session, word_index: dict[str, list[int]]) -> int:
             existing.thumb_url = thumb
             existing.suggested_channel_ids = sug_json
             existing.competition_key = (comp_code or "")[:32] or None
+            if score_text:
+                existing.score_text = score_text[:96]
         n += 1
     if n:
-        logger.info("football-data.org matches upserted=%d", n)
+        logger.info("football-data.org matches upserted=%d (api_rows=%d)", n, len(all_matches))
     return n
 
 
 def _cleanup_stale_fixtures(db: Session) -> int:
-    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=3)
+    retain_days = max(7, (settings.live_fixtures_hours_back // 24) + 2)
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=retain_days)
     res = db.execute(delete(LiveFixture).where(LiveFixture.starts_at_utc < cutoff))
     try:
         return res.rowcount or 0
@@ -284,13 +338,21 @@ def _cleanup_stale_fixtures(db: Session) -> int:
 def sync_live_fixtures(db: Session) -> dict[str, int]:
     """Pull real fixtures from configured providers; refresh name-based channel hints."""
     LiveFixture.__table__.create(bind=engine, checkfirst=True)
+    ensure_score_text_column()
     word_index = _build_channel_word_index(db)
     total_rows = 0
 
     seasons_to_try = {datetime.now(tz=timezone.utc).year, datetime.now(tz=timezone.utc).year - 1}
-    leagues = [x.strip() for x in (settings.openligadb_league_keys or "").split(",") if x.strip()]
-    if not leagues:
-        leagues = ["bl1", "bl2"]
+    raw_leagues = [x.strip().lower() for x in (settings.openligadb_league_keys or "").split(",") if x.strip()]
+    leagues: list[str] = []
+    for league in raw_leagues or ["bl1", "bl2"]:
+        if league in OPENLIGADB_INVALID_KEYS:
+            logger.warning(
+                "openligadb: skipping invalid league key %r (use FOOTBALL_DATA_ORG_API_TOKEN for CL/EL/WC)",
+                league,
+            )
+            continue
+        leagues.append(league)
 
     for league in leagues:
         for season in sorted(seasons_to_try, reverse=True):
@@ -310,6 +372,20 @@ def sync_live_fixtures(db: Session) -> dict[str, int]:
         total_rows,
         removed,
     )
+    if total_rows == 0:
+        has_fd = bool((settings.football_data_org_api_token or "").strip())
+        has_cric = bool((settings.cricapi_key or "").strip())
+        logger.warning(
+            "live_fixtures sync inserted/updated 0 rows in the current window "
+            "(past %dh → +%sd). OpenLigaDB leagues=%s often have no fixtures in off-season. "
+            "Set FOOTBALL_DATA_ORG_API_TOKEN (WC/PL/CL/…) and/or CRICAPI_KEY in Render for broader coverage "
+            "(configured: football-data=%s cricapi=%s).",
+            settings.live_fixtures_hours_back,
+            settings.live_fixtures_days_ahead,
+            settings.openligadb_league_keys or "bl1,bl2",
+            has_fd,
+            has_cric,
+        )
     return {"rows_touched": total_rows, "removed_stale": removed}
 
 

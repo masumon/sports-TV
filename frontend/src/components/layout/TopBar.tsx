@@ -201,7 +201,7 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="search-input h-10 w-full rounded-xl border border-glass-border bg-surface-elevated py-2 pl-10 pr-9 text-sm text-foreground placeholder:text-foreground-muted focus:border-accent-cyan/40 focus:outline-none"
+                className="search-input h-11 w-full rounded-xl border border-accent-gold/40 bg-accent-gold/5 py-2 pl-10 pr-9 text-sm text-foreground shadow-glow-gold placeholder:text-foreground-muted focus:border-accent-gold/60 focus:outline-none focus:ring-2 focus:ring-accent-gold/35"
               />
               {searchQuery ? (
                 <button
@@ -300,10 +300,11 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             <button
               type="button"
               onClick={openMobileSearch}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-foreground-muted transition hover:bg-surface-elevated hover:text-foreground md:hidden"
+              className="inline-flex h-10 min-w-[2.5rem] items-center justify-center gap-1 rounded-xl border border-accent-gold/35 bg-accent-gold/10 px-2.5 text-accent-gold shadow-glow-gold transition hover:bg-accent-gold/15 md:hidden"
               aria-label={t("search")}
             >
-              <Search size={18} />
+              <Search size={18} strokeWidth={2.25} />
+              <span className="text-[10px] font-bold uppercase tracking-wide">Search</span>
             </button>
 
             <Link

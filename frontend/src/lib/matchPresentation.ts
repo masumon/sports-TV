@@ -1,60 +1,97 @@
 import type { LiveFixture } from "@/lib/types";
-import type { TeamForm } from "@/components/matches/HeadToHead";
-import type { LineupPlayer, TeamLineup } from "@/components/matches/LineupList";
+
+export const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+export const FIXTURE_HOURS_BACK = 120;
 
 export function fixtureDateKey(fixture: LiveFixture): string {
   if (!fixture.starts_at_utc) return "";
   return fixture.starts_at_utc.slice(0, 10);
 }
 
+export function fixtureStartMs(fixture: LiveFixture): number {
+  return fixture.starts_at_utc ? new Date(fixture.starts_at_utc).getTime() : 0;
+}
+
 export function isFixtureLive(fixture: LiveFixture): boolean {
-  const startMs = fixture.starts_at_utc ? new Date(fixture.starts_at_utc).getTime() : 0;
+  const startMs = fixtureStartMs(fixture);
   const nowMs = Date.now();
   const elapsedMin = startMs > 0 ? Math.floor((nowMs - startMs) / 60_000) : 0;
   const status = (fixture.status || "").toLowerCase();
   return startMs > 0 && startMs <= nowMs && status !== "finished" && elapsedMin <= 130;
 }
 
-export function deriveFormFromFixture(fixture: LiveFixture, side: "home" | "away"): TeamForm[] {
-  const seed = `${fixture.id}-${side}`;
-  const pool: TeamForm[] = ["W", "L", "D"];
-  return Array.from({ length: 5 }, (_, i) => pool[(seed.charCodeAt(i % seed.length) + i) % pool.length]!);
+export function isFixtureFinished(fixture: LiveFixture): boolean {
+  const startMs = fixtureStartMs(fixture);
+  const elapsedMin = startMs > 0 ? Math.floor((Date.now() - startMs) / 60_000) : 0;
+  const status = (fixture.status || "").toLowerCase();
+  return status === "finished" || elapsedMin > 130;
 }
 
-export function buildLineup(teamName: string, _fixtureId: number, side: "home" | "away"): TeamLineup {
-  const names =
-    side === "home"
-      ? ["Player A", "Player B", "Player C", "Player D", "Player E", "Player F", "Player G", "Player H", "Player I", "Player J", "Player K"]
-      : ["Player L", "Player M", "Player N", "Player O", "Player P", "Player Q", "Player R", "Player S", "Player T", "Player U", "Player V"];
-
-  const startingXI: LineupPlayer[] = names.map((name, index) => ({
-    number: index + 1,
-    name: `${teamName.split(" ")[0] ?? "Team"} ${name}`,
-    role: index === 0 ? "keeper" : index < 6 ? "bat" : "bowl",
-    isCaptain: index === 1,
-    isKeeper: index === 0,
-  }));
-
-  return {
-    team: teamName,
-    startingXI,
-    substitutes: [
-      { number: 12, name: `${teamName} Sub 1`, role: "allrounder" },
-      { number: 13, name: `${teamName} Sub 2`, role: "bowl" },
-    ],
-  };
+export function isWithinLast5Days(fixture: LiveFixture): boolean {
+  const startMs = fixtureStartMs(fixture);
+  if (!startMs) return false;
+  return Date.now() - startMs <= FIVE_DAYS_MS;
 }
 
-export function presentationFromFixture(fixture: LiveFixture) {
-  return {
-    stadium: fixture.league_name,
-    format: fixture.sport,
-    homeForm: deriveFormFromFixture(fixture, "home"),
-    awayForm: deriveFormFromFixture(fixture, "away"),
-    homeLineup: buildLineup(fixture.home_team, fixture.id, "home"),
-    awayLineup: buildLineup(fixture.away_team, fixture.id, "away"),
-    homeWins: (fixture.id % 5) + 2,
-    awayWins: (fixture.id % 4) + 1,
-    draws: fixture.id % 3,
-  };
+export type FixtureGroups = {
+  live: LiveFixture[];
+  upcoming: LiveFixture[];
+  recentResults: LiveFixture[];
+};
+
+export function groupFixtures(fixtures: LiveFixture[]): FixtureGroups {
+  const live: LiveFixture[] = [];
+  const upcoming: LiveFixture[] = [];
+  const recentResults: LiveFixture[] = [];
+
+  for (const fx of fixtures) {
+    const startMs = fixtureStartMs(fx);
+    if (isFixtureFinished(fx)) {
+      if (isWithinLast5Days(fx)) recentResults.push(fx);
+    } else if (startMs > 0 && startMs <= Date.now()) {
+      live.push(fx);
+    } else {
+      upcoming.push(fx);
+    }
+  }
+
+  live.sort((a, b) => fixtureStartMs(b) - fixtureStartMs(a));
+  upcoming.sort((a, b) => fixtureStartMs(a) - fixtureStartMs(b));
+  recentResults.sort((a, b) => fixtureStartMs(b) - fixtureStartMs(a));
+  return { live, upcoming, recentResults };
+}
+
+export type DateMatchSummary = {
+  total: number;
+  live: number;
+  upcoming: number;
+  finished: number;
+};
+
+export function summarizeFixturesByDate(fixtures: LiveFixture[]): Map<string, DateMatchSummary> {
+  const map = new Map<string, DateMatchSummary>();
+  for (const fx of fixtures) {
+    const key = fixtureDateKey(fx);
+    if (!key) continue;
+    const entry = map.get(key) ?? { total: 0, live: 0, upcoming: 0, finished: 0 };
+    entry.total += 1;
+    if (isFixtureLive(fx)) entry.live += 1;
+    else if (isFixtureFinished(fx)) entry.finished += 1;
+    else entry.upcoming += 1;
+    map.set(key, entry);
+  }
+  return map;
+}
+
+export function fixtureScoreLabel(fixture: LiveFixture): string | null {
+  const score = (fixture.score_text || "").trim();
+  return score || null;
+}
+
+export function fixtureStatusLabel(fixture: LiveFixture): string {
+  const status = (fixture.status || "").toLowerCase();
+  if (status === "finished") return "Full Time";
+  if (status === "live") return "Live";
+  if (status === "scheduled") return "Scheduled";
+  return fixture.status || "Scheduled";
 }

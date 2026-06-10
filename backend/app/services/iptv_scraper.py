@@ -35,6 +35,9 @@ _CHAN_SUFFIX_NORM_RE = re.compile(
     r"\s+(?:\d{3,4}p|fhd|uhd|4k|hd|sd|live|auto|main|primary)\s*$",
     re.IGNORECASE,
 )
+# Kodi playlist metadata sometimes lands in EXTINF names — not real channels.
+_KODIPROP_NAME_RE = re.compile(r"^#?\s*KODIPROP:", re.IGNORECASE)
+_JUNK_NAME_RE = re.compile(r"^#(?:EXT|EXTINF|EXTVLCOPT|KODIPROP)", re.IGNORECASE)
 
 REQUEST_TIMEOUT_SECONDS = 8
 FETCH_RETRY_DELAYS_SECONDS = (1, 2, 4, 8)
@@ -158,6 +161,11 @@ def parse_m3u_entries(
             continue
 
         name = line.split(",", 1)[1].strip() if "," in line else "Unknown Channel"
+        if _is_junk_channel_name(name):
+            continue
+        name = _display_channel_name(name)
+        if _is_junk_channel_name(name):
+            continue
         default_cat = "Sports" if module == GLOBAL_SPORTS_MODULE else "General"
         category = (_extract_attr(line, "group-title") or default_cat)[:120]
 
@@ -263,8 +271,20 @@ def fetch_all_sports_m3u(extra_urls: list[str] | None = None) -> list[str]:
     return results
 
 
+def _is_junk_channel_name(name: str) -> bool:
+    s = (name or "").strip()
+    if not s or len(s) < 2:
+        return True
+    if _JUNK_NAME_RE.match(s) or _KODIPROP_NAME_RE.match(s):
+        return True
+    if "#KODIPROP" in s.upper():
+        return True
+    return False
+
+
 def _display_channel_name(name: str) -> str:
-    cleaned = _CHAN_NORM_RE.sub(" ", name)
+    cleaned = re.sub(r"#?KODIPROP:[^\s]*", " ", name, flags=re.IGNORECASE)
+    cleaned = _CHAN_NORM_RE.sub(" ", cleaned)
     cleaned = _CHAN_SUFFIX_NORM_RE.sub(" ", cleaned)
     return " ".join(cleaned.split()).strip() or name.strip()
 

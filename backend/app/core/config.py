@@ -52,11 +52,15 @@ class Settings(BaseSettings):
     # Real fixture schedule sync (OpenLigaDB + optional football-data.org). 0 = disabled.
     live_fixtures_sync_interval_minutes: int = 15
     live_fixtures_days_ahead: int = 14
+    # How far back to ingest fixtures (align with frontend FIXTURE_HOURS_BACK=120).
+    live_fixtures_hours_back: int = 120
     openligadb_league_keys: str = "bl1,bl2,dfb"
     football_data_org_api_token: str | None = None
-    football_data_competitions: str = "PL,BL1,PD,SA,FL1,WC"
+    football_data_competitions: str = "PL,CL,EL,BL1,PD,SA,FL1,EC,WC"
     # CricAPI free tier (100 calls/day) — https://cricapi.com
     cricapi_key: str | None = None
+    # Max paginated API pages per sync (free tier: keep low — 2 pages ≈ 50 matches).
+    cricapi_max_pages: int = 2
     # Auto-discover new M3U sources every N hours (0 = disabled).
     # Default 0: free-tier Render workers should not run discovery + sync load unless explicitly enabled.
     source_discovery_interval_hours: int = 0

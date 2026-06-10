@@ -1,62 +1,114 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ChevronRight, Clock, Radio, RefreshCw, Tv2 } from "lucide-react";
+import {
+  Calendar,
+  ChevronRight,
+  Clock,
+  Radio,
+  RefreshCw,
+  TrendingUp,
+  Tv2,
+} from "lucide-react";
 import { MatchCard } from "@/components/matches/MatchCard";
+import { QuickStatCard } from "@/components/ui/QuickStatCard";
 import { isFixtureLive } from "@/lib/matchPresentation";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 
 type CountryTab = {
-  id: ViewerModule;
+  id: ViewerModule | "more";
   label: string;
   icon: string;
-  count: number;
 };
 
 type Props = {
   live: LiveFixture[];
   upcoming: LiveFixture[];
   featured: LiveFixture | null;
-  popularChannels: Channel[];
+  totalChannels: number;
   continueWatching: Channel[];
+  trendingChannels: Channel[];
   countryModules: CountryTab[];
   fixturesLoading: boolean;
   fixturesError?: boolean;
   onSelectChannel: (ch: Channel) => void;
-  onSelectModule: (m: ViewerModule) => void;
+  onSelectModule: (m: ViewerModule | "more") => void;
   onOpenLiveCenter: () => void;
   onRefreshFixtures: () => void;
 };
 
-function MatchRowSkeleton() {
-  return (
-    <div className="flex shrink-0 flex-col gap-2 rounded-xl p-3 animate-pulse" style={{ width: 260, background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-      <div className="h-3 w-3/4 rounded" style={{ background: "var(--bg-hover)" }} />
-      <div className="h-3 w-1/2 rounded" style={{ background: "var(--bg-hover)" }} />
-    </div>
-  );
-}
-
-function ChannelChip({ ch, onSelect }: { ch: Channel; onSelect: () => void }) {
+function ChannelChip({ ch, onSelect, isLive }: { ch: Channel; onSelect: () => void; isLive?: boolean }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="flex shrink-0 flex-col items-center gap-1.5 rounded-xl px-2 py-2 transition active:scale-95"
-      style={{ width: 72, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}
+      className="group flex shrink-0 flex-col items-center gap-2 rounded-2xl px-2.5 py-2.5 transition active:scale-95 hover:border-accent-gold/30"
+      style={{ width: 80, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}
       title={ch.name}
     >
-      {ch.logo_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={ch.logo_url} alt="" className="h-11 w-11 rounded-lg object-contain bg-white" loading="lazy" />
-      ) : (
-        <div className="flex h-11 w-11 items-center justify-center rounded-lg text-xs font-bold" style={{ background: "var(--bg-hover)", color: "var(--primary-accent)" }}>
-          {ch.name.slice(0, 2)}
-        </div>
-      )}
-      <p className="w-full truncate text-[9px] font-medium" style={{ color: "var(--text-muted)" }}>{ch.name}</p>
+      <div className="relative">
+        {ch.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={ch.logo_url} alt="" className="h-12 w-12 rounded-xl object-contain bg-white p-0.5 sm:h-14 sm:w-14" loading="lazy" />
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-bold sm:h-14 sm:w-14" style={{ background: "var(--bg-hover)", color: "var(--primary-accent)" }}>
+            {ch.name.slice(0, 2)}
+          </div>
+        )}
+        {isLive ? (
+          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-live-red live-pulse" aria-hidden />
+        ) : null}
+      </div>
+      <p className="w-full truncate text-[10px] font-medium leading-tight" style={{ color: "var(--text-muted)" }}>{ch.name}</p>
     </button>
+  );
+}
+
+function SectionShell({
+  title,
+  icon,
+  action,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="glass-premium overflow-hidden rounded-2xl">
+      <div className="flex items-center justify-between gap-2 px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+        <div className="flex items-center gap-2">
+          {icon}
+          <h2 className="text-sm font-bold font-bengali" style={{ color: "var(--text-main)" }}>{title}</h2>
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ChannelRow({
+  title,
+  icon,
+  channels,
+  onSelect,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  channels: Channel[];
+  onSelect: (ch: Channel) => void;
+}) {
+  if (channels.length === 0) return null;
+  return (
+    <SectionShell title={title} icon={icon}>
+      <div className="flex gap-2 overflow-x-auto p-3 scrollbar-none" data-swipe-ignore="true">
+        {channels.map((ch) => (
+          <ChannelChip key={ch.id} ch={ch} onSelect={() => onSelect(ch)} isLive={ch.module === "live_matches"} />
+        ))}
+      </div>
+    </SectionShell>
   );
 }
 
@@ -64,8 +116,9 @@ export function HomeSportsDashboard({
   live,
   upcoming,
   featured,
-  popularChannels,
+  totalChannels,
   continueWatching,
+  trendingChannels,
   countryModules,
   fixturesLoading,
   fixturesError,
@@ -74,151 +127,107 @@ export function HomeSportsDashboard({
   onOpenLiveCenter,
   onRefreshFixtures,
 }: Props) {
-  const [showDeferred, setShowDeferred] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setShowDeferred(true), 0);
-    return () => clearTimeout(t);
-  }, []);
-
   const featuredIsLive = featured ? isFixtureLive(featured) : false;
+  const hasStats = totalChannels > 0 || live.length > 0 || upcoming.length > 0;
 
   return (
     <section className="space-y-4" aria-label="Sports dashboard">
-      {/* 1. Live Now */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        <div className="flex items-center justify-between gap-2 px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-2">
-            <Radio size={16} className="text-red-400" aria-hidden />
-            <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>Live Now</h2>
-            {live.length > 0 && (
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>
-                {live.length}
-              </span>
+      <ChannelRow
+        title="Continue Watching"
+        icon={<Clock size={16} style={{ color: "var(--primary-accent)" }} aria-hidden />}
+        channels={continueWatching.slice(0, 10)}
+        onSelect={onSelectChannel}
+      />
+
+      {live.length > 0 && (
+        <SectionShell
+          title="Live Now"
+          icon={<Radio size={16} className="text-red-400" aria-hidden />}
+          action={
+            <button type="button" onClick={onOpenLiveCenter} className="flex items-center gap-0.5 text-[11px] font-semibold text-accent-gold">
+              Match Center <ChevronRight size={14} />
+            </button>
+          }
+        >
+          <div className="flex gap-3 overflow-x-auto p-3 scrollbar-none" data-swipe-ignore="true">
+            {fixturesLoading ? (
+              <p className="px-1 text-xs" style={{ color: "var(--text-muted)" }}>Loading…</p>
+            ) : fixturesError ? (
+              <div className="flex w-full flex-col items-center gap-2 py-4 text-center">
+                <button type="button" onClick={onRefreshFixtures} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-accent-gold" style={{ border: "1px solid var(--border)" }}>
+                  <RefreshCw size={12} /> Retry
+                </button>
+              </div>
+            ) : (
+              live.slice(0, 8).map((fx) => (
+                <div key={fx.id} className="shrink-0" style={{ width: 280 }}>
+                  <MatchCard match={fx} isLive stadium={fx.league_name} format={fx.sport} />
+                </div>
+              ))
             )}
           </div>
-          <button type="button" onClick={onOpenLiveCenter} className="flex items-center gap-0.5 text-[11px] font-semibold" style={{ color: "var(--primary-accent)" }}>
-            Match Center <ChevronRight size={14} />
-          </button>
-        </div>
-        <div className="flex gap-3 overflow-x-auto p-3 scrollbar-none" data-swipe-ignore="true">
-          {fixturesLoading && live.length === 0 ? (
-            <>
-              <MatchRowSkeleton />
-              <MatchRowSkeleton />
-            </>
-          ) : fixturesError ? (
-            <div className="flex w-full flex-col items-center gap-2 py-4 text-center">
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>Could not load matches</p>
-              <button type="button" onClick={onRefreshFixtures} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ color: "var(--primary-accent)", border: "1px solid var(--border)" }}>
-                <RefreshCw size={12} /> Retry
-              </button>
-            </div>
-          ) : live.length === 0 ? (
-            <p className="px-1 py-2 text-xs" style={{ color: "var(--text-muted)" }}>No live matches right now — check upcoming below.</p>
-          ) : (
-            live.slice(0, 8).map((fx) => (
-              <div key={fx.id} className="shrink-0" style={{ width: 280 }}>
-                <MatchCard match={fx} isLive stadium={fx.league_name} format={fx.sport} />
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+        </SectionShell>
+      )}
 
-      {/* 2. Featured Match */}
       {featured && (
         <Link
           href={`/match/${featured.id}` as `/match/${string}`}
-          className="block rounded-2xl p-4 transition active:scale-[0.99]"
+          className="glass-premium block rounded-2xl p-4 transition active:scale-[0.99]"
           style={{
             background: featuredIsLive
-              ? "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(245,166,35,0.08))"
-              : "var(--bg-card)",
-            border: `1px solid ${featuredIsLive ? "rgba(239,68,68,0.25)" : "var(--border)"}`,
+              ? "linear-gradient(135deg, rgba(239,68,68,0.14), rgba(20,20,30,0.35))"
+              : undefined,
+            borderColor: featuredIsLive ? "rgba(239,68,68,0.3)" : undefined,
           }}
         >
           <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: featuredIsLive ? "#f87171" : "var(--primary-accent)" }}>
-            {featuredIsLive ? "Featured · Live" : "Featured Match"}
+            {featuredIsLive ? "Featured Live Match" : "Featured Match"}
           </p>
-          <p className="mt-1 text-base font-bold" style={{ color: "var(--text-main)" }}>
+          <p className="mt-1 text-base font-bold font-bengali" style={{ color: "var(--text-main)" }}>
             {featured.home_team} vs {featured.away_team}
           </p>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
-            {featured.league_name} · {featured.status || "Scheduled"}
+          <p className="mt-0.5 text-xs font-bengali" style={{ color: "var(--text-muted)" }}>
+            {featured.league_name}{featured.status ? ` · ${featured.status}` : ""}
           </p>
         </Link>
       )}
 
-      {/* 3–6: deferred below-fold sections */}
-      {showDeferred && (
-        <>
+      <SectionShell title="Categories" icon={<TrendingUp size={16} className="text-accent-cyan" aria-hidden />}>
+        <div className="grid grid-cols-5 gap-2 p-3">
+          {countryModules.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => onSelectModule(m.id)}
+              className="flex min-w-0 flex-col items-center gap-1.5 rounded-xl py-3.5 transition active:scale-95 hover:border-accent-gold/25"
+              style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
+            >
+              <span className="text-xl leading-none" aria-hidden>{m.icon}</span>
+              <span className="w-full truncate text-center text-[10px] font-semibold font-bengali leading-tight px-0.5 sm:text-[11px]" style={{ color: "var(--text-main)" }}>{m.label}</span>
+            </button>
+          ))}
+        </div>
+      </SectionShell>
+
+      <ChannelRow
+        title="Trending Sports"
+        icon={<TrendingUp size={16} style={{ color: "#22d3ee" }} aria-hidden />}
+        channels={trendingChannels.slice(0, 12)}
+        onSelect={onSelectChannel}
+      />
+
+      {hasStats && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {totalChannels > 0 && (
+            <QuickStatCard label="Total Channels" value={totalChannels} icon={<Tv2 size={16} />} accent="gold" />
+          )}
+          {live.length > 0 && (
+            <QuickStatCard label="Live Now" value={live.length} icon={<Radio size={16} />} accent="red" onClick={onOpenLiveCenter} />
+          )}
           {upcoming.length > 0 && (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>Upcoming Matches</h2>
-              </div>
-              <div className="flex gap-3 overflow-x-auto p-3 scrollbar-none" data-swipe-ignore="true">
-                {upcoming.slice(0, 6).map((fx) => (
-                  <div key={fx.id} className="shrink-0" style={{ width: 260 }}>
-                    <MatchCard match={fx} stadium={fx.league_name} format={fx.sport} />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <QuickStatCard label="Upcoming" value={upcoming.length} icon={<Calendar size={16} />} accent="gold" onClick={onOpenLiveCenter} />
           )}
-
-          {popularChannels.length > 0 && (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <Tv2 size={16} style={{ color: "var(--primary-accent)" }} aria-hidden />
-                <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>Popular Sports Channels</h2>
-              </div>
-              <div className="flex gap-2 overflow-x-auto p-3 scrollbar-none" data-swipe-ignore="true">
-                {popularChannels.map((ch) => (
-                  <ChannelChip key={ch.id} ch={ch} onSelect={() => onSelectChannel(ch)} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {continueWatching.length > 0 && (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <Clock size={16} style={{ color: "var(--primary-accent)" }} aria-hidden />
-                <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>Continue Watching</h2>
-              </div>
-              <div className="flex gap-2 overflow-x-auto p-3 scrollbar-none" data-swipe-ignore="true">
-                {continueWatching.slice(0, 10).map((ch) => (
-                  <ChannelChip key={ch.id} ch={ch} onSelect={() => onSelectChannel(ch)} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-              <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>Browse by Region</h2>
-            </div>
-            <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-6">
-              {countryModules.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onSelectModule(m.id)}
-                  className="flex flex-col items-center gap-1 rounded-xl py-3 transition active:scale-95"
-                  style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
-                >
-                  <span className="text-xl" aria-hidden>{m.icon}</span>
-                  <span className="text-[10px] font-semibold" style={{ color: "var(--text-main)" }}>{m.label}</span>
-                  {m.count > 0 && (
-                    <span className="text-[9px]" style={{ color: "var(--text-muted)" }}>{m.count}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+        </div>
       )}
     </section>
   );

@@ -30,6 +30,7 @@ class LiveFixture(Base):
     sport: Mapped[str] = mapped_column(String(48), nullable=False, default="Soccer")
     starts_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    score_text: Mapped[str | None] = mapped_column(String(96), nullable=True)
     thumb_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     suggested_channel_ids: Mapped[str | None] = mapped_column(
         Text, nullable=True

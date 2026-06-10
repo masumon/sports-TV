@@ -9,10 +9,11 @@ import {
   Tv2,
   ChevronRight,
   Star,
-  X,
   Share2,
   Clock,
   AlertTriangle,
+  Search,
+  Radio,
 } from "lucide-react";
 import {
   startTransition,
@@ -27,17 +28,18 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
+import { MoreSheet } from "@/components/layout/MoreSheet";
 import { CategoryTabs } from "@/components/home/CategoryTabs";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
 import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
-import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
-import { isFixtureLive } from "@/lib/matchPresentation";
+import { CategorySkeletonRow, ChannelSkeletonGrid, PlayerSkeleton } from "@/components/ui/ChannelSkeleton";
+import { isFixtureLive, groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
-import { fetchAllChannels, apiClient } from "@/lib/apiClient";
-import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
+import { fetchDbChannelsForMerge, apiClient } from "@/lib/apiClient";
+import { getChannelListCache, hydrateChannelListCache, setChannelListCache } from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import {
   loadFullCatalogWithLive,
@@ -107,8 +109,8 @@ function inferLeague(name: string): string {
 
 // Top-level sport-type filter: matches by DB category field OR inferred league
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
-  { id: "football",   label: "⚽ Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
-  { id: "cricket",    label: "🏏 Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
+  { id: "football",   label: "Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
+  { id: "cricket",    label: "Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
 ];
 
 const BD_CATEGORIES: Record<string, string> = {
@@ -194,7 +196,7 @@ function FilterChips({
   return (
     <div role="group" aria-label={ariaLabel ?? label}>
       <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="filter-chip-row">
         <button
           type="button"
           className={`filter-chip${value === "" ? " active" : ""}`}
@@ -227,7 +229,15 @@ function FilterChips({
 }
 
 
-const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
+const MODULE_ORDER: ViewerModule[] = ["live_matches", "global_sports", "bangladesh", "fast_tv", "world_cup_2026", "india"];
+
+const PRIMARY_CATEGORIES: { id: ViewerModule | "more"; label: string; icon: string }[] = [
+  { id: "live_matches", label: "Live", icon: "🔴" },
+  { id: "global_sports", label: "Sports", icon: "🏆" },
+  { id: "bangladesh", label: "BD TV", icon: "🇧🇩" },
+  { id: "fast_tv", label: "FAST TV", icon: "⚡" },
+  { id: "more", label: "More", icon: "📂" },
+];
 
 export function ViewerHome() {
   const { t } = useI18n();
@@ -253,20 +263,17 @@ export function ViewerHome() {
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
   const [fixturesLoadError, setFixturesLoadError] = useState(false);
-  const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
+  const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "recent_results">("live");
   const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [coldStart, setColdStart] = useState(false);
-  const [coldStartDismissed, setColdStartDismissed] = useState(false);
-  const coldStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [coldStartSeconds, setColdStartSeconds] = useState(0);
-  const coldStartCounterRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
+  const launchRestoreDoneRef = useRef(false);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
   const setSearchSuggestions = useUiStore((s) => s.setSearchSuggestions);
+  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
 
   const activeChannel = usePlayerStore((state) => state.activeChannel);
   const isTheaterMode = usePlayerStore((state) => state.isTheaterMode);
@@ -276,6 +283,7 @@ export function ViewerHome() {
   const playerSectionRef = useRef<HTMLElement | null>(null);
   const [showErrorSuggestions, setShowErrorSuggestions] = useState(false);
   const [notifyIds, setNotifyIds] = useState<Set<string>>(new Set());
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -389,34 +397,13 @@ export function ViewerHome() {
         setLoading(true);
       }
       setError(null);
-      // Cold-start detection: if backend takes > 3s, show wakeup banner
-      if (!silent) {
-        setColdStartDismissed(false);
-        setColdStart(false);
-        setColdStartSeconds(0);
-        if (coldStartTimerRef.current) {
-          clearTimeout(coldStartTimerRef.current);
-          coldStartTimerRef.current = null;
-        }
-        if (coldStartCounterRef.current) {
-          clearInterval(coldStartCounterRef.current);
-          coldStartCounterRef.current = null;
-        }
-        coldStartTimerRef.current = setTimeout(() => {
-          setColdStart(true);
-          setColdStartSeconds(0);
-          if (coldStartCounterRef.current) clearInterval(coldStartCounterRef.current);
-          coldStartCounterRef.current = setInterval(() => {
-            setColdStartSeconds((s) => s + 1);
-          }, 1000);
-        }, 3000);
-      }
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          const merged = Promise.all([loadFullCatalogWithLive(), fetchAllChannels().catch(() => [])]).then(
-            ([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db)
-          );
+          const merged = Promise.all([
+            loadFullCatalogWithLive(),
+            fetchDbChannelsForMerge({}, !hasCache).catch(() => []),
+          ]).then(([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db));
           void merged
             .then((d) => {
               clearTimeout(id);
@@ -436,16 +423,7 @@ export function ViewerHome() {
         setError(msg);
         toast.error(msg);
       } finally {
-        if (!silent) {
-          setLoading(false);
-          setColdStart(false);
-          setColdStartSeconds(0);
-          if (coldStartTimerRef.current) clearTimeout(coldStartTimerRef.current);
-          if (coldStartCounterRef.current) {
-            clearInterval(coldStartCounterRef.current);
-            coldStartCounterRef.current = null;
-          }
-        }
+        if (!silent) setLoading(false);
       }
     },
     [t]
@@ -467,7 +445,7 @@ export function ViewerHome() {
     setFixturesLoading(true);
     setFixturesLoadError(false);
     try {
-      const res = await apiClient.getLiveFixtures({ hours_back: 6, days_ahead: 14 });
+      const res = await apiClient.getLiveFixtures({ hours_back: FIXTURE_HOURS_BACK, days_ahead: 14 });
       setScheduleFixtures(res.items);
       setScheduleUpdated(res.updated_hint ?? null);
     } catch {
@@ -506,31 +484,15 @@ export function ViewerHome() {
   }, [activeModule]);
 
   const scheduleGroups = useMemo(() => {
-    const now = Date.now();
-    const live: LiveFixture[] = [];
-    const upcoming: LiveFixture[] = [];
-    const finished: LiveFixture[] = [];
     const filtered = fixtureSportFilter === "all"
       ? scheduleFixtures
       : scheduleFixtures.filter((fx) => (fx.sport || "Soccer") === fixtureSportFilter);
-    for (const fx of filtered) {
-      const s = (fx.status || "").toLowerCase();
-      // Compute real-time status from starts_at_utc (avoids stale DB status between 3h syncs)
-      const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
-      const elapsed = startMs > 0 ? (now - startMs) / 60_000 : 0; // minutes since kick-off
-      if (s === "finished" || elapsed > 130) finished.push(fx); // >130 min = likely done
-      else if (startMs > 0 && startMs <= now) live.push(fx); // started but not finished
-      else upcoming.push(fx);
-    }
-    // Sort live by most recently started
-    live.sort((a, b) => new Date(b.starts_at_utc).getTime() - new Date(a.starts_at_utc).getTime());
-    upcoming.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
-    return { live, upcoming, finished };
+    return groupFixtures(filtered);
   }, [scheduleFixtures, fixtureSportFilter]);
 
   const activeScheduleItems = useMemo(() => {
     if (scheduleView === "live") return scheduleGroups.live;
-    if (scheduleView === "finished") return scheduleGroups.finished;
+    if (scheduleView === "recent_results") return scheduleGroups.recentResults;
     return scheduleGroups.upcoming;
   }, [scheduleGroups, scheduleView]);
 
@@ -544,7 +506,7 @@ export function ViewerHome() {
     );
   }, [scheduleFixtures]);
 
-  /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
+  /** Free-tier UX: show last channel list from localStorage/IDB before network (stale-while-revalidate). */
   useEffect(() => {
     const c = getChannelListCache();
     if (c?.length) {
@@ -553,6 +515,14 @@ export function ViewerHome() {
         setLoading(false);
       });
     }
+    void hydrateChannelListCache().then((idb) => {
+      if (idb?.length && idb.length > (c?.length ?? 0)) {
+        startTransition(() => {
+          setAllChannels(idb);
+          setLoading(false);
+        });
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -564,17 +534,6 @@ export function ViewerHome() {
     const id = setInterval(() => void refreshLiveMatchesOnly(), 30 * 60_000);
     return () => clearInterval(id);
   }, [refreshLiveMatchesOnly]);
-
-  useEffect(() => {
-    return () => {
-      if (coldStartTimerRef.current) {
-        clearTimeout(coldStartTimerRef.current);
-      }
-      if (coldStartCounterRef.current) {
-        clearInterval(coldStartCounterRef.current);
-      }
-    };
-  }, []);
 
   // Deep link: /?module=…
   const qParam = searchParams.get("q")?.trim() ?? "";
@@ -636,22 +595,60 @@ export function ViewerHome() {
     [allChannels, activeModule]
   );
 
-  // Auto-select first channel of active module; clear selection if this module has no rows (e.g. India not synced)
+  // Launch: restore last channel or featured live; then module-aware selection
   useEffect(() => {
-    if (moduleChannels.length === 0) {
-      if (activeChannel && activeChannel.module !== activeModule) {
+    if (loading || !allChannels.length || channelIdParam) return;
+
+    if (!launchRestoreDoneRef.current) {
+      launchRestoreDoneRef.current = true;
+      let lastId: number | undefined = recentlyWatched[0];
+      if (!lastId) {
+        try {
+          const stored = localStorage.getItem("gstv-recently-watched");
+          if (stored) {
+            const parsed: unknown = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+              const found = parsed.find((x): x is number => typeof x === "number");
+              if (typeof found === "number") lastId = found;
+            }
+          }
+        } catch { /* */ }
+      }
+      const lastCh = lastId ? allChannels.find((c) => c.id === lastId) : undefined;
+      const pick =
+        lastCh ??
+        allChannels.find((c) => c.module === "live_matches" && c.is_active) ??
+        allChannels.find((c) => c.module === "global_sports" && c.is_active) ??
+        moduleChannels[0];
+      if (pick) {
         startTransition(() => {
-          setActiveChannel(null);
+          setActiveModule(pick.module as ViewerModule);
+          setActiveChannel(pick);
         });
       }
       return;
     }
-    if (!activeChannel || activeChannel.module !== activeModule) {
-      startTransition(() => {
-        setActiveChannel(moduleChannels[0]!);
-      });
+
+    if (moduleChannels.length === 0) {
+      if (activeChannel && activeChannel.module !== activeModule) {
+        startTransition(() => setActiveChannel(null));
+      }
+      return;
     }
-  }, [moduleChannels, activeModule, activeChannel, setActiveChannel]);
+    if (!activeChannel || activeChannel.module !== activeModule) {
+      startTransition(() => setActiveChannel(moduleChannels[0]!));
+    }
+  }, [
+    loading,
+    allChannels,
+    channelIdParam,
+    recentlyWatched,
+    moduleChannels,
+    activeModule,
+    activeChannel,
+    setActiveChannel,
+    setActiveModule,
+  ]);
 
   const filtered = useMemo(() => {
     let list = moduleChannels;
@@ -951,16 +948,17 @@ export function ViewerHome() {
     return [...moduleChannels].sort((a, b) => b.id - a.id).slice(0, 10);
   }, [activeModule, moduleChannels]);
 
-  const moduleCategoryTabs = useMemo(
-    () => [
-      { id: "global_sports", label: "Global Sports", icon: "🌍", count: gsCount },
-      { id: "bangladesh", label: "Bangladesh", icon: "🇧🇩", count: bdCount },
-      { id: "india", label: "India", icon: "🇮🇳", count: inCount },
-      { id: "fast_tv", label: "FAST TV", icon: "⚡", count: fastCount },
-      { id: "live_matches", label: "Live Matches", icon: "🔴", count: liveCount },
-      { id: "world_cup_2026", label: "World Cup", icon: "🏆", count: wcCount },
-    ],
-    [gsCount, bdCount, inCount, fastCount, liveCount, wcCount],
+  const moduleCategoryTabs = useMemo(() => PRIMARY_CATEGORIES, []);
+
+  const handlePrimaryCategory = useCallback(
+    (id: ViewerModule | "more") => {
+      if (id === "more") {
+        setMoreSheetOpen(true);
+        return;
+      }
+      transitionSetActiveModule(id);
+    },
+    [transitionSetActiveModule],
   );
 
   const featuredLiveFixture = useMemo(
@@ -979,6 +977,17 @@ export function ViewerHome() {
       .filter((c) => c.module === "global_sports" || c.category.toLowerCase().includes("sport"))
       .slice(0, 12);
   }, [activeModule, bdPopularChannels, allChannels]);
+
+  const trendingChannels = useMemo(() => {
+    const liveNames = new Set(scheduleGroups.live.flatMap((fx) => [fx.home_team, fx.away_team, fx.league_name].filter(Boolean)));
+    return [...allChannels]
+      .filter((c) => c.module === "live_matches" || c.module === "global_sports")
+      .filter((c) => {
+        const n = c.name.toLowerCase();
+        return [...liveNames].some((t) => t && n.includes(String(t).toLowerCase().slice(0, 6)));
+      })
+      .slice(0, 12);
+  }, [allChannels, scheduleGroups.live]);
 
   // Swipe gesture: left/right to cycle modules
   const swipeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1000,61 +1009,203 @@ export function ViewerHome() {
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
-        {/* ── Cold-start banner ── */}
-        <AnimatePresence>
-          {coldStart && !coldStartDismissed && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              className="flex items-center gap-3 rounded-xl px-4 py-3"
-              style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
-            >
-              <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold leading-snug" style={{ color: "var(--text-main)" }}>
-                  📺 Loading latest content…
-                </p>
-                <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                  {coldStartSeconds < 15
-                    ? "Getting the latest channels and content ready for you."
-                    : coldStartSeconds < 40
-                      ? "Still preparing — this is normal on first visit. Almost ready!"
-                      : "Content is taking longer to load. Please wait a moment."}
-                </p>
-                {coldStartSeconds > 0 && (
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(245,166,35,0.15)" }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-1000"
-                        style={{ background: "var(--primary-accent)", width: `${Math.min(80, (coldStartSeconds / 60) * 100)}%` }}
-                      />
-                    </div>
-                    <span className="shrink-0 text-[10px] tabular-nums font-bold" style={{ color: "var(--primary-accent)" }}>
-                      {coldStartSeconds}s / ~60s
-                    </span>
-                  </div>
-                )}
-              </div>
+        {/* ── Live Player (first content section) ── */}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
+          <section ref={playerSectionRef} className="min-w-0 md:col-span-7 lg:col-span-8">
+            {activeChannel && (
               <button
                 type="button"
-                onClick={() => setColdStartDismissed(true)}
-                className="shrink-0 rounded p-1 hover:bg-white/10"
+                onClick={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
+                className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
                 style={{ color: "var(--text-muted)" }}
-                aria-label={t("coldStartDismiss")}
               >
-                <X size={14} />
+                <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
               </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+            {loading && !activeChannel ? (
+              <PlayerSkeleton />
+            ) : (
+              <HeroVideoPlayer
+                isLive={Boolean(activeChannel)}
+                title={activeChannel?.name ?? t("noChannel")}
+              >
+                {activeChannel ? (
+                  <PremiumPlayer
+                    streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
+                    streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
+                    alternateUrls={[]}
+                    title={activeChannel.name}
+                    isTheaterMode={isTheaterMode}
+                    onToggleTheaterMode={toggleTheaterMode}
+                    headerProfile={activeChannel.header_profile ?? null}
+                    geoHint={Boolean(activeChannel.geo_hint)}
+                    channelLogoUrl={activeChannel.logo_url}
+                    onStreamError={() => setShowErrorSuggestions(true)}
+                    overlay={
+                      featuredLiveFixture && isFixtureLive(featuredLiveFixture) ? (
+                        <LiveStatsOverlay
+                          homeTeam={featuredLiveFixture.home_team}
+                          awayTeam={featuredLiveFixture.away_team}
+                          period={featuredLiveFixture.status}
+                          venue={featuredLiveFixture.league_name}
+                          format={featuredLiveFixture.sport}
+                          series={featuredLiveFixture.league_name}
+                        />
+                      ) : undefined
+                    }
+                  />
+                ) : null}
+              </HeroVideoPlayer>
+            )}
+
+            {!activeChannel && recentChannelObjects[0] && (
+              <button
+                type="button"
+                onClick={() => selectChannel(recentChannelObjects[0]!)}
+                className="mt-2 flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-left transition active:scale-[0.99]"
+                style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.3)" }}
+              >
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-accent-gold">Continue Watching</p>
+                  <p className="truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>{recentChannelObjects[0].name}</p>
+                </div>
+                <ChevronRight size={16} className="shrink-0 text-accent-gold" />
+              </button>
+            )}
+
+            {activeChannel && (
+              <div className="mt-2 flex justify-end px-1">
+                <button
+                  type="button"
+                  title={t("shareChannel")}
+                  onClick={async () => {
+                    if (!activeChannel) return;
+                    const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
+                    try {
+                      if (navigator.share) {
+                        await navigator.share({ title: activeChannel.name, url });
+                        toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
+                      } else {
+                        await navigator.clipboard.writeText(url);
+                        toast.success(`🔗 ${t("shareCopied")}`);
+                      }
+                    } catch { /* user cancelled */ }
+                  }}
+                  className="flex items-center justify-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition hover:opacity-80"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                  aria-label={t("shareChannel")}
+                >
+                  <Share2 size={12} />
+                  <span>{t("shareChannel")}</span>
+                </button>
+              </div>
+            )}
+
+            {showErrorSuggestions && activeChannel && filtered.length > 1 && (
+              <div className="mt-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <p className="mb-2 text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>অন্য চ্যানেল চেষ্টা করুন:</p>
+                <div className="flex flex-wrap gap-2">
+                  {filtered.filter((c) => c.id !== activeChannel.id).slice(0, 4).map((ch) => (
+                    <button key={ch.id} type="button"
+                      onClick={() => { selectChannel(ch); setShowErrorSuggestions(false); }}
+                      className="rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
+                      style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}>
+                      {ch.name.slice(0, 20)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <aside className="flex min-w-0 flex-col gap-3 md:col-span-5 lg:col-span-4">
+            {tier === "free" && <AdSlot variant="inline" />}
+            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("quickPicks")}</h2>
+                  <span className="text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
+                </div>
+              </div>
+              <div
+                className="max-h-[min(40dvh,22rem)] overflow-y-auto overscroll-y-contain divide-y md:max-h-[min(52dvh,26rem)] lg:max-h-[26.25rem]"
+                style={{ borderColor: "var(--border)" }}
+              >
+                {loading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
+                      <div className="h-9 w-9 rounded-lg" style={{ background: "var(--bg-hover)" }} />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 w-2/3 rounded" style={{ background: "var(--bg-hover)" }} />
+                        <div className="h-2.5 w-1/2 rounded" style={{ background: "var(--bg-hover)" }} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  filtered.slice(0, 12).map((ch) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => selectChannel(ch)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
+                      style={{
+                        background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
+                        borderLeft: activeChannel?.id === ch.id ? "3px solid var(--primary-accent)" : "3px solid transparent",
+                      }}
+                    >
+                      {ch.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      ) : (
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: "var(--bg-hover)" }}>
+                          {ch.name.slice(0, 1)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium" style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }} title={ch.name}>
+                          {ch.name}
+                        </p>
+                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                          {flagFromCountryName(ch.country)} {ch.country}
+                        </p>
+                      </div>
+                      {activeChannel?.id === ch.id && <span className="pulse-dot shrink-0" />}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        {/* Quick Actions — directly below player */}
+        <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none" data-swipe-ignore="true">
+          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("live_matches")}>
+            <Radio size={13} aria-hidden /> Live
+          </button>
+          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("global_sports")}>
+            <Globe size={13} aria-hidden /> Sports
+          </button>
+          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("bangladesh")}>
+            <Tv2 size={13} aria-hidden /> BD TV
+          </button>
+          <button
+            type="button"
+            className="filter-chip shrink-0 border-accent-gold/35 bg-accent-gold/10 text-accent-gold"
+            onClick={() => {
+              requestSearchFocus();
+              queueMicrotask(() => document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+            }}
+          >
+            <Search size={13} aria-hidden /> Search
+          </button>
+        </div>
 
         <CategoryTabs
-          className="hidden md:flex pb-1"
+          className="pb-1"
           tabs={moduleCategoryTabs}
           activeCategory={activeModule}
-          onChange={(id) => transitionSetActiveModule(id as ViewerModule)}
+          onChange={(id) => handlePrimaryCategory(id as ViewerModule | "more")}
         />
 
         {activeModule !== "live_matches" && activeModule !== "world_cup_2026" && (
@@ -1062,18 +1213,14 @@ export function ViewerHome() {
             live={scheduleGroups.live}
             upcoming={scheduleGroups.upcoming}
             featured={dashboardFeatured}
-            popularChannels={popularSportsChannels}
+            totalChannels={allChannels.length}
             continueWatching={recentChannelObjects}
-            countryModules={moduleCategoryTabs.map((t) => ({
-              id: t.id as ViewerModule,
-              label: t.label,
-              icon: t.icon,
-              count: t.count,
-            }))}
+            trendingChannels={trendingChannels.length ? trendingChannels : popularSportsChannels}
+            countryModules={moduleCategoryTabs}
             fixturesLoading={fixturesLoading}
             fixturesError={fixturesLoadError}
             onSelectChannel={selectChannel}
-            onSelectModule={transitionSetActiveModule}
+            onSelectModule={handlePrimaryCategory}
             onOpenLiveCenter={() => transitionSetActiveModule("live_matches")}
             onRefreshFixtures={() => void loadFixturesSchedule()}
           />
@@ -1160,18 +1307,18 @@ export function ViewerHome() {
               </button>
               <button
                 type="button"
-                onClick={() => setScheduleView("finished")}
+                onClick={() => setScheduleView("recent_results")}
                 className="fixture-stat-tile"
                 style={{
-                  background: scheduleView === "finished" ? "rgba(160,160,176,0.1)" : "var(--bg-card)",
-                  borderColor: scheduleView === "finished" ? "rgba(160,160,176,0.35)" : "var(--border)",
+                  background: scheduleView === "recent_results" ? "rgba(160,160,176,0.1)" : "var(--bg-card)",
+                  borderColor: scheduleView === "recent_results" ? "rgba(160,160,176,0.35)" : "var(--border)",
                 }}
               >
                 <span className="text-2xl font-black tabular-nums" style={{ color: "var(--text-muted)" }}>
-                  {scheduleGroups.finished.length}
+                  {scheduleGroups.recentResults.length}
                 </span>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  FINISHED
+                  LAST 5 DAYS
                 </p>
               </button>
             </div>
@@ -1208,21 +1355,13 @@ export function ViewerHome() {
                     <div key={i} className="h-24 animate-pulse rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }} />
                   ))}
                 </div>
-              ) : activeScheduleItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 rounded-xl py-14 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <span className="text-3xl" aria-hidden>📅</span>
-                  <div>
-                    <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmptyByStatus")}</p>
-                    <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>Switch to a different tab above</p>
-                  </div>
-                </div>
-              ) : (
+              ) : activeScheduleItems.length === 0 ? null : (
                 activeScheduleItems.slice(0, 48).map((fx) => {
                   const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
                   const nowMs = Date.now();
                   const elapsedMin = startMs > 0 ? Math.floor((nowMs - startMs) / 60_000) : 0;
                   const isReallyLive = startMs > 0 && startMs <= nowMs && (fx.status || "").toLowerCase() !== "finished" && elapsedMin <= 130;
-                  const isFinished = (fx.status || "").toLowerCase() === "finished" || elapsedMin > 130;
+                  const isFinished = isFixtureFinished(fx);
                   const sportIcon = fx.sport === "Cricket" ? "🏏" : fx.sport === "Soccer" ? "⚽" : "🏆";
                   return (
                     <div
@@ -1346,26 +1485,6 @@ export function ViewerHome() {
               )}
             </div>
 
-            {/* No fixtures at all — configuration guidance */}
-            {!fixturesLoading && scheduleFixtures.length === 0 && (
-              <div className="flex flex-col items-center gap-4 rounded-xl py-16 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <span className="text-4xl" aria-hidden>📡</span>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmpty")}</p>
-                  <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    Set FOOTBALL_DATA_ORG_API_TOKEN &amp; CRICAPI_KEY in your backend environment to load live fixtures.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
-                  className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 active:scale-95"
-                  style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
-                >
-                  <RefreshCw size={14} /> Try Again
-                </button>
-              </div>
-            )}
           </div>
         )}
 
@@ -1603,10 +1722,12 @@ export function ViewerHome() {
 
         {/* ── Category / Sport-type tabs ── */}
         {activeModule === "global_sports" ? (
-          /* Sports module: smart sport-type chips (auto-filtered, only non-empty) */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-swipe-ignore="true">
+          {loading ? (
+            <CategorySkeletonRow />
+          ) : (
+          <div className="cat-tab-row" data-swipe-ignore="true">
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
@@ -1617,7 +1738,7 @@ export function ViewerHome() {
                 });
               }}
             >
-              📺 {t("filterAll")}
+              {t("filterAll")}
             </button>
             {SPORT_TYPES.filter((s) => (sportChannelCount[s.id] ?? 0) > 0).map((sport) => (
               <button
@@ -1632,16 +1753,18 @@ export function ViewerHome() {
                 }}
               >
                 {sport.label}
-                <span className="module-tab-badge">{sportChannelCount[sport.id]}</span>
               </button>
             ))}
           </div>
+          )}
           </div>
         ) : (
-          /* Regional / FAST / Live: category tabs from parsed group-title */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-swipe-ignore="true">
+          {loading ? (
+            <CategorySkeletonRow />
+          ) : (
+          <div className="cat-tab-row" data-swipe-ignore="true">
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
@@ -1649,7 +1772,7 @@ export function ViewerHome() {
                 transitionSetActiveCategory("");
               }}
             >
-              📺 {t("filterAll")}
+              {t("filterAll")}
             </button>
             {(activeModule === "bangladesh" ? bdCategoryOptions : categoryOptions).map((cat) => (
               <button
@@ -1660,10 +1783,11 @@ export function ViewerHome() {
                   transitionSetActiveCategory(activeCategory === cat ? "" : cat);
                 }}
               >
-                {categoryEmoji(cat, activeModule)} {cat}
+                {cat}
               </button>
             ))}
           </div>
+          )}
           </div>
         )}
 
@@ -1677,7 +1801,7 @@ export function ViewerHome() {
               🏆 League / Competition
             </p>
             <p className="mb-2 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("leagueFilterHint")}</p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="filter-chip-row">
               <button
                 type="button"
                 className={`filter-chip${filterLeague === "" ? " active" : ""}`}
@@ -1759,194 +1883,6 @@ export function ViewerHome() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-
-        {/* ── Main grid: player + channel list ── */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
-
-          {/* Player — hidden on mobile until a channel is selected */}
-          <section ref={playerSectionRef} className={`min-w-0 md:col-span-7 lg:col-span-8 ${!activeChannel ? "hidden md:block" : ""}`}>
-            {/* Mobile back button */}
-            {activeChannel && (
-              <button
-                type="button"
-                onClick={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
-                className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
-              </button>
-            )}
-            <HeroVideoPlayer
-              isLive={Boolean(activeChannel)}
-              title={activeChannel?.name ?? t("noChannel")}
-            >
-              {activeChannel ? (
-                <PremiumPlayer
-                  streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
-                  streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                  alternateUrls={[]}
-                  title={activeChannel.name}
-                  isTheaterMode={isTheaterMode}
-                  onToggleTheaterMode={toggleTheaterMode}
-                  headerProfile={activeChannel.header_profile ?? null}
-                  geoHint={Boolean(activeChannel.geo_hint)}
-                  channelLogoUrl={activeChannel.logo_url}
-                  onStreamError={() => setShowErrorSuggestions(true)}
-                  overlay={
-                    featuredLiveFixture ? (
-                      <LiveStatsOverlay
-                        homeTeam={featuredLiveFixture.home_team}
-                        awayTeam={featuredLiveFixture.away_team}
-                        period={featuredLiveFixture.status}
-                        venue={featuredLiveFixture.league_name}
-                        format={featuredLiveFixture.sport}
-                        series={featuredLiveFixture.league_name}
-                      />
-                    ) : undefined
-                  }
-                />
-              ) : null}
-            </HeroVideoPlayer>
-
-            {activeChannel && (
-              <div className="mt-2 flex justify-end px-1">
-                <button
-                  type="button"
-                  title={t("shareChannel")}
-                  onClick={async () => {
-                    if (!activeChannel) return;
-                    const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
-                    try {
-                      if (navigator.share) {
-                        await navigator.share({ title: activeChannel.name, url });
-                        toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
-                      } else {
-                        await navigator.clipboard.writeText(url);
-                        toast.success(`🔗 ${t("shareCopied")}`);
-                      }
-                    } catch { /* user cancelled or no clipboard */ }
-                  }}
-                  className="flex items-center justify-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition hover:opacity-80"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
-                  aria-label={t("shareChannel")}
-                >
-                  <Share2 size={12} />
-                  <span>{t("shareChannel")}</span>
-                </button>
-              </div>
-            )}
-
-            {showErrorSuggestions && activeChannel && filtered.length > 1 && (
-              <div className="mt-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                <p className="mb-2 text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>অন্য চ্যানেল চেষ্টা করুন:</p>
-                <div className="flex flex-wrap gap-2">
-                  {filtered.filter((c) => c.id !== activeChannel.id).slice(0, 4).map((ch) => (
-                    <button key={ch.id} type="button"
-                      onClick={() => { selectChannel(ch); setShowErrorSuggestions(false); }}
-                      className="rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
-                      style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}>
-                      {ch.name.slice(0, 20)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-          </section>
-
-          {/* Sidebar: upcoming channels */}
-          <aside className="flex min-w-0 flex-col gap-3 md:col-span-5 lg:col-span-4">
-            {tier === "free" && <AdSlot variant="inline" />}
-
-            {/* Featured channels quick list */}
-            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("quickPicks")}</h2>
-                  <span className="text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
-                </div>
-                <p className="mt-0.5 text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>{t("quickPicksHint")}</p>
-                {!loading && (
-                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
-                    <span>
-                      {t("showingFirst")} {Math.min(12, filtered.length)} {t("ofTotal")} {filtered.length}
-                    </span>
-                    {filtered.length > 12 && (
-                      <button
-                        type="button"
-                        onClick={() => document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                        className="font-semibold transition hover:underline"
-                        style={{ color: "var(--primary-accent)" }}
-                      >
-                        {t("scrollToGrid")} ↓
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div
-                className="max-h-[min(50dvh,26rem)] overflow-y-auto overscroll-y-contain divide-y sm:max-h-[min(55dvh,28rem)] md:max-h-[min(52dvh,26rem)] lg:max-h-[26.25rem]"
-                style={{ borderColor: "var(--border)" }}
-              >
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
-                      <div className="h-9 w-9 rounded-lg" style={{ background: "var(--bg-hover)" }} />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3 w-2/3 rounded" style={{ background: "var(--bg-hover)" }} />
-                        <div className="h-2.5 w-1/2 rounded" style={{ background: "var(--bg-hover)" }} />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  filtered.slice(0, 12).map((ch) => (
-                    <button
-                      key={ch.id}
-                      type="button"
-                      onClick={() => {
-                        selectChannel(ch);
-                      }}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
-                      style={{
-                        background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
-                        borderLeft: activeChannel?.id === ch.id ? "3px solid var(--primary-accent)" : "3px solid transparent",
-                      }}
-                    >
-                      {ch.logo_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                      ) : (
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: "var(--bg-hover)" }}>
-                          {ch.name.slice(0, 1)}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className="truncate text-sm font-medium"
-                          style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }}
-                          title={ch.name}
-                        >
-                          {ch.name}
-                        </p>
-                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${ch.country} · ${ch.language}`}>
-                          {flagFromCountryName(ch.country)} {ch.country} · {ch.language} · {ch.quality_tag.toUpperCase()}
-                        </p>
-                      </div>
-                      {activeChannel?.id === ch.id && (
-                        <span className="pulse-dot shrink-0" />
-                      )}
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Install hint */}
-            <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
-              {t("installHint")}
-            </p>
-          </aside>
         </div>
 
         {/* ── Favorites ── */}
@@ -2234,6 +2170,7 @@ export function ViewerHome() {
         </>)}
       </div>
     </AppShell>
+    <MoreSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
     </>
   );
 }

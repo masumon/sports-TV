@@ -34,35 +34,70 @@ type ApiRequestOptions = RequestInit & {
   authToken?: string | null;
   /** Request timeout in milliseconds. Defaults to no timeout. */
   timeoutMs?: number;
+  /** Retry count for idempotent GET on network/5xx errors. Default 2 for GET, 0 for mutations. */
+  retries?: number;
 };
 
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { headers: optionHeaders, authToken, timeoutMs, ...rest } = options;
+  const { headers: optionHeaders, authToken, timeoutMs, retries: retriesOpt, ...rest } = options;
+  const method = (rest.method ?? "GET").toUpperCase();
+  const maxRetries = retriesOpt ?? (method === "GET" ? 2 : 0);
+
   const merged: Record<string, string> = {
     "Content-Type": "application/json",
     ...(optionHeaders as Record<string, string> | undefined),
   };
   if (authToken) merged["Authorization"] = `Bearer ${authToken}`;
 
-  let signal = rest.signal ?? undefined;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  if (timeoutMs && timeoutMs > 0 && !signal) {
-    const controller = new AbortController();
-    signal = controller.signal;
-    timer = setTimeout(() => controller.abort(), timeoutMs);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let signal = rest.signal ?? undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (timeoutMs && timeoutMs > 0 && !signal) {
+      const controller = new AbortController();
+      signal = controller.signal;
+      timer = setTimeout(() => controller.abort(), timeoutMs);
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(buildApiUrl(path), { ...rest, headers: merged, signal });
+    } catch (err) {
+      if (timer !== undefined) clearTimeout(timer);
+      lastError =
+        err instanceof DOMException && err.name === "AbortError"
+          ? new Error("Request timed out — backend may be waking up, try again shortly")
+          : err instanceof Error
+            ? err
+            : new Error(String(err));
+      if (attempt < maxRetries) {
+        await sleep(350 * (attempt + 1));
+        continue;
+      }
+      throw lastError;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+
+    if (!res.ok && RETRYABLE_STATUS.has(res.status) && attempt < maxRetries) {
+      await sleep(400 * (attempt + 1));
+      continue;
+    }
+
+    return parseApiResponse<T>(res, merged);
   }
 
-  let res: Response;
-  try {
-    res = await fetch(buildApiUrl(path), { ...rest, headers: merged, signal });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error("Request timed out — backend may be waking up, try again shortly");
-    }
-    throw err;
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
+  throw lastError ?? new Error("API request failed");
+}
+
+async function parseApiResponse<T>(res: Response, merged: Record<string, string>): Promise<T> {
 
   if (res.status === 401) {
     const authz = merged["Authorization"] || merged["authorization"];
@@ -105,6 +140,18 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const text = await res.text();
   if (!text) return undefined as T;
   return JSON.parse(text) as T;
+}
+
+/** Fetch DB channels — first page only when cache is warm (background delta). */
+export async function fetchDbChannelsForMerge(
+  filters: Omit<ChannelListParams, "page" | "page_size"> = {},
+  full = true,
+): Promise<Channel[]> {
+  if (!full) {
+    const first = await apiClient.getChannels({ ...filters, page: 1, page_size: 500 });
+    return first.items;
+  }
+  return fetchAllChannels(filters);
 }
 
 type ChannelListParams = {

@@ -24,7 +24,7 @@ export function ChannelCard({ channel, active = false, isLive = false, onSelect,
       type="button"
       onClick={() => onSelect?.(channel)}
       className={cn(
-        "interactive-transition group flex w-full flex-col items-center gap-2 rounded-xl border bg-surface-secondary p-3 text-center",
+        "interactive-transition group flex w-full flex-col items-center gap-2.5 rounded-2xl border bg-surface-secondary p-3.5 text-center",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
         active
           ? "glow-gold border-accent-gold"
@@ -34,7 +34,7 @@ export function ChannelCard({ channel, active = false, isLive = false, onSelect,
       aria-pressed={active}
       aria-label={channel.name}
     >
-      <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg bg-white sm:h-16 sm:w-16">
+      <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-white sm:h-[4.5rem] sm:w-[4.5rem]">
         {channel.logoUrl ? (
           <Image
             src={channel.logoUrl}
@@ -48,7 +48,9 @@ export function ChannelCard({ channel, active = false, isLive = false, onSelect,
           <span className="text-sm font-bold text-surface">{channel.name.slice(0, 2).toUpperCase()}</span>
         )}
         {isLive ? (
-          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-live-red live-pulse" aria-hidden />
+          <span className="absolute -right-0.5 -top-0.5 rounded-full bg-live-red px-1 py-px text-[8px] font-black uppercase tracking-wide text-white live-pulse">
+            Live
+          </span>
         ) : null}
       </div>
       <p className="line-clamp-2 w-full text-xs font-medium text-foreground sm:text-sm">{channel.name}</p>

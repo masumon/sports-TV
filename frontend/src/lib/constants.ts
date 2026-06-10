@@ -1,3 +1,18 @@
+/** App metadata for drawer/footer */
+export const APP_META = {
+  version: "1.0.0",
+  build: typeof process !== "undefined" && process.env.NEXT_PUBLIC_BUILD_ID
+    ? process.env.NEXT_PUBLIC_BUILD_ID
+    : "2026.06",
+  developer: "ABO Enterprise",
+  copyright: "© 2026 ABO Sports TV",
+} as const;
+
+export const LEGAL_LINKS = {
+  privacy: "/legal/abo-sports-tv-privacy-policy.pdf",
+  terms: "/legal/abo-sports-tv-terms-of-service.pdf",
+} as const;
+
 /** Initial channels shown before "Load More" button */
 export const CHANNEL_GRID_INITIAL = 12;
 /** Channels loaded per "Load More" click */
