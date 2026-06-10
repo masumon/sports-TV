@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from functools import partial
 
 from fastapi import FastAPI, HTTPException, Request
@@ -136,14 +137,25 @@ async def lifespan(app: FastAPI):
         # Fresh/empty DB: always run one M3U sync so first deploy is not empty
         # (AUTO_SYNC_CHANNELS_ON_STARTUP alone was too easy to leave false in production).
         existing_count = db.scalar(select(func.count()).select_from(Channel)) or 0
+        fixture_count = db.scalar(select(func.count()).select_from(LiveFixture)) or 0
         # Viewer home uses M3U catalog; DB sync is legacy/admin-only. Opt in with AUTO_SYNC_CHANNELS_ON_STARTUP=true.
         needs_startup_sync = existing_count == 0 and settings.auto_sync_channels_on_startup
+        needs_fixture_sync = (
+            fixture_count == 0
+            and (settings.live_fixtures_sync_interval_minutes or 0) > 0
+        )
     finally:
         db.close()
 
     if needs_startup_sync:
         logger.info("Startup M3U sync (empty DB + AUTO_SYNC_CHANNELS_ON_STARTUP=true)")
         await run_in_threadpool(partial(run_channel_sync, include_discovery=True, source="startup"))
+
+    if needs_fixture_sync:
+        logger.info("Startup live fixtures sync (empty live_fixtures table)")
+        await run_in_threadpool(partial(run_live_fixtures_job, source="startup"))
+
+    ran_startup_fixture_sync = needs_fixture_sync
 
     _needs_scheduler = (
         settings.scheduled_sync_interval_minutes > 0
@@ -335,6 +347,12 @@ async def lifespan(app: FastAPI):
                 max_instances=1,
                 coalesce=True,
                 misfire_grace_time=120,
+                # Interval jobs otherwise wait one full period after deploy/spin-up.
+                next_run_time=(
+                    None
+                    if ran_startup_fixture_sync
+                    else datetime.now(tz=timezone.utc)
+                ),
             )
             logger.info(
                 "Scheduled live fixtures sync every %s min",

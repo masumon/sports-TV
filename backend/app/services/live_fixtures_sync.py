@@ -310,6 +310,19 @@ def sync_live_fixtures(db: Session) -> dict[str, int]:
         total_rows,
         removed,
     )
+    if total_rows == 0:
+        has_fd = bool((settings.football_data_org_api_token or "").strip())
+        has_cric = bool((settings.cricapi_key or "").strip())
+        logger.warning(
+            "live_fixtures sync inserted/updated 0 rows in the current window "
+            "(past 8h → +%sd). OpenLigaDB leagues=%s often have no fixtures in off-season. "
+            "Set FOOTBALL_DATA_ORG_API_TOKEN (WC/PL/CL/…) and/or CRICAPI_KEY in Render for broader coverage "
+            "(configured: football-data=%s cricapi=%s).",
+            settings.live_fixtures_days_ahead,
+            settings.openligadb_league_keys or "bl1,bl2",
+            has_fd,
+            has_cric,
+        )
     return {"rows_touched": total_rows, "removed_stale": removed}
 
 
