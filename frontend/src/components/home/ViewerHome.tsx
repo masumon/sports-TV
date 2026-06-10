@@ -28,6 +28,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
+import { MoreSheet } from "@/components/layout/MoreSheet";
 import { CategoryTabs } from "@/components/home/CategoryTabs";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
@@ -228,7 +229,15 @@ function FilterChips({
 }
 
 
-const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
+const MODULE_ORDER: ViewerModule[] = ["live_matches", "global_sports", "bangladesh", "fast_tv", "world_cup_2026", "india"];
+
+const PRIMARY_CATEGORIES: { id: ViewerModule | "more"; label: string; icon: string }[] = [
+  { id: "live_matches", label: "Live", icon: "🔴" },
+  { id: "global_sports", label: "Sports", icon: "🏆" },
+  { id: "bangladesh", label: "BD TV", icon: "🇧🇩" },
+  { id: "fast_tv", label: "FAST TV", icon: "⚡" },
+  { id: "more", label: "More", icon: "📂" },
+];
 
 export function ViewerHome() {
   const { t } = useI18n();
@@ -274,6 +283,7 @@ export function ViewerHome() {
   const playerSectionRef = useRef<HTMLElement | null>(null);
   const [showErrorSuggestions, setShowErrorSuggestions] = useState(false);
   const [notifyIds, setNotifyIds] = useState<Set<string>>(new Set());
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -938,16 +948,17 @@ export function ViewerHome() {
     return [...moduleChannels].sort((a, b) => b.id - a.id).slice(0, 10);
   }, [activeModule, moduleChannels]);
 
-  const moduleCategoryTabs = useMemo(
-    () => [
-      { id: "global_sports", label: "Global Sports", icon: "🌍", count: gsCount },
-      { id: "bangladesh", label: "Bangladesh", icon: "🇧🇩", count: bdCount },
-      { id: "india", label: "India", icon: "🇮🇳", count: inCount },
-      { id: "fast_tv", label: "FAST TV", icon: "⚡", count: fastCount },
-      { id: "live_matches", label: "Live Matches", icon: "🔴", count: liveCount },
-      { id: "world_cup_2026", label: "World Cup", icon: "🏆", count: wcCount },
-    ],
-    [gsCount, bdCount, inCount, fastCount, liveCount, wcCount],
+  const moduleCategoryTabs = useMemo(() => PRIMARY_CATEGORIES, []);
+
+  const handlePrimaryCategory = useCallback(
+    (id: ViewerModule | "more") => {
+      if (id === "more") {
+        setMoreSheetOpen(true);
+        return;
+      }
+      transitionSetActiveModule(id);
+    },
+    [transitionSetActiveModule],
   );
 
   const featuredLiveFixture = useMemo(
@@ -997,13 +1008,6 @@ export function ViewerHome() {
     <>
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
-
-        <CategoryTabs
-          className="hidden md:flex pb-1"
-          tabs={moduleCategoryTabs}
-          activeCategory={activeModule}
-          onChange={(id) => transitionSetActiveModule(id as ViewerModule)}
-        />
 
         {/* ── Live Player (first content section) ── */}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
@@ -1092,9 +1096,6 @@ export function ViewerHome() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
-                      <span className="pulse-dot" style={{ width: 5, height: 5 }} /> LIVE
-                    </span>
                     <button
                       type="button"
                       title={t("shareChannel")}
@@ -1202,18 +1203,18 @@ export function ViewerHome() {
 
         {/* Quick Actions — directly below player */}
         <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none" data-swipe-ignore="true">
-          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("bangladesh")}>
-            <Tv2 size={13} aria-hidden /> Live TV
+          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("live_matches")}>
+            <Radio size={13} aria-hidden /> Live
           </button>
           <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("global_sports")}>
             <Globe size={13} aria-hidden /> Sports
           </button>
-          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("live_matches")}>
-            <Radio size={13} aria-hidden /> Matches
+          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("bangladesh")}>
+            <Tv2 size={13} aria-hidden /> BD TV
           </button>
           <button
             type="button"
-            className="filter-chip shrink-0"
+            className="filter-chip shrink-0 border-accent-gold/35 bg-accent-gold/10 text-accent-gold"
             onClick={() => {
               requestSearchFocus();
               queueMicrotask(() => document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" }));
@@ -1223,6 +1224,13 @@ export function ViewerHome() {
           </button>
         </div>
 
+        <CategoryTabs
+          className="pb-1"
+          tabs={moduleCategoryTabs}
+          activeCategory={activeModule}
+          onChange={(id) => handlePrimaryCategory(id as ViewerModule | "more")}
+        />
+
         {activeModule !== "live_matches" && activeModule !== "world_cup_2026" && (
           <HomeSportsDashboard
             live={scheduleGroups.live}
@@ -1231,17 +1239,11 @@ export function ViewerHome() {
             totalChannels={allChannels.length}
             continueWatching={recentChannelObjects}
             trendingChannels={trendingChannels.length ? trendingChannels : popularSportsChannels}
-            recentlyWatched={recentChannelObjects}
-            countryModules={moduleCategoryTabs.map((t) => ({
-              id: t.id as ViewerModule,
-              label: t.label,
-              icon: t.icon,
-              count: t.count,
-            }))}
+            countryModules={moduleCategoryTabs}
             fixturesLoading={fixturesLoading}
             fixturesError={fixturesLoadError}
             onSelectChannel={selectChannel}
-            onSelectModule={transitionSetActiveModule}
+            onSelectModule={handlePrimaryCategory}
             onOpenLiveCenter={() => transitionSetActiveModule("live_matches")}
             onRefreshFixtures={() => void loadFixturesSchedule()}
           />
@@ -1376,35 +1378,7 @@ export function ViewerHome() {
                     <div key={i} className="h-24 animate-pulse rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }} />
                   ))}
                 </div>
-              ) : activeScheduleItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 rounded-xl py-14 text-center glass-premium">
-                  <div>
-                    <p className="text-sm font-bold font-bengali" style={{ color: "var(--text-main)" }}>{t("scheduleEmptyByStatus")}</p>
-                    <p className="mt-1 text-xs font-bengali" style={{ color: "var(--text-muted)" }}>
-                      {scheduleView === "live"
-                        ? "Browse upcoming fixtures or recent results below."
-                        : scheduleView === "recent_results"
-                          ? "No completed matches in the last 5 days."
-                          : "Switch to Live or Recent Results."}
-                    </p>
-                  </div>
-                  {scheduleView === "live" && scheduleGroups.upcoming.length > 0 && (
-                    <div className="w-full max-w-md space-y-2 px-4 text-left">
-                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Upcoming</p>
-                      {scheduleGroups.upcoming.slice(0, 3).map((fx) => (
-                        <div key={fx.id} className="rounded-xl p-3 text-xs" style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}>
-                          {fx.home_team} vs {fx.away_team}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {scheduleView === "live" && scheduleGroups.recentResults.length > 0 && (
-                    <button type="button" onClick={() => setScheduleView("recent_results")} className="text-xs font-semibold text-accent-gold">
-                      View recent results →
-                    </button>
-                  )}
-                </div>
-              ) : (
+              ) : activeScheduleItems.length === 0 ? null : (
                 activeScheduleItems.slice(0, 48).map((fx) => {
                   const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
                   const nowMs = Date.now();
@@ -1534,26 +1508,6 @@ export function ViewerHome() {
               )}
             </div>
 
-            {/* No fixtures at all — configuration guidance */}
-            {!fixturesLoading && scheduleFixtures.length === 0 && (
-              <div className="flex flex-col items-center gap-4 rounded-xl py-16 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <span className="text-4xl" aria-hidden>📡</span>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmpty")}</p>
-                  <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    Set FOOTBALL_DATA_ORG_API_TOKEN &amp; CRICAPI_KEY in your backend environment to load live fixtures.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
-                  className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 active:scale-95"
-                  style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
-                >
-                  <RefreshCw size={14} /> Try Again
-                </button>
-              </div>
-            )}
           </div>
         )}
 
@@ -2239,6 +2193,7 @@ export function ViewerHome() {
         </>)}
       </div>
     </AppShell>
+    <MoreSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
     </>
   );
 }

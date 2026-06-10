@@ -49,7 +49,7 @@ function AppSplashGate({ children }: { children: React.ReactNode }) {
     };
     const hasCache = (getChannelListCache()?.length ?? 0) > 0;
     void hydrateChannelListCache().finally(finish);
-    const t = setTimeout(finish, hasCache ? 420 : 1000);
+    const t = setTimeout(finish, hasCache ? 380 : 1000);
     return () => {
       cancelled = true;
       clearTimeout(t);

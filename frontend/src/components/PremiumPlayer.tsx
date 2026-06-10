@@ -5,6 +5,7 @@ import Hls from "hls.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
+  ChevronLeft,
   Circle,
   ExternalLink,
   Globe,
@@ -195,8 +196,10 @@ function relayHlsXhrUrlIfNeeded(
 const LINK_RETRY_ATTEMPTS = 3;
 /** Shorter remount delay so we rotate to the next mirror quickly. */
 const LINK_RETRY_DELAY_MS = 800;
-const HLS_MANIFEST_MAX_RETRY = 2;
-const HLS_LEVEL_MAX_RETRY = 1;
+const HLS_MANIFEST_MAX_RETRY = 3;
+const HLS_LEVEL_MAX_RETRY = 2;
+const HLS_FRAG_MAX_RETRY = 2;
+const MAX_HLS_RECOVERY_ATTEMPTS = 4;
 const RECONNECT_MSG = "Reconnecting…";
 const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
 const recentlyFailedUrlUntil = new Map<string, number>();
@@ -313,6 +316,7 @@ export default function PremiumPlayer({
   const [sleepRemaining, setSleepRemaining] = useState<number>(0);
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stallCountRef = useRef(0);
+  const hlsRecoveryRef = useRef(0);
 
   const [dataSaver, setDataSaver] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
@@ -349,8 +353,6 @@ export default function PremiumPlayer({
     [directUrls, dynamicM3U8Id, headerProfile]
   );
   const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
-  const isCurrentRelay = (allUrlsList[urlIdx] ?? "").includes("/proxy/stream");
-
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
@@ -394,6 +396,7 @@ export default function PremiumPlayer({
     setIsSwitching(false);
     setGeoRestricted(false);
     linkRetryRef.current = 0;
+    hlsRecoveryRef.current = 0;
     firstHideDoneRef.current = false;
     hintShownRef.current = false;
     setShowHint(false);
@@ -505,25 +508,26 @@ export default function PremiumPlayer({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: !lightNet,
-        maxBufferLength: lightNet ? 12 : 30,
-        maxMaxBufferLength: lightNet ? 25 : 60,
-        maxBufferSize: lightNet ? 25 * 1000 * 1000 : 60 * 1000 * 1000,
-        maxBufferHole: 0.5,
+        maxBufferLength: lightNet ? 14 : 32,
+        maxMaxBufferLength: lightNet ? 28 : 65,
+        backBufferLength: lightNet ? 10 : 22,
+        maxBufferSize: lightNet ? 28 * 1000 * 1000 : 65 * 1000 * 1000,
+        maxBufferHole: 0.35,
         liveSyncDurationCount: lightNet ? 2 : 3,
-        liveMaxLatencyDurationCount: lightNet ? 6 : 10,
+        liveMaxLatencyDurationCount: lightNet ? 7 : 11,
         liveDurationInfinity: true,
         abrEwmaDefaultEstimate: lightNet ? 400_000 : 1_000_000,
         abrBandWidthFactor: lightNet ? 0.9 : 0.95,
         abrBandWidthUpFactor: lightNet ? 0.55 : 0.7,
         manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
         manifestLoadingMaxRetry: HLS_MANIFEST_MAX_RETRY,
-        manifestLoadingRetryDelay: 350,
+        manifestLoadingRetryDelay: 400,
         levelLoadingTimeOut: HLS_LEVEL_LOAD_TIMEOUT_MS,
         levelLoadingMaxRetry: HLS_LEVEL_MAX_RETRY,
-        levelLoadingRetryDelay: 350,
+        levelLoadingRetryDelay: 400,
         fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
-        fragLoadingMaxRetry: 1,
-        fragLoadingRetryDelay: lightNet ? 600 : 400,
+        fragLoadingMaxRetry: HLS_FRAG_MAX_RETRY,
+        fragLoadingRetryDelay: lightNet ? 650 : 450,
         startLevel: -1,
         capLevelToPlayerSize: true,
         xhrSetup: (xhr, requestUrl) => {
@@ -595,12 +599,34 @@ export default function PremiumPlayer({
         }
 
         const isNet = data.type === Hls.ErrorTypes.NETWORK_ERROR;
+        const isMedia = data.type === Hls.ErrorTypes.MEDIA_ERROR;
         const isManifest =
           data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
           data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR;
         const isFrag =
           data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
           data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR;
+
+        if (hlsRecoveryRef.current < MAX_HLS_RECOVERY_ATTEMPTS) {
+          hlsRecoveryRef.current += 1;
+          if (isMedia) {
+            try {
+              hls.recoverMediaError();
+              return;
+            } catch {
+              /* fall through */
+            }
+          }
+          if (isNet || isManifest || isFrag) {
+            try {
+              hls.startLoad(-1);
+              setIsLoading(true);
+              return;
+            } catch {
+              /* fall through */
+            }
+          }
+        }
 
         if (isNet || isManifest || isFrag) {
           const retries = linkRetryRef.current;
@@ -626,6 +652,7 @@ export default function PremiumPlayer({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         linkRetryRef.current = 0;
+        hlsRecoveryRef.current = 0;
         if (lightNet && hls.levels.length) {
           const underSd = hls.levels
             .map((level, idx) => (level.height && level.height <= 480 ? idx : -1))
@@ -1218,22 +1245,36 @@ export default function PremiumPlayer({
       </AnimatePresence>
 
 
-      {/* LIVE badge — top-left, always visible */}
+      {/* Player header — single LIVE badge + channel + quality */}
       <div
-        className="pointer-events-none absolute left-3 z-40"
-        style={{ top: "max(0.75rem, env(safe-area-inset-top, 0px))" }}
+        className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center gap-2 px-3 py-2 sm:px-4"
+        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top, 0px))" }}
       >
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white"
-          style={{
-            background: "rgba(220,38,38,0.88)",
-            border: "1px solid rgba(255,82,82,0.45)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
-          }}
-        >
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-white" />
-          LIVE
-        </span>
+        {isFullscreen ? (
+          <button
+            type="button"
+            onClick={() => void document.exitFullscreen()}
+            className="glass-player-header pointer-events-auto flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold text-white"
+            aria-label="Exit fullscreen"
+          >
+            <ChevronLeft size={16} /> Back
+          </button>
+        ) : null}
+        <div className="glass-player-header pointer-events-none flex min-w-0 flex-1 items-center gap-2 rounded-full px-3 py-1.5">
+          <p className="min-w-0 flex-1 truncate text-xs font-bold text-white sm:text-sm">{title}</p>
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white"
+            style={{ background: "rgba(220,38,38,0.75)", border: "1px solid rgba(255,82,82,0.35)" }}
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+            LIVE
+          </span>
+          {selectedQuality !== -1 ? (
+            <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase text-white/80" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              {currentQualityLabel}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {/* Custom overlay */}
@@ -1352,40 +1393,6 @@ export default function PremiumPlayer({
             <div
               className="glass-player-bar mx-2 mb-[7px] overflow-hidden rounded-2xl sm:mx-3"
             >
-              {/* ── Now playing row ── */}
-              <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-2 sm:px-4 sm:pt-3">
-                {/* Channel logo */}
-                <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-                  style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.4)", boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
-                    alt=""
-                    className="h-7 w-7 object-contain"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
-                  />
-                </div>
-                {/* Title */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="h-1.5 w-1.5 rounded-full animate-pulse shrink-0" style={{ background: "#ef4444" }} />
-                    <span className="text-[8px] font-black uppercase tracking-[0.2em]" style={{ color: "rgba(245,166,35,0.75)" }}>LIVE NOW</span>
-                    {isCurrentRelay && (
-                      <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase tracking-wider" style={{ background: "rgba(16,185,129,0.18)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
-                        RELAY
-                      </span>
-                    )}
-                  </div>
-                  <p className="truncate text-[13px] font-bold leading-tight text-white">{title}</p>
-                </div>
-              </div>
-
-              {/* ── Divider ── */}
-              <div className="mx-3 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
-
-              {/* ── Main controls row ── */}
               <div className="flex items-center gap-1.5 px-2.5 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
                 {/* Play / Pause — primary CTA */}
                 <button
@@ -1465,12 +1472,11 @@ export default function PremiumPlayer({
                   )}
                 </div>
 
-                {/* Quality */}
                 <select
                   value={selectedQuality}
                   onChange={(e) => changeQuality(Number(e.target.value))}
                   aria-label="Quality"
-                  className="quality-select hidden h-8 max-w-[4.5rem] shrink-0 rounded-lg border border-white/15 bg-black/40 px-1.5 text-[10px] font-semibold text-white sm:inline-block"
+                  className="quality-select h-8 max-w-[4.5rem] shrink-0 rounded-lg border border-white/10 bg-black/25 px-1.5 text-[10px] font-semibold text-white"
                 >
                   {barQualityOptions.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>

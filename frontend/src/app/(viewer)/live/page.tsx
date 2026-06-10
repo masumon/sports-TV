@@ -80,12 +80,9 @@ export default function LivePage() {
 
   return (
     <ViewerPageShell>
-      <div className="mx-auto w-full max-w-6xl space-y-6">
-        <header className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-heading-1 text-foreground">Live Match Center</h1>
-            <p className="mt-1 text-sm text-foreground-secondary">Live streams and matches happening now</p>
-          </div>
+      <div className="mx-auto w-full max-w-6xl space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-heading-1 text-foreground">Live Match Center</h1>
           <button
             type="button"
             onClick={() => void load()}
@@ -96,10 +93,10 @@ export default function LivePage() {
             <RefreshCw size={14} className={fixturesLoading ? "animate-spin" : ""} />
             Refresh
           </button>
-        </header>
+        </div>
 
         {featured && (
-          <>
+          <section className="space-y-3">
             <HeroVideoPlayer
               isLive
               title={`${featured.home_team} vs ${featured.away_team}`}
@@ -119,24 +116,19 @@ export default function LivePage() {
                 <img src={featured.thumb_url} alt="" className="h-full w-full object-cover" />
               ) : null}
             </HeroVideoPlayer>
+            <MatchCard match={featured} isLive stadium={featured.league_name} format={featured.sport} />
+          </section>
+        )}
 
-            <section className="space-y-3">
-              {fixturesLoading && fixtures.length === 0 ? null : error ? (
-                <button
-                  type="button"
-                  onClick={() => void loadFixtures()}
-                  className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-accent-gold"
-                  style={{ border: "1px solid var(--border)" }}
-                >
-                  <RefreshCw size={13} /> Retry
-                </button>
-              ) : (
-                fixtures.slice(0, 8).map((match) => (
-                  <MatchCard key={match.id} match={match} isLive stadium={match.league_name} format={match.sport} />
-                ))
-              )}
-            </section>
-          </>
+        {error && fixtures.length === 0 && (
+          <button
+            type="button"
+            onClick={() => void loadFixtures()}
+            className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-accent-gold"
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <RefreshCw size={13} /> Retry
+          </button>
         )}
 
         {countryOptions.length > 0 && (

@@ -60,8 +60,8 @@ export function PlayerSettingsPanel({
   onCancelSleepTimer,
 }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    streaming: true,
-    display: true,
+    streaming: false,
+    display: false,
     sleep: false,
     developer: false,
   });
