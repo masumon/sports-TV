@@ -674,6 +674,66 @@ html.light .glass-panel {
   animation: shimmer 2s infinite;
 }
 
+/* ── Catalog background refresh (stale-while-revalidate) ── */
+.catalog-refresh-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: -0.25rem 0 0.75rem;
+  pointer-events: none;
+}
+
+.catalog-refresh-bar__track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.catalog-refresh-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c2410c 0%, var(--primary-accent) 55%, #fbbf24 100%);
+  box-shadow: 0 0 12px rgba(245, 166, 35, 0.45);
+  transition: width 0.25s ease-out;
+}
+
+.catalog-refresh-bar__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.catalog-refresh-bar__spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--primary-accent);
+  animation: spin 0.85s linear infinite;
+}
+
+.splash-progress-track {
+  width: min(220px, 72vw);
+  height: 4px;
+  margin-top: 20px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.splash-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c2410c, var(--primary-accent), #fbbf24);
+  transition: width 0.2s ease-out;
+}
+
 /* ── Progressive image loading ── */
 img[data-loading="blur"] {
   filter: blur(8px);

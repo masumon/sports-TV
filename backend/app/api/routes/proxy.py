@@ -388,6 +388,7 @@ def _merge_stream_client_headers(upstream_safe: dict[str, str]) -> dict[str, str
     return h
 # Upstream may block a region; try alternate host / header set (primary vs fallback) before failing.
 _GEO_BLOCK_STATUS = (401, 403, 451)
+_GEO_IP_RETRY_ATTEMPTS = 4
 
 # Headers forwarded from upstream to the client (allow-list to avoid leaking internals).
 _FORWARD_UPSTREAM_HEADERS = {
@@ -881,36 +882,42 @@ async def _fetch_manifest_text(
     Fetch a small HLS manifest (buffered). Returns (text, final_url_after_redirects)
     for correct relative URL resolution.
     """
-    async with httpx.AsyncClient(
-        limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-        **_upstream_httpx_base_kwargs(),
-    ) as client:
-        try:
-            r, final = await _get_with_validated_redirects(
-                client,
-                url,
-                headers=headers,
-                timeout=httpx.Timeout(
-                    connect=_CONNECT_TIMEOUT,
-                    read=_MANIFEST_PEEK_READ_TIMEOUT,
-                    write=_WRITE_TIMEOUT,
-                    pool=_POOL_TIMEOUT,
-                ),
-            )
-        except HTTPException:
-            return None, url
-        except Exception as exc:
-            logger.warning("Manifest fetch failed for %s: %s", url, exc)
-            return None, url
-        final = str(r.url)
-        if r.status_code >= 400:
-            return None, final
-        if len(r.content) > max_bytes:
-            return None, final
-        try:
-            return r.text, final
-        except Exception:
-            return None, final
+    timeout = httpx.Timeout(
+        connect=_CONNECT_TIMEOUT,
+        read=_MANIFEST_PEEK_READ_TIMEOUT,
+        write=_WRITE_TIMEOUT,
+        pool=_POOL_TIMEOUT,
+    )
+    for _ in range(_GEO_IP_RETRY_ATTEMPTS):
+        forward = _apply_upstream_geo_bypass_headers(dict(headers))
+        async with httpx.AsyncClient(
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+            **_upstream_httpx_base_kwargs(),
+        ) as client:
+            try:
+                r, final = await _get_with_validated_redirects(
+                    client,
+                    url,
+                    headers=forward,
+                    timeout=timeout,
+                )
+            except HTTPException:
+                return None, url
+            except Exception as exc:
+                logger.warning("Manifest fetch failed for %s: %s", url, exc)
+                return None, url
+            final = str(r.url)
+            if r.status_code in _GEO_BLOCK_STATUS:
+                continue
+            if r.status_code >= 400:
+                return None, final
+            if len(r.content) > max_bytes:
+                return None, final
+            try:
+                return r.text, final
+            except Exception:
+                return None, final
+    return None, url
 
 
 async def _fetch_manifest_with_geo_retries(
@@ -1180,51 +1187,34 @@ async def proxy_playlist_raw(
                 headers=dict(_STREAM_PROXY_RESPONSE_HEADERS),
             )
 
-        base_forward = _apply_upstream_geo_bypass_headers(
-            _apply_header_profile(_merge_stream_forward_headers(request, None), hp)
+        base_forward = _apply_header_profile(_merge_stream_forward_headers(request, None), hp)
+        timeout = httpx.Timeout(
+            connect=_CONNECT_TIMEOUT,
+            read=_MANIFEST_PEEK_READ_TIMEOUT,
+            write=_WRITE_TIMEOUT,
+            pool=_POOL_TIMEOUT,
         )
-        async with httpx.AsyncClient(
-            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-            **_upstream_httpx_base_kwargs(),
-        ) as client:
-            try:
-                r, _final = await _get_with_validated_redirects(
-                    client,
-                    target_url,
-                    headers=base_forward,
-                    timeout=httpx.Timeout(
-                        connect=_CONNECT_TIMEOUT,
-                        read=_MANIFEST_PEEK_READ_TIMEOUT,
-                        write=_WRITE_TIMEOUT,
-                        pool=_POOL_TIMEOUT,
-                    ),
-                )
-            except Exception as exc:
-                logger.warning("Playlist fetch failed for %s: %s", target_url[:80], exc)
-                return _proxy_error_response(502)
-        if r.status_code in _GEO_BLOCK_STATUS:
-            retry_fwd = _apply_upstream_geo_bypass_headers(
-                _apply_header_profile(_merge_stream_forward_headers(request, None), hp)
-            )
+        r: httpx.Response | None = None
+        for _ in range(_GEO_IP_RETRY_ATTEMPTS):
+            forward = _apply_upstream_geo_bypass_headers(dict(base_forward))
             try:
                 async with httpx.AsyncClient(
                     limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
                     **_upstream_httpx_base_kwargs(),
-                ) as client2:
+                ) as client:
                     r, _final = await _get_with_validated_redirects(
-                        client2,
+                        client,
                         target_url,
-                        headers=retry_fwd,
-                        timeout=httpx.Timeout(
-                            connect=_CONNECT_TIMEOUT,
-                            read=_MANIFEST_PEEK_READ_TIMEOUT,
-                            write=_WRITE_TIMEOUT,
-                            pool=_POOL_TIMEOUT,
-                        ),
+                        headers=forward,
+                        timeout=timeout,
                     )
             except Exception as exc:
-                logger.warning("Playlist geo-retry failed for %s: %s", target_url[:80], exc)
+                logger.warning("Playlist fetch failed for %s: %s", target_url[:80], exc)
                 return _proxy_error_response(502)
+            if r.status_code not in _GEO_BLOCK_STATUS:
+                break
+        if r is None:
+            return _proxy_error_response(502)
         if r.status_code in _GEO_BLOCK_STATUS:
             return _proxy_error_response(
                 403,

@@ -594,7 +594,11 @@ export default function PremiumPlayer({
                 setGeoRestricted(false);
                 return;
               }
-              setGeoRestricted(true);
+              if (parseGeoFromXhr(xhr) || (geoHint && xhr.status === 403)) {
+                setGeoRestricted(true);
+              } else {
+                setHasError(true);
+              }
               setIsLoading(false);
               setIsSwitching(false);
               return;
@@ -606,17 +610,6 @@ export default function PremiumPlayer({
               hlsInstance?.destroy();
               if (hlsRef.current === hlsInstance) hlsRef.current = null;
               return;
-            }
-            if (parseGeoFromXhr(xhr)) {
-              if (tryFailover()) {
-                setGeoRestricted(false);
-                return;
-              }
-              setGeoRestricted(true);
-              setIsLoading(false);
-              setIsSwitching(false);
-              hlsInstance?.destroy();
-              if (hlsRef.current === hlsInstance) hlsRef.current = null;
             }
           };
           xhr.addEventListener("loadend", onEnd);
@@ -659,7 +652,11 @@ export default function PremiumPlayer({
 
         if (httpCode === 403 || httpCode === 401) {
           if (tryFailover()) return;
-          setGeoRestricted(true);
+          if (geoHint && httpCode === 403) {
+            setGeoRestricted(true);
+          } else {
+            setHasError(true);
+          }
           setIsLoading(false);
           setIsSwitching(false);
           return;
@@ -799,7 +796,7 @@ export default function PremiumPlayer({
         const hls = hlsRef.current;
         if (hls && trySilentHlsRecovery(hls)) return;
         stallCountRef.current += 1;
-        if (stallCountRef.current >= 4) {
+        if (stallCountRef.current >= 4 && !playbackStartedRef.current) {
           stallCountRef.current = 0;
           scheduleRetryKey();
         }
@@ -1124,9 +1121,13 @@ export default function PremiumPlayer({
     retryStream();
   }, [retryStream]);
 
-  // Auto-retry countdown: when error or geo-block appears, count down then auto-retry (max 5)
+  // Auto-retry countdown: only before first successful playback (never interrupt active viewing)
   useEffect(() => {
     if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
+    if (everPlayedRef.current || playbackStartedRef.current) {
+      setAutoRetryCountdown(0);
+      return;
+    }
     if (autoRetryCountRef.current >= MAX_AUTO_RETRIES) {
       setAutoRetryCountdown(0);
       return;

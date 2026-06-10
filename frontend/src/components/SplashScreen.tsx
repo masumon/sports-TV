@@ -4,10 +4,24 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { BRAND } from "@/lib/branding";
 
-/** Premium OTT splash — max ~1s visible, no fake progress. */
+/** Premium OTT splash — brief branded intro while cache hydrates. */
 export function SplashScreen({ ready }: { ready: boolean }) {
   const [visible, setVisible] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
+  const [progress, setProgress] = useState(8);
+
+  useEffect(() => {
+    if (ready) {
+      setProgress(100);
+      return;
+    }
+    const start = Date.now();
+    const id = setInterval(() => {
+      const elapsed = Date.now() - start;
+      setProgress(Math.min(94, 8 + (elapsed / 900) * 86));
+    }, 60);
+    return () => clearInterval(id);
+  }, [ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -54,6 +68,9 @@ export function SplashScreen({ ready }: { ready: boolean }) {
       >
         {BRAND.nameFull}
       </p>
+      <div className="splash-progress-track" aria-hidden>
+        <div className="splash-progress-fill" style={{ width: `${progress}%` }} />
+      </div>
     </div>
   );
 }

@@ -21,32 +21,40 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
+function readIdbPayload(allowStale: boolean): Promise<Channel[] | null> {
+  if (typeof indexedDB === "undefined") return Promise.resolve(null);
+  return openDb()
+    .then(
+      (db) =>
+        new Promise<Channel[] | null>((resolve, reject) => {
+          const tx = db.transaction(STORE, "readonly");
+          const req = tx.objectStore(STORE).get(KEY);
+          req.onerror = () => reject(req.error);
+          req.onsuccess = () => {
+            const p = req.result as Payload | undefined;
+            if (!p?.t || !Array.isArray(p.items)) {
+              resolve(null);
+              return;
+            }
+            if (!allowStale && Date.now() - p.t > TTL_MS) {
+              resolve(null);
+              return;
+            }
+            resolve(p.items);
+          };
+          tx.oncomplete = () => db.close();
+        }),
+    )
+    .catch(() => null);
+}
+
 export async function getChannelCatalogFromIdb(): Promise<Channel[] | null> {
-  if (typeof indexedDB === "undefined") return null;
-  try {
-    const db = await openDb();
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, "readonly");
-      const store = tx.objectStore(STORE);
-      const req = store.get(KEY);
-      req.onerror = () => reject(req.error);
-      req.onsuccess = () => {
-        const p = req.result as Payload | undefined;
-        if (!p?.t || !Array.isArray(p.items)) {
-          resolve(null);
-          return;
-        }
-        if (Date.now() - p.t > TTL_MS) {
-          resolve(null);
-          return;
-        }
-        resolve(p.items);
-      };
-      tx.oncomplete = () => db.close();
-    });
-  } catch {
-    return null;
-  }
+  return readIdbPayload(false);
+}
+
+/** Returns cached catalog even past TTL — for instant display on app open. */
+export async function getStaleChannelCatalogFromIdb(): Promise<Channel[] | null> {
+  return readIdbPayload(true);
 }
 
 export async function setChannelCatalogToIdb(channels: Channel[]): Promise<void> {

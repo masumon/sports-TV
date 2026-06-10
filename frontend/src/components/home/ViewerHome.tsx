@@ -37,8 +37,14 @@ import { groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matc
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
+import { CatalogRefreshBar } from "@/components/CatalogRefreshBar";
 import { fetchDbChannelsForMerge, apiClient } from "@/lib/apiClient";
-import { getChannelListCache, hydrateChannelListCache, setChannelListCache } from "@/lib/channelListCache";
+import {
+  getChannelListCache,
+  getStaleChannelListCache,
+  hydrateChannelListCache,
+  setChannelListCache,
+} from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import {
   loadFullCatalogWithLive,
@@ -245,8 +251,19 @@ const PRIMARY_CATEGORIES: { id: ViewerModule | "more"; label: string; icon: stri
 export function ViewerHome() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
-  const [allChannels, setAllChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [allChannels, setAllChannels] = useState<Channel[]>(() =>
+    typeof window === "undefined" ? [] : (getStaleChannelListCache() ?? [])
+  );
+  const [blockingLoad, setBlockingLoad] = useState(() =>
+    typeof window === "undefined" ? true : !(getStaleChannelListCache()?.length)
+  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState(0);
+  const [showingCached, setShowingCached] = useState(
+    () => typeof window !== "undefined" && !!(getStaleChannelListCache()?.length)
+  );
+  const loading = blockingLoad && allChannels.length === 0;
+  const catalogBusy = blockingLoad || isRefreshing;
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearch = useDeferredValue(searchQuery);
@@ -391,25 +408,41 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  /** Ceiling for full catalog; clears spinner even if fetches never settle. */
+  /** Ceiling for full catalog fetch; UI unblocks earlier via CATALOG_UI_BLOCK_MS. */
   const CATALOG_LOAD_TIMEOUT_MS = 30_000;
+  const CATALOG_UI_BLOCK_MS = 12_000;
 
   const loadChannels = useCallback(
-    async (showToast = false, silent = false) => {
-      const hasCache = (getChannelListCache()?.length ?? 0) > 0;
-      if (!silent && (!hasCache || showToast)) {
-        setLoading(true);
+    async (showToast = false, options?: { fromCache?: boolean }) => {
+      const fromCache =
+        options?.fromCache ?? (getStaleChannelListCache()?.length ?? 0) > 0;
+      const hasFreshCache = (getChannelListCache()?.length ?? 0) > 0;
+
+      if (!fromCache || showToast) {
+        setBlockingLoad(true);
       }
+      setIsRefreshing(true);
+      setRefreshProgress(0);
       setError(null);
+
+      const progressStart = Date.now();
+      const progressTimer = setInterval(() => {
+        const elapsed = Date.now() - progressStart;
+        setRefreshProgress(Math.min(92, (elapsed / CATALOG_UI_BLOCK_MS) * 92));
+      }, 120);
+
+      const uiUnblockTimer = setTimeout(() => {
+        setBlockingLoad(false);
+      }, CATALOG_UI_BLOCK_MS);
 
       let db: Channel[] = [];
       try {
-        db = await fetchDbChannelsForMerge({}, !hasCache).catch(() => []);
+        db = await fetchDbChannelsForMerge({}, !hasFreshCache).catch(() => []);
         if (db.length > 0) {
           const quick = viewerCatalogFromDbChannels(db);
           setAllChannels(quick);
           setChannelListCache(quick);
-          if (!silent) setLoading(false);
+          setBlockingLoad(false);
         }
       } catch {
         /* DB leg failed — fall through to full catalog attempt */
@@ -431,19 +464,24 @@ export function ViewerHome() {
         });
         setAllChannels(data);
         setChannelListCache(data);
+        setRefreshProgress(100);
         if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
       } catch (e) {
-        if (db.length > 0) {
+        if (fromCache || db.length > 0) {
           if (showToast) {
             toast.error(e instanceof Error ? e.message : "M3U refresh failed");
           }
-        } else if (!silent) {
+        } else {
           const msg = e instanceof Error ? e.message : "Load failed";
           setError(msg);
           toast.error(msg);
         }
       } finally {
-        if (!silent) setLoading(false);
+        clearTimeout(uiUnblockTimer);
+        clearInterval(progressTimer);
+        setBlockingLoad(false);
+        setIsRefreshing(false);
+        setTimeout(() => setRefreshProgress(0), 500);
       }
     },
     [t]
@@ -526,30 +564,31 @@ export function ViewerHome() {
     );
   }, [scheduleFixtures]);
 
-  /** Free-tier UX: show last channel list from localStorage/IDB before network (stale-while-revalidate). */
+  /** Stale-while-revalidate: show cached catalog instantly, refresh in background. */
   useEffect(() => {
-    const c = getChannelListCache();
-    if (c?.length) {
+    const stale = getStaleChannelListCache();
+    if (stale?.length) {
       startTransition(() => {
-        setAllChannels(c);
-        setLoading(false);
+        setAllChannels(stale);
+        setBlockingLoad(false);
+        setShowingCached(true);
       });
     }
-    void hydrateChannelListCache().then((idb) => {
-      if (idb?.length && idb.length > (c?.length ?? 0)) {
+    void hydrateChannelListCache().then((cached) => {
+      if (cached?.length && cached.length >= (stale?.length ?? 0)) {
         startTransition(() => {
-          setAllChannels(idb);
-          setLoading(false);
+          setAllChannels(cached);
+          setBlockingLoad(false);
+          setShowingCached(true);
         });
       }
     });
   }, []);
 
   useEffect(() => {
-    // Wake up Render free-tier backend before channels load
     wakeBackend();
-    const hasCache = (getChannelListCache()?.length ?? 0) > 0;
-    void loadChannels(false, hasCache);
+    const hasStale = (getStaleChannelListCache()?.length ?? 0) > 0;
+    void loadChannels(false, { fromCache: hasStale });
   }, [loadChannels]);
 
   useEffect(() => {
@@ -623,6 +662,7 @@ export function ViewerHome() {
 
     if (!launchRestoreDoneRef.current) {
       launchRestoreDoneRef.current = true;
+      if (activeChannel) return;
       let lastId: number | undefined = recentlyWatched[0];
       if (!lastId) {
         try {
@@ -1025,6 +1065,7 @@ export function ViewerHome() {
 
   return (
     <>
+    <CatalogRefreshBar active={isRefreshing} progress={refreshProgress} fromCache={showingCached} />
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
@@ -1594,11 +1635,13 @@ export function ViewerHome() {
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 {loading
                   ? t("loading")
-                  : error
-                    ? error
-                    : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${
-                        deferredSearch.trim() ? ` · ${nameMatchCount} ${t("searchMatches")}` : ""
-                      }`}
+                  : isRefreshing && showingCached
+                    ? t("updatingFromCache")
+                    : error
+                      ? error
+                      : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${
+                          deferredSearch.trim() ? ` · ${nameMatchCount} ${t("searchMatches")}` : ""
+                        }`}
               </p>
               {!loading && !error && hasActiveFilters && (
                 <div className="flex flex-wrap items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
@@ -1621,17 +1664,17 @@ export function ViewerHome() {
             <button
               type="button"
               onClick={() => {
-                if (loading) {
+                if (catalogBusy) {
                   toast.info(t("refreshWait"));
                   return;
                 }
                 void loadChannels(true);
               }}
-              aria-busy={loading}
+              aria-busy={catalogBusy}
               className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-opacity"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)", opacity: loading ? 0.75 : 1 }}
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)", opacity: catalogBusy ? 0.75 : 1 }}
             >
-              <RefreshCw size={15} className={loading ? "animate-spin" : ""} aria-hidden />
+              <RefreshCw size={15} className={catalogBusy ? "animate-spin" : ""} aria-hidden />
               <span className="hidden sm:inline">{t("refresh")}</span>
             </button>
 
