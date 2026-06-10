@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,6 +76,30 @@ router = APIRouter(prefix="/sports-tv", tags=["sports-tv"])
 
 CHANNELS_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}, stale-while-revalidate=120"
 CDN_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}"
+
+_COUNTRY_CODE_ALIASES: dict[str, tuple[str, ...]] = {
+    "AF": ("afghanistan",),
+    "AR": ("argentina",),
+    "AU": ("australia",),
+    "BD": ("bangladesh", "bd"),
+    "BR": ("brazil",),
+    "CA": ("canada",),
+    "DE": ("germany", "deutschland"),
+    "ES": ("spain",),
+    "FR": ("france",),
+    "GB": ("united kingdom", "uk", "great britain", "england"),
+    "IN": ("india",),
+    "IT": ("italy",),
+    "LK": ("sri lanka",),
+    "NP": ("nepal",),
+    "NL": ("netherlands",),
+    "PK": ("pakistan",),
+    "QA": ("qatar",),
+    "SA": ("saudi arabia",),
+    "US": ("united states", "usa", "us", "america"),
+    "ZA": ("south africa",),
+    "AE": ("united arab emirates", "uae"),
+}
 
 _FIXTURE_ATTRIBUTION = {
     "openligadb": "Schedule: OpenLigaDB (api.openligadb.de) — official league fixtures; not affiliated.",
@@ -253,8 +277,13 @@ async def list_channels(
 
         order_by = [Channel.updated_at.desc(), Channel.name.asc()]
         if cf_country:
+            aliases = _COUNTRY_CODE_ALIASES.get(cf_country, ())
+            country_match = or_(
+                func.upper(Channel.country) == cf_country,
+                func.lower(Channel.country).in_(aliases),
+            )
             geo_rank = case(
-                (func.upper(func.left(Channel.country, 2)) == cf_country, 0),
+                (country_match, 0),
                 else_=1,
             )
             order_by = [geo_rank, Channel.updated_at.desc(), Channel.name.asc()]

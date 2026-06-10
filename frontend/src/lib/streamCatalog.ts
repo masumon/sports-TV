@@ -54,6 +54,7 @@ function normKey(url: string): string {
  */
 const CHAN_NORM_RE = /\s*[\[(](?:\d{3,4}p|fhd|uhd|4k|hd|sd|geo[\s-]?block(?:ed)?|stream\s*\d*|backup\s*\d*|mirror\s*\d*|alt\s*\d*|live|auto|main|primary)[\])]\s*/gi;
 const CHAN_SUFFIX_NORM_RE = /\s+(?:\d{3,4}p|fhd|uhd|4k|hd|sd|live|auto|main|primary)\s*$/i;
+const GEO_BLOCK_HINT_RE = /(?:geo[\s-]?block(?:ed)?|region[\s-]?(?:lock(?:ed)?|restrict(?:ed)?)|country[\s-]?(?:lock(?:ed)?|restrict(?:ed)?))/i;
 
 function normalizeNameForDedup(name: string): string {
   return name
@@ -132,6 +133,7 @@ function entryToChannel(
 ): Channel {
   const group = e.groupTitle?.trim() || "";
   const emptyTs = { created_at: "", updated_at: "" };
+  const geoHint = GEO_BLOCK_HINT_RE.test(`${e.name} ${group}`);
   return {
     id: stableId(`${module}:${normKey(e.streamUrl)}:${e.name}`),
     name: e.name.trim() || "Channel",
@@ -145,7 +147,7 @@ function entryToChannel(
     module,
     is_active: true,
     header_profile: detectHeaderProfile(e.streamUrl, e.userAgent),
-    geo_hint: false,
+    geo_hint: geoHint,
     ...emptyTs,
   };
 }

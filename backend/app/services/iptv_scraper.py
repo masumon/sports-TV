@@ -35,6 +35,10 @@ _CHAN_SUFFIX_NORM_RE = re.compile(
     r"\s+(?:\d{3,4}p|fhd|uhd|4k|hd|sd|live|auto|main|primary)\s*$",
     re.IGNORECASE,
 )
+_GEO_BLOCK_HINT_RE = re.compile(
+    r"(?:geo[\s\-]?block(?:ed)?|region[\s\-]?(?:lock(?:ed)?|restrict(?:ed)?)|country[\s\-]?(?:lock(?:ed)?|restrict(?:ed)?))",
+    re.IGNORECASE,
+)
 # Kodi playlist metadata sometimes lands in EXTINF names — not real channels.
 _KODIPROP_NAME_RE = re.compile(r"^#?\s*KODIPROP:", re.IGNORECASE)
 _JUNK_NAME_RE = re.compile(r"^#(?:EXT|EXTINF|EXTVLCOPT|KODIPROP)", re.IGNORECASE)
@@ -129,6 +133,7 @@ class ParsedChannel:
     country: str
     language: str
     module: str = GLOBAL_SPORTS_MODULE
+    geo_hint: bool = False
 
 
 def _extract_attr(line: str, key: str) -> str | None:
@@ -164,14 +169,15 @@ def parse_m3u_entries(
         if not stream_url or stream_url.startswith("#"):
             continue
 
-        name = line.split(",", 1)[1].strip() if "," in line else "Unknown Channel"
-        if _is_junk_channel_name(name):
-            continue
-        name = _display_channel_name(name)
-        if _is_junk_channel_name(name):
+        raw_name = line.split(",", 1)[1].strip() if "," in line else "Unknown Channel"
+        if _is_junk_channel_name(raw_name):
             continue
         default_cat = "Sports" if module == GLOBAL_SPORTS_MODULE else "General"
         category = (_extract_attr(line, "group-title") or default_cat)[:120]
+        geo_hint = bool(_GEO_BLOCK_HINT_RE.search(f"{raw_name} {category}"))
+        name = _display_channel_name(raw_name)
+        if _is_junk_channel_name(name):
+            continue
 
         if sports_only:
             name_lower = name.lower()
@@ -188,6 +194,7 @@ def parse_m3u_entries(
                 country=(_extract_attr(line, "tvg-country") or "Global")[:120],
                 language=(_extract_attr(line, "tvg-language") or "Unknown")[:120],
                 module=module,
+                geo_hint=geo_hint,
             )
         )
 
@@ -335,6 +342,7 @@ def _prefer_hls_url_as_primary(
             country=primary.country,
             language=primary.language,
             module=primary.module,
+            geo_hint=primary.geo_hint,
         ),
         rest,
     )
@@ -363,6 +371,7 @@ def _group_entries_by_name(
         if norm not in groups:
             groups[norm] = (entry, [])
         else:
+            groups[norm][0].geo_hint = groups[norm][0].geo_hint or entry.geo_hint
             groups[norm][1].append(entry.stream_url)
 
     return list(groups.values())
@@ -416,6 +425,7 @@ def sync_channels_from_entries(
                 source=source,
                 module=primary.module,
                 alternate_urls=alt_json,
+                geo_hint=primary.geo_hint,
                 is_active=True,
             )
             db.add(channel)
@@ -429,6 +439,7 @@ def sync_channels_from_entries(
             channel.language = primary.language or channel.language
             channel.source = source
             channel.module = primary.module
+            channel.geo_hint = bool(channel.geo_hint or primary.geo_hint)
             channel.alternate_urls = _merge_alternate_urls(
                 channel.stream_url, channel.alternate_urls, clean_alts
             )
