@@ -8,7 +8,6 @@ export type SubscriptionTier = "free" | "premium";
 type State = {
   tier: SubscriptionTier;
   setTier: (t: SubscriptionTier) => void;
-  toggleTier: () => void;
 };
 
 export const useSubscriptionStore = create<State>()(
@@ -16,7 +15,6 @@ export const useSubscriptionStore = create<State>()(
     (set) => ({
       tier: "free",
       setTier: (t) => set({ tier: t }),
-      toggleTier: () => set((s) => ({ tier: s.tier === "free" ? "premium" : "free" })),
     }),
     {
       name: "gstv-subscription",

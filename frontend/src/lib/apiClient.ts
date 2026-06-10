@@ -214,7 +214,24 @@ export const apiClient = {
   },
 
   adminListChannels(token: string) {
-    return apiRequest<Channel[]>("/admin/channels", { method: "GET", authToken: token });
+    const pageSize = 200;
+    const loadPage = (page: number) =>
+      apiRequest<Channel[]>(`/admin/channels?page=${page}&page_size=${pageSize}`, {
+        method: "GET",
+        authToken: token,
+      });
+    return loadPage(1).then(async (first) => {
+      if (first.length < pageSize) return first;
+      const all = [...first];
+      let page = 2;
+      for (;;) {
+        const batch = await loadPage(page);
+        all.push(...batch);
+        if (batch.length < pageSize || page >= 50) break;
+        page += 1;
+      }
+      return all;
+    });
   },
 
   adminCreateChannel(token: string, body: AdminChannelCreateBody) {

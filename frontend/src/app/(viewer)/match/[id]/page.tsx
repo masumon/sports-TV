@@ -1,15 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { ViewerPageShell } from "@/components/layout/ViewerPageShell";
 import { Button } from "@/components/ui/Button";
-import { HeadToHead } from "@/components/matches/HeadToHead";
-import { LineupList } from "@/components/matches/LineupList";
 import { apiClient } from "@/lib/apiClient";
-import { isFixtureLive, presentationFromFixture } from "@/lib/matchPresentation";
+import { isFixtureLive } from "@/lib/matchPresentation";
 import type { LiveFixture } from "@/lib/types";
 
 export default function MatchDetailPage() {
@@ -32,11 +30,6 @@ export default function MatchDetailPage() {
     void load();
   }, [load]);
 
-  const presentation = useMemo(
-    () => (fixture ? presentationFromFixture(fixture) : null),
-    [fixture],
-  );
-
   if (loading) {
     return (
       <ViewerPageShell>
@@ -48,7 +41,7 @@ export default function MatchDetailPage() {
     );
   }
 
-  if (!fixture || !presentation) {
+  if (!fixture) {
     return (
       <ViewerPageShell>
         <div className="mx-auto max-w-3xl py-16 text-center">
@@ -104,19 +97,9 @@ export default function MatchDetailPage() {
           </div>
         )}
 
-        <HeadToHead
-          homeTeam={fixture.home_team}
-          awayTeam={fixture.away_team}
-          homeForm={presentation.homeForm}
-          awayForm={presentation.awayForm}
-          stadium={presentation.stadium}
-          capacity="50,000+"
-          homeWins={presentation.homeWins}
-          awayWins={presentation.awayWins}
-          draws={presentation.draws}
-        />
-
-        <LineupList home={presentation.homeLineup} away={presentation.awayLineup} />
+        <p className="rounded-xl border border-border-subtle bg-surface-secondary px-4 py-3 text-sm text-foreground-muted">
+          Detailed lineups and head-to-head stats are not available from the live data feed yet.
+        </p>
 
         <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 border-t border-glass-border bg-surface-secondary/95 p-3 backdrop-blur-md md:static md:border-0 md:bg-transparent md:p-0">
           <Button

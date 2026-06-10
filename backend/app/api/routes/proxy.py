@@ -269,7 +269,10 @@ def _apply_header_profile(forward: dict[str, str], profile: str | None) -> dict[
 
 def _upstream_httpx_base_kwargs() -> dict[str, object]:
     """Shared httpx kwargs: no env proxy trust (explicit STREAM_UPSTREAM_HTTP_PROXY only)."""
-    out: dict[str, object] = {"verify": False, "trust_env": False}
+    out: dict[str, object] = {
+        "verify": bool(getattr(settings, "stream_upstream_tls_verify", True)),
+        "trust_env": False,
+    }
     p = (getattr(settings, "stream_upstream_http_proxy", None) or "").strip()
     if p:
         out["proxy"] = p
@@ -496,6 +499,66 @@ def _validate_stream_url(url: str) -> str:
     return url
 
 
+_MAX_REDIRECT_HOPS = 8
+_REDIRECT_STATUS = frozenset({301, 302, 303, 307, 308})
+
+
+def _validated_redirect_url(from_url: str, location: str) -> str:
+    """Resolve redirect Location and SSRF-validate the target."""
+    return _validate_stream_url(urllib.parse.urljoin(from_url, location.strip()))
+
+
+async def _open_stream_with_validated_redirects(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: httpx.Timeout,
+) -> tuple[httpx.Response, str]:
+    """Open a streaming upstream GET; each redirect hop is SSRF-validated."""
+    current = _validate_stream_url(url)
+    resp: httpx.Response | None = None
+    for _ in range(_MAX_REDIRECT_HOPS):
+        req = client.build_request("GET", current, headers=headers, timeout=timeout)
+        resp = await client.send(req, stream=True, follow_redirects=False)
+        if resp.status_code not in _REDIRECT_STATUS:
+            return resp, current
+        location = resp.headers.get("location")
+        await resp.aclose()
+        if not location:
+            raise HTTPException(status_code=502, detail="Invalid upstream redirect")
+        current = _validated_redirect_url(str(resp.url), location)
+    if resp is not None:
+        await resp.aclose()
+    raise HTTPException(status_code=502, detail="Too many upstream redirects")
+
+
+async def _get_with_validated_redirects(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout: httpx.Timeout | None = None,
+) -> tuple[httpx.Response, str]:
+    """Buffered GET with SSRF-safe redirect following."""
+    current = _validate_stream_url(url)
+    kwargs: dict[str, object] = {"follow_redirects": False}
+    if headers:
+        kwargs["headers"] = headers
+    if timeout:
+        kwargs["timeout"] = timeout
+    resp: httpx.Response | None = None
+    for _ in range(_MAX_REDIRECT_HOPS):
+        resp = await client.get(current, **kwargs)
+        if resp.status_code not in _REDIRECT_STATUS:
+            return resp, current
+        location = resp.headers.get("location")
+        if not location:
+            raise HTTPException(status_code=502, detail="Invalid upstream redirect")
+        current = _validated_redirect_url(str(resp.url), location)
+    raise HTTPException(status_code=502, detail="Too many upstream redirects")
+
+
 # Do not use platform HTTP(S)_PROXY for stream relay — a bad build env var breaks every channel.
 def _http_stream_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
@@ -505,34 +568,42 @@ def _http_stream_client() -> httpx.AsyncClient:
 
 
 async def _async_peek_stream(url: str, headers: dict[str, str]) -> tuple[int, str, dict[str, str]]:
-    """
-    Short GET to learn status + Content-Type; body is closed without buffering video-sized payloads.
-    """
+    """Short GET to learn status + Content-Type; redirects SSRF-validated."""
     client = httpx.AsyncClient(
         limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
         **_upstream_httpx_base_kwargs(),
     )
+    timeout = httpx.Timeout(
+        connect=_CONNECT_TIMEOUT,
+        read=_MANIFEST_PEEK_READ_TIMEOUT,
+        write=_MANIFEST_PEEK_READ_TIMEOUT,
+        pool=_POOL_TIMEOUT,
+    )
     try:
-        async with client.stream(
-            "GET",
-            url,
-            headers=headers,
-            timeout=httpx.Timeout(
-                connect=_CONNECT_TIMEOUT,
-                read=_MANIFEST_PEEK_READ_TIMEOUT,
-                write=_MANIFEST_PEEK_READ_TIMEOUT,
-                pool=_POOL_TIMEOUT,
-            ),
-            follow_redirects=True,
-        ) as resp:
-            st = resp.status_code
-            ct = (resp.headers.get("content-type") or "").split(";")[0].strip() or "application/octet-stream"
-            safe: dict[str, str] = {}
-            if ar := resp.headers.get("accept-ranges"):
-                safe["accept-ranges"] = ar
-            if cc := resp.headers.get("cache-control"):
-                safe["cache-control"] = cc
-            return st, ct, safe
+        current = _validate_stream_url(url)
+        for _ in range(_MAX_REDIRECT_HOPS):
+            async with client.stream(
+                "GET",
+                current,
+                headers=headers,
+                timeout=timeout,
+                follow_redirects=False,
+            ) as resp:
+                if resp.status_code in _REDIRECT_STATUS:
+                    location = resp.headers.get("location")
+                    if not location:
+                        return 502, "application/octet-stream", {}
+                    current = _validated_redirect_url(str(resp.url), location)
+                    continue
+                st = resp.status_code
+                ct = (resp.headers.get("content-type") or "").split(";")[0].strip() or "application/octet-stream"
+                safe: dict[str, str] = {}
+                if ar := resp.headers.get("accept-ranges"):
+                    safe["accept-ranges"] = ar
+                if cc := resp.headers.get("cache-control"):
+                    safe["cache-control"] = cc
+                return st, ct, safe
+        return 502, "application/octet-stream", {}
     except Exception as exc:
         logger.warning("Proxy peek failed for %s: %s", url, exc)
         return 502, "application/octet-stream", {}
@@ -552,8 +623,8 @@ async def _build_chunked_streaming_response(
     """
     client = _http_stream_client()
     try:
-        req = client.build_request(
-            "GET",
+        resp, _final_url = await _open_stream_with_validated_redirects(
+            client,
             url,
             headers=forward,
             timeout=httpx.Timeout(
@@ -563,7 +634,9 @@ async def _build_chunked_streaming_response(
                 pool=_POOL_TIMEOUT,
             ),
         )
-        resp = await client.send(req, stream=True, follow_redirects=True)
+    except HTTPException as exc:
+        await client.aclose()
+        return _proxy_error_response(exc.status_code, str(exc.detail))
     except (
         httpx.TimeoutException,
         httpx.ConnectError,
@@ -813,7 +886,8 @@ async def _fetch_manifest_text(
         **_upstream_httpx_base_kwargs(),
     ) as client:
         try:
-            r = await client.get(
+            r, final = await _get_with_validated_redirects(
+                client,
                 url,
                 headers=headers,
                 timeout=httpx.Timeout(
@@ -822,8 +896,9 @@ async def _fetch_manifest_text(
                     write=_WRITE_TIMEOUT,
                     pool=_POOL_TIMEOUT,
                 ),
-                follow_redirects=True,
             )
+        except HTTPException:
+            return None, url
         except Exception as exc:
             logger.warning("Manifest fetch failed for %s: %s", url, exc)
             return None, url
@@ -1113,7 +1188,8 @@ async def proxy_playlist_raw(
             **_upstream_httpx_base_kwargs(),
         ) as client:
             try:
-                r = await client.get(
+                r, _final = await _get_with_validated_redirects(
+                    client,
                     target_url,
                     headers=base_forward,
                     timeout=httpx.Timeout(
@@ -1122,7 +1198,6 @@ async def proxy_playlist_raw(
                         write=_WRITE_TIMEOUT,
                         pool=_POOL_TIMEOUT,
                     ),
-                    follow_redirects=True,
                 )
             except Exception as exc:
                 logger.warning("Playlist fetch failed for %s: %s", target_url[:80], exc)
@@ -1136,7 +1211,8 @@ async def proxy_playlist_raw(
                     limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
                     **_upstream_httpx_base_kwargs(),
                 ) as client2:
-                    r = await client2.get(
+                    r, _final = await _get_with_validated_redirects(
+                        client2,
                         target_url,
                         headers=retry_fwd,
                         timeout=httpx.Timeout(
@@ -1145,7 +1221,6 @@ async def proxy_playlist_raw(
                             write=_WRITE_TIMEOUT,
                             pool=_POOL_TIMEOUT,
                         ),
-                        follow_redirects=True,
                     )
             except Exception as exc:
                 logger.warning("Playlist geo-retry failed for %s: %s", target_url[:80], exc)
@@ -1321,7 +1396,7 @@ async def _fetch_m3u8_manifest(
             timeout=_M3U8_FETCH_TIMEOUT,
             **_upstream_httpx_base_kwargs(),
         ) as client:
-            resp = await client.get(url, headers=headers, follow_redirects=True)
+            resp, _final = await _get_with_validated_redirects(client, url, headers=headers)
             if resp.status_code >= 400:
                 logger.warning("M3U8 fetch returned %d for %s", resp.status_code, url[:80])
                 return None

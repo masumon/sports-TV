@@ -356,6 +356,9 @@ app = FastAPI(
     version="1.0.0",
     description="Global Sports Live TV backend API",
     lifespan=lifespan,
+    docs_url=None if (settings.app_env or "").lower() in {"production", "prod"} else "/docs",
+    redoc_url=None if (settings.app_env or "").lower() in {"production", "prod"} else "/redoc",
+    openapi_url=None if (settings.app_env or "").lower() in {"production", "prod"} else "/openapi.json",
 )
 
 app.add_middleware(

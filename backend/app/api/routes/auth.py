@@ -43,6 +43,11 @@ def _hash_reset_token(raw: str) -> str:
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    if (settings.app_env or "").lower() in {"production", "prod"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Public registration is disabled in production.",
+        )
     # Normalize email to lowercase so case-insensitive uniqueness is enforced
     normalized_email = payload.email.strip().lower()
 
@@ -140,11 +145,16 @@ async def admin_request_password_reset(
         minutes=settings.password_reset_token_ttl_minutes
     )
     await db.commit()
-    if (settings.app_env or "").lower() in {"production", "prod"}:
+    is_prod = (settings.app_env or "").lower() in {"production", "prod"}
+    if is_prod:
         logger.info("Admin password reset token issued for %s (token not logged)", email)
     return AdminPasswordResetResponseSchema(
-        detail="Copy the token below, then set a new password on the reset page. It is not sent by email.",
-        reset_token=raw,
+        detail=(
+            "If an admin account exists, use the reset page with the token from your secure channel."
+            if is_prod
+            else "Copy the token below, then set a new password on the reset page. It is not sent by email."
+        ),
+        reset_token=None if is_prod else raw,
         token_expires_in_minutes=settings.password_reset_token_ttl_minutes,
     )
 

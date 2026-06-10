@@ -106,10 +106,14 @@ export default function LivePage() {
             ) : undefined
           }
         >
-          {featured?.thumb_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={featured.thumb_url} alt="" className="h-full w-full object-cover" />
-          ) : null}
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-black/70 px-4 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Match preview</p>
+            <p className="text-sm text-white/80">Tap a channel below or open home to watch live TV</p>
+            {featured?.thumb_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={featured.thumb_url} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-40" />
+            ) : null}
+          </div>
         </HeroVideoPlayer>
 
         <section className="space-y-3">

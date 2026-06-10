@@ -37,10 +37,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     scraper_source_url: str = "https://iptv-org.github.io/iptv/categories/sports.m3u"
     # When true, sync also fetches the iptv-org master index (~10k+ streams). Heavy; good for filling Neon.
-    iptv_full_index_sync: bool = True
+    iptv_full_index_sync: bool = False
     iptv_full_index_url: str = "https://iptv-org.github.io/iptv/index.m3u"
     iptv_full_index_fetch_timeout_seconds: int = 120
-    auto_sync_channels_on_startup: bool = True
+    auto_sync_channels_on_startup: bool = False
     # Optional Redis for response caching (GET /sports-tv/channels, filters). If unset, caching is disabled.
     redis_url: str | None = None
     cache_ttl_seconds: int = 300
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     cricapi_key: str | None = None
     # Auto-discover new M3U sources every N hours (0 = disabled).
     # Default 0: free-tier Render workers should not run discovery + sync load unless explicitly enabled.
-    source_discovery_interval_hours: int = 24
+    source_discovery_interval_hours: int = 0
     # Deactivate iptv-org channels not refreshed for this many days.
     channel_stale_days: int = 3
     # Engine pool (PostgreSQL). Neon free tier allows 25 total connections.
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # Sample active channels and deactivate dead URLs. 0 = do not run scheduled checks.
     # When >0, runs on this interval. Was previously hardcoded to 15m whenever M3U sync was on
     # (harsh for free tier + datacenter-IP false negatives). Set e.g. 60–120 on paid/stable hosts.
-    stream_validation_interval_minutes: int = 60
+    stream_validation_interval_minutes: int = 120
     # 0 means validate all active channels in each scheduled pass.
     stream_validation_sample_limit: int = 100
 
@@ -83,6 +83,8 @@ class Settings(BaseSettings):
 
     # Upstream geo: spoof client-egress hints (datacenter bypass is best-effort; use proxy below if needed).
     stream_geo_bypass_enabled: bool = True
+    # Verify upstream TLS certs for proxy fetches (disable only for broken CDN certs).
+    stream_upstream_tls_verify: bool = True
     # Optional HTTP(S) proxy for all upstream httpx calls in proxy.py (Webshare, Proxyium, etc.).
     stream_upstream_http_proxy: str | None = Field(
         default=None,

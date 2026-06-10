@@ -161,7 +161,10 @@ async def bdix_sync(
     import hmac as _hmac
     from starlette.concurrency import run_in_threadpool as _tp
 
-    secret = (settings.__dict__.get("internal_sync_secret") or "").strip()
+    secret = (settings.internal_sync_secret or "").strip()
+    is_prod = (settings.app_env or "").lower() in {"production", "prod"}
+    if is_prod and not secret:
+        raise HTTPException(status_code=503, detail="INTERNAL_SYNC_SECRET is not configured")
     if secret:
         provided = request.headers.get("X-Sync-Secret", "")
         if not _hmac.compare_digest(provided.encode(), secret.encode()):

@@ -29,18 +29,9 @@ function BackgroundAutoRefresh() {
     const silentRefresh = async () => {
       try {
         await Promise.allSettled([
-          fetch("/api/channels", { method: "GET" }).catch((err) => {
-            console.warn("Failed to preload channels:", err);
-            return undefined;
-          }),
-          fetch("/api/categories", { method: "GET" }).catch((err) => {
-            console.warn("Failed to preload categories:", err);
-            return undefined;
-          }),
-          fetch("/api/fixtures", { method: "GET" }).catch((err) => {
-            console.warn("Failed to preload fixtures:", err);
-            return undefined;
-          }),
+          fetch("/api/v1/sports-tv/channels?page=1&page_size=50", { method: "GET" }).catch(() => undefined),
+          fetch("/api/v1/sports-tv/filters", { method: "GET" }).catch(() => undefined),
+          fetch("/api/v1/sports-tv/fixtures?hours_back=6&days_ahead=3", { method: "GET" }).catch(() => undefined),
         ]);
       } catch (err) {
         // Silent failure — user experience not interrupted

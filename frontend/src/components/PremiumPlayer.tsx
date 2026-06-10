@@ -316,6 +316,8 @@ export default function PremiumPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const autoRetryCountRef = useRef(0);
+  const MAX_AUTO_RETRIES = 3;
   const [autoRetryCountdown, setAutoRetryCountdown] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
@@ -671,6 +673,7 @@ export default function PremiumPlayer({
     };
     const onPlaying = () => {
       playbackStartedRef.current = true;
+      autoRetryCountRef.current = 0;
       setIsLoading(false);
       setHasError(false);
     };
@@ -681,6 +684,7 @@ export default function PremiumPlayer({
       const end = video.buffered.end(video.buffered.length - 1);
       const dur = video.duration;
       if (dur > 0 && Number.isFinite(dur)) setBufferedPct(Math.min(100, (end / dur) * 100));
+      else setBufferedPct(0);
     };
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -743,10 +747,9 @@ export default function PremiumPlayer({
       const rect = container!.getBoundingClientRect();
       const tapX = touch.clientX - rect.left;
       if (now - lastTapTime < 300 && Math.abs(tapX - lastTapX) < rect.width * 0.6) {
-        const isLeft = tapX < rect.width / 2;
-        const seekDelta = isLeft ? -10 : 10;
-        video!.currentTime = Math.max(0, video!.currentTime + seekDelta);
-        showSeekRipple(isLeft ? "left" : "right", Math.abs(seekDelta));
+        // Live streams: no seek — show controls only
+        setShowControls(true);
+        scheduleHideControls();
         lastTapTime = 0;
       } else {
         lastTapTime = now;
@@ -885,6 +888,11 @@ export default function PremiumPlayer({
     setRetryKey((k) => k + 1);
   }, []);
 
+  const retryStreamManual = useCallback(() => {
+    autoRetryCountRef.current = 0;
+    retryStream();
+  }, [retryStream]);
+
   const startSleepTimer = useCallback((minutes: number) => {
     if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
     setSleepMinutes(minutes);
@@ -911,20 +919,29 @@ export default function PremiumPlayer({
   // Cleanup sleep timer on unmount
   useEffect(() => () => { if (sleepTimerRef.current) clearInterval(sleepTimerRef.current); }, []);
 
-  // Auto-retry countdown: when error or geo-block appears, count down then auto-retry
+  // Auto-retry countdown: when error or geo-block appears, count down then auto-retry (max 3)
   useEffect(() => {
     if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
+    if (autoRetryCountRef.current >= MAX_AUTO_RETRIES) {
+      setAutoRetryCountdown(0);
+      return;
+    }
     onStreamError?.();
     const secs = geoRestricted ? 15 : 10;
     setAutoRetryCountdown(secs);
     const interval = setInterval(() => {
       setAutoRetryCountdown((c) => {
-        if (c <= 1) { clearInterval(interval); retryStream(); return 0; }
+        if (c <= 1) {
+          clearInterval(interval);
+          autoRetryCountRef.current += 1;
+          retryStream();
+          return 0;
+        }
         return c - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [hasError, geoRestricted, retryStream]);
+  }, [hasError, geoRestricted, retryStream, onStreamError]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1131,7 +1148,7 @@ export default function PremiumPlayer({
             </div>
             {/* Actions */}
             <div className="flex flex-wrap justify-center gap-2">
-              <button type="button" onClick={retryStream}
+              <button type="button" onClick={retryStreamManual}
                 className="flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold text-white transition active:scale-95"
                 style={{ background: "linear-gradient(135deg, rgba(245,166,35,0.25), rgba(245,166,35,0.15))", border: "1px solid rgba(245,166,35,0.45)", boxShadow: "0 4px 12px rgba(245,166,35,0.15)" }}>
                 <RefreshCw size={13} /> আবার চেষ্টা
@@ -1166,7 +1183,7 @@ export default function PremiumPlayer({
       </div>
 
       {/* Custom overlay */}
-      {overlay}
+      {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30">{overlay}</div> : null}
 
       {/* ── Seek ripple overlay (double-tap ±10s) ── */}
       <AnimatePresence>
@@ -1251,7 +1268,7 @@ export default function PremiumPlayer({
               className="rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-wide"
               style={{ background: "rgba(0,0,0,0.38)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(4px)" }}
             >
-              স্পর্শ করুন · ডাবল ট্যাপ ±10s
+              স্পর্শ করুন · ভলিউম সোয়াইপ
             </span>
           </motion.div>
         )}
@@ -1269,6 +1286,7 @@ export default function PremiumPlayer({
             className="absolute inset-x-0 bottom-0 z-40"
           >
             {/* Live buffer bar — edge-to-edge at very bottom */}
+            {bufferedPct > 0 && (
             <div className="absolute bottom-0 left-0 right-0 h-[3px]" style={{ background: "rgba(255,255,255,0.06)", zIndex: 1 }}>
               <motion.div
                 className="h-full rounded-r-full"
@@ -1277,6 +1295,7 @@ export default function PremiumPlayer({
                 transition={{ duration: 0.6, ease: "easeOut" }}
               />
             </div>
+            )}
 
             <div
               className="mx-2 mb-[7px] overflow-hidden rounded-2xl sm:mx-3"
@@ -1305,16 +1324,12 @@ export default function PremiumPlayer({
                 </div>
                 {/* Title */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="h-1.5 w-1.5 rounded-full animate-pulse shrink-0" style={{ background: "#ef4444" }} />
-                    <span className="text-[8px] font-black uppercase tracking-[0.2em]" style={{ color: "rgba(245,166,35,0.75)" }}>LIVE NOW</span>
-                    {isCurrentRelay && (
-                      <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase tracking-wider" style={{ background: "rgba(16,185,129,0.18)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
-                        RELAY
-                      </span>
-                    )}
-                  </div>
                   <p className="truncate text-[13px] font-bold leading-tight text-white">{title}</p>
+                  {isCurrentRelay && (
+                    <span className="mt-0.5 inline-flex rounded-full px-1.5 py-px text-[8px] font-bold uppercase tracking-wider" style={{ background: "rgba(16,185,129,0.18)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
+                      RELAY
+                    </span>
+                  )}
                 </div>
                 {/* External players toggle */}
                 <button

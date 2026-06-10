@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json as _json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -18,6 +18,7 @@ from app.core.sync_rate_limit import (
     get_last_sweep_iso,
     get_last_sweep_checked,
     get_last_sweep_deactivated,
+    check_sync_allowed,
 )
 from app.db.session import get_db
 from app.models.channel import Channel
@@ -111,6 +112,7 @@ async def sync_channels(
     _db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> dict[str, int]:
+    check_sync_allowed()
     del _db
     try:
         result = await run_in_threadpool(_sync_m3u_blocking)
@@ -163,10 +165,18 @@ async def purge_inactive_channels(
 
 @router.get("/channels", response_model=list[ChannelRead])
 async def admin_list_channels(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> list[ChannelRead]:
-    stmt = select(Channel).where(Channel.is_active.is_(True)).order_by(Channel.updated_at.desc())
+    stmt = (
+        select(Channel)
+        .where(Channel.is_active.is_(True))
+        .order_by(Channel.updated_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     r = await db.execute(stmt)
     chans = r.scalars().all()
     return [ChannelRead.model_validate(c) for c in chans]
