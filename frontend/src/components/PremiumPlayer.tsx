@@ -108,6 +108,16 @@ type ScreenOrientationWithLock = ScreenOrientation & {
   lock?: (orientation: "landscape" | "landscape-primary" | "any") => Promise<void>;
 };
 
+type NativeAudioTrackList = {
+  length: number;
+  [i: number]: { id: string; label: string; enabled: boolean } | undefined;
+};
+
+type HlsAudioTrackList = Hls & {
+  audioTracks?: { name?: string; lang?: string; groupId?: string }[];
+  audioTrack?: number;
+};
+
 /** Best-effort landscape lock for mobile playback (works on many Android browsers, often requires fullscreen). */
 async function tryLockLandscapePlayback(): Promise<void> {
   if (typeof screen === "undefined") return;
@@ -180,6 +190,7 @@ const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
 const RETRY_KEY_MIN_INTERVAL_MS = 2000;
 const URL_FAIL_COOLDOWN_MS = 90 * 1000;
+const RUNNING_PLAYBACK_ERROR_GRACE_MS = 15_000;
 const SERVER_WAKE_RETRY_DELAYS_MS = [8000, 15000, 30000];
 const recentlyFailedUrlUntil = new Map<string, number>();
 
@@ -285,6 +296,8 @@ export default function PremiumPlayer({
   const lastRetryAtRef = useRef(0);
   const retryPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stablePlaybackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runningIssueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runningIssueExpiredRef = useRef(false);
   const serverWakeRetryRef = useRef(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -352,6 +365,34 @@ export default function PremiumPlayer({
     () => !playbackStartedRef.current && !everPlayedRef.current,
     []
   );
+
+  const clearRunningIssueTimer = useCallback(() => {
+    if (runningIssueTimerRef.current) {
+      clearTimeout(runningIssueTimerRef.current);
+      runningIssueTimerRef.current = null;
+    }
+    runningIssueExpiredRef.current = false;
+  }, []);
+
+  const keepRunningPlaybackOnIssue = useCallback(() => {
+    if (canAutoReloadBeforePlayback()) return false;
+    if (runningIssueExpiredRef.current) return false;
+    setIsSwitching(false);
+    setIsLoading(false);
+    setHasError(false);
+    setGeoRestricted(false);
+    setIsBuffering(true);
+    if (!runningIssueTimerRef.current) {
+      runningIssueTimerRef.current = setTimeout(() => {
+        runningIssueTimerRef.current = null;
+        runningIssueExpiredRef.current = true;
+        setIsBuffering(false);
+        setHasError(true);
+        onStreamErrorRef.current?.();
+      }, RUNNING_PLAYBACK_ERROR_GRACE_MS);
+    }
+    return true;
+  }, [canAutoReloadBeforePlayback]);
 
   const scheduleRetryKey = useCallback(() => {
     if (!canAutoReloadBeforePlayback()) return;
@@ -462,9 +503,11 @@ export default function PremiumPlayer({
     setServerWaking(false);
     setEverPlayed(false);
     everPlayedRef.current = false;
+    playbackStartedRef.current = false;
     linkRetryRef.current = 0;
     hlsRecoveryRef.current = 0;
     serverWakeRetryRef.current = 0;
+    stallCountRef.current = 0;
     firstHideDoneRef.current = false;
     hintShownRef.current = false;
     setShowHint(false);
@@ -481,12 +524,15 @@ export default function PremiumPlayer({
       clearTimeout(stablePlaybackTimerRef.current);
       stablePlaybackTimerRef.current = null;
     }
-  }, [streamIdentity]);
+    clearRunningIssueTimer();
+  }, [streamIdentity, clearRunningIssueTimer]);
 
   useEffect(
     () => () => {
       if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+      if (runningIssueTimerRef.current) clearTimeout(runningIssueTimerRef.current);
+      runningIssueExpiredRef.current = false;
     },
     []
   );
@@ -576,13 +622,7 @@ export default function PremiumPlayer({
       });
       player.initialize(video, effectiveUrl, true);
       const onError = () => {
-        if (!canAutoReloadBeforePlayback()) {
-          setIsSwitching(false);
-          setIsLoading(false);
-          setIsBuffering(false);
-          setHasError(true);
-          return;
-        }
+        if (keepRunningPlaybackOnIssue()) return;
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
@@ -639,12 +679,7 @@ export default function PremiumPlayer({
           const onEnd = () => {
             xhr.removeEventListener("loadend", onEnd);
             if (xhr.status === 503) {
-              if (!canAutoReloadBeforePlayback()) {
-                setServerWaking(false);
-                setIsLoading(false);
-                setIsBuffering(true);
-                return;
-              }
+              if (keepRunningPlaybackOnIssue()) return;
               // Backend is hibernating (Render free tier) — show waking message and retry after delay
               setServerWaking(true);
               if (everPlayedRef.current) {
@@ -669,6 +704,7 @@ export default function PremiumPlayer({
                 setGeoRestricted(false);
                 return;
               }
+              if (keepRunningPlaybackOnIssue()) return;
               if (parseGeoFromXhr(xhr)) {
                 setGeoRestricted(true);
               } else {
@@ -680,6 +716,7 @@ export default function PremiumPlayer({
             }
             if (xhr.status >= 500 || xhr.status === 429) {
               if (tryFailover()) return;
+              if (keepRunningPlaybackOnIssue()) return;
               setIsLoading(false);
               setIsSwitching(false);
               setHasError(true);
@@ -729,6 +766,7 @@ export default function PremiumPlayer({
 
         if (httpCode === 403 || httpCode === 401 || httpCode === 451) {
           if (tryFailover()) return;
+          if (keepRunningPlaybackOnIssue()) return;
           if (httpCode === 451) {
             setGeoRestricted(true);
           } else {
@@ -792,6 +830,7 @@ export default function PremiumPlayer({
           if (canAutoReloadBeforePlayback() && tryFailover()) return;
         }
 
+        if (keepRunningPlaybackOnIssue()) return;
         setIsSwitching(false);
         setHasError(true);
         setIsLoading(false);
@@ -884,6 +923,7 @@ export default function PremiumPlayer({
         setIsBuffering(false);
         setIsLoading(false);
         setIsSwitching(false);
+        if (keepRunningPlaybackOnIssue()) return;
         setHasError(true);
       };
       video.addEventListener("loadedmetadata", onNativeReady);
@@ -912,6 +952,7 @@ export default function PremiumPlayer({
     scheduleRetryKey,
     attemptVideoPlayback,
     canAutoReloadBeforePlayback,
+    keepRunningPlaybackOnIssue,
   ]);
 
   useEffect(() => {
@@ -924,23 +965,16 @@ export default function PremiumPlayer({
       healthTrackerRef.current?.recordStall();
       if (playbackStartedRef.current) {
         setIsBuffering(true);
+        keepRunningPlaybackOnIssue();
         const hls = hlsRef.current;
         if (hls && trySilentHlsRecovery(hls)) return;
         stallCountRef.current += 1;
-        if (stallCountRef.current >= 4) {
-          stallCountRef.current = 0;
-          scheduleRetryKey();
-        }
         return;
       }
       setIsLoading(true);
-      stallCountRef.current += 1;
-      if (stallCountRef.current >= 3) {
-        stallCountRef.current = 0;
-        scheduleRetryKey();
-      }
     };
     const onPlaying = () => {
+      clearRunningIssueTimer();
       setIsBuffering(false);
       playbackStartedRef.current = true;
       everPlayedRef.current = true;
@@ -960,6 +994,7 @@ export default function PremiumPlayer({
       }, 10_000);
     };
     const onCanPlay = () => {
+      clearRunningIssueTimer();
       setIsLoading(false);
       setIsBuffering(false);
     };
@@ -968,6 +1003,7 @@ export default function PremiumPlayer({
         setIsLoading(false);
         return;
       }
+      if (keepRunningPlaybackOnIssue()) return;
       setHasError(true);
       setIsLoading(false);
     };
@@ -1015,7 +1051,7 @@ export default function PremiumPlayer({
       video.removeEventListener("enterpictureinpicture", onEnterPiP);
       video.removeEventListener("leavepictureinpicture", onLeavePiP);
     };
-  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey, geoRestricted]);
+  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey, geoRestricted, keepRunningPlaybackOnIssue, clearRunningIssueTimer]);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -1117,32 +1153,13 @@ export default function PremiumPlayer({
     }
   }, [isMobileSheet, isFullscreen, isTheaterMode]);
 
-  /** Auto PiP when player scrolls out of view */
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    if (!("IntersectionObserver" in window)) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry) return;
-        if (!entry.isIntersecting && isPlaying && document.pictureInPictureEnabled && videoRef.current && !document.pictureInPictureElement) {
-          videoRef.current.requestPictureInPicture().catch(() => {});
-        } else if (entry.isIntersecting && document.pictureInPictureElement === videoRef.current) {
-          document.exitPictureInPicture().catch(() => {});
-        }
-      },
-      { threshold: 0.15 }
-    );
-    obs.observe(container);
-    return () => obs.disconnect();
-  }, [isPlaying]);
-
   useEffect(
     () => () => {
       tryUnlockPlaybackOrientation();
       clearHideTimer();
       if (retryPendingRef.current) clearTimeout(retryPendingRef.current);
       if (stablePlaybackTimerRef.current) clearTimeout(stablePlaybackTimerRef.current);
+      clearRunningIssueTimer();
       healthTrackerRef.current?.destroy();
       healthTrackerRef.current = null;
       const hls = hlsRef.current;
@@ -1157,7 +1174,7 @@ export default function PremiumPlayer({
       }
       hlsRef.current = null;
     },
-    [clearHideTimer]
+    [clearHideTimer, clearRunningIssueTimer]
   );
 
   useEffect(() => {
@@ -1241,17 +1258,24 @@ export default function PremiumPlayer({
   }, [isMobileSheet, isTheaterMode]);
 
   const retryStream = useCallback(() => {
+    clearRunningIssueTimer();
     setHasError(false);
     setNeedsUserGesture(false);
     setGeoRestricted(false);
     setIsLoading(true);
+    setIsBuffering(false);
+    setEverPlayed(false);
     setAutoRetryCountdown(0);
+    playbackStartedRef.current = false;
+    everPlayedRef.current = false;
     linkRetryRef.current = 0;
+    hlsRecoveryRef.current = 0;
     serverWakeRetryRef.current = 0;
+    stallCountRef.current = 0;
     urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setRetryKey((k) => k + 1);
-  }, []);
+  }, [clearRunningIssueTimer]);
 
   useEffect(() => {
     onStreamErrorRef.current = onStreamError;
@@ -1351,6 +1375,7 @@ export default function PremiumPlayer({
   }, [liveMatchTitle, epgProgramTitle, title]);
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const showErrorOverlay = hasError || geoRestricted;
 
   const setVolumeFromPct = useCallback(
     (pct: number) => setVolumeLevel(pct / 100),
@@ -1384,16 +1409,43 @@ export default function PremiumPlayer({
     const video = videoRef.current;
     if (!video) return;
     const audio: AudioTrackOption[] = [];
-    const vAudio = (video as HTMLVideoElement & { audioTracks?: { length: number; [i: number]: { id: string; label: string; enabled: boolean } } }).audioTracks;
-    if (vAudio?.length) {
+    const hlsAudio = (hlsRef.current as HlsAudioTrackList | null)?.audioTracks ?? [];
+    if (hlsAudio.length > 0) {
+      hlsAudio.forEach((track, idx) => {
+        audio.push({
+          id: `hls:${idx}`,
+          label: track.name || track.lang || track.groupId || `Audio ${idx + 1}`,
+        });
+      });
+    }
+    const vAudio = (video as HTMLVideoElement & { audioTracks?: NativeAudioTrackList }).audioTracks;
+    if (audio.length === 0 && vAudio?.length) {
       for (let i = 0; i < vAudio.length; i++) {
         const t = vAudio[i];
-        if (t) audio.push({ id: t.id || String(i), label: t.label || `Audio ${i + 1}` });
+        if (t) audio.push({ id: `native:${t.id || i}`, label: t.label || `Audio ${i + 1}` });
       }
-    } else {
+    }
+    if (audio.length === 0) {
       audio.push({ id: "default", label: "Default" });
     }
     setAudioTracks(audio);
+    setSelectedAudioTrack((prev) => {
+      if (audio.some((track) => track.id === prev)) return prev;
+      const hlsTrack = hlsRef.current as HlsAudioTrackList | null;
+      const activeHls = typeof hlsTrack?.audioTrack === "number" ? `hls:${hlsTrack.audioTrack}` : null;
+      if (activeHls && audio.some((track) => track.id === activeHls)) return activeHls;
+      const activeNative = vAudio
+        ? audio.find((track) => {
+            if (!track.id.startsWith("native:")) return false;
+            for (let i = 0; i < vAudio.length; i++) {
+              const t = vAudio[i];
+              if (t?.enabled && track.id === `native:${t.id || i}`) return true;
+            }
+            return false;
+          })?.id
+        : null;
+      return activeNative ?? audio[0]?.id ?? "default";
+    });
 
     const subs: SubtitleTrackOption[] = [];
     for (let i = 0; i < video.textTracks.length; i++) {
@@ -1405,6 +1457,26 @@ export default function PremiumPlayer({
     setSubtitleTracks(subs);
   }, []);
 
+  const handleAudioTrackChange = useCallback((id: string) => {
+    const hls = hlsRef.current as HlsAudioTrackList | null;
+    if (id.startsWith("hls:") && hls) {
+      const next = Number(id.slice(4));
+      if (Number.isInteger(next)) hls.audioTrack = next;
+      setSelectedAudioTrack(id);
+      return;
+    }
+
+    const video = videoRef.current as (HTMLVideoElement & { audioTracks?: NativeAudioTrackList }) | null;
+    const vAudio = video?.audioTracks;
+    if (id.startsWith("native:") && vAudio?.length) {
+      for (let i = 0; i < vAudio.length; i++) {
+        const track = vAudio[i];
+        if (track) track.enabled = id === `native:${track.id || i}`;
+      }
+    }
+    setSelectedAudioTrack(id);
+  }, []);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -1412,6 +1484,22 @@ export default function PremiumPlayer({
     video.addEventListener("loadedmetadata", onMeta);
     return () => video.removeEventListener("loadedmetadata", onMeta);
   }, [syncMediaTracks, streamIdentity]);
+
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    const onAudioTracksUpdated = () => syncMediaTracks();
+    const onAudioTrackSwitched = (_event: unknown, data: { id?: number }) => {
+      if (typeof data.id === "number") setSelectedAudioTrack(`hls:${data.id}`);
+    };
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
+    syncMediaTracks();
+    return () => {
+      hls.off(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+      hls.off(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
+    };
+  }, [syncMediaTracks, streamIdentity, retryKey]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1524,7 +1612,7 @@ export default function PremiumPlayer({
 
       {/* ── Loading / Switching — Premium branded screen ── */}
       <AnimatePresence>
-        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !everPlayed && !hasError && !geoRestricted && (
+        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !everPlayed && !showErrorOverlay && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
@@ -1601,7 +1689,7 @@ export default function PremiumPlayer({
 
       {/* Browser autoplay policies can require a user gesture, especially on iOS/mobile data. */}
       <AnimatePresence>
-        {needsUserGesture && !hasError && !geoRestricted && (
+        {needsUserGesture && !showErrorOverlay && (
           <motion.div
             key="tap-to-play"
             initial={{ opacity: 0 }}
@@ -1636,7 +1724,7 @@ export default function PremiumPlayer({
 
       {/* ── Buffering — compact branded indicator during rebuffer ── */}
       <AnimatePresence>
-        {isBuffering && playbackStartedRef.current && !hasError && !geoRestricted && (
+        {isBuffering && playbackStartedRef.current && !showErrorOverlay && (
           <motion.div
             key="buffering"
             initial={{ opacity: 0 }}
@@ -1664,7 +1752,7 @@ export default function PremiumPlayer({
 
       {/* ── Error / Geo-restricted overlay ── */}
       <AnimatePresence>
-        {(hasError || geoRestricted) && (
+        {showErrorOverlay && (
           <motion.div
             key="error"
             initial={{ opacity: 0, scale: 0.98 }}
@@ -1856,7 +1944,7 @@ export default function PremiumPlayer({
         onQualityChange={changeQuality}
         audioTracks={audioTracks}
         selectedAudioTrack={selectedAudioTrack}
-        onAudioTrackChange={setSelectedAudioTrack}
+        onAudioTrackChange={handleAudioTrackChange}
         subtitleTracks={subtitleTracks}
         selectedSubtitle={selectedSubtitle}
         onSubtitleChange={setSelectedSubtitle}
