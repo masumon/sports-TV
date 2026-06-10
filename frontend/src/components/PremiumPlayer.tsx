@@ -353,6 +353,16 @@ export default function PremiumPlayer({
     []
   );
 
+  const keepRunningPlaybackOnIssue = useCallback(() => {
+    if (canAutoReloadBeforePlayback()) return false;
+    setIsSwitching(false);
+    setIsLoading(false);
+    setHasError(false);
+    setGeoRestricted(false);
+    setIsBuffering(true);
+    return true;
+  }, [canAutoReloadBeforePlayback]);
+
   const scheduleRetryKey = useCallback(() => {
     if (!canAutoReloadBeforePlayback()) return;
     if (retryPendingRef.current) clearTimeout(retryPendingRef.current);
@@ -576,13 +586,7 @@ export default function PremiumPlayer({
       });
       player.initialize(video, effectiveUrl, true);
       const onError = () => {
-        if (!canAutoReloadBeforePlayback()) {
-          setIsSwitching(false);
-          setIsLoading(false);
-          setIsBuffering(false);
-          setHasError(true);
-          return;
-        }
+        if (keepRunningPlaybackOnIssue()) return;
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
@@ -639,12 +643,7 @@ export default function PremiumPlayer({
           const onEnd = () => {
             xhr.removeEventListener("loadend", onEnd);
             if (xhr.status === 503) {
-              if (!canAutoReloadBeforePlayback()) {
-                setServerWaking(false);
-                setIsLoading(false);
-                setIsBuffering(true);
-                return;
-              }
+              if (keepRunningPlaybackOnIssue()) return;
               // Backend is hibernating (Render free tier) — show waking message and retry after delay
               setServerWaking(true);
               if (everPlayedRef.current) {
@@ -669,6 +668,7 @@ export default function PremiumPlayer({
                 setGeoRestricted(false);
                 return;
               }
+              if (keepRunningPlaybackOnIssue()) return;
               if (parseGeoFromXhr(xhr)) {
                 setGeoRestricted(true);
               } else {
@@ -680,6 +680,7 @@ export default function PremiumPlayer({
             }
             if (xhr.status >= 500 || xhr.status === 429) {
               if (tryFailover()) return;
+              if (keepRunningPlaybackOnIssue()) return;
               setIsLoading(false);
               setIsSwitching(false);
               setHasError(true);
@@ -729,6 +730,7 @@ export default function PremiumPlayer({
 
         if (httpCode === 403 || httpCode === 401 || httpCode === 451) {
           if (tryFailover()) return;
+          if (keepRunningPlaybackOnIssue()) return;
           if (httpCode === 451) {
             setGeoRestricted(true);
           } else {
@@ -792,6 +794,7 @@ export default function PremiumPlayer({
           if (canAutoReloadBeforePlayback() && tryFailover()) return;
         }
 
+        if (keepRunningPlaybackOnIssue()) return;
         setIsSwitching(false);
         setHasError(true);
         setIsLoading(false);
@@ -884,6 +887,7 @@ export default function PremiumPlayer({
         setIsBuffering(false);
         setIsLoading(false);
         setIsSwitching(false);
+        if (keepRunningPlaybackOnIssue()) return;
         setHasError(true);
       };
       video.addEventListener("loadedmetadata", onNativeReady);
@@ -912,6 +916,7 @@ export default function PremiumPlayer({
     scheduleRetryKey,
     attemptVideoPlayback,
     canAutoReloadBeforePlayback,
+    keepRunningPlaybackOnIssue,
   ]);
 
   useEffect(() => {
@@ -968,6 +973,7 @@ export default function PremiumPlayer({
         setIsLoading(false);
         return;
       }
+      if (keepRunningPlaybackOnIssue()) return;
       setHasError(true);
       setIsLoading(false);
     };
@@ -1015,7 +1021,7 @@ export default function PremiumPlayer({
       video.removeEventListener("enterpictureinpicture", onEnterPiP);
       video.removeEventListener("leavepictureinpicture", onLeavePiP);
     };
-  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey, geoRestricted]);
+  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey, geoRestricted, keepRunningPlaybackOnIssue]);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -1351,6 +1357,7 @@ export default function PremiumPlayer({
   }, [liveMatchTitle, epgProgramTitle, title]);
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const showErrorOverlay = (hasError || geoRestricted) && !everPlayed;
 
   const setVolumeFromPct = useCallback(
     (pct: number) => setVolumeLevel(pct / 100),
@@ -1524,7 +1531,7 @@ export default function PremiumPlayer({
 
       {/* ── Loading / Switching — Premium branded screen ── */}
       <AnimatePresence>
-        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !everPlayed && !hasError && !geoRestricted && (
+        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !everPlayed && !showErrorOverlay && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
@@ -1601,7 +1608,7 @@ export default function PremiumPlayer({
 
       {/* Browser autoplay policies can require a user gesture, especially on iOS/mobile data. */}
       <AnimatePresence>
-        {needsUserGesture && !hasError && !geoRestricted && (
+        {needsUserGesture && !showErrorOverlay && (
           <motion.div
             key="tap-to-play"
             initial={{ opacity: 0 }}
@@ -1636,7 +1643,7 @@ export default function PremiumPlayer({
 
       {/* ── Buffering — compact branded indicator during rebuffer ── */}
       <AnimatePresence>
-        {isBuffering && playbackStartedRef.current && !hasError && !geoRestricted && (
+        {isBuffering && playbackStartedRef.current && !showErrorOverlay && (
           <motion.div
             key="buffering"
             initial={{ opacity: 0 }}
@@ -1664,7 +1671,7 @@ export default function PremiumPlayer({
 
       {/* ── Error / Geo-restricted overlay ── */}
       <AnimatePresence>
-        {(hasError || geoRestricted) && (
+        {showErrorOverlay && (
           <motion.div
             key="error"
             initial={{ opacity: 0, scale: 0.98 }}
