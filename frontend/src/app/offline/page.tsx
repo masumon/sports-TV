@@ -33,7 +33,7 @@ export default function OfflinePage() {
   async function handleRetry() {
     setRetrying(true);
     try {
-      const res = await fetch("/api/v1/health", { cache: "no-store" });
+      const res = await fetch("/health", { cache: "no-store" });
       if (res.ok) {
         router.push("/");
         return;
