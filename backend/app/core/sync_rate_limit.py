@@ -11,6 +11,8 @@ _last_sync_completed_at: float = 0.0
 _last_sync_started_at: float = 0.0
 _last_sync_status: str | None = None
 _last_sync_error: str | None = None
+_last_sync_created: int = 0
+_last_sync_updated: int = 0
 _SYNC_STATE_KEY = "gstv:sync:state"
 _sync_lock = Lock()
 _sync_running = False
@@ -36,6 +38,8 @@ def _persist_state() -> None:
             "last_sync_at": get_last_sync_iso(),
             "last_sync_status": _last_sync_status,
             "last_sync_error": _last_sync_error,
+            "last_sync_created": _last_sync_created,
+            "last_sync_updated": _last_sync_updated,
             "last_sync_started_at": _utc_iso(_last_sync_started_at) if _last_sync_started_at else None,
             "last_sync_success_at": _utc_iso(_last_sync_at) if _last_sync_at else None,
         }
@@ -166,13 +170,16 @@ def _release_sync_lock() -> None:
     _release_local_sync_lock()
 
 
-def mark_sync_success() -> None:
+def mark_sync_success(*, created: int = 0, updated: int = 0) -> None:
     global _last_sync_at, _last_sync_completed_at, _last_sync_status, _last_sync_error
+    global _last_sync_created, _last_sync_updated
     now = time.time()
     _last_sync_at = now
     _last_sync_completed_at = now
     _last_sync_status = "success"
     _last_sync_error = None
+    _last_sync_created = created
+    _last_sync_updated = updated
     _release_sync_lock()
     _persist_state()
 
@@ -185,11 +192,14 @@ def mark_sync_started() -> None:
     _persist_state()
 
 
-def mark_sync_failure(error: str) -> None:
+def mark_sync_failure(error: str, *, created: int = 0, updated: int = 0) -> None:
     global _last_sync_completed_at, _last_sync_status, _last_sync_error
+    global _last_sync_created, _last_sync_updated
     _last_sync_completed_at = time.time()
     _last_sync_status = "failed"
     _last_sync_error = error[:500]
+    _last_sync_created = created
+    _last_sync_updated = updated
     _release_sync_lock()
     _persist_state()
 
@@ -206,6 +216,14 @@ def get_last_sync_status() -> str | None:
 
 def get_last_sync_error() -> str | None:
     return _last_sync_error
+
+
+def get_last_sync_created() -> int:
+    return _last_sync_created
+
+
+def get_last_sync_updated() -> int:
+    return _last_sync_updated
 
 
 # ── Health sweep state accessors ────────────────────────────────────────────

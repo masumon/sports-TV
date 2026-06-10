@@ -39,9 +39,13 @@ _CHAN_SUFFIX_NORM_RE = re.compile(
 _KODIPROP_NAME_RE = re.compile(r"^#?\s*KODIPROP:", re.IGNORECASE)
 _JUNK_NAME_RE = re.compile(r"^#(?:EXT|EXTINF|EXTVLCOPT|KODIPROP)", re.IGNORECASE)
 
-REQUEST_TIMEOUT_SECONDS = 8
+REQUEST_TIMEOUT_SECONDS = 15
 FETCH_RETRY_DELAYS_SECONDS = (1, 2, 4, 8)
 MAX_FETCH_ATTEMPTS = 5
+HTTP_HEADERS = {
+    "User-Agent": "ABOSportsTV/1.0 (+https://abosportstv.com; IPTV sync bot)",
+    "Accept": "application/vnd.apple.mpegurl, audio/mpegurl, application/x-mpegURL, */*",
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # M3U Source Definitions
@@ -195,7 +199,7 @@ def _get_with_retry(url: str, *, timeout: float | None = None) -> requests.Respo
     last_exc: Exception | None = None
     for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
         try:
-            response = requests.get(url, timeout=timeout_s)
+            response = requests.get(url, timeout=timeout_s, headers=HTTP_HEADERS)
             response.raise_for_status()
             return response
         except Exception as exc:
@@ -451,24 +455,26 @@ def _fetch_sources_parallel(
     *,
     timeout_by_url: dict[str, float] | None = None,
     max_workers: int = 8,
-) -> list[ParsedChannel]:
+) -> tuple[list[ParsedChannel], dict[str, int]]:
     """
     Fetch multiple M3U sources in parallel using a thread pool.
 
     url_flag_pairs: list of (url, sports_only, module)
     timeout_by_url: optional per-URL requests timeout (seconds), e.g. large index.m3u
-    Returns combined list of ParsedChannel entries.
+    Returns combined list of ParsedChannel entries and fetch stats.
     """
     results: list[ParsedChannel] = []
+    sources_ok = 0
+    sources_failed = 0
 
-    def _fetch_and_parse(url: str, sports_only: bool, module: str) -> list[ParsedChannel]:
+    def _fetch_and_parse(url: str, sports_only: bool, module: str) -> tuple[list[ParsedChannel], bool]:
         to = timeout_by_url.get(url) if timeout_by_url else None
         playlist = _fetch_m3u_safe(url, timeout_seconds=to)
         if not playlist:
-            return []
+            return [], False
         entries = parse_m3u_entries(playlist, sports_only=sports_only, module=module)
         logger.info("Fetched %d entries from %s (sports_only=%s)", len(entries), url, sports_only)
-        return entries
+        return entries, True
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
@@ -478,12 +484,17 @@ def _fetch_sources_parallel(
         for fut in as_completed(futures):
             url = futures[fut]
             try:
-                entries = fut.result()
-                results.extend(entries)
+                entries, ok = fut.result()
+                if ok:
+                    sources_ok += 1
+                    results.extend(entries)
+                else:
+                    sources_failed += 1
             except Exception as exc:
+                sources_failed += 1
                 logger.warning("Parallel fetch error for %s: %s", url, exc)
 
-    return results
+    return results, {"sources_ok": sources_ok, "sources_failed": sources_failed, "parsed": len(results)}
 
 
 # Known EPG IDs mapped from normalized channel name fragments.
@@ -586,17 +597,26 @@ def scrape_and_sync_sports_channels(
             timeout_by_url[idx] = float(settings.iptv_full_index_fetch_timeout_seconds)
 
     logger.info("Sync start source_count=%d", len(fetch_jobs))
-    all_entries = _fetch_sources_parallel(
+    all_entries, fetch_stats = _fetch_sources_parallel(
         fetch_jobs, timeout_by_url=timeout_by_url or None, max_workers=8
     )
 
     if not all_entries:
         logger.warning("Sync skipped reason=no_channels_parsed source_count=%d", len(fetch_jobs))
-        return {"created": 0, "updated": 0, "total": 0}
+        return {
+            "created": 0,
+            "updated": 0,
+            "total": 0,
+            "parsed": 0,
+            **fetch_stats,
+        }
 
     logger.info(
         "Sync parsed entry_count=%d source_count=%d",
         len(all_entries),
         len(fetch_jobs),
     )
-    return sync_channels_from_entries(db, all_entries)
+    db_result = sync_channels_from_entries(db, all_entries)
+    db_result["parsed"] = len(all_entries)
+    db_result.update(fetch_stats)
+    return db_result

@@ -13,13 +13,14 @@ from app.core.cache import invalidate_list_caches
 from app.core.config import settings
 from app.core.security import get_current_admin_user
 from app.core.sync_rate_limit import (
+    get_last_sync_created,
     get_last_sync_iso,
     get_last_sync_status,
     get_last_sync_error,
+    get_last_sync_updated,
     get_last_sweep_iso,
     get_last_sweep_checked,
     get_last_sweep_deactivated,
-    check_sync_allowed,
 )
 from app.db.session import get_db
 from app.models.channel import Channel
@@ -63,6 +64,8 @@ async def admin_stats(
         last_sync_at=get_last_sync_iso(),
         last_sync_status=get_last_sync_status(),
         last_sync_error=get_last_sync_error(),
+        last_sync_created=get_last_sync_created(),
+        last_sync_updated=get_last_sync_updated(),
         last_sweep_at=get_last_sweep_iso(),
         last_sweep_checked=get_last_sweep_checked(),
         last_sweep_deactivated=get_last_sweep_deactivated(),
@@ -107,16 +110,29 @@ async def sync_fixtures(
         ) from exc
 
 
-@router.post("/channels/sync", response_model=dict[str, int])
+@router.post("/channels/sync")
 async def sync_channels(
     _db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
-) -> dict[str, int]:
-    check_sync_allowed()
+) -> dict[str, int | str]:
+    """Trigger M3U channel sync. Lock + rate limit handled inside run_channel_sync."""
     del _db
     try:
         result = await run_in_threadpool(_sync_m3u_blocking)
+        if result.get("skipped"):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Sync already running or rate limited. Please wait and retry.",
+            )
+        status_val = result.get("status")
+        if status_val == "failed":
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(result.get("message") or "No channels parsed from any M3U source."),
+            )
         return result
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -199,6 +215,10 @@ async def admin_create_channel(
     if mod not in ("global_sports", "bangladesh", "india", "fast_tv", "live_matches", "world_cup_2026"):
         mod = "global_sports"
 
+    alt_urls = payload.alternate_urls or []
+    clean_alts = [str(url).strip() for url in alt_urls if str(url).strip() and str(url).strip() != str(payload.stream_url)]
+    alt_json = _json.dumps(clean_alts) if clean_alts else None
+
     channel = Channel(
         name=payload.name.strip(),
         country=payload.country.strip(),
@@ -206,6 +226,7 @@ async def admin_create_channel(
         language=payload.language.strip(),
         logo_url=str(payload.logo_url) if payload.logo_url else None,
         stream_url=str(payload.stream_url),
+        alternate_urls=alt_json,
         quality_tag=payload.quality_tag.strip().lower(),
         module=mod,
         is_active=payload.is_active,

@@ -302,7 +302,7 @@ export const apiClient = {
   },
 
   adminSyncChannels(token: string) {
-    return apiRequest<Record<string, number>>("/admin/channels/sync", {
+    return apiRequest<Record<string, number | string>>("/admin/channels/sync", {
       method: "POST",
       authToken: token,
       timeoutMs: 5 * 60 * 1000, // 5 minutes — M3U sync can be slow on free tier

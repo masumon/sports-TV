@@ -519,13 +519,12 @@ export default function AdminDashboardPage() {
       const created = result?.created ?? 0;
       const updated = result?.updated ?? 0;
       const total = result?.total ?? 0;
-      if (total === 0 && created === 0 && updated === 0) {
-        toast.warning("⚠️ Sync সম্পন্ন — কিন্তু কোনো channel parse হয়নি। M3U source check করুন।");
-      } else {
-        toast.success(`✓ Sync সম্পন্ন — ${created} নতুন, ${updated} আপডেট, ${total} মোট`);
-      }
+      const parsed = result?.parsed ?? total;
+      toast.success(`✓ Sync সম্পন্ন — ${created} নতুন, ${updated} আপডেট, ${parsed} parsed, ${total} মোট`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "M3U Sync ব্যর্থ হয়েছে");
+      const msg = err instanceof Error ? err.message : "M3U Sync ব্যর্থ হয়েছে";
+      setError(msg);
+      toast.error(msg);
     } finally {
       clearTimeout(fallback);
       setSyncing(false);

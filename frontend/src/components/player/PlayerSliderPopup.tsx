@@ -14,6 +14,8 @@ type Props = {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   onChange: (value: number) => void;
   onClose: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 };
 
 export function PlayerSliderPopup({
@@ -26,6 +28,8 @@ export function PlayerSliderPopup({
   anchorRef,
   onChange,
   onClose,
+  onMouseEnter,
+  onMouseLeave,
 }: Props) {
   const popupRef = useRef<HTMLDivElement>(null);
 
@@ -63,8 +67,10 @@ export function PlayerSliderPopup({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 6, scale: 0.96 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className="player-slider-popup absolute bottom-full left-1/2 z-50 mb-2 flex -translate-x-1/2 flex-col items-center gap-2 rounded-2xl px-3 py-3"
+          className="player-slider-popup absolute bottom-full left-1/2 z-50 mb-1 flex -translate-x-1/2 flex-col items-center gap-2 rounded-2xl px-3 py-3"
           onClick={(e) => e.stopPropagation()}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
         >
           <Icon size={18} className="text-white/90" aria-hidden />
           <div className="player-slider-track relative flex h-28 w-8 items-center justify-center">

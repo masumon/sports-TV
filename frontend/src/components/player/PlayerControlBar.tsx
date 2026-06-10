@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Maximize, Minimize, Pause, Play, Settings } from "lucide-react";
 import { LiveTimeline } from "./LiveTimeline";
@@ -45,7 +45,35 @@ export function PlayerControlBar({
 }: Props) {
   const [volumeOpen, setVolumeOpen] = useState(false);
   const volumeBtnRef = useRef<HTMLButtonElement>(null);
+  const volumeCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const volumePct = Math.round(volume * 100);
+  const finePointer =
+    typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
+
+  const openVolumeHover = () => {
+    if (!finePointer) return;
+    if (volumeCloseTimerRef.current) {
+      clearTimeout(volumeCloseTimerRef.current);
+      volumeCloseTimerRef.current = null;
+    }
+    setVolumeOpen(true);
+  };
+
+  const scheduleCloseVolumeHover = () => {
+    if (!finePointer) return;
+    if (volumeCloseTimerRef.current) clearTimeout(volumeCloseTimerRef.current);
+    volumeCloseTimerRef.current = setTimeout(() => {
+      volumeCloseTimerRef.current = null;
+      setVolumeOpen(false);
+    }, 220);
+  };
+
+  useEffect(
+    () => () => {
+      if (volumeCloseTimerRef.current) clearTimeout(volumeCloseTimerRef.current);
+    },
+    []
+  );
 
   return (
     <motion.div
@@ -53,7 +81,7 @@ export function PlayerControlBar({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.22, ease: "easeOut" }}
-      className="player-control-shell absolute inset-x-0 bottom-0 z-40 px-1.5 pb-1.5 sm:px-3 sm:pb-3"
+      className="player-control-shell pointer-events-auto absolute inset-x-0 bottom-0 z-40 px-1.5 pb-1.5 sm:px-3 sm:pb-3"
       style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0px))" }}
     >
       <div className="glass-player-bar-premium overflow-visible rounded-[20px]">
@@ -70,7 +98,11 @@ export function PlayerControlBar({
             {isPlaying ? <Pause size={22} aria-hidden /> : <Play size={22} fill="currentColor" aria-hidden />}
           </button>
 
-          <div className="relative shrink-0">
+          <div
+            className="relative shrink-0"
+            onMouseEnter={openVolumeHover}
+            onMouseLeave={scheduleCloseVolumeHover}
+          >
             <button
               ref={volumeBtnRef}
               type="button"
@@ -78,11 +110,7 @@ export function PlayerControlBar({
                 e.stopPropagation();
                 setVolumeOpen((v) => !v);
               }}
-              onMouseEnter={() => {
-                if (typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches) {
-                  setVolumeOpen(true);
-                }
-              }}
+              onMouseEnter={openVolumeHover}
               aria-label={isMuted ? "Unmute" : "Volume"}
               aria-expanded={volumeOpen}
               className="player-control-btn"
@@ -99,6 +127,8 @@ export function PlayerControlBar({
               anchorRef={volumeBtnRef}
               onChange={onVolumeChange}
               onClose={() => setVolumeOpen(false)}
+              onMouseEnter={openVolumeHover}
+              onMouseLeave={scheduleCloseVolumeHover}
             />
           </div>
 

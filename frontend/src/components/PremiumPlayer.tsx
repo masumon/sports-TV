@@ -259,6 +259,7 @@ export default function PremiumPlayer({
   const dashRef = useRef<ReturnType<ReturnType<typeof dashjs.MediaPlayer>["create"]> | null>(null);
   /** After first `playing`, do not show the full-screen loader on routine rebuffering. */
   const playbackStartedRef = useRef(false);
+  const everPlayedRef = useRef(false);
   const loadGenRef = useRef(0);
   const lastRetryAtRef = useRef(0);
   const retryPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -403,6 +404,7 @@ export default function PremiumPlayer({
     setGeoRestricted(false);
     setServerWaking(false);
     setEverPlayed(false);
+    everPlayedRef.current = false;
     linkRetryRef.current = 0;
     hlsRecoveryRef.current = 0;
     firstHideDoneRef.current = false;
@@ -479,10 +481,15 @@ export default function PremiumPlayer({
     setQualityOptions([{ label: "Auto", value: -1 }]);
     setSelectedQuality(-1);
     setBufferedPct(0);
-    setIsLoading(true);
     setHasError(false);
     setGeoRestricted(false);
-    playbackStartedRef.current = false;
+    const resumePlayback = everPlayedRef.current;
+    if (resumePlayback) {
+      setIsBuffering(true);
+    } else {
+      playbackStartedRef.current = false;
+      setIsLoading(true);
+    }
 
     const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
     if (!allUrls.length) {
@@ -513,8 +520,12 @@ export default function PremiumPlayer({
         if (nextIdx < allUrls.length) {
           urlPlayIndexRef.current = nextIdx;
           setUrlIdx(nextIdx);
-          setIsSwitching(true);
-          setIsLoading(true);
+          if (everPlayedRef.current) {
+            setIsBuffering(true);
+          } else {
+            setIsSwitching(true);
+            setIsLoading(true);
+          }
           scheduleRetryKey();
         } else {
           setIsSwitching(false);
@@ -564,7 +575,11 @@ export default function PremiumPlayer({
             if (xhr.status === 503) {
               // Backend is hibernating (Render free tier) — show waking message and retry after delay
               setServerWaking(true);
-              setIsLoading(true);
+              if (everPlayedRef.current) {
+                setIsBuffering(true);
+              } else {
+                setIsLoading(true);
+              }
               if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
               linkRetryTimerRef.current = setTimeout(() => {
                 linkRetryTimerRef.current = null;
@@ -616,9 +631,13 @@ export default function PremiumPlayer({
         if (nextIdx >= allUrls.length || !hlsInstance) return false;
         urlPlayIndexRef.current = nextIdx;
         setUrlIdx(nextIdx);
-        playbackStartedRef.current = false;
-        setIsSwitching(true);
-        setIsLoading(true);
+        if (everPlayedRef.current) {
+          setIsBuffering(true);
+        } else {
+          setIsSwitching(true);
+          playbackStartedRef.current = false;
+          setIsLoading(true);
+        }
         try {
           hls.stopLoad();
           hls.loadSource(allUrls[nextIdx]!);
@@ -682,9 +701,11 @@ export default function PremiumPlayer({
           const retries = linkRetryRef.current;
           if (retries < LINK_RETRY_ATTEMPTS - 1) {
             linkRetryRef.current = retries + 1;
-            if (!playbackStartedRef.current) {
+            if (!playbackStartedRef.current && !everPlayedRef.current) {
               setIsLoading(true);
               setIsSwitching(true);
+            } else {
+              setIsBuffering(true);
             }
             if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
             linkRetryTimerRef.current = setTimeout(() => {
@@ -789,6 +810,7 @@ export default function PremiumPlayer({
     const onPlaying = () => {
       setIsBuffering(false);
       playbackStartedRef.current = true;
+      everPlayedRef.current = true;
       setEverPlayed(true);
       autoRetryCountRef.current = 0;
       stallCountRef.current = 0;
@@ -1295,10 +1317,15 @@ export default function PremiumPlayer({
     setShowExternalPanel(true);
   }, []);
 
-  const handlePlayerPointerLeave = useCallback(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
-    if (isPlaying) setShowControls(false);
-  }, [isPlaying]);
+  const handlePlayerPointerLeave = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
+      const next = e.relatedTarget;
+      if (next instanceof Node && e.currentTarget.contains(next)) return;
+      if (isPlaying) setShowControls(false);
+    },
+    [isPlaying]
+  );
 
   return (
     <motion.div
@@ -1338,12 +1365,17 @@ export default function PremiumPlayer({
         />
       ) : null}
 
-      <div className="absolute inset-0 z-10 cursor-pointer" onClick={handleVideoSurfaceClick} aria-hidden />
+      <div
+        className="absolute inset-0 z-10 cursor-pointer"
+        onClick={handleVideoSurfaceClick}
+        onMouseMove={showControlsTemporarily}
+        aria-hidden
+      />
 
 
       {/* ── Loading / Switching — Premium branded screen ── */}
       <AnimatePresence>
-        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !hasError && !geoRestricted && (
+        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !everPlayed && !hasError && !geoRestricted && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
@@ -1401,7 +1433,7 @@ export default function PremiumPlayer({
                 {title || "ABO SPORTS TV"}
               </p>
               <p className="text-[11px] font-medium tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.75)" }}>
-                {serverWaking ? "Server জাগছে… একটু অপেক্ষা করুন" : everPlayed ? RECONNECT_MSG : LOADING_MSG}
+                {serverWaking ? "Server জাগছে… একটু অপেক্ষা করুন" : LOADING_MSG}
               </p>
             </div>
 
