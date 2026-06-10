@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.channel import Channel
+from app.services.channel_cleanup import _merge_alternate_urls
 
 logger = logging.getLogger("app.scraper")
 
@@ -404,7 +405,9 @@ def sync_channels_from_entries(
             channel.language = primary.language or channel.language
             channel.source = source
             channel.module = primary.module
-            channel.alternate_urls = alt_json
+            channel.alternate_urls = _merge_alternate_urls(
+                channel.stream_url, channel.alternate_urls, clean_alts
+            )
             channel.is_active = True
             # Explicitly bump updated_at so the cleanup engine can detect stale channels.
             # (onupdate fires only if SQLAlchemy detects a dirty column; this guarantees it.)
