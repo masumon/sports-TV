@@ -248,6 +248,10 @@ const PRIMARY_CATEGORIES: { id: ViewerModule | "more"; label: string; icon: stri
   { id: "more", label: "More", icon: "📂" },
 ];
 
+function isViewerModule(module: string): module is ViewerModule {
+  return (MODULE_ORDER as readonly string[]).includes(module);
+}
+
 export function ViewerHome() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -289,6 +293,8 @@ export function ViewerHome() {
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
   const launchRestoreDoneRef = useRef(false);
+  const lastSelectedByModuleRef = useRef<Partial<Record<ViewerModule, number>>>({});
+  const suppressAutoSelectRef = useRef(false);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
@@ -334,6 +340,10 @@ export function ViewerHome() {
   /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
   const selectChannel = useCallback(
     (ch: Channel) => {
+      suppressAutoSelectRef.current = false;
+      if (isViewerModule(ch.module)) {
+        lastSelectedByModuleRef.current[ch.module] = ch.id;
+      }
       startTransition(() => {
         setActiveModule(ch.module as ViewerModule);
         setActiveChannel(ch);
@@ -615,6 +625,10 @@ export function ViewerHome() {
       toast.error("চ্যানেলটি পাওয়া যায়নি বা সরিয়ে নেওয়া হয়েছে।");
       return;
     }
+    suppressAutoSelectRef.current = false;
+    if (isViewerModule(ch.module)) {
+      lastSelectedByModuleRef.current[ch.module] = ch.id;
+    }
     startTransition(() => {
       setActiveModule(ch.module as ViewerModule);
     });
@@ -656,6 +670,19 @@ export function ViewerHome() {
     [allChannels, activeModule]
   );
 
+  const channelById = useMemo(() => new Map(allChannels.map((c) => [c.id, c])), [allChannels]);
+
+  useEffect(() => {
+    if (!activeChannel || !allChannels.length) return;
+    if (isViewerModule(activeChannel.module)) {
+      lastSelectedByModuleRef.current[activeChannel.module] = activeChannel.id;
+    }
+    const refreshed = channelById.get(activeChannel.id);
+    if (refreshed && refreshed !== activeChannel) {
+      startTransition(() => setActiveChannel(refreshed));
+    }
+  }, [activeChannel, allChannels.length, channelById, setActiveChannel]);
+
   // Launch: restore last channel or featured live; then module-aware selection
   useEffect(() => {
     if (loading || !allChannels.length || channelIdParam) return;
@@ -685,6 +712,10 @@ export function ViewerHome() {
         allChannels.find((c) => c.module === "live_matches" && c.is_active && !c.geo_hint) ??
         moduleChannels[0];
       if (pick) {
+        suppressAutoSelectRef.current = false;
+        if (isViewerModule(pick.module)) {
+          lastSelectedByModuleRef.current[pick.module] = pick.id;
+        }
         startTransition(() => {
           setActiveModule(pick.module as ViewerModule);
           setActiveChannel(pick);
@@ -694,13 +725,14 @@ export function ViewerHome() {
     }
 
     if (moduleChannels.length === 0) {
-      if (activeChannel && activeChannel.module !== activeModule) {
-        startTransition(() => setActiveChannel(null));
-      }
       return;
     }
-    if (!activeChannel || activeChannel.module !== activeModule) {
-      startTransition(() => setActiveChannel(moduleChannels[0]!));
+    if (!activeChannel && !suppressAutoSelectRef.current) {
+      const lastSelectedId = lastSelectedByModuleRef.current[activeModule];
+      const pick =
+        (lastSelectedId ? moduleChannels.find((c) => c.id === lastSelectedId) : undefined) ??
+        moduleChannels[0]!;
+      startTransition(() => setActiveChannel(pick));
     }
   }, [
     loading,
@@ -926,8 +958,6 @@ export function ViewerHome() {
     return orderedStreamUrlsForChannel(activeChannel);
   }, [activeChannel]);
 
-  const channelById = useMemo(() => new Map(allChannels.map((c) => [c.id, c])), [allChannels]);
-
   const recentChannelObjects = useMemo(
     () => recentlyWatched.map((id) => channelById.get(id)).filter(Boolean) as Channel[],
     [recentlyWatched, channelById]
@@ -1075,7 +1105,11 @@ export function ViewerHome() {
             {activeChannel && (
               <button
                 type="button"
-                onClick={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
+                onClick={() => {
+                  suppressAutoSelectRef.current = true;
+                  startTransition(() => setActiveChannel(null));
+                  document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" });
+                }}
                 className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
                 style={{ color: "var(--text-muted)" }}
               >
@@ -1091,9 +1125,9 @@ export function ViewerHome() {
               >
                 {activeChannel ? (
                   <PremiumPlayer
+                    key={activeChannel.id}
                     streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
                     streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                    alternateUrls={[]}
                     title={activeChannel.name}
                     isTheaterMode={isTheaterMode}
                     onToggleTheaterMode={toggleTheaterMode}

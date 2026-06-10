@@ -179,7 +179,8 @@ function relayHlsXhrUrlIfNeeded(
 const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
 const RETRY_KEY_MIN_INTERVAL_MS = 2000;
-const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
+const URL_FAIL_COOLDOWN_MS = 90 * 1000;
+const SERVER_WAKE_RETRY_DELAYS_MS = [8000, 15000, 30000];
 const recentlyFailedUrlUntil = new Map<string, number>();
 
 function isUrlTemporarilyFailed(url: string): boolean {
@@ -264,6 +265,7 @@ export default function PremiumPlayer({
   const lastRetryAtRef = useRef(0);
   const retryPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stablePlaybackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverWakeRetryRef = useRef(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -277,6 +279,7 @@ export default function PremiumPlayer({
   const [isBuffering, setIsBuffering] = useState(false);
   const [everPlayed, setEverPlayed] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [needsUserGesture, setNeedsUserGesture] = useState(false);
   const [serverWaking, setServerWaking] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const autoRetryCountRef = useRef(0);
@@ -366,6 +369,29 @@ export default function PremiumPlayer({
   );
   const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
 
+  const attemptVideoPlayback = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return false;
+    try {
+      await video.play();
+      setNeedsUserGesture(false);
+      return true;
+    } catch {
+      try {
+        video.muted = true;
+        await video.play();
+        setNeedsUserGesture(false);
+        return true;
+      } catch {
+        setNeedsUserGesture(true);
+        setShowControls(true);
+        setIsLoading(false);
+        setIsBuffering(false);
+        return false;
+      }
+    }
+  }, []);
+
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
   }, []);
@@ -401,12 +427,14 @@ export default function PremiumPlayer({
     urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setIsSwitching(false);
+    setNeedsUserGesture(false);
     setGeoRestricted(false);
     setServerWaking(false);
     setEverPlayed(false);
     everPlayedRef.current = false;
     linkRetryRef.current = 0;
     hlsRecoveryRef.current = 0;
+    serverWakeRetryRef.current = 0;
     firstHideDoneRef.current = false;
     hintShownRef.current = false;
     setShowHint(false);
@@ -482,6 +510,7 @@ export default function PremiumPlayer({
     setSelectedQuality(-1);
     setBufferedPct(0);
     setHasError(false);
+    setNeedsUserGesture(false);
     setGeoRestricted(false);
     const resumePlayback = everPlayedRef.current;
     if (resumePlayback) {
@@ -538,10 +567,7 @@ export default function PremiumPlayer({
         setIsLoading(false);
         setHasError(false);
         setIsSwitching(false);
-        void video.play().catch(() => {
-          video.muted = true;
-          void video.play().catch(() => {});
-        });
+        void attemptVideoPlayback();
       };
       player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, onStreamInitialized);
       return cleanup;
@@ -581,13 +607,16 @@ export default function PremiumPlayer({
                 setIsLoading(true);
               }
               if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
+              const wakeAttempt = Math.min(serverWakeRetryRef.current, SERVER_WAKE_RETRY_DELAYS_MS.length - 1);
+              serverWakeRetryRef.current += 1;
               linkRetryTimerRef.current = setTimeout(() => {
                 linkRetryTimerRef.current = null;
                 setServerWaking(false);
                 if (loadGen === loadGenRef.current) scheduleRetryKey();
-              }, 8000);
+              }, SERVER_WAKE_RETRY_DELAYS_MS[wakeAttempt]);
               return;
             }
+            serverWakeRetryRef.current = 0;
             setServerWaking(false);
             if (xhr.status === 403 || xhr.status === 401) {
               if (tryFailover()) {
@@ -607,6 +636,7 @@ export default function PremiumPlayer({
               if (tryFailover()) return;
               setIsLoading(false);
               setIsSwitching(false);
+              setHasError(true);
               hlsInstance?.destroy();
               if (hlsRef.current === hlsInstance) hlsRef.current = null;
               return;
@@ -752,11 +782,9 @@ export default function PremiumPlayer({
           if (underSd.length > 0) hls.autoLevelCapping = Math.max(...underSd);
         }
         setHasError(false);
+        setNeedsUserGesture(false);
         setIsSwitching(false);
-        void video.play().catch(() => {
-          video.muted = true;
-          void video.play().catch(() => {});
-        });
+        void attemptVideoPlayback();
         const levelMap = new Map<number, QualityOption>();
         hls.levels.forEach((level, idx) => {
           if (!level.height) return;
@@ -777,11 +805,66 @@ export default function PremiumPlayer({
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = effectiveUrl;
+      video.load();
       setIsSwitching(false);
+      const onNativeReady = () => {
+        setHasError(false);
+        setNeedsUserGesture(false);
+        setIsLoading(false);
+        setIsSwitching(false);
+        void attemptVideoPlayback();
+      };
+      const onNativeError = (event: Event) => {
+        event.stopImmediatePropagation();
+        const cur = urlPlayIndexRef.current;
+        markUrlFailed(allUrls[cur] ?? "");
+        const nextIdx = cur + 1;
+        if (nextIdx < allUrls.length && loadGen === loadGenRef.current) {
+          urlPlayIndexRef.current = nextIdx;
+          setUrlIdx(nextIdx);
+          if (everPlayedRef.current) {
+            setIsBuffering(true);
+          } else {
+            playbackStartedRef.current = false;
+            setIsLoading(true);
+            setIsSwitching(true);
+          }
+          video.src = allUrls[nextIdx]!;
+          video.load();
+          void attemptVideoPlayback();
+          return;
+        }
+        setIsBuffering(false);
+        setIsLoading(false);
+        setIsSwitching(false);
+        setHasError(true);
+      };
+      video.addEventListener("loadedmetadata", onNativeReady);
+      video.addEventListener("canplay", onNativeReady);
+      video.addEventListener("error", onNativeError);
+      void attemptVideoPlayback();
+      return () => {
+        video.removeEventListener("loadedmetadata", onNativeReady);
+        video.removeEventListener("canplay", onNativeReady);
+        video.removeEventListener("error", onNativeError);
+        cleanup();
+      };
     }
 
     return cleanup;
-  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile, isMobilePlayer, scheduleRetryKey]);
+  }, [
+    streamIdentity,
+    retryKey,
+    directUrls,
+    dynamicM3U8Id,
+    headerProfile,
+    geoHint,
+    isMobilePlayer,
+    dataSaver,
+    lowLatencyMode,
+    scheduleRetryKey,
+    attemptVideoPlayback,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -796,13 +879,18 @@ export default function PremiumPlayer({
         const hls = hlsRef.current;
         if (hls && trySilentHlsRecovery(hls)) return;
         stallCountRef.current += 1;
-        if (stallCountRef.current >= 4 && !playbackStartedRef.current) {
+        if (stallCountRef.current >= 4) {
           stallCountRef.current = 0;
           scheduleRetryKey();
         }
         return;
       }
       setIsLoading(true);
+      stallCountRef.current += 1;
+      if (stallCountRef.current >= 3) {
+        stallCountRef.current = 0;
+        scheduleRetryKey();
+      }
     };
     const onPlaying = () => {
       setIsBuffering(false);
@@ -812,6 +900,8 @@ export default function PremiumPlayer({
       autoRetryCountRef.current = 0;
       stallCountRef.current = 0;
       hlsRecoveryRef.current = 0;
+      serverWakeRetryRef.current = 0;
+      setNeedsUserGesture(false);
       healthTrackerRef.current?.recordPlaying();
       setIsLoading(false);
       setHasError(false);
@@ -1103,10 +1193,12 @@ export default function PremiumPlayer({
 
   const retryStream = useCallback(() => {
     setHasError(false);
+    setNeedsUserGesture(false);
     setGeoRestricted(false);
     setIsLoading(true);
     setAutoRetryCountdown(0);
     linkRetryRef.current = 0;
+    serverWakeRetryRef.current = 0;
     urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setRetryKey((k) => k + 1);
@@ -1296,9 +1388,12 @@ export default function PremiumPlayer({
         return;
       }
       lastTapRef.current = now;
+      if (needsUserGesture) {
+        void attemptVideoPlayback();
+      }
       showControlsTemporarily();
     },
-    [toggleFullscreen, showControlsTemporarily]
+    [toggleFullscreen, showControlsTemporarily, needsUserGesture, attemptVideoPlayback]
   );
 
   const castAvailable =
@@ -1447,6 +1542,41 @@ export default function PremiumPlayer({
                 transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
               />
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Browser autoplay policies can require a user gesture, especially on iOS/mobile data. */}
+      <AnimatePresence>
+        {needsUserGesture && !hasError && !geoRestricted && (
+          <motion.div
+            key="tap-to-play"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-30 flex items-center justify-center p-6"
+            style={{ background: "linear-gradient(160deg, rgba(5,6,12,0.72), rgba(12,10,22,0.78))" }}
+          >
+            <button
+              type="button"
+              onClick={() => void attemptVideoPlayback()}
+              className="flex flex-col items-center gap-3 rounded-2xl px-6 py-5 text-center transition active:scale-95"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(245,166,35,0.35)",
+                color: "var(--text-main)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-gold text-xl font-black text-black">
+                ▶
+              </span>
+              <span className="text-sm font-bold">Tap to play</span>
+              <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                মোবাইল ব্রাউজারে প্লে শুরু করতে একবার ট্যাপ করুন
+              </span>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
