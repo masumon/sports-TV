@@ -182,6 +182,8 @@ type AdminChannelCreateBody = {
   module: string;
   is_active: boolean;
   alternate_urls?: string[];
+  header_profile?: string | null;
+  geo_hint?: boolean;
 };
 
 export async function fetchAllChannels(

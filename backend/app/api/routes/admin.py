@@ -252,6 +252,8 @@ async def admin_create_channel(
         alternate_urls=alt_json,
         quality_tag=payload.quality_tag.strip().lower(),
         module=mod,
+        header_profile=payload.header_profile.strip() if payload.header_profile else None,
+        geo_hint=payload.geo_hint,
         is_active=payload.is_active,
         source="manual",
     )
@@ -281,6 +283,8 @@ async def admin_update_channel(
             setattr(channel, field, str(value))
         elif field == "alternate_urls" and value is not None:
             setattr(channel, field, _json.dumps([str(url).strip() for url in value if str(url).strip()]))
+        elif field == "header_profile":
+            channel.header_profile = str(value).strip() if value else None
         elif isinstance(value, str):
             setattr(channel, field, value.strip())
         else:

@@ -84,13 +84,21 @@ async def _probe_one(
     }
     status_code: int | None = None
     try:
-        head = await client.head(target, follow_redirects=True, timeout=timeout)
-        status_code = head.status_code
-        if status_code in (405, 501):
+        path = target.split("?", 1)[0].lower()
+        is_hls_playlist = path.endswith(".m3u8") or path.endswith(".m3u")
+        if is_hls_playlist:
             getr = await client.get(
                 target, headers=range_headers, follow_redirects=True, timeout=timeout
             )
             status_code = getr.status_code
+        else:
+            head = await client.head(target, follow_redirects=True, timeout=timeout)
+            status_code = head.status_code
+            if status_code in (405, 501):
+                getr = await client.get(
+                    target, headers=range_headers, follow_redirects=True, timeout=timeout
+                )
+                status_code = getr.status_code
     except httpx.TimeoutException:
         logger.debug("probe timeout: %s", raw[:80])
         body = {"status": "dead", "http_status": None}

@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { ViewerPageShell } from "@/components/layout/ViewerPageShell";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
@@ -21,12 +20,12 @@ const PremiumPlayer = dynamic(
 );
 
 export default function LivePage() {
-  const router = useRouter();
   const [fixtures, setFixtures] = useState<LiveFixture[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [fixturesLoading, setFixturesLoading] = useState(true);
   const [channelsLoading, setChannelsLoading] = useState(true);
   const [filterCountry, setFilterCountry] = useState("");
+  const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadFixtures = useCallback(async () => {
@@ -81,9 +80,19 @@ export default function LivePage() {
 
   const featured = fixtures[0];
   const featuredChannel = featured?.suggested_channels?.[0];
-  const featuredPlaybackUrls = useMemo(
-    () => (featuredChannel ? orderedStreamUrlsForChannel(featuredChannel) : []),
-    [featuredChannel],
+  const selectedChannel = useMemo(
+    () => channels.find((ch) => ch.id === selectedChannelId) ?? null,
+    [channels, selectedChannelId],
+  );
+  const playbackChannel = selectedChannel ?? featuredChannel ?? null;
+  const playbackTitle = selectedChannel
+    ? selectedChannel.name
+    : featured
+    ? `${featured.home_team} vs ${featured.away_team}`
+    : "Live TV";
+  const playbackUrls = useMemo(
+    () => (playbackChannel ? orderedStreamUrlsForChannel(playbackChannel) : []),
+    [playbackChannel],
   );
 
   const countryOptions = useMemo(
@@ -95,7 +104,7 @@ export default function LivePage() {
     [channels, filterCountry],
   );
   const channelCards = useMemo(
-    () => filteredChannels.map((ch) => ({ id: ch.id, name: ch.name, logoUrl: ch.logo_url })),
+    () => filteredChannels.map((ch) => ({ id: ch.id, name: ch.name, logoUrl: ch.logo_url, geoHint: Boolean(ch.geo_hint) })),
     [filteredChannels],
   );
 
@@ -123,22 +132,22 @@ export default function LivePage() {
           </section>
         ) : null}
 
-        {featured ? (
+        {featured || selectedChannel ? (
           <section className="space-y-3">
             <HeroVideoPlayer
               isLive
-              title={`${featured.home_team} vs ${featured.away_team}`}
+              title={playbackTitle}
             >
-              {featuredChannel && featuredPlaybackUrls.length > 0 ? (
+              {playbackChannel && playbackUrls.length > 0 ? (
                 <PremiumPlayer
-                  streamUrl={featuredPlaybackUrls[0] ?? featuredChannel.stream_url}
-                  streamUrls={featuredPlaybackUrls}
-                  title={`${featured.home_team} vs ${featured.away_team}`}
+                  streamUrl={playbackUrls[0] ?? playbackChannel.stream_url}
+                  streamUrls={playbackUrls}
+                  title={playbackTitle}
                   isTheaterMode={false}
                   onToggleTheaterMode={() => {}}
-                  headerProfile={featuredChannel.header_profile ?? null}
-                  geoHint={Boolean(featuredChannel.geo_hint)}
-                  channelLogoUrl={featuredChannel.logo_url}
+                  headerProfile={playbackChannel.header_profile ?? null}
+                  geoHint={Boolean(playbackChannel.geo_hint)}
+                  channelLogoUrl={playbackChannel.logo_url}
                   isLive
                 />
               ) : (
@@ -152,7 +161,7 @@ export default function LivePage() {
                 </div>
               )}
             </HeroVideoPlayer>
-            <MatchCard match={featured} isLive stadium={featured.league_name} format={featured.sport} />
+            {featured ? <MatchCard match={featured} isLive stadium={featured.league_name} format={featured.sport} /> : null}
           </section>
         ) : null}
 
@@ -204,8 +213,9 @@ export default function LivePage() {
           ) : channelCards.length > 0 ? (
             <ChannelGrid
               channels={channelCards}
+              activeId={selectedChannelId}
               isLive
-              onSelect={(card) => router.push(`/?channel_id=${card.id}`)}
+              onSelect={(card) => setSelectedChannelId(card.id)}
             />
           ) : null}
         </section>

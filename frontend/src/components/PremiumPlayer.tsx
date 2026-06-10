@@ -210,7 +210,7 @@ function prioritizeHealthyUrls(urls: string[]): string[] {
 }
 
 function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
-  if (xhr.status !== 403 && xhr.status !== 401) return false;
+  if (xhr.status !== 403 && xhr.status !== 401 && xhr.status !== 451) return false;
   try {
     const j = JSON.parse(xhr.responseText) as { code?: string };
     if (j?.code === "GEO_RESTRICTED") return true;
@@ -218,6 +218,26 @@ function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
     /* non-JSON body — not a confirmed geo-restriction */
   }
   return false;
+}
+
+function canTryDirectPlaybackUrl(url: string): boolean {
+  if (!url.startsWith("http")) return false;
+  if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("http://")) {
+    return false;
+  }
+  return true;
+}
+
+function dedupePlaybackUrls(urls: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of urls) {
+    const trimmed = url.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
 }
 
 function formatQualityFromHeight(height: number): string {
@@ -296,9 +316,6 @@ export default function PremiumPlayer({
   const linkRetryRef = useRef(0);
   const linkRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstHideDoneRef = useRef(false);
-  /** Seek ripple feedback: direction "left"|"right" + dismiss timer */
-  const [seekFeedback, setSeekFeedback] = useState<{ dir: "left" | "right"; secs: number; key: number } | null>(null);
-  const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Volume swipe overlay: shown while swiping, dismissed after gesture ends */
   const [volFeedback, setVolFeedback] = useState<number | null>(null);
   const volFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -364,10 +381,17 @@ export default function PremiumPlayer({
     return base.map((u) => buildProxyM3U8RequestUrl(u, dynamicM3U8Id));
   }, [resolvedDirect, dynamicM3U8Id]);
   const allUrlsList = useMemo(
-    () => prioritizeHealthyUrls(buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile)),
-    [directUrls, dynamicM3U8Id, headerProfile]
+    () =>
+      prioritizeHealthyUrls(
+        dedupePlaybackUrls([
+          ...buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile),
+          ...resolvedDirect.filter(canTryDirectPlaybackUrl),
+        ]),
+      ),
+    [directUrls, dynamicM3U8Id, headerProfile, resolvedDirect]
   );
   const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
+  const externalPlaybackUrl = resolvedDirect[urlIdx] ?? resolvedDirect[0] ?? streamUrl;
 
   const attemptVideoPlayback = useCallback(async () => {
     const video = videoRef.current;
@@ -520,7 +544,10 @@ export default function PremiumPlayer({
       setIsLoading(true);
     }
 
-    const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
+    const allUrls = dedupePlaybackUrls([
+      ...buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile),
+      ...resolvedDirect.filter(canTryDirectPlaybackUrl),
+    ]);
     if (!allUrls.length) {
       setIsLoading(false);
       setHasError(true);
@@ -623,7 +650,7 @@ export default function PremiumPlayer({
                 setGeoRestricted(false);
                 return;
               }
-              if (parseGeoFromXhr(xhr) || (geoHint && xhr.status === 403)) {
+              if (parseGeoFromXhr(xhr)) {
                 setGeoRestricted(true);
               } else {
                 setHasError(true);
@@ -680,9 +707,9 @@ export default function PremiumPlayer({
         healthTracker.recordError();
         const httpCode = data.response?.code;
 
-        if (httpCode === 403 || httpCode === 401) {
+        if (httpCode === 403 || httpCode === 401 || httpCode === 451) {
           if (tryFailover()) return;
-          if (geoHint && httpCode === 403) {
+          if (httpCode === 451) {
             setGeoRestricted(true);
           } else {
             setHasError(true);
@@ -856,9 +883,9 @@ export default function PremiumPlayer({
     streamIdentity,
     retryKey,
     directUrls,
+    resolvedDirect,
     dynamicM3U8Id,
     headerProfile,
-    geoHint,
     isMobilePlayer,
     dataSaver,
     lowLatencyMode,
@@ -915,7 +942,14 @@ export default function PremiumPlayer({
       setIsLoading(false);
       setIsBuffering(false);
     };
-    const onError = () => { setHasError(true); setIsLoading(false); };
+    const onError = () => {
+      if (geoRestricted) {
+        setIsLoading(false);
+        return;
+      }
+      setHasError(true);
+      setIsLoading(false);
+    };
     const onProgress = () => {
       if (!video.buffered.length) return;
       const end = video.buffered.end(video.buffered.length - 1);
@@ -960,7 +994,7 @@ export default function PremiumPlayer({
       video.removeEventListener("enterpictureinpicture", onEnterPiP);
       video.removeEventListener("leavepictureinpicture", onLeavePiP);
     };
-  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey]);
+  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey, geoRestricted]);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -982,12 +1016,6 @@ export default function PremiumPlayer({
     let touchStartScale = 1;
     let initialPinchDist = 0;
     let isSwiping = false;
-
-    function showSeekRipple(dir: "left" | "right", secs: number) {
-      if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
-      setSeekFeedback({ dir, secs, key: Date.now() });
-      seekFeedbackTimerRef.current = setTimeout(() => setSeekFeedback(null), 900);
-    }
 
     function showVolOverlay(vol: number) {
       if (volFeedbackTimerRef.current) clearTimeout(volFeedbackTimerRef.current);
@@ -1216,6 +1244,10 @@ export default function PremiumPlayer({
   // Auto-retry countdown: only before first successful playback (never interrupt active viewing)
   useEffect(() => {
     if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
+    if (geoRestricted) {
+      setAutoRetryCountdown(0);
+      return;
+    }
     if (everPlayedRef.current || playbackStartedRef.current) {
       setAutoRetryCountdown(0);
       return;
@@ -1225,7 +1257,7 @@ export default function PremiumPlayer({
       return;
     }
     onStreamErrorRef.current?.();
-    const secs = geoRestricted ? 15 : autoRetryCountRef.current < 2 ? 12 : 20;
+    const secs = autoRetryCountRef.current < 2 ? 12 : 20;
     setAutoRetryCountdown(secs);
     const interval = setInterval(() => {
       setAutoRetryCountdown((c) => {
@@ -1645,8 +1677,8 @@ export default function PremiumPlayer({
               </p>
               <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
                 {geoRestricted || geoHint
-                  ? <>এই চ্যানেলটি আপনার অঞ্চলে সীমাবদ্ধ।<br />
-                    <span style={{ color: "rgba(167,139,250,0.8)" }}>① VPN (India/BD সার্ভার) চালু করুন অথবা<br/>② নিচের External Player ব্যবহার করুন।</span></>
+                  ? <>{geoRestricted ? "এই চ্যানেলটি আপনার অঞ্চলে সীমাবদ্ধ।" : "এই চ্যানেলটি কিছু অঞ্চলে সীমাবদ্ধ হতে পারে।"}<br />
+                    <span style={{ color: "rgba(167,139,250,0.8)" }}>Player proxy ও direct fallback চেষ্টা করেছে। VPN (India/BD) অথবা External Player ব্যবহার করুন।</span></>
                   : isConstrainedNetwork()
                   ? <>নেটওয়ার্ক সংযোগ দুর্বল।<br />WiFi বা ভালো 4G-তে চেষ্টা করুন।</>
                   : <>চ্যানেলটি এখন unavailable অথবা source পরিবর্তন হয়েছে।<br />External Player চেষ্টা করুন বা একটু পরে আবার চেষ্টা করুন।</>}
@@ -1667,10 +1699,15 @@ export default function PremiumPlayer({
                 style={{ background: "linear-gradient(135deg, rgba(245,166,35,0.25), rgba(245,166,35,0.15))", border: "1px solid rgba(245,166,35,0.45)", boxShadow: "0 4px 12px rgba(245,166,35,0.15)" }}>
                 <RefreshCw size={13} /> আবার চেষ্টা
               </button>
-              <button type="button" onClick={() => window.open(sharePlaybackUrl, "_blank", "noopener,noreferrer")}
+              <button type="button" onClick={() => window.open(externalPlaybackUrl || sharePlaybackUrl, "_blank", "noopener,noreferrer")}
                 className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold transition hover:bg-white/10 active:scale-95"
                 style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.55)" }}>
                 <ExternalLink size={13} /> Tab-এ খুলুন
+              </button>
+              <button type="button" onClick={() => setShowExternalPanel(true)}
+                className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold transition hover:bg-white/10 active:scale-95"
+                style={{ background: "rgba(99,102,241,0.14)", border: "1px solid rgba(129,140,248,0.35)", color: "rgba(199,210,254,0.95)" }}>
+                <ExternalLink size={13} /> External Player
               </button>
             </div>
           </motion.div>
@@ -1680,44 +1717,6 @@ export default function PremiumPlayer({
 
       {/* Custom overlay slot — reserved for non-obstructive UI; match metadata removed */}
       {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30 hidden">{overlay}</div> : null}
-
-      {/* ── Seek ripple overlay (double-tap ±10s) ── */}
-      <AnimatePresence>
-        {seekFeedback && (
-          <motion.div
-            key={`seek-${seekFeedback.key}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="pointer-events-none absolute inset-0 z-35 flex items-center"
-          >
-            <div className={`absolute flex flex-col items-center gap-1 ${seekFeedback.dir === "left" ? "left-[8%]" : "right-[8%]"}`}>
-              <motion.div
-                className="flex h-16 w-16 items-center justify-center rounded-full"
-                style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.3)", backdropFilter: "blur(4px)" }}
-                initial={{ scale: 0.7, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 1.1, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <span className="text-xl font-black" style={{ color: "#F5A623" }}>
-                  {seekFeedback.dir === "left" ? "«" : "»"}
-                </span>
-              </motion.div>
-              <motion.span
-                className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
-                style={{ background: "rgba(0,0,0,0.5)", color: "#F5A623" }}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-              >
-                {seekFeedback.dir === "left" ? `-${seekFeedback.secs}s` : `+${seekFeedback.secs}s`}
-              </motion.span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── Volume swipe indicator ── */}
       <AnimatePresence>
@@ -1817,7 +1816,7 @@ export default function PremiumPlayer({
                 <div className="max-h-[min(65dvh,30rem)] overflow-y-auto overflow-x-hidden px-3 pt-1 pb-1">
                   <ExternalPlayerPicker
                     idPrefix={externalPanelTitleId}
-                    streamUrl={sharePlaybackUrl}
+                    streamUrl={externalPlaybackUrl}
                     onClose={() => setShowExternalPanel(false)}
                   />
                 </div>
