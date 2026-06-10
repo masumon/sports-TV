@@ -7,9 +7,9 @@ export const HLS_FRAG_MAX_RETRY = 3;
 export const MAX_HLS_RECOVERY_ATTEMPTS = 6;
 export const LINK_RETRY_ATTEMPTS = 4;
 
-export const HLS_MANIFEST_LOAD_TIMEOUT_MS = 15000;
-export const HLS_LEVEL_LOAD_TIMEOUT_MS = 12000;
-export const HLS_FRAG_LOAD_TIMEOUT_MS = 18000;
+export const HLS_MANIFEST_LOAD_TIMEOUT_MS = 30000;
+export const HLS_LEVEL_LOAD_TIMEOUT_MS = 25000;
+export const HLS_FRAG_LOAD_TIMEOUT_MS = 30000;
 
 type NetConn = { saveData?: boolean; effectiveType?: string };
 
