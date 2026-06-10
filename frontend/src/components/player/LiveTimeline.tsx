@@ -8,6 +8,7 @@ type Props = {
   bufferedPct: number;
   isLive: boolean;
   onSeek?: (time: number) => void;
+  compact?: boolean;
 };
 
 function formatSportsClock(seconds: number): string {
@@ -22,7 +23,7 @@ function formatSportsClock(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function LiveTimeline({ currentTime, duration, isLive, onSeek }: Props) {
+export function LiveTimeline({ currentTime, duration, isLive, onSeek, compact = false }: Props) {
   const hasFiniteDuration = Number.isFinite(duration) && duration > 0 && duration !== Infinity;
   const showVodTimeline = !isLive && hasFiniteDuration;
 
@@ -45,14 +46,17 @@ export function LiveTimeline({ currentTime, duration, isLive, onSeek }: Props) {
   );
 
   if (isLive) {
+    if (compact) {
+      return <div className="min-w-0 flex-1" aria-hidden />;
+    }
     return (
-      <div className="flex min-w-0 flex-1 items-center justify-center px-1 sm:px-2">
+      <div className="flex min-w-0 flex-1 items-center justify-center px-0.5 sm:px-2">
         <span
-          className="live-badge-inline inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white sm:text-[10px]"
+          className="live-badge-inline inline-flex max-w-full shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-white sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[10px]"
           aria-label="Live broadcast"
         >
-          <span className="live-dot h-1.5 w-1.5 rounded-full bg-white" aria-hidden />
-          LIVE
+          <span className="live-dot h-1.5 w-1.5 shrink-0 rounded-full bg-white" aria-hidden />
+          <span className="truncate">LIVE</span>
         </span>
       </div>
     );
