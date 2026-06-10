@@ -8,7 +8,7 @@ import { ViewerPageShell } from "@/components/layout/ViewerPageShell";
 import { Button } from "@/components/ui/Button";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { apiClient } from "@/lib/apiClient";
-import { FIXTURE_HOURS_BACK, isFixtureFinished, isFixtureLive } from "@/lib/matchPresentation";
+import { FIXTURE_HOURS_BACK, fixtureScoreLabel, fixtureStatusLabel, isFixtureFinished, isFixtureLive } from "@/lib/matchPresentation";
 import type { LiveFixture } from "@/lib/types";
 
 export default function MatchDetailPage() {
@@ -60,6 +60,7 @@ export default function MatchDetailPage() {
     : "TBD";
   const live = isFixtureLive(fixture);
   const finished = isFixtureFinished(fixture);
+  const scoreLabel = fixtureScoreLabel(fixture);
   const isCricket = (fixture.sport || "").toLowerCase().includes("cricket");
   const isFootball = !isCricket;
 
@@ -80,7 +81,8 @@ export default function MatchDetailPage() {
           <p className="mt-2 text-sm text-foreground-secondary">{kickoff}</p>
           <p className="text-sm text-foreground-muted">{fixture.league_name}</p>
           <p className="mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)" }}>
-            Status: {fixture.status || "Scheduled"}
+            {fixtureStatusLabel(fixture)}
+            {scoreLabel ? ` · ${scoreLabel}` : ""}
           </p>
           {fixture.data_attribution ? (
             <p className="mt-3 text-xs text-foreground-muted">{fixture.data_attribution}</p>
@@ -94,7 +96,9 @@ export default function MatchDetailPage() {
               <dl className="mt-3 space-y-2 text-sm">
                 <div className="flex justify-between gap-4 border-b border-glass-border pb-2">
                   <dt className="text-foreground-muted">Final Score</dt>
-                  <dd className="font-semibold text-foreground">{finished ? fixture.status || "—" : "In progress / TBD"}</dd>
+                  <dd className="font-semibold text-foreground">
+                    {scoreLabel || (finished ? "—" : live ? "In progress" : "TBD")}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-4 border-b border-glass-border pb-2">
                   <dt className="text-foreground-muted">Goals</dt>
@@ -118,7 +122,9 @@ export default function MatchDetailPage() {
               <dl className="mt-3 space-y-2 text-sm">
                 <div className="flex justify-between gap-4 border-b border-glass-border pb-2">
                   <dt className="text-foreground-muted">Full Score</dt>
-                  <dd className="font-semibold text-foreground">{finished ? fixture.status || "—" : "Live / TBD"}</dd>
+                  <dd className="font-semibold text-foreground">
+                    {scoreLabel || (finished ? "—" : live ? "In progress" : "TBD")}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-4 border-b border-glass-border pb-2">
                   <dt className="text-foreground-muted">Batting</dt>

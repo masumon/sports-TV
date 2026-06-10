@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json as _json
+from functools import partial
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, func, select
@@ -28,8 +29,7 @@ from app.schemas.admin import AdminStatsResponse, HealthSweepResponse, StreamPro
 from app.services.stream_probe import run_probe_batch
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
-from app.services.automation import run_channel_sync, run_health_sweep
-from app.services.live_fixtures_sync import run_live_fixtures_sync_standalone
+from app.services.automation import run_channel_sync, run_health_sweep, run_live_fixtures_job
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -95,9 +95,9 @@ async def admin_stream_probe(
 async def sync_fixtures(
     _: User = Depends(get_current_admin_user),
 ) -> dict[str, int]:
-    """Manually trigger a live fixture sync (OpenLigaDB + football-data.org)."""
+    """Manually trigger a live fixture sync (OpenLigaDB + football-data.org + CricAPI)."""
     try:
-        result = await run_in_threadpool(run_live_fixtures_sync_standalone)
+        result = await run_in_threadpool(partial(run_live_fixtures_job, source="admin"))
         return result
     except Exception as exc:
         raise HTTPException(

@@ -5,7 +5,7 @@ import { MapPin, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
-import { isFixtureFinished, isFixtureLive } from "@/lib/matchPresentation";
+import { isFixtureFinished, isFixtureLive, fixtureScoreLabel, fixtureStatusLabel } from "@/lib/matchPresentation";
 import type { LiveFixture } from "@/lib/types";
 
 export type MatchCardProps = {
@@ -30,6 +30,7 @@ function teamFlag(team: string): string {
 export function MatchCard({ match, isLive: isLiveProp, stadium, format, onSetReminder, className }: MatchCardProps) {
   const isLive = isLiveProp ?? isFixtureLive(match);
   const finished = isFixtureFinished(match);
+  const scoreLabel = fixtureScoreLabel(match);
   const start = match.starts_at_utc
     ? new Date(match.starts_at_utc).toLocaleString(undefined, {
         weekday: "short",
@@ -75,10 +76,10 @@ export function MatchCard({ match, isLive: isLiveProp, stadium, format, onSetRem
         </div>
       </div>
 
-      {finished && match.status ? (
+      {finished && scoreLabel ? (
         <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-accent-gold">
           <Trophy size={12} aria-hidden />
-          Final · {match.status}
+          Final · {scoreLabel}
         </p>
       ) : null}
 

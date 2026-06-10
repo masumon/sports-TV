@@ -77,6 +77,7 @@ export type LiveFixture = {
   sport: string;
   starts_at_utc: string;
   status: string;
+  score_text?: string | null;
   thumb_url: string | null;
   data_attribution: string;
   suggested_channels: Channel[];
