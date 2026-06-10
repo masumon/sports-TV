@@ -108,6 +108,16 @@ type ScreenOrientationWithLock = ScreenOrientation & {
   lock?: (orientation: "landscape" | "landscape-primary" | "any") => Promise<void>;
 };
 
+type NativeAudioTrackList = {
+  length: number;
+  [i: number]: { id: string; label: string; enabled: boolean } | undefined;
+};
+
+type HlsAudioTrackList = Hls & {
+  audioTracks?: { name?: string; lang?: string; groupId?: string }[];
+  audioTrack?: number;
+};
+
 /** Best-effort landscape lock for mobile playback (works on many Android browsers, often requires fullscreen). */
 async function tryLockLandscapePlayback(): Promise<void> {
   if (typeof screen === "undefined") return;
@@ -1143,26 +1153,6 @@ export default function PremiumPlayer({
     }
   }, [isMobileSheet, isFullscreen, isTheaterMode]);
 
-  /** Auto PiP when player scrolls out of view */
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    if (!("IntersectionObserver" in window)) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry) return;
-        if (!entry.isIntersecting && isPlaying && document.pictureInPictureEnabled && videoRef.current && !document.pictureInPictureElement) {
-          videoRef.current.requestPictureInPicture().catch(() => {});
-        } else if (entry.isIntersecting && document.pictureInPictureElement === videoRef.current) {
-          document.exitPictureInPicture().catch(() => {});
-        }
-      },
-      { threshold: 0.15 }
-    );
-    obs.observe(container);
-    return () => obs.disconnect();
-  }, [isPlaying]);
-
   useEffect(
     () => () => {
       tryUnlockPlaybackOrientation();
@@ -1419,16 +1409,43 @@ export default function PremiumPlayer({
     const video = videoRef.current;
     if (!video) return;
     const audio: AudioTrackOption[] = [];
-    const vAudio = (video as HTMLVideoElement & { audioTracks?: { length: number; [i: number]: { id: string; label: string; enabled: boolean } } }).audioTracks;
-    if (vAudio?.length) {
+    const hlsAudio = (hlsRef.current as HlsAudioTrackList | null)?.audioTracks ?? [];
+    if (hlsAudio.length > 0) {
+      hlsAudio.forEach((track, idx) => {
+        audio.push({
+          id: `hls:${idx}`,
+          label: track.name || track.lang || track.groupId || `Audio ${idx + 1}`,
+        });
+      });
+    }
+    const vAudio = (video as HTMLVideoElement & { audioTracks?: NativeAudioTrackList }).audioTracks;
+    if (audio.length === 0 && vAudio?.length) {
       for (let i = 0; i < vAudio.length; i++) {
         const t = vAudio[i];
-        if (t) audio.push({ id: t.id || String(i), label: t.label || `Audio ${i + 1}` });
+        if (t) audio.push({ id: `native:${t.id || i}`, label: t.label || `Audio ${i + 1}` });
       }
-    } else {
+    }
+    if (audio.length === 0) {
       audio.push({ id: "default", label: "Default" });
     }
     setAudioTracks(audio);
+    setSelectedAudioTrack((prev) => {
+      if (audio.some((track) => track.id === prev)) return prev;
+      const hlsTrack = hlsRef.current as HlsAudioTrackList | null;
+      const activeHls = typeof hlsTrack?.audioTrack === "number" ? `hls:${hlsTrack.audioTrack}` : null;
+      if (activeHls && audio.some((track) => track.id === activeHls)) return activeHls;
+      const activeNative = vAudio
+        ? audio.find((track) => {
+            if (!track.id.startsWith("native:")) return false;
+            for (let i = 0; i < vAudio.length; i++) {
+              const t = vAudio[i];
+              if (t?.enabled && track.id === `native:${t.id || i}`) return true;
+            }
+            return false;
+          })?.id
+        : null;
+      return activeNative ?? audio[0]?.id ?? "default";
+    });
 
     const subs: SubtitleTrackOption[] = [];
     for (let i = 0; i < video.textTracks.length; i++) {
@@ -1440,6 +1457,26 @@ export default function PremiumPlayer({
     setSubtitleTracks(subs);
   }, []);
 
+  const handleAudioTrackChange = useCallback((id: string) => {
+    const hls = hlsRef.current as HlsAudioTrackList | null;
+    if (id.startsWith("hls:") && hls) {
+      const next = Number(id.slice(4));
+      if (Number.isInteger(next)) hls.audioTrack = next;
+      setSelectedAudioTrack(id);
+      return;
+    }
+
+    const video = videoRef.current as (HTMLVideoElement & { audioTracks?: NativeAudioTrackList }) | null;
+    const vAudio = video?.audioTracks;
+    if (id.startsWith("native:") && vAudio?.length) {
+      for (let i = 0; i < vAudio.length; i++) {
+        const track = vAudio[i];
+        if (track) track.enabled = id === `native:${track.id || i}`;
+      }
+    }
+    setSelectedAudioTrack(id);
+  }, []);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -1447,6 +1484,22 @@ export default function PremiumPlayer({
     video.addEventListener("loadedmetadata", onMeta);
     return () => video.removeEventListener("loadedmetadata", onMeta);
   }, [syncMediaTracks, streamIdentity]);
+
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    const onAudioTracksUpdated = () => syncMediaTracks();
+    const onAudioTrackSwitched = (_event: unknown, data: { id?: number }) => {
+      if (typeof data.id === "number") setSelectedAudioTrack(`hls:${data.id}`);
+    };
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
+    syncMediaTracks();
+    return () => {
+      hls.off(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+      hls.off(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
+    };
+  }, [syncMediaTracks, streamIdentity, retryKey]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1891,7 +1944,7 @@ export default function PremiumPlayer({
         onQualityChange={changeQuality}
         audioTracks={audioTracks}
         selectedAudioTrack={selectedAudioTrack}
-        onAudioTrackChange={setSelectedAudioTrack}
+        onAudioTrackChange={handleAudioTrackChange}
         subtitleTracks={subtitleTracks}
         selectedSubtitle={selectedSubtitle}
         onSubtitleChange={setSelectedSubtitle}
