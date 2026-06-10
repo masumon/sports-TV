@@ -180,6 +180,7 @@ const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
 const RETRY_KEY_MIN_INTERVAL_MS = 2000;
 const URL_FAIL_COOLDOWN_MS = 90 * 1000;
+const RUNNING_PLAYBACK_ERROR_GRACE_MS = 15_000;
 const SERVER_WAKE_RETRY_DELAYS_MS = [8000, 15000, 30000];
 const recentlyFailedUrlUntil = new Map<string, number>();
 
@@ -285,6 +286,8 @@ export default function PremiumPlayer({
   const lastRetryAtRef = useRef(0);
   const retryPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stablePlaybackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runningIssueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runningIssueExpiredRef = useRef(false);
   const serverWakeRetryRef = useRef(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -353,13 +356,31 @@ export default function PremiumPlayer({
     []
   );
 
+  const clearRunningIssueTimer = useCallback(() => {
+    if (runningIssueTimerRef.current) {
+      clearTimeout(runningIssueTimerRef.current);
+      runningIssueTimerRef.current = null;
+    }
+    runningIssueExpiredRef.current = false;
+  }, []);
+
   const keepRunningPlaybackOnIssue = useCallback(() => {
     if (canAutoReloadBeforePlayback()) return false;
+    if (runningIssueExpiredRef.current) return false;
     setIsSwitching(false);
     setIsLoading(false);
     setHasError(false);
     setGeoRestricted(false);
     setIsBuffering(true);
+    if (!runningIssueTimerRef.current) {
+      runningIssueTimerRef.current = setTimeout(() => {
+        runningIssueTimerRef.current = null;
+        runningIssueExpiredRef.current = true;
+        setIsBuffering(false);
+        setHasError(true);
+        onStreamErrorRef.current?.();
+      }, RUNNING_PLAYBACK_ERROR_GRACE_MS);
+    }
     return true;
   }, [canAutoReloadBeforePlayback]);
 
@@ -472,9 +493,11 @@ export default function PremiumPlayer({
     setServerWaking(false);
     setEverPlayed(false);
     everPlayedRef.current = false;
+    playbackStartedRef.current = false;
     linkRetryRef.current = 0;
     hlsRecoveryRef.current = 0;
     serverWakeRetryRef.current = 0;
+    stallCountRef.current = 0;
     firstHideDoneRef.current = false;
     hintShownRef.current = false;
     setShowHint(false);
@@ -491,12 +514,15 @@ export default function PremiumPlayer({
       clearTimeout(stablePlaybackTimerRef.current);
       stablePlaybackTimerRef.current = null;
     }
-  }, [streamIdentity]);
+    clearRunningIssueTimer();
+  }, [streamIdentity, clearRunningIssueTimer]);
 
   useEffect(
     () => () => {
       if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+      if (runningIssueTimerRef.current) clearTimeout(runningIssueTimerRef.current);
+      runningIssueExpiredRef.current = false;
     },
     []
   );
@@ -929,23 +955,16 @@ export default function PremiumPlayer({
       healthTrackerRef.current?.recordStall();
       if (playbackStartedRef.current) {
         setIsBuffering(true);
+        keepRunningPlaybackOnIssue();
         const hls = hlsRef.current;
         if (hls && trySilentHlsRecovery(hls)) return;
         stallCountRef.current += 1;
-        if (stallCountRef.current >= 4) {
-          stallCountRef.current = 0;
-          scheduleRetryKey();
-        }
         return;
       }
       setIsLoading(true);
-      stallCountRef.current += 1;
-      if (stallCountRef.current >= 3) {
-        stallCountRef.current = 0;
-        scheduleRetryKey();
-      }
     };
     const onPlaying = () => {
+      clearRunningIssueTimer();
       setIsBuffering(false);
       playbackStartedRef.current = true;
       everPlayedRef.current = true;
@@ -965,6 +984,7 @@ export default function PremiumPlayer({
       }, 10_000);
     };
     const onCanPlay = () => {
+      clearRunningIssueTimer();
       setIsLoading(false);
       setIsBuffering(false);
     };
@@ -1021,7 +1041,7 @@ export default function PremiumPlayer({
       video.removeEventListener("enterpictureinpicture", onEnterPiP);
       video.removeEventListener("leavepictureinpicture", onLeavePiP);
     };
-  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey, geoRestricted, keepRunningPlaybackOnIssue]);
+  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey, geoRestricted, keepRunningPlaybackOnIssue, clearRunningIssueTimer]);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -1149,6 +1169,7 @@ export default function PremiumPlayer({
       clearHideTimer();
       if (retryPendingRef.current) clearTimeout(retryPendingRef.current);
       if (stablePlaybackTimerRef.current) clearTimeout(stablePlaybackTimerRef.current);
+      clearRunningIssueTimer();
       healthTrackerRef.current?.destroy();
       healthTrackerRef.current = null;
       const hls = hlsRef.current;
@@ -1163,7 +1184,7 @@ export default function PremiumPlayer({
       }
       hlsRef.current = null;
     },
-    [clearHideTimer]
+    [clearHideTimer, clearRunningIssueTimer]
   );
 
   useEffect(() => {
@@ -1247,17 +1268,24 @@ export default function PremiumPlayer({
   }, [isMobileSheet, isTheaterMode]);
 
   const retryStream = useCallback(() => {
+    clearRunningIssueTimer();
     setHasError(false);
     setNeedsUserGesture(false);
     setGeoRestricted(false);
     setIsLoading(true);
+    setIsBuffering(false);
+    setEverPlayed(false);
     setAutoRetryCountdown(0);
+    playbackStartedRef.current = false;
+    everPlayedRef.current = false;
     linkRetryRef.current = 0;
+    hlsRecoveryRef.current = 0;
     serverWakeRetryRef.current = 0;
+    stallCountRef.current = 0;
     urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setRetryKey((k) => k + 1);
-  }, []);
+  }, [clearRunningIssueTimer]);
 
   useEffect(() => {
     onStreamErrorRef.current = onStreamError;
@@ -1357,7 +1385,7 @@ export default function PremiumPlayer({
   }, [liveMatchTitle, epgProgramTitle, title]);
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
-  const showErrorOverlay = (hasError || geoRestricted) && !everPlayed;
+  const showErrorOverlay = hasError || geoRestricted;
 
   const setVolumeFromPct = useCallback(
     (pct: number) => setVolumeLevel(pct / 100),

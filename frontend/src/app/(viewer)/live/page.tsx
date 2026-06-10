@@ -140,6 +140,7 @@ export default function LivePage() {
             >
               {playbackChannel && playbackUrls.length > 0 ? (
                 <PremiumPlayer
+                  key={playbackChannel.id}
                   streamUrl={playbackUrls[0] ?? playbackChannel.stream_url}
                   streamUrls={playbackUrls}
                   title={playbackTitle}
