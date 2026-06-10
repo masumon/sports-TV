@@ -260,24 +260,28 @@ export const apiClient = {
     return apiRequest<AdminStats>("/admin/stats", { method: "GET", authToken: token });
   },
 
-  adminListChannels(token: string) {
-    const pageSize = 200;
+  adminListChannels(token: string, status: "active" | "inactive" | "all" = "active") {
+    const pageSize = 500;
     const loadPage = (page: number) =>
-      apiRequest<Channel[]>(`/admin/channels?page=${page}&page_size=${pageSize}`, {
-        method: "GET",
-        authToken: token,
-      });
+      apiRequest<ChannelListResponse>(
+        `/admin/channels?page=${page}&page_size=${pageSize}&status=${status}`,
+        {
+          method: "GET",
+          authToken: token,
+        }
+      );
     return loadPage(1).then(async (first) => {
-      if (first.length < pageSize) return first;
-      const all = [...first];
+      const all = [...first.items];
+      const total = first.total;
+      if (all.length >= total) return { items: all, total };
       let page = 2;
-      for (;;) {
+      const maxPages = Math.ceil(total / pageSize) + 1;
+      for (; page <= maxPages; page += 1) {
         const batch = await loadPage(page);
-        all.push(...batch);
-        if (batch.length < pageSize || page >= 50) break;
-        page += 1;
+        all.push(...batch.items);
+        if (all.length >= total || batch.items.length === 0) break;
       }
-      return all;
+      return { items: all, total };
     });
   },
 

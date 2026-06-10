@@ -20,6 +20,8 @@ class AdminStatsResponse(BaseModel):
     last_sweep_at: str | None = None
     last_sweep_checked: int = 0
     last_sweep_deactivated: int = 0
+    # Active channels grouped by module (from DB, not client-side list)
+    active_module_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class StreamProbeRequest(BaseModel):

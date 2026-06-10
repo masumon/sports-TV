@@ -29,7 +29,7 @@ from app.models.user import User
 from app.api.routes.proxy import _validate_stream_url
 from app.schemas.admin import AdminStatsResponse, HealthSweepResponse, StreamProbeRequest, StreamProbeResponse
 from app.services.stream_probe import run_probe_batch
-from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
+from app.schemas.channel import ChannelCreate, ChannelListResponse, ChannelRead, ChannelUpdate
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
 from app.services.automation import run_channel_sync, run_health_sweep, run_live_fixtures_job
 
@@ -54,6 +54,14 @@ async def admin_stats(
     inactive = (
         await db.execute(select(func.count()).select_from(Channel).where(Channel.is_active.is_(False)))
     ).scalar() or 0
+    module_rows = (
+        await db.execute(
+            select(Channel.module, func.count())
+            .where(Channel.is_active.is_(True))
+            .group_by(Channel.module)
+        )
+    ).all()
+    active_module_counts = {str(mod): int(cnt) for mod, cnt in module_rows}
     return AdminStatsResponse(
         users=int(u),
         channels=int(total),
@@ -69,6 +77,7 @@ async def admin_stats(
         last_sweep_at=get_last_sweep_iso(),
         last_sweep_checked=get_last_sweep_checked(),
         last_sweep_deactivated=get_last_sweep_deactivated(),
+        active_module_counts=active_module_counts,
     )
 
 
@@ -179,23 +188,41 @@ async def purge_inactive_channels(
     return {"deleted": 0}
 
 
-@router.get("/channels", response_model=list[ChannelRead])
+def _normalize_module(mod: str | None) -> str:
+    value = (mod or "global_sports").strip().lower()
+    if value == "sports":
+        value = "global_sports"
+    if value not in ("global_sports", "bangladesh", "india", "fast_tv", "live_matches", "world_cup_2026"):
+        return "global_sports"
+    return value
+
+
+@router.get("/channels", response_model=ChannelListResponse)
 async def admin_list_channels(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
+    status: str = Query("active", pattern="^(active|inactive|all)$"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
-) -> list[ChannelRead]:
-    stmt = (
-        select(Channel)
-        .where(Channel.is_active.is_(True))
-        .order_by(Channel.updated_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    r = await db.execute(stmt)
+) -> ChannelListResponse:
+    count_stmt = select(func.count()).select_from(Channel)
+    list_stmt = select(Channel).order_by(Channel.updated_at.desc())
+    if status == "active":
+        count_stmt = count_stmt.where(Channel.is_active.is_(True))
+        list_stmt = list_stmt.where(Channel.is_active.is_(True))
+    elif status == "inactive":
+        count_stmt = count_stmt.where(Channel.is_active.is_(False))
+        list_stmt = list_stmt.where(Channel.is_active.is_(False))
+
+    total = int((await db.execute(count_stmt)).scalar() or 0)
+    r = await db.execute(list_stmt.offset((page - 1) * page_size).limit(page_size))
     chans = r.scalars().all()
-    return [ChannelRead.model_validate(c) for c in chans]
+    return ChannelListResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=[ChannelRead.model_validate(c) for c in chans],
+    )
 
 
 @router.post("/channels", response_model=ChannelRead, status_code=status.HTTP_201_CREATED)
@@ -209,11 +236,7 @@ async def admin_create_channel(
     if exists:
         raise HTTPException(status_code=400, detail="Stream URL already exists.")
 
-    mod = (payload.module or "global_sports").strip().lower()
-    if mod == "sports":
-        mod = "global_sports"
-    if mod not in ("global_sports", "bangladesh", "india", "fast_tv", "live_matches", "world_cup_2026"):
-        mod = "global_sports"
+    mod = _normalize_module(payload.module)
 
     alt_urls = payload.alternate_urls or []
     clean_alts = [str(url).strip() for url in alt_urls if str(url).strip() and str(url).strip() != str(payload.stream_url)]
@@ -252,7 +275,9 @@ async def admin_update_channel(
 
     data = payload.model_dump(exclude_unset=True)
     for field, value in data.items():
-        if field in {"logo_url", "stream_url"} and value is not None:
+        if field == "module" and value is not None:
+            channel.module = _normalize_module(str(value))
+        elif field in {"logo_url", "stream_url"} and value is not None:
             setattr(channel, field, str(value))
         elif field == "alternate_urls" and value is not None:
             setattr(channel, field, _json.dumps([str(url).strip() for url in value if str(url).strip()]))

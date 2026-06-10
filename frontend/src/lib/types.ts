@@ -121,6 +121,7 @@ export type AdminStats = {
   last_sweep_at: string | null;
   last_sweep_checked: number;
   last_sweep_deactivated: number;
+  active_module_counts?: Record<string, number>;
 };
 
 export type HealthSweepResult = {
