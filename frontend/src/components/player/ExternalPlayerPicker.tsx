@@ -9,7 +9,7 @@ const EXTERNAL_PLAYERS = [
     name: "VLC",
     emoji: "🟠",
     desc: "All platforms",
-    scheme: (url: string) => `vlc://${url}`,
+    scheme: (url: string) => `vlc://${encodeSchemeUrl(url)}`,
     fallback: "https://www.videolan.org/vlc/",
   },
   {
@@ -18,7 +18,7 @@ const EXTERNAL_PLAYERS = [
     emoji: "▶️",
     desc: "Android",
     scheme: (url: string) =>
-      `intent:${url}#Intent;package=com.mxtech.videoplayer.ad;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad;end`,
+      `intent:${encodeSchemeUrl(url)}#Intent;package=com.mxtech.videoplayer.ad;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad;end`,
     fallback: "https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad",
   },
   {
@@ -26,7 +26,7 @@ const EXTERNAL_PLAYERS = [
     name: "PotPlayer",
     emoji: "🟢",
     desc: "Windows",
-    scheme: (url: string) => `potplayer://${url}`,
+    scheme: (url: string) => `potplayer://${encodeSchemeUrl(url)}`,
     fallback: "https://potplayer.daum.net/",
   },
   {
@@ -42,7 +42,7 @@ const EXTERNAL_PLAYERS = [
     name: "mpv",
     emoji: "🟣",
     desc: "Win/Mac/Linux",
-    scheme: (url: string) => `mpv://${url}`,
+    scheme: (url: string) => `mpv://${encodeSchemeUrl(url)}`,
     fallback: "https://mpv.io/installation/",
   },
   {
@@ -54,6 +54,10 @@ const EXTERNAL_PLAYERS = [
     fallback: "https://apps.apple.com/app/infuse-7/id1136220934",
   },
 ] as const;
+
+function encodeSchemeUrl(url: string): string {
+  return encodeURI(url).replace(/#/g, "%23");
+}
 
 export function tryLaunchPlayer(schemeUrl: string, fallbackUrl: string): void {
   if (schemeUrl.startsWith("intent:")) {
