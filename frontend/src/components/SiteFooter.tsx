@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
 import { usePlayerStore } from "@/store/playerStore";
 import {
+  ChevronDown,
   ExternalLink,
   Mail,
   Phone,
@@ -96,15 +96,32 @@ export function SiteFooter() {
 
           {/* ABO Enterprise credit */}
           <div className="shrink-0 text-center sm:text-right">
-            <p className="text-[9px] uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>Powered by</p>
+            <p className="text-[9px] uppercase tracking-[0.18em] mb-1.5" style={{ color: "var(--text-muted)" }}>Powered by</p>
             <a
               href="https://aboenterprise.netlify.app/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-black uppercase tracking-wide transition hover:opacity-80"
-              style={{ color: "var(--primary-accent)" }}
+              className="inline-block transition hover:opacity-80"
+              aria-label="ABO Enterprise"
             >
-              ABO Enterprise
+              <Image
+                src="/icons/abo-enterprise-logo.png"
+                alt="ABO Enterprise"
+                width={100}
+                height={38}
+                className="object-contain"
+              />
+            </a>
+            <a
+              href="https://mumainsumon.netlify.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Developer website"
+              title="mumainsumon.netlify.app"
+              className="mt-1.5 inline-flex h-7 w-7 items-center justify-center rounded-lg transition hover:opacity-80"
+              style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
+            >
+              <Globe size={13} aria-hidden />
             </a>
           </div>
         </div>
@@ -251,7 +268,11 @@ export function SiteFooter() {
               </Link>
             </p>
             <p className="mt-0.5 max-w-prose text-[10px] leading-snug">
-              Third-party streams · <span className="whitespace-nowrap">ABO Enterprise</span>
+              Third-party streams ·{" "}
+              <a href="https://aboenterprise.netlify.app/" target="_blank" rel="noopener noreferrer"
+                className="whitespace-nowrap hover:opacity-80 transition" style={{ color: "var(--primary-accent)" }}>
+                ABO Enterprise
+              </a>
             </p>
           </div>
         </div>

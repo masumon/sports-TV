@@ -54,6 +54,7 @@ import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
+import { wakeBackend } from "@/lib/backendWakeup";
 
 const PremiumPlayer = dynamic(
   () => import("@/components/PremiumPlayer").then((m) => m.default),
@@ -526,6 +527,8 @@ export function ViewerHome() {
   }, []);
 
   useEffect(() => {
+    // Wake up Render free-tier backend before channels load
+    wakeBackend();
     const hasCache = (getChannelListCache()?.length ?? 0) > 0;
     void loadChannels(false, hasCache);
   }, [loadChannels]);

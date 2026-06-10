@@ -311,17 +311,20 @@ export function Sidebar() {
               </div>
             </div>
           </div>
-          <p className="text-[9px] uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
-            Powered by
-          </p>
           <a
             href="https://aboenterprise.netlify.app/"
             target="_blank"
             rel="noreferrer"
-            className="text-[11px] font-bold transition hover:opacity-80"
-            style={{ color: "var(--primary-accent)" }}
+            className="mt-1 flex items-center gap-2 transition hover:opacity-80"
+            aria-label="ABO Enterprise"
           >
-            ABO ENTERPRISE
+            <Image
+              src="/icons/abo-enterprise-logo.png"
+              alt="ABO Enterprise"
+              width={72}
+              height={28}
+              className="object-contain"
+            />
           </a>
           <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>
             v{APP_META.version} · Build {APP_META.build}
@@ -329,6 +332,17 @@ export function Sidebar() {
           <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>
             {APP_META.developer} · {APP_META.copyright}
           </p>
+          <a
+            href="https://mumainsumon.netlify.app/"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Developer website"
+            title="mumainsumon.netlify.app"
+            className="mt-1.5 inline-flex h-7 w-7 items-center justify-center rounded-lg transition hover:opacity-80"
+            style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
+          >
+            <Globe size={13} aria-hidden />
+          </a>
           <div className="mt-2 flex flex-wrap gap-2 text-[9px] font-semibold">
             <a href={LEGAL_LINKS.privacy} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Privacy</a>
             <a href={LEGAL_LINKS.terms} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Terms</a>

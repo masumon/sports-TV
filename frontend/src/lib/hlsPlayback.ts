@@ -1,15 +1,15 @@
 import type { HlsConfig } from "hls.js";
 import Hls from "hls.js";
 
-export const HLS_MANIFEST_MAX_RETRY = 3;
-export const HLS_LEVEL_MAX_RETRY = 2;
-export const HLS_FRAG_MAX_RETRY = 2;
-export const MAX_HLS_RECOVERY_ATTEMPTS = 4;
-export const LINK_RETRY_ATTEMPTS = 3;
+export const HLS_MANIFEST_MAX_RETRY = 4;
+export const HLS_LEVEL_MAX_RETRY = 3;
+export const HLS_FRAG_MAX_RETRY = 3;
+export const MAX_HLS_RECOVERY_ATTEMPTS = 6;
+export const LINK_RETRY_ATTEMPTS = 4;
 
-export const HLS_MANIFEST_LOAD_TIMEOUT_MS = 5500;
-export const HLS_LEVEL_LOAD_TIMEOUT_MS = 5500;
-export const HLS_FRAG_LOAD_TIMEOUT_MS = 9000;
+export const HLS_MANIFEST_LOAD_TIMEOUT_MS = 15000;
+export const HLS_LEVEL_LOAD_TIMEOUT_MS = 12000;
+export const HLS_FRAG_LOAD_TIMEOUT_MS = 18000;
 
 type NetConn = { saveData?: boolean; effectiveType?: string };
 
@@ -28,9 +28,9 @@ export function isMobilePlayback(): boolean {
   return window.matchMedia("(pointer: coarse)").matches;
 }
 
-/** Exponential backoff: 800ms → 1600ms → 3200ms (cap). */
+/** Exponential backoff: 1000ms → 2000ms → 4000ms → 6000ms (cap). */
 export function linkRetryDelayMs(attempt: number): number {
-  return Math.min(3200, 800 * 2 ** Math.max(0, attempt));
+  return Math.min(6000, 1000 * 2 ** Math.max(0, attempt));
 }
 
 /**
@@ -52,9 +52,9 @@ export function buildHlsConfig(opts: { lightNet: boolean; mobile: boolean }): Pa
     maxBufferHole: 0.5,
     highBufferWatchdogPeriod: 2,
     nudgeOffset: 0.1,
-    nudgeMaxRetry: 6,
-    liveSyncDurationCount: constrained ? 2 : 3,
-    liveMaxLatencyDurationCount: constrained ? 6 : 10,
+    nudgeMaxRetry: 8,
+    liveSyncDurationCount: constrained ? 3 : 4,
+    liveMaxLatencyDurationCount: constrained ? 8 : 12,
     liveDurationInfinity: true,
     liveBackBufferLength: constrained ? 0 : 4,
     abrEwmaDefaultEstimate: constrained ? 350_000 : 900_000,
@@ -63,13 +63,13 @@ export function buildHlsConfig(opts: { lightNet: boolean; mobile: boolean }): Pa
     abrMaxWithRealBitrate: true,
     manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
     manifestLoadingMaxRetry: HLS_MANIFEST_MAX_RETRY,
-    manifestLoadingRetryDelay: 400,
+    manifestLoadingRetryDelay: 1000,
     levelLoadingTimeOut: HLS_LEVEL_LOAD_TIMEOUT_MS,
     levelLoadingMaxRetry: HLS_LEVEL_MAX_RETRY,
-    levelLoadingRetryDelay: 400,
+    levelLoadingRetryDelay: 800,
     fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
     fragLoadingMaxRetry: HLS_FRAG_MAX_RETRY,
-    fragLoadingRetryDelay: constrained ? 700 : 450,
+    fragLoadingRetryDelay: constrained ? 1200 : 800,
     startLevel: -1,
     capLevelToPlayerSize: true,
   };

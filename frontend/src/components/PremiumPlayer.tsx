@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { ExternalPlayerPicker } from "@/components/player/ExternalPlayerPicker";
 import { PlayerControlBar } from "@/components/player/PlayerControlBar";
-import { PlayerHeaderOverlay } from "@/components/player/PlayerHeaderOverlay";
 import {
   PlayerSettingsPanel,
   type AudioTrackOption,
@@ -266,9 +265,10 @@ export default function PremiumPlayer({
   const [bufferedPct, setBufferedPct] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [serverWaking, setServerWaking] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const autoRetryCountRef = useRef(0);
-  const MAX_AUTO_RETRIES = 3;
+  const MAX_AUTO_RETRIES = 5;
   const [autoRetryCountdown, setAutoRetryCountdown] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
@@ -383,6 +383,7 @@ export default function PremiumPlayer({
     setUrlIdx(0);
     setIsSwitching(false);
     setGeoRestricted(false);
+    setServerWaking(false);
     linkRetryRef.current = 0;
     hlsRecoveryRef.current = 0;
     firstHideDoneRef.current = false;
@@ -528,6 +529,19 @@ export default function PremiumPlayer({
           }
           const onEnd = () => {
             xhr.removeEventListener("loadend", onEnd);
+            if (xhr.status === 503) {
+              // Backend is hibernating (Render free tier) — show waking message and retry after delay
+              setServerWaking(true);
+              setIsLoading(true);
+              if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
+              linkRetryTimerRef.current = setTimeout(() => {
+                linkRetryTimerRef.current = null;
+                setServerWaking(false);
+                setRetryKey((k) => k + 1);
+              }, 8000);
+              return;
+            }
+            setServerWaking(false);
             if (xhr.status >= 500 || xhr.status === 429) {
               if (tryFailover()) return;
               setIsLoading(false);
@@ -1048,7 +1062,7 @@ export default function PremiumPlayer({
     retryStream();
   }, [retryStream]);
 
-  // Auto-retry countdown: when error or geo-block appears, count down then auto-retry (max 3)
+  // Auto-retry countdown: when error or geo-block appears, count down then auto-retry (max 5)
   useEffect(() => {
     if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
     if (autoRetryCountRef.current >= MAX_AUTO_RETRIES) {
@@ -1056,7 +1070,7 @@ export default function PremiumPlayer({
       return;
     }
     onStreamErrorRef.current?.();
-    const secs = geoRestricted ? 15 : 10;
+    const secs = geoRestricted ? 15 : autoRetryCountRef.current < 2 ? 12 : 20;
     setAutoRetryCountdown(secs);
     const interval = setInterval(() => {
       setAutoRetryCountdown((c) => {
@@ -1348,7 +1362,7 @@ export default function PremiumPlayer({
                 {title || "ABO SPORTS TV"}
               </p>
               <p className="text-[11px] font-medium tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.75)" }}>
-                {RECONNECT_MSG}
+                {serverWaking ? "Server জাগছে… একটু অপেক্ষা করুন" : RECONNECT_MSG}
               </p>
             </div>
 
@@ -1433,13 +1447,6 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-
-      <PlayerHeaderOverlay
-        programTitle={programTitle}
-        channelLogoUrl={channelLogoUrl}
-        isFullscreen={isFullscreen}
-        onExitFullscreen={() => void document.exitFullscreen()}
-      />
 
       {/* Custom overlay */}
       {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30">{overlay}</div> : null}

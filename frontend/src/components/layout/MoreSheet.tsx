@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { X, Globe } from "lucide-react";
 import { APP_META, LEGAL_LINKS } from "@/lib/constants";
 import { useUiStore } from "@/store/uiStore";
 import { useThemeAccentStore, THEME_ACCENTS } from "@/store/themeAccentStore";
@@ -147,8 +148,34 @@ export function MoreSheet({ open, onClose }: Props) {
           <p className="text-[10px] font-bold" style={{ color: "var(--text-main)" }}>ABO Sports TV v{APP_META.version}</p>
           <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>Build {APP_META.build}</p>
           <p className="mt-1 text-[9px]" style={{ color: "var(--text-muted)" }}>
-            {APP_META.developer} · {APP_META.copyright}
+            {APP_META.copyright}
           </p>
+          <a
+            href="https://aboenterprise.netlify.app/"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-block transition hover:opacity-80"
+            aria-label="ABO Enterprise"
+          >
+            <Image
+              src="/icons/abo-enterprise-logo.png"
+              alt="ABO Enterprise"
+              width={80}
+              height={30}
+              className="object-contain"
+            />
+          </a>
+          <a
+            href="https://mumainsumon.netlify.app/"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Developer website"
+            title="mumainsumon.netlify.app"
+            className="mt-1.5 inline-flex h-7 w-7 items-center justify-center rounded-lg transition hover:opacity-80"
+            style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}
+          >
+            <Globe size={13} aria-hidden />
+          </a>
           <div className="mt-2 flex items-center justify-center gap-3 text-[10px] font-semibold">
             <a href={LEGAL_LINKS.privacy} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Privacy</a>
             <a href={LEGAL_LINKS.terms} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Terms</a>
