@@ -4,6 +4,7 @@ import { fetchFanCodeM3UChannels } from "@/lib/fancodeM3U";
 import { fetchCricHDChannels } from "@/lib/crichdLive";
 import { parseM3UPlaylist } from "@/lib/m3uParser";
 import { fetchPlaylistText } from "@/lib/playlistFetch";
+import { expandPlaylistUrls } from "@/lib/playlistSources";
 import type { Channel, PremiumDirectModule, ViewerModule } from "@/lib/types";
 
 /** Caps concurrent `/proxy/playlist` calls so Render free tier is not hit with 10+ upstream fetches at once. */
@@ -231,7 +232,7 @@ async function ingestPlaylistUrlsIntoSeen(
   seen: Set<string>,
   out: Channel[] | null
 ): Promise<void> {
-  const valid = urls.filter((u) => u && u.startsWith("http"));
+  const valid = expandPlaylistUrls(urls);
   if (!valid.length) return;
 
   /** Parallel fetches per group, globally throttled — faster than serial, bounded for free-tier backend. */
