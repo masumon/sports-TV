@@ -418,6 +418,10 @@ export default function AdminDashboardPage() {
   };
 
   const bulkDelete = async () => {
+    if (!authToken) {
+      toast.error("Not authenticated");
+      return;
+    }
     if (selectedChannels.size === 0) {
       toast.error("No channels selected");
       return;
@@ -427,7 +431,7 @@ export default function AdminDashboardPage() {
     setBulkActionLoading(true);
     try {
       const res = await apiClient.adminBulkDelete(authToken, Array.from(selectedChannels));
-      toast.success(`✓ Deleted ${res.deleted} channels`);
+      toast.success(`✓ Deleted ${(res as { deleted: number }).deleted} channels`);
       setSelectedChannels(new Set());
       await fetchAdminData();
     } catch (err) {
@@ -438,6 +442,10 @@ export default function AdminDashboardPage() {
   };
 
   const bulkToggleStatus = async (isActive: boolean) => {
+    if (!authToken) {
+      toast.error("Not authenticated");
+      return;
+    }
     if (selectedChannels.size === 0) {
       toast.error("No channels selected");
       return;
@@ -1367,7 +1375,7 @@ export default function AdminDashboardPage() {
                 <tbody className="divide-y divide-white/5">
                   <tr>
                     <td colSpan={4} className="px-3 py-4 text-center text-zinc-500">
-                      Click "Refresh Users" to load user list (currently loading on demand)
+                      Click &quot;Refresh Users&quot; to load user list (currently loading on demand)
                     </td>
                   </tr>
                 </tbody>
