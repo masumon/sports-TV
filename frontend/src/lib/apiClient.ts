@@ -236,7 +236,10 @@ export const apiClient = {
     if (params.hours_back != null) sp.set("hours_back", String(params.hours_back));
     if (params.days_ahead != null) sp.set("days_ahead", String(params.days_ahead));
     const q = sp.toString();
-    return apiRequest<LiveFixtureListResponse>(`/sports-tv/fixtures${q ? `?${q}` : ""}`);
+    return apiRequest<LiveFixtureListResponse>(`/sports-tv/fixtures${q ? `?${q}` : ""}`, {
+      timeoutMs: 12_000,
+      retries: 2,
+    });
   },
 
   /** Flush server-side Redis list caches (public POST). */
@@ -265,7 +268,12 @@ export const apiClient = {
   },
 
   adminStats(token: string) {
-    return apiRequest<AdminStats>("/admin/stats", { method: "GET", authToken: token });
+    return apiRequest<AdminStats>("/admin/stats", {
+      method: "GET",
+      authToken: token,
+      timeoutMs: 12_000,
+      retries: 2,
+    });
   },
 
   adminListChannels(token: string, status: "active" | "inactive" | "all" = "active") {
@@ -304,6 +312,8 @@ export const apiClient = {
       method: "POST",
       authToken: token,
       body: JSON.stringify(body),
+      timeoutMs: 15_000,
+      retries: 2,
     });
   },
 
@@ -312,11 +322,18 @@ export const apiClient = {
       method: "PUT",
       authToken: token,
       body: JSON.stringify(body),
+      timeoutMs: 15_000,
+      retries: 2,
     });
   },
 
   adminDeleteChannel(token: string, id: number) {
-    return apiRequest<void>(`/admin/channels/${id}`, { method: "DELETE", authToken: token });
+    return apiRequest<void>(`/admin/channels/${id}`, {
+      method: "DELETE",
+      authToken: token,
+      timeoutMs: 10_000,
+      retries: 2,
+    });
   },
 
   adminSyncChannels(token: string) {
@@ -340,6 +357,8 @@ export const apiClient = {
       method: "POST",
       authToken: token,
       body: JSON.stringify({ urls }),
+      timeoutMs: 30_000, // 30s - probing streams can take time
+      retries: 1,
     });
   },
 
@@ -357,7 +376,12 @@ export const apiClient = {
   adminPurgeInactive(token: string) {
     return apiRequest<{ deleted: number }>(
       "/admin/channels/purge-inactive",
-      { method: "POST", authToken: token }
+      {
+        method: "POST",
+        authToken: token,
+        timeoutMs: 30_000,
+        retries: 1,
+      }
     );
   },
 
