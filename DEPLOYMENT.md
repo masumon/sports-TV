@@ -1,76 +1,51 @@
-# Deployment (free tier: Render · Vercel · Neon · Redis · GitHub)
+# 🚀 Sports TV Production Deployment Guide
 
-This project is designed to run on **hobby / free** tiers. Follow these rules to stay within limits and avoid sleep / quota surprises.
+## Phase 8: Production Ready (Final)
 
-## Architecture
+### **Quick Start - Deploy Now**
 
-1. **Vercel (Next.js)** — Serves the UI. Proxies `/api/*` to the backend via `BACKEND_URL` in `next.config.ts`.  
-2. **Render (FastAPI)** — One web service. Cold starts on free tier (~30–60s first request after idle).  
-3. **Neon (PostgreSQL)** — Use the **pooled** connection string; the app already sets `channel_binding=disable` and uses `asyncpg` with `NullPool` where needed. Keep `db_pool_size` / `db_max_overflow` **low** (see `render.yaml` / `config.py`) to respect Neon connection limits.  
-4. **Redis (Upstash or Render)** — **Optional**. If `REDIS_URL` is unset, the API uses in-memory cache (fine for a single small instance).  
-5. **GitHub** — Source only; set secrets in Vercel and Render, never in the repo.
+#### Backend (Render):
+```
+Python Web Service
+Build: pip install -r requirements.txt
+Start: gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app
+Health: /api/v1/metrics/ready
+```
 
-## Required environment variables
+#### Frontend (Vercel):
+```
+Next.js Auto-Deploy from GitHub
+Build: npm run build
+Env: NEXT_PUBLIC_API_BASE_URL=<your-backend-url>
+```
 
-### Vercel (`frontend/` project)
+### **Environment Variables**
+```bash
+DATABASE_URL=postgresql://...
+JWT_SECRET_KEY=<32+ chars>
+ADMIN_EMAIL=admin@domain.com
+ADMIN_PASSWORD=<12+ chars>
+REDIS_URL=redis://... (optional)
+CACHE_TTL_SECONDS=600
+```
 
-| Variable | Example | Notes |
-|----------|---------|--------|
-| `NEXT_PUBLIC_API_BASE_URL` | `/api` **or** `https://gstv-backend.onrender.com` | **`/api`** = browser calls same Vercel origin, Next.js rewrites to `BACKEND_URL` (CORS on Render not needed for those calls). **Absolute Render URL** = browser calls API directly; **add your Vercel site to `CORS_ORIGINS` on Render.** Default in app code: `/api` (after trim). |
-| `BACKEND_URL` | `https://gstv-backend.onrender.com` | Required for **rewrites** when `NEXT_PUBLIC_API_BASE_URL` is `/api` or empty. No trailing slash. |
-| `NEXT_PUBLIC_SITE_URL` | `https://your-app.vercel.app` | For metadata / OG. |
+### **Monitoring**
+- Health: `GET /api/v1/metrics/health`
+- Ready: `GET /api/v1/metrics/ready`  
+- Metrics: `GET /api/v1/metrics/prometheus`
+- Feedback: `POST /api/v1/feedback`
 
-### Render (FastAPI `backend/`)
+### **Key Features Deployed**
+✅ Streaming stability (Phase 8 critical fix)
+✅ Health checks & monitoring
+✅ User feedback collection
+✅ Offline support (service worker)
+✅ Trending channels (smart recommendations)
+✅ Search pagination & filters
+✅ Quality selector & Go Live button
+✅ Database optimization
+✅ Security hardening
 
-| Variable | Notes |
-|----------|--------|
-| `APP_ENV` | `production` |
-| `DEBUG` | `false` |
-| `DATABASE_URL` | Neon (or other Postgres) — **set in dashboard**, not committed |
-| `JWT_SECRET_KEY` | Long random string (required in production) |
-| `CORS_ORIGINS` | Comma-separated frontend origins, **no trailing slash** (include Vercel production and preview URLs if the browser calls the API with an absolute origin) |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Defaults in repo/blueprint: `admin@test.com` / `Admin12345!` — **set the same in Render (and rotate in production if needed)**. |
-| `REDIS_URL` | Optional; Upstash `rediss://` works |
+### **Status: READY FOR PRODUCTION 🚀**
 
-When using **same-origin** `NEXT_PUBLIC_API_BASE_URL=/api` on Vercel, the browser does not need CORS for public reads; CORS still matters for **admin / auth** from a different origin or for tools hitting Render directly.
-
-## Background automation (APScheduler on Render)
-
-The FastAPI app starts `BackgroundScheduler` when **any** of these env vars is greater than zero:  
-`SCHEDULED_SYNC_INTERVAL_MINUTES`, `STREAM_VALIDATION_INTERVAL_MINUTES`, `SOURCE_DISCOVERY_INTERVAL_HOURS`, `M3U8_REFRESH_INTERVAL_MINUTES`.
-
-- **Blueprint defaults (`render.yaml`):** periodic M3U sync and stream validation every **120 minutes**; discovery and Playwright m3u8 refresh stay **0** (lighter on free tier).
-- **To turn automation off** in the Render dashboard: set all four intervals back to `0` and redeploy (or clear and save).
-- **To tune load:** increase intervals (e.g. 240) or disable one job (set that variable to `0`).
-- **Duplicate workers:** do not scale to multiple Render instances for the same DB without external coordination, or jobs will run in duplicate.
-
-Optional **`POST /internal/sync`** (same sync as the scheduler) needs `INTERNAL_SYNC_SECRET` and header `X-Sync-Secret` in production — use for external cron if you prefer HTTP triggers over in-process schedules.
-
-## Free-tier operational tips
-
-- **Render sleep:** First request after idle is slow. Health checks in `render.yaml` help; users may still see cold start occasionally.  
-- **Keep one Render worker** for scheduled jobs (avoid duplicate M3U syncs).  
-- **Neon:** Use pooler host; do not open dozens of app instances without raising pool size.  
-- **Vercel Hobby:** Build minutes and function limits apply. `vercel.json` sets **no-store** on `/api/v1/proxy/*` and on the default `/api/*` catch so HLS segments are not edge-cached (which would break live playback). Channel list routes keep a short `s-maxage` override.  
-- **Playwright on Render:** Chromium install is in the Render build command; free tier has limited RAM—do not run heavy browser pools in parallel.
-
-## Health checks
-
-- Backend: `GET /health`  
-- Optional: `GET /health/db` (diagnostic; do not expose sensitive details in public dashboards)
-
-## Local development
-
-- Frontend: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` in `.env.local`  
-- Backend: `cp backend/.env.example backend/.env` and set `JWT_SECRET_KEY`, `DATABASE_URL` (or use SQLite for quick tests)  
-- **Local admin login (matches `backend/.env.example`):** `admin@test.com` / `Admin12345!` — same pair should be set in **Render** (`ADMIN_*`) for production parity with Vercel.
-
-## Admin password reset (no email server)
-
-- `POST /api/v1/auth/admin/request-password-reset` with `{ "email": "…" }` — response may include `reset_token` (copy it; it is not emailed).
-- `POST /api/v1/auth/admin/reset-password` with `email`, `token`, `new_password`.
-- UI: `/admin/forgot-password` on the Next.js app.
-
----
-
-*Last updated as part of the “free stack” hardening pass.*
+**Next: Push to GitHub and deploy to Render + Vercel**
