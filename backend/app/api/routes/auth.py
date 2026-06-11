@@ -7,7 +7,7 @@ import secrets
 import time
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,7 +88,7 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+async def login(payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     normalized_email = payload.email.strip().lower()
 
     # SECURITY: Rate limit login attempts (5 per 5 minutes)
@@ -99,8 +99,14 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
             if now - t < _login_rate_limit_window_seconds
         ]
         if len(_login_attempts[normalized_email]) >= _login_rate_limit_attempts:
-            logger.warning("Login rate limit exceeded: email=%s", normalized_email)
-            raise HTTPException(status_code=429, detail="Too many login attempts. Try again in 5 minutes.")
+            oldest_attempt = _login_attempts[normalized_email][0]
+            retry_after_seconds = int(_login_rate_limit_window_seconds - (now - oldest_attempt)) + 1
+            response.headers["Retry-After"] = str(max(1, retry_after_seconds))
+            logger.warning("Login rate limit exceeded: email=%s retry_after=%ds", normalized_email, retry_after_seconds)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Too many login attempts. Please try again in {retry_after_seconds} seconds."
+            )
     else:
         _login_attempts[normalized_email] = []
     _login_attempts[normalized_email].append(now)

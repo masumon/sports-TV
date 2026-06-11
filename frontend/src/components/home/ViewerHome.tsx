@@ -31,6 +31,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { MoreSheet } from "@/components/layout/MoreSheet";
 import { CategoryTabs } from "@/components/home/CategoryTabs";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
+import { ChannelDetailsPanel } from "@/components/channels/ChannelDetailsPanel";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
 import { CategorySkeletonRow, ChannelSkeletonGrid, PlayerSkeleton } from "@/components/ui/ChannelSkeleton";
 import { groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
@@ -1139,6 +1140,12 @@ export function ViewerHome() {
                   />
                 ) : null}
               </HeroVideoPlayer>
+            )}
+
+            {activeChannel && (
+              <div className="mt-3">
+                <ChannelDetailsPanel channel={activeChannel} />
+              </div>
             )}
 
             {!activeChannel && recentChannelObjects[0] && (

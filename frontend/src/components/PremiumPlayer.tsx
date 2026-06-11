@@ -1743,17 +1743,18 @@ export default function PremiumPlayer({
             className="pointer-events-none absolute inset-0 z-[25] flex items-center justify-center"
           >
             <div
-              className="flex flex-col items-center gap-2 rounded-2xl px-5 py-4"
+              className="flex flex-col items-center gap-3 rounded-3xl px-7 py-6"
               style={{
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                backdropFilter: "blur(20px)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+                background: "linear-gradient(135deg, rgba(30,30,50,0.95) 0%, rgba(40,40,70,0.95) 100%)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                backdropFilter: "blur(30px)",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={DEFAULT_PLAYER_BRAND_LOGO} alt="" className="h-10 w-10 object-contain animate-pulse" />
-              <Loader2 size={16} className="animate-spin text-amber-400" aria-hidden />
+              <img src={DEFAULT_PLAYER_BRAND_LOGO} alt="" className="h-12 w-12 object-contain animate-pulse" />
+              <Loader2 size={24} className="animate-spin text-amber-400" aria-hidden />
+              <p className="text-sm font-semibold text-white tracking-wide">Buffering…</p>
             </div>
           </motion.div>
         )}
