@@ -335,6 +335,22 @@ function mergePremiumDirectSportsIntoSeen(seen: Set<string>, out: Channel[] | nu
  *
  * FanCode live rows are merged in loadFullCatalogWithLive / 30m refresh on the client.
  */
+/** Timeout wrapper: if load takes >20s, return partial results and continue in background. */
+function withLoadTimeout<T>(fn: () => Promise<T>, timeoutMs: number = 20_000): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Channel load timeout — showing partial results")), timeoutMs)
+    ),
+  ]).catch((err) => {
+    if (err instanceof Error && err.message.includes("timeout")) {
+      console.warn("Channel load timeout — using cached/partial data");
+      return undefined as T;
+    }
+    throw err;
+  });
+}
+
 export async function loadStaticCatalogChannels(): Promise<Channel[]> {
   const seen = new Set<string>();
   const out: Channel[] = [];
@@ -408,32 +424,43 @@ export async function countFullViewerCatalogChannels(): Promise<number> {
 }
 
 export async function loadFullCatalogWithLive(): Promise<Channel[]> {
-  const base = await loadStaticCatalogChannels();
-
-  // Parallel fetch all live/direct sources — each fails silently to empty array.
-  const [fancodeJson, fancodeM3u, crichd] = await Promise.allSettled([
-    fetchFanCodeLiveChannels(),   // JSON, live_matches, 7-min update
-    fetchFanCodeM3UChannels(),    // M3U, live_matches, 7-min update
-    fetchCricHDChannels(),        // M3U, global_sports, 30-min update
-  ]);
-
-  const live: Channel[] = [
-    ...(fancodeJson.status === "fulfilled" ? fancodeJson.value : []),
-    ...(fancodeM3u.status === "fulfilled" ? fancodeM3u.value : []),
-    ...(crichd.status === "fulfilled" ? crichd.value : []),
-  ];
-
-  // Dedup live entries against the static base AND within the live array itself.
-  // Using a single growing Set ensures no URL appears twice regardless of source.
-  const allSeen = new Set(base.map((c) => c.stream_url.trim()));
-  const dedupedLive = live.filter((c) => {
-    const url = c.stream_url.trim();
-    if (allSeen.has(url)) return false;
-    allSeen.add(url);
-    return true;
-  });
-
-  return [...base, ...dedupedLive];
+  try {
+    // Timeout on total catalog load: if >15s, return base + timeout message
+    const result = await Promise.race([
+      (async () => {
+        const base = await loadStaticCatalogChannels();
+        const [fancodeJson, fancodeM3u, crichd] = await Promise.allSettled([
+          fetchFanCodeLiveChannels(),
+          fetchFanCodeM3UChannels(),
+          fetchCricHDChannels(),
+        ]);
+        const live: Channel[] = [
+          ...(fancodeJson.status === "fulfilled" ? fancodeJson.value : []),
+          ...(fancodeM3u.status === "fulfilled" ? fancodeM3u.value : []),
+          ...(crichd.status === "fulfilled" ? crichd.value : []),
+        ];
+        const allSeen = new Set(base.map((c) => c.stream_url.trim()));
+        const dedupedLive = live.filter((c) => {
+          const url = c.stream_url.trim();
+          if (allSeen.has(url)) return false;
+          allSeen.add(url);
+          return true;
+        });
+        return [...base, ...dedupedLive];
+      })(),
+      new Promise<Channel[]>((_, reject) =>
+        setTimeout(() => reject(new Error("load_timeout")), 15_000)
+      ),
+    ]);
+    return result;
+  } catch (err) {
+    // On timeout, return static base only (live channels can load in background)
+    if (err instanceof Error && err.message === "load_timeout") {
+      console.warn("Live channel load timeout — showing static channels only");
+      return loadStaticCatalogChannels();
+    }
+    throw err;
+  }
 }
 
 /** All live-match channel sources merged — used by the 30-minute background refresh. */
