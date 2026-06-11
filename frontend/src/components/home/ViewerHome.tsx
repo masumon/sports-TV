@@ -285,6 +285,7 @@ export function ViewerHome() {
   const tier = useSubscriptionStore((s) => s.tier);
   const gridSentinelRef = useRef<HTMLDivElement | null>(null);
   const [gridVisibleCount, setGridVisibleCount] = useState(CHANNEL_GRID_INITIAL);
+  const [searchResultsPage, setSearchResultsPage] = useState(1);  // Pagination for search results
   const [scheduleFixtures, setScheduleFixtures] = useState<LiveFixture[]>([]);
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
@@ -312,6 +313,11 @@ export function ViewerHome() {
   const [showErrorSuggestions, setShowErrorSuggestions] = useState(false);
   const [notifyIds, setNotifyIds] = useState<Set<string>>(new Set());
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
+
+  // Reset search pagination when search query changes
+  useEffect(() => {
+    setSearchResultsPage(1);
+  }, [deferredSearch]);
 
   useEffect(() => {
     try {
@@ -352,7 +358,7 @@ export function ViewerHome() {
       });
       setShowErrorSuggestions(false);
       setRecentlyWatched((prev) => {
-        const next = [ch.id, ...prev.filter((id) => id !== ch.id)].slice(0, 10);
+        const next = [ch.id, ...prev.filter((id) => id !== ch.id)].slice(0, 50);  // Increased from 10 to 50
         try { localStorage.setItem("gstv-recently-watched", JSON.stringify(next)); } catch { /* ignore */ }
         return next;
       });
@@ -751,8 +757,13 @@ export function ViewerHome() {
   const filtered = useMemo(() => {
     let list = moduleChannels;
     const q = deferredSearch.trim().toLowerCase();
-    if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
 
+    // Apply search FIRST, then other filters (search + filters work together)
+    if (q) {
+      list = list.filter((c) => c.name.toLowerCase().includes(q));
+    }
+
+    // Apply category filters (works even during search)
     if (activeModule === "global_sports") {
       // Sport type: hero tabs and sidebar both set activeCategory (single source of truth)
       if (activeCategory) {
@@ -769,13 +780,14 @@ export function ViewerHome() {
         list = list.filter((c) => inferLeague(c.name) === filterLeague);
       }
     } else {
-      // India / Bangladesh: filter by DB category
+      // India / Bangladesh: filter by DB category (applies during search too)
       if (activeCategory) {
         const f = activeCategory.toLowerCase();
         list = list.filter((c) => c.category.toLowerCase().includes(f));
       }
     }
 
+    // Country and language filters apply to search results too
     if (filterCountry) {
       const f = filterCountry.toLowerCase();
       list = list.filter((c) => c.country.toLowerCase().includes(f));
@@ -847,8 +859,21 @@ export function ViewerHome() {
     return () => obs.disconnect();
   }, [loading, filtered.length, gridVisibleCount]);
 
-  const gridSlice = filtered.length <= gridVisibleCount ? filtered : filtered.slice(0, gridVisibleCount);
-  const gridHasMore = !loading && filtered.length > gridSlice.length;
+  // For search results: paginate 24 per page. For normal browsing: use lazy loading.
+  const isSearching = deferredSearch.trim().length > 0;
+  const resultsPerPage = 24;
+  const searchPageStart = (searchResultsPage - 1) * resultsPerPage;
+  const searchPageEnd = searchPageStart + resultsPerPage;
+
+  const gridSlice = isSearching
+    ? filtered.slice(searchPageStart, searchPageEnd)  // Paginated search results
+    : filtered.length <= gridVisibleCount
+      ? filtered
+      : filtered.slice(0, gridVisibleCount);  // Normal infinite scroll
+
+  const gridHasMore = isSearching
+    ? filtered.length > searchPageEnd  // More search results available
+    : !loading && filtered.length > gridSlice.length;  // More to lazy load
 
   const categoryOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -2229,7 +2254,11 @@ export function ViewerHome() {
                     type="button"
                     onClick={() => {
                       startTransition(() => {
-                        setGridVisibleCount((c) => Math.min(c + CHANNEL_GRID_BATCH, filtered.length));
+                        if (isSearching) {
+                          setSearchResultsPage((p) => p + 1);  // Next search page
+                        } else {
+                          setGridVisibleCount((c) => Math.min(c + CHANNEL_GRID_BATCH, filtered.length));
+                        }
                       });
                     }}
                     className="group w-full rounded-2xl py-5 text-center transition-all active:scale-[0.98]"
