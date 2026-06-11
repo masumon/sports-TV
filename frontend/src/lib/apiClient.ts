@@ -218,11 +218,17 @@ export const apiClient = {
     if (params.language) sp.set("language", params.language);
     if (params.module) sp.set("module", params.module);
     const q = sp.toString();
-    return apiRequest<ChannelListResponse>(`/sports-tv/channels${q ? `?${q}` : ""}`);
+    return apiRequest<ChannelListResponse>(`/sports-tv/channels${q ? `?${q}` : ""}`, {
+      timeoutMs: 10_000, // 10s timeout — backend may be waking
+      retries: 3, // aggressive retry for transient failures
+    });
   },
 
   getChannelFilters() {
-    return apiRequest<ChannelFilters>("/sports-tv/filters");
+    return apiRequest<ChannelFilters>("/sports-tv/filters", {
+      timeoutMs: 8_000,
+      retries: 3,
+    });
   },
 
   getLiveFixtures(params: { hours_back?: number; days_ahead?: number } = {}) {
@@ -270,18 +276,24 @@ export const apiClient = {
         {
           method: "GET",
           authToken: token,
+          timeoutMs: 15_000,
+          retries: 2,
         }
       );
     return loadPage(1).then(async (first) => {
       const all = [...first.items];
       const total = first.total;
       if (all.length >= total) return { items: all, total };
-      let page = 2;
-      const maxPages = Math.ceil(total / pageSize) + 1;
-      for (; page <= maxPages; page += 1) {
-        const batch = await loadPage(page);
-        all.push(...batch.items);
-        if (all.length >= total || batch.items.length === 0) break;
+      const maxPages = Math.ceil(total / pageSize);
+      if (maxPages <= 1) return { items: all, total };
+      // Parallel fetch remaining pages (2..maxPages)
+      const remaining = await Promise.allSettled(
+        Array.from({ length: maxPages - 1 }, (_, i) => loadPage(i + 2))
+      );
+      for (const result of remaining) {
+        if (result.status === "fulfilled") {
+          all.push(...result.value.items);
+        }
       }
       return { items: all, total };
     });
