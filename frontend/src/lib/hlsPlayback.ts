@@ -127,7 +127,7 @@ export class StreamHealthTracker {
   private stalls = 0;
   private errors = 0;
   private startupMs: number | null = null;
-  private stallTimestamps: number =;
+  private stallTimestamps: number[] = [];
   private stableSince: number | null = null;
   private stableTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -158,7 +158,7 @@ export class StreamHealthTracker {
     this.stalls = 0;
     this.errors = 0;
     this.startupMs = null;
-    this.stallTimestamps =;
+    this.stallTimestamps = [];
     this.stableSince = null;
   }
 
@@ -175,7 +175,7 @@ export class StreamHealthTracker {
     this.stableSince = null;
     if (this.stallTimestamps.length >= 2) {
       this.onDowngrade();
-      this.stallTimestamps =;
+      this.stallTimestamps = [];
     }
   }
 
