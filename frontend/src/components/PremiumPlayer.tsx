@@ -40,6 +40,7 @@ import {
   buildProxyStreamUrl,
   isDashProxiedStreamUrl,
   parseDynamicM3U8IdFromStreamUrl,
+  relayHlsStreamUrl,
 } from "@/lib/streamRelay";
 import { BRAND } from "@/lib/branding";
 
@@ -167,25 +168,6 @@ function buildOrderedStreamUrls(
   return directUrls.map((u) => buildProxyStreamUrl(u, opt));
 }
 
-/** HLS.js would otherwise request `http://…` segment URLs directly → blocked as mixed content on HTTPS. */
-function relayHlsXhrUrlIfNeeded(
-  url: string,
-  dynamicM3U8Id: number | null,
-  headerProfile: string | null | undefined
-): string {
-  if (!url || url.startsWith("blob:") || url.startsWith("data:")) return url;
-  if ((url.includes("/proxy/stream") || url.includes("/api/v1/proxy/stream")) && url.includes("url=")) {
-    return url;
-  }
-  try {
-    const id = dynamicM3U8Id == null ? undefined : dynamicM3U8Id;
-    const hp = headerProfile?.trim() || undefined;
-    return buildProxyStreamUrl(url, id == null && !hp ? undefined : { dynamicM3U8Id: id, headerProfile: hp });
-  } catch {
-    return url;
-  }
-}
-
 const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
 const RETRY_KEY_MIN_INTERVAL_MS = 2000;
@@ -220,15 +202,25 @@ function prioritizeHealthyUrls(urls: string[]): string[] {
   return healthy.concat(failed);
 }
 
-function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
-  if (xhr.status !== 403 && xhr.status !== 401 && xhr.status !== 451) return false;
+function parseGeoFromBody(status: number, body: string): boolean {
+  if (status !== 403 && status !== 401 && status !== 451) return false;
+  if (status === 451) return true;
   try {
-    const j = JSON.parse(xhr.responseText) as { code?: string };
+    const j = JSON.parse(body) as { code?: string };
     if (j?.code === "GEO_RESTRICTED") return true;
   } catch {
     /* non-JSON body — not a confirmed geo-restriction */
   }
   return false;
+}
+
+function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
+  return parseGeoFromBody(xhr.status, xhr.responseText);
+}
+
+function parseGeoFromHlsResponse(response?: { code?: number; text?: string }): boolean {
+  if (response?.code == null) return false;
+  return parseGeoFromBody(response.code, response.text ?? "");
 }
 
 function canTryDirectPlaybackUrl(url: string): boolean {
@@ -672,7 +664,10 @@ export default function PremiumPlayer({
         ...buildHlsConfig({ lightNet, mobile: mobileNet }),
         lowLatencyMode: useLowLatency,
         xhrSetup: (xhr, requestUrl) => {
-          const nextUrl = relayHlsXhrUrlIfNeeded(requestUrl, dynamicM3U8Id, headerProfile);
+          const nextUrl = relayHlsStreamUrl(requestUrl, {
+            dynamicM3U8Id: dynamicM3U8Id ?? undefined,
+            headerProfile,
+          });
           if (nextUrl !== requestUrl) {
             xhr.open("GET", nextUrl, true);
           }
@@ -760,18 +755,45 @@ export default function PremiumPlayer({
       hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
 
-      const handleFatalHlsError = (data: { type: string; details: string; fatal: boolean; response?: { code?: number } }) => {
+      const handleFatalHlsError = (data: {
+        type: string;
+        details: string;
+        fatal: boolean;
+        response?: { code?: number; text?: string };
+      }) => {
         healthTracker.recordError();
         const httpCode = data.response?.code;
 
         if (httpCode === 403 || httpCode === 401 || httpCode === 451) {
-          if (tryFailover()) return;
-          if (keepRunningPlaybackOnIssue()) return;
-          if (httpCode === 451) {
-            setGeoRestricted(true);
-          } else {
-            setHasError(true);
+          if (hlsRecoveryRef.current < MAX_HLS_RECOVERY_ATTEMPTS) {
+            hlsRecoveryRef.current += 1;
+            if (trySilentHlsRecovery(hls)) {
+              if (!playbackStartedRef.current) setIsLoading(true);
+              return;
+            }
           }
+          const authRetries = linkRetryRef.current;
+          if (canAutoReloadBeforePlayback() && authRetries < LINK_RETRY_ATTEMPTS - 1) {
+            linkRetryRef.current = authRetries + 1;
+            if (!playbackStartedRef.current && !everPlayedRef.current) {
+              setIsLoading(true);
+              setIsSwitching(true);
+            } else {
+              setIsBuffering(true);
+            }
+            if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
+            linkRetryTimerRef.current = setTimeout(() => {
+              linkRetryTimerRef.current = null;
+              if (loadGen === loadGenRef.current) scheduleRetryKey();
+            }, linkRetryDelayMs(authRetries));
+            return;
+          }
+          linkRetryRef.current = 0;
+          if (canAutoReloadBeforePlayback() && tryFailover()) return;
+          if (keepRunningPlaybackOnIssue()) return;
+          const confirmedGeo = parseGeoFromHlsResponse(data.response) || httpCode === 451;
+          setGeoRestricted(confirmedGeo || geoHint);
+          setHasError(!(confirmedGeo || geoHint));
           setIsLoading(false);
           setIsSwitching(false);
           return;
@@ -843,7 +865,6 @@ export default function PremiumPlayer({
             data.details === Hls.ErrorDetails.BUFFER_NUDGE_ON_STALL
           ) {
             healthTracker.recordStall();
-            if (playbackStartedRef.current) trySilentHlsRecovery(hls);
           } else if (
             data.details === Hls.ErrorDetails.LEVEL_LOAD_ERROR ||
             data.details === Hls.ErrorDetails.LEVEL_LOAD_TIMEOUT ||
@@ -946,6 +967,7 @@ export default function PremiumPlayer({
     resolvedDirect,
     dynamicM3U8Id,
     headerProfile,
+    geoHint,
     isMobilePlayer,
     dataSaver,
     lowLatencyMode,
@@ -966,9 +988,11 @@ export default function PremiumPlayer({
       if (playbackStartedRef.current) {
         setIsBuffering(true);
         keepRunningPlaybackOnIssue();
-        const hls = hlsRef.current;
-        if (hls && trySilentHlsRecovery(hls)) return;
         stallCountRef.current += 1;
+        if (stallCountRef.current >= 3) {
+          stallCountRef.current = 0;
+          scheduleRetryKey();
+        }
         return;
       }
       setIsLoading(true);
