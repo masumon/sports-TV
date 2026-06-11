@@ -12,8 +12,11 @@ class Channel(Base):
     __tablename__ = "channels"
     __table_args__ = (
         UniqueConstraint("stream_url", name="uq_channels_stream_url"),
-        # Composite index for the most common query: active channels ordered by updated_at
+        # Composite indexes for common query patterns
         Index("ix_channels_active_updated", "is_active", "updated_at"),
+        Index("ix_channels_module_country", "module", "country", "is_active"),  # Filter by module/country
+        Index("ix_channels_category_active", "category", "is_active"),  # Category filters
+        Index("ix_channels_search", "name", "is_active"),  # Search queries
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)

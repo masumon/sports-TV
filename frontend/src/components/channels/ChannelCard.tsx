@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Image from "next/image";
 import { cn } from "@/lib/cn";
 
@@ -19,7 +20,7 @@ type ChannelCardProps = {
   className?: string;
 };
 
-export function ChannelCard({ channel, active = false, isLive = false, onSelect, className }: ChannelCardProps) {
+function ChannelCardBase({ channel, active = false, isLive = false, onSelect, className }: ChannelCardProps) {
   return (
     <button
       type="button"
@@ -63,3 +64,5 @@ export function ChannelCard({ channel, active = false, isLive = false, onSelect,
     </button>
   );
 }
+
+export const ChannelCard = React.memo(ChannelCardBase);
