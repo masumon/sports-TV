@@ -322,8 +322,13 @@ async def list_channels(
 
 
 @router.get("/filters", response_model=ChannelFiltersResponse)
-async def get_filters(db: AsyncSession = Depends(get_db)) -> ChannelFiltersResponse:
+async def get_filters(
+    response: Response,
+    db: AsyncSession = Depends(get_db)
+) -> ChannelFiltersResponse:
     """Return distinct filter values available for active channels."""
+    response.headers["Cache-Control"] = CHANNELS_CACHE_HEADER
+    response.headers["Vary"] = "Accept-Encoding"
     cached = cache_get_json("channel_filters", {})
     if cached is not None:
         try:

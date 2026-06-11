@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     auto_sync_channels_on_startup: bool = False
     # Optional Redis for response caching (GET /sports-tv/channels, filters). If unset, caching is disabled.
     redis_url: str | None = None
-    cache_ttl_seconds: int = 300
+    cache_ttl_seconds: int = 600  # 10 min default (increased from 300s for better hitrate)
     # POST /admin/channels/sync — minimum seconds between successful syncs per process (in-memory).
     sync_rate_limit_seconds: int = 60
     # Legacy DB M3U sync interval (admin / GET /sports-tv/channels). Viewer catalog is client-side M3U.

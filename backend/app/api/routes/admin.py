@@ -45,6 +45,13 @@ async def admin_stats(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_admin_user),
 ) -> AdminStatsResponse:
+    from app.core.cache import cache_get_json, cache_set_json
+    cached = cache_get_json("admin_stats", {})
+    if cached is not None:
+        try:
+            return AdminStatsResponse.model_validate(cached)
+        except Exception:
+            pass
     u = (await db.execute(select(func.count()).select_from(User.__table__))).scalar() or 0
     # Use consistent ORM-based counts for both total and active
     total = (await db.execute(select(func.count()).select_from(Channel))).scalar() or 0
@@ -62,7 +69,7 @@ async def admin_stats(
         )
     ).all()
     active_module_counts = {str(mod): int(cnt) for mod, cnt in module_rows}
-    return AdminStatsResponse(
+    result = AdminStatsResponse(
         users=int(u),
         channels=int(total),
         active_channels=int(active),
@@ -79,6 +86,11 @@ async def admin_stats(
         last_sweep_deactivated=get_last_sweep_deactivated(),
         active_module_counts=active_module_counts,
     )
+    try:
+        cache_set_json("admin_stats", {}, result.model_dump(mode="json"), ttl=60)
+    except Exception:
+        pass
+    return result
 
 
 @router.post("/proxy/probe", response_model=StreamProbeResponse)
