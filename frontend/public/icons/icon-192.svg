@@ -1,42 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="ABO Sports TV">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none" role="img" aria-label="ABO Sports TV">
   <defs>
-    <linearGradient id="bg192" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#111320"/>
-      <stop offset="100%" stop-color="#06070e"/>
+    <linearGradient id="gold192" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F5C518"/>
+      <stop offset="100%" stop-color="#C9921A"/>
     </linearGradient>
-    <linearGradient id="gold192" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#F5A623"/>
-      <stop offset="100%" stop-color="#C9A227"/>
-    </linearGradient>
-    <linearGradient id="whitefade" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    <linearGradient id="red192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E83535"/>
+      <stop offset="100%" stop-color="#B81E1E"/>
     </linearGradient>
   </defs>
-
-  <!-- Background -->
-  <rect width="192" height="192" rx="40" fill="url(#bg192)"/>
-  <!-- Subtle top-shine -->
-  <rect width="192" height="96" rx="40" fill="url(#whitefade)"/>
-  <!-- Gold border glow -->
-  <rect x="1.5" y="1.5" width="189" height="189" rx="39" fill="none" stroke="#F5A623" stroke-width="2" stroke-opacity="0.3"/>
-
-  <!-- White app-icon container -->
-  <rect x="28" y="28" width="136" height="136" rx="26" fill="white"/>
-  <!-- Gold inner border -->
-  <rect x="28" y="28" width="136" height="136" rx="26" fill="none" stroke="#F5A623" stroke-width="2" stroke-opacity="0.45"/>
-
-  <!-- ABO text — large, dark -->
-  <text x="96" y="90" text-anchor="middle" dominant-baseline="middle"
-        font-family="Arial Black, Impact, sans-serif" font-weight="900"
-        font-size="38" fill="#0a0d18" letter-spacing="3">ABO</text>
-
-  <!-- SPORTS TV — gold, smaller -->
-  <text x="96" y="122" text-anchor="middle" dominant-baseline="middle"
-        font-family="Arial Black, Impact, sans-serif" font-weight="900"
-        font-size="15" fill="#C9A227" letter-spacing="4">SPORTS TV</text>
-
-  <!-- Red LIVE dot top-right -->
-  <circle cx="155" cy="37" r="10" fill="#ef4444"/>
-  <circle cx="155" cy="37" r="5" fill="white"/>
+  <circle cx="96" cy="96" r="92" stroke="url(#red192)" stroke-width="6" fill="none"/>
+  <circle cx="96" cy="96" r="84" stroke="url(#gold192)" stroke-width="2" fill="#fff"/>
+  <polygon points="44,62 58,34 72,62" fill="url(#gold192)"/>
+  <rect x="50" y="52" width="16" height="3" rx="1" fill="#1A1A1A"/>
+  <text x="96" y="86" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="20" fill="#E83535" letter-spacing="2">SPORTS</text>
+  <text x="96" y="106" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="12" fill="url(#gold192)" letter-spacing="3">TV LIVE</text>
 </svg>

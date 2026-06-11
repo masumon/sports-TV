@@ -37,7 +37,7 @@ export async function fetchPlaylistText(
       } catch (e) {
         if (e instanceof GeoRestrictedError) throw e;
       }
-      throw new GeoRestrictedError();
+      throw new Error("Playlist fetch forbidden (403)");
     }
     if (!res.ok) {
       const t = await res.text().catch(() => "");

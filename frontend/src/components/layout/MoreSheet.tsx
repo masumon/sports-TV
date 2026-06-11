@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { APP_META, LEGAL_LINKS } from "@/lib/constants";
+import { DeveloperBrandCard } from "@/components/branding/DeveloperBrandCard";
 import { useUiStore } from "@/store/uiStore";
 import { useThemeAccentStore, THEME_ACCENTS } from "@/store/themeAccentStore";
 
@@ -147,8 +148,9 @@ export function MoreSheet({ open, onClose }: Props) {
           <p className="text-[10px] font-bold" style={{ color: "var(--text-main)" }}>ABO Sports TV v{APP_META.version}</p>
           <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>Build {APP_META.build}</p>
           <p className="mt-1 text-[9px]" style={{ color: "var(--text-muted)" }}>
-            {APP_META.developer} · {APP_META.copyright}
+            {APP_META.copyright}
           </p>
+          <DeveloperBrandCard size="sm" className="mx-auto mt-3" />
           <div className="mt-2 flex items-center justify-center gap-3 text-[10px] font-semibold">
             <a href={LEGAL_LINKS.privacy} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Privacy</a>
             <a href={LEGAL_LINKS.terms} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Terms</a>

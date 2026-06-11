@@ -1,15 +1,24 @@
 # Render Blueprint — Web Service for the FastAPI backend (monorepo root: this file lives next to backend/)
 # Docs: https://render.com/docs/blueprint-spec
 #
+# Auto-deploy: connect this repo in Render Dashboard → Blueprints (or service Settings → Git).
+# Every push/merge to `main` triggers a production deploy when autoDeployTrigger is `commit`.
+#
 # After deploy: set CORS_ORIGINS to your Vercel URL(s), comma-separated, no trailing slashes.
 # Include preview URLs too if the frontend calls the API with an absolute origin (e.g. direct Render URL
 # in NEXT_PUBLIC_API_BASE_URL). When the app uses same-origin /api (recommended), CORS is not needed
 # for viewer traffic, but admin/auth from another origin still needs a matching entry here.
 
+previews:
+  generation: automatic
+
 services:
   - type: web
     name: gstv-backend
     runtime: python
+    repo: https://github.com/masumon/sports-TV
+    branch: main
+    autoDeployTrigger: commit
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt && playwright install chromium --with-deps
@@ -46,8 +55,14 @@ services:
       - key: SOURCE_DISCOVERY_INTERVAL_HOURS
         value: "0"
       # Playwright Chromium — high RAM on small instances; keep 0 unless you rely on DynamicStream token refresh.
+      # Licensed production IPTV: set 10 (poll every 10m; refreshes tokens within lead window).
       - key: M3U8_REFRESH_INTERVAL_MINUTES
         value: "0"
+      - key: M3U8_TOKEN_REFRESH_LEAD_MINUTES
+        value: "15"
+      # Comma-separated hostnames for POST /api/v1/proxy/license (your DRM servers only).
+      - key: DRM_LICENSE_ALLOWLIST_HOSTS
+        sync: false
       # Deactivate dead stream URLs on a sample; 120m aligns with sync cadence. Set 0 to disable checks only.
       - key: STREAM_VALIDATION_INTERVAL_MINUTES
         value: "120"
@@ -97,3 +112,24 @@ services:
       # No trailing slash. Preview *.vercel.app is also allowed via allow_origin_regex in main.py.
       - key: CORS_ORIGINS
         value: "https://sports-tv-lovat.vercel.app,http://localhost:3000"
+      # ── Indian Proxy (Star Sports / Sony Sports geo-unlock) ──────────────────
+      # Star Sports, Sony Sports and similar India-region-locked channels require
+      # requests to originate from an Indian IP. The Render backend runs in the US,
+      # so without a proxy these channels return geo-block 403s regardless of header spoofing.
+      #
+      # Set this in the Render Dashboard → gstv-backend → Environment → Add Secret:
+      #   Key:   STREAM_UPSTREAM_HTTP_PROXY
+      #   Value: http://USERNAME:PASSWORD@PROXY_HOST:PORT
+      #
+      # Recommended providers (Indian IPs):
+      #   • Webshare  — https://proxy.webshare.io  (easiest, $2.99+/mo for Indian IPs)
+      #   • IPRoyal   — https://iproyal.com         (residential, pay-as-you-go)
+      #   • Proxy6    — https://proxy6.net           (datacenter, cheap)
+      #
+      # Leave UNSET (sync:false) to keep using X-Forwarded-For header spoofing only.
+      # Set to empty string "" to disable the proxy without removing the variable.
+      - key: STREAM_UPSTREAM_HTTP_PROXY
+        sync: false
+      # Geo bypass headers (X-Forwarded-For / X-Real-IP with Indian ISP IPs) — keep true always.
+      - key: STREAM_GEO_BYPASS_ENABLED
+        value: "true"

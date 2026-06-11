@@ -46,7 +46,7 @@ def ensure_user_subscription_tier(engine: Engine) -> None:
 
 
 def ensure_channel_columns(engine: Engine) -> None:
-    """Add module and alternate_urls to channels if missing (no Alembic migration)."""
+    """Add channel metadata columns if missing (no Alembic migration)."""
     _add_column_if_missing(
         engine, "channels", "module",
         "VARCHAR(40) NOT NULL DEFAULT 'global_sports'"
@@ -54,6 +54,14 @@ def ensure_channel_columns(engine: Engine) -> None:
     _add_column_if_missing(
         engine, "channels", "alternate_urls",
         "TEXT"
+    )
+    _add_column_if_missing(
+        engine, "channels", "header_profile",
+        "VARCHAR(40) NULL"
+    )
+    _add_column_if_missing(
+        engine, "channels", "geo_hint",
+        "BOOLEAN NOT NULL DEFAULT FALSE"
     )
 
 

@@ -7,6 +7,7 @@ export type ChannelCardData = {
   id: number;
   name: string;
   logoUrl?: string | null;
+  geoHint?: boolean;
   slug?: string;
 };
 
@@ -50,6 +51,11 @@ export function ChannelCard({ channel, active = false, isLive = false, onSelect,
         {isLive ? (
           <span className="absolute -right-0.5 -top-0.5 rounded-full bg-live-red px-1 py-px text-[8px] font-black uppercase tracking-wide text-white live-pulse">
             Live
+          </span>
+        ) : null}
+        {channel.geoHint ? (
+          <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded-full bg-indigo-500/90 px-1.5 py-px text-[8px] font-black uppercase tracking-wide text-white shadow-sm">
+            VPN
           </span>
         ) : null}
       </div>

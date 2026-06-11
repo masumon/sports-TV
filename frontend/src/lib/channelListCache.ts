@@ -2,6 +2,7 @@ import type { Channel } from "@/lib/types";
 import {
   clearChannelCatalogIdb,
   getChannelCatalogFromIdb,
+  getStaleChannelCatalogFromIdb,
   setChannelCatalogToIdb,
 } from "@/lib/channelCatalogIdb";
 
@@ -13,14 +14,14 @@ type Payload = { t: number; items: Channel[] };
 let cacheWriteGeneration = 0;
 let idbHydratePromise: Promise<Channel[] | null> | null = null;
 
-function readLocalStorageCache(): Channel[] | null {
+function readLocalStorageCache(allowStale = false): Channel[] | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as Payload;
     if (!p?.t || !Array.isArray(p.items)) return null;
-    if (Date.now() - p.t > TTL_MS) {
+    if (!allowStale && Date.now() - p.t > TTL_MS) {
       localStorage.removeItem(KEY);
       return null;
     }
@@ -32,7 +33,12 @@ function readLocalStorageCache(): Channel[] | null {
 
 /** Sync read — localStorage only (SSR-safe callers use null on server). */
 export function getChannelListCache(): Channel[] | null {
-  return readLocalStorageCache();
+  return readLocalStorageCache(false);
+}
+
+/** Sync read — includes expired localStorage entries for stale-while-revalidate UX. */
+export function getStaleChannelListCache(): Channel[] | null {
+  return readLocalStorageCache(true);
 }
 
 /**
@@ -40,11 +46,18 @@ export function getChannelListCache(): Channel[] | null {
  * Call on mount before network; updates React state when IDB returns fresher/larger data.
  */
 export async function hydrateChannelListCache(): Promise<Channel[] | null> {
-  const local = readLocalStorageCache();
+  const local = readLocalStorageCache(false);
   if (local?.length) return local;
 
+  const staleLocal = readLocalStorageCache(true);
+  if (staleLocal?.length) return staleLocal;
+
   if (!idbHydratePromise) {
-    idbHydratePromise = getChannelCatalogFromIdb().finally(() => {
+    idbHydratePromise = (async () => {
+      const fresh = await getChannelCatalogFromIdb();
+      if (fresh?.length) return fresh;
+      return getStaleChannelCatalogFromIdb();
+    })().finally(() => {
       idbHydratePromise = null;
     });
   }

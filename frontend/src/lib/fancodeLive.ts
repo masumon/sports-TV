@@ -60,7 +60,7 @@ export async function fetchFanCodeLiveChannels(): Promise<Channel[]> {
       return {
         id: stableId(`fancode-${m.match_id ?? title}-${m.stream_link}`),
         name: title,
-        country: "India",
+        country: "International",
         category: cat,
         language: "en",
         logo_url: logo,

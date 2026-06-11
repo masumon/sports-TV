@@ -51,6 +51,7 @@ export function HeroVideoPlayer({
       onMouseMove={showDecorativeControls ? revealControls : undefined}
       onTouchStart={showDecorativeControls ? revealControls : undefined}
     >
+
       {overlay}
 
       {children ? (

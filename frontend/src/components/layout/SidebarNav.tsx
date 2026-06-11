@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { cn } from "@/lib/cn";
+import { BRAND } from "@/lib/branding";
 import { isNavActive, PRIMARY_NAV } from "@/lib/nav";
 import { useUiStore } from "@/store/uiStore";
 
@@ -35,8 +36,8 @@ export function SidebarNav() {
       >
         <div className="flex items-center justify-between border-b border-glass-border px-4 py-4 lg:px-3 lg:group-hover/sidebar:px-4">
           <Link href="/" className="flex min-w-0 items-center gap-3" onClick={() => setSidebarOpen(false)}>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-accent-gold/40 bg-white">
-              <Image src="/icons/abo-sports-tv-logo.png" alt="ABO Sports TV" width={36} height={36} className="object-contain p-0.5" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full">
+              <Image src={BRAND.logo.png} alt={BRAND.name} width={40} height={40} className="object-contain" />
             </div>
             <div className="min-w-0 lg:opacity-0 lg:transition-opacity lg:group-hover/sidebar:opacity-100">
               <p className="truncate text-sm font-bold text-accent-gold">ABO SPORTS TV</p>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { BRAND } from "@/lib/branding";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -56,11 +57,8 @@ export function PwaInstallBanner() {
         WebkitBackdropFilter: "blur(24px)",
       }}
     >
-      <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl"
-        style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.4)" }}
-      >
-        <Image src="/icons/abo-logo.svg" alt="ABO Sports TV" width={40} height={40} className="object-contain p-0.5" unoptimized />
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full">
+        <Image src={BRAND.logo.png} alt={BRAND.name} width={44} height={44} className="object-contain" />
       </div>
 
       <div className="min-w-0 flex-1">

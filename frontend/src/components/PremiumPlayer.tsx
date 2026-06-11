@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { ExternalPlayerPicker } from "@/components/player/ExternalPlayerPicker";
 import { PlayerControlBar } from "@/components/player/PlayerControlBar";
-import { PlayerHeaderOverlay } from "@/components/player/PlayerHeaderOverlay";
 import {
   PlayerSettingsPanel,
   type AudioTrackOption,
@@ -43,6 +42,7 @@ import {
   parseDynamicM3U8IdFromStreamUrl,
   relayHlsStreamUrl,
 } from "@/lib/streamRelay";
+import { BRAND } from "@/lib/branding";
 
 /* ─────────────────────────────────────────────────────────── Types ── */
 type QualityOption = { label: string; value: number };
@@ -84,10 +84,12 @@ export type PremiumPlayerProps = {
   epgProgramTitle?: string | null;
   /** Called when all stream sources have errored out. */
   onStreamError?: () => void;
+  /** Live IPTV hides seek bar and shows LIVE badge only. */
+  isLive?: boolean;
 };
 
-/** Matches `TopBar` / `Sidebar` — always shown on the player when channel has no logo. */
-const DEFAULT_PLAYER_BRAND_LOGO = "/icons/abo-sports-tv-logo.png";
+/** App brand logo for loading, buffering, and fallback states. */
+const DEFAULT_PLAYER_BRAND_LOGO = BRAND.logo.png;
 const DATA_SAVER_KEY = "gstv-data-saver";
 
 function useMatchMediaQuery(query: string, defaultValue = false): boolean {
@@ -105,6 +107,16 @@ function useMatchMediaQuery(query: string, defaultValue = false): boolean {
 
 type ScreenOrientationWithLock = ScreenOrientation & {
   lock?: (orientation: "landscape" | "landscape-primary" | "any") => Promise<void>;
+};
+
+type NativeAudioTrackList = {
+  length: number;
+  [i: number]: { id: string; label: string; enabled: boolean } | undefined;
+};
+
+type HlsAudioTrackList = Hls & {
+  audioTracks?: { name?: string; lang?: string; groupId?: string }[];
+  audioTrack?: number;
 };
 
 /** Best-effort landscape lock for mobile playback (works on many Android browsers, often requires fullscreen). */
@@ -156,8 +168,12 @@ function buildOrderedStreamUrls(
   return directUrls.map((u) => buildProxyStreamUrl(u, opt));
 }
 
+const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
-const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
+const RETRY_KEY_MIN_INTERVAL_MS = 2000;
+const URL_FAIL_COOLDOWN_MS = 90 * 1000;
+const RUNNING_PLAYBACK_ERROR_GRACE_MS = 15_000;
+const SERVER_WAKE_RETRY_DELAYS_MS = [8000, 15000, 30000];
 const recentlyFailedUrlUntil = new Map<string, number>();
 
 function isUrlTemporarilyFailed(url: string): boolean {
@@ -187,7 +203,8 @@ function prioritizeHealthyUrls(urls: string[]): string[] {
 }
 
 function parseGeoFromBody(status: number, body: string): boolean {
-  if (status !== 403 && status !== 401) return false;
+  if (status !== 403 && status !== 401 && status !== 451) return false;
+  if (status === 451) return true;
   try {
     const j = JSON.parse(body) as { code?: string };
     if (j?.code === "GEO_RESTRICTED") return true;
@@ -204,6 +221,26 @@ function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
 function parseGeoFromHlsResponse(response?: { code?: number; text?: string }): boolean {
   if (response?.code == null) return false;
   return parseGeoFromBody(response.code, response.text ?? "");
+}
+
+function canTryDirectPlaybackUrl(url: string): boolean {
+  if (!url.startsWith("http")) return false;
+  if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("http://")) {
+    return false;
+  }
+  return true;
+}
+
+function dedupePlaybackUrls(urls: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of urls) {
+    const trimmed = url.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
 }
 
 function formatQualityFromHeight(height: number): string {
@@ -233,10 +270,10 @@ export default function PremiumPlayer({
   overlay,
   headerProfile = null,
   geoHint = false,
-  channelLogoUrl = null,
   liveMatchTitle = null,
   epgProgramTitle = null,
   onStreamError,
+  isLive = true,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -246,6 +283,14 @@ export default function PremiumPlayer({
   const dashRef = useRef<ReturnType<ReturnType<typeof dashjs.MediaPlayer>["create"]> | null>(null);
   /** After first `playing`, do not show the full-screen loader on routine rebuffering. */
   const playbackStartedRef = useRef(false);
+  const everPlayedRef = useRef(false);
+  const loadGenRef = useRef(0);
+  const lastRetryAtRef = useRef(0);
+  const retryPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stablePlaybackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runningIssueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runningIssueExpiredRef = useRef(false);
+  const serverWakeRetryRef = useRef(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -256,8 +301,14 @@ export default function PremiumPlayer({
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [bufferedPct, setBufferedPct] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [everPlayed, setEverPlayed] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [needsUserGesture, setNeedsUserGesture] = useState(false);
+  const [serverWaking, setServerWaking] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const autoRetryCountRef = useRef(0);
+  const MAX_AUTO_RETRIES = 5;
   const [autoRetryCountdown, setAutoRetryCountdown] = useState(0);
   const [showExternalPanel, setShowExternalPanel] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
@@ -270,9 +321,6 @@ export default function PremiumPlayer({
   const linkRetryRef = useRef(0);
   const linkRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstHideDoneRef = useRef(false);
-  /** Seek ripple feedback: direction "left"|"right" + dismiss timer */
-  const [seekFeedback, setSeekFeedback] = useState<{ dir: "left" | "right"; secs: number; key: number } | null>(null);
-  const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Volume swipe overlay: shown while swiping, dismissed after gesture ends */
   const [volFeedback, setVolFeedback] = useState<number | null>(null);
   const volFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -305,6 +353,51 @@ export default function PremiumPlayer({
   const [streamCodec, setStreamCodec] = useState("HLS");
   const lastTapRef = useRef(0);
 
+  const canAutoReloadBeforePlayback = useCallback(
+    () => !playbackStartedRef.current && !everPlayedRef.current,
+    []
+  );
+
+  const clearRunningIssueTimer = useCallback(() => {
+    if (runningIssueTimerRef.current) {
+      clearTimeout(runningIssueTimerRef.current);
+      runningIssueTimerRef.current = null;
+    }
+    runningIssueExpiredRef.current = false;
+  }, []);
+
+  const keepRunningPlaybackOnIssue = useCallback(() => {
+    if (canAutoReloadBeforePlayback()) return false;
+    if (runningIssueExpiredRef.current) return false;
+    setIsSwitching(false);
+    setIsLoading(false);
+    setHasError(false);
+    setGeoRestricted(false);
+    setIsBuffering(true);
+    if (!runningIssueTimerRef.current) {
+      runningIssueTimerRef.current = setTimeout(() => {
+        runningIssueTimerRef.current = null;
+        runningIssueExpiredRef.current = true;
+        setIsBuffering(false);
+        setHasError(true);
+        onStreamErrorRef.current?.();
+      }, RUNNING_PLAYBACK_ERROR_GRACE_MS);
+    }
+    return true;
+  }, [canAutoReloadBeforePlayback]);
+
+  const scheduleRetryKey = useCallback(() => {
+    if (!canAutoReloadBeforePlayback()) return;
+    if (retryPendingRef.current) clearTimeout(retryPendingRef.current);
+    const elapsed = Date.now() - lastRetryAtRef.current;
+    const delay = Math.max(300, elapsed >= RETRY_KEY_MIN_INTERVAL_MS ? 300 : RETRY_KEY_MIN_INTERVAL_MS - elapsed);
+    retryPendingRef.current = setTimeout(() => {
+      retryPendingRef.current = null;
+      lastRetryAtRef.current = Date.now();
+      setRetryKey((k) => k + 1);
+    }, delay);
+  }, [canAutoReloadBeforePlayback]);
+
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
       return streamUrls.filter((u) => typeof u === "string" && u.trim().startsWith("http"));
@@ -327,10 +420,40 @@ export default function PremiumPlayer({
     return base.map((u) => buildProxyM3U8RequestUrl(u, dynamicM3U8Id));
   }, [resolvedDirect, dynamicM3U8Id]);
   const allUrlsList = useMemo(
-    () => prioritizeHealthyUrls(buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile)),
-    [directUrls, dynamicM3U8Id, headerProfile]
+    () =>
+      prioritizeHealthyUrls(
+        dedupePlaybackUrls([
+          ...buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile),
+          ...resolvedDirect.filter(canTryDirectPlaybackUrl),
+        ]),
+      ),
+    [directUrls, dynamicM3U8Id, headerProfile, resolvedDirect]
   );
   const sharePlaybackUrl = allUrlsList[urlIdx] ?? allUrlsList[0] ?? streamUrl;
+  const externalPlaybackUrl = resolvedDirect[urlIdx] ?? resolvedDirect[0] ?? streamUrl;
+
+  const attemptVideoPlayback = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return false;
+    try {
+      await video.play();
+      setNeedsUserGesture(false);
+      return true;
+    } catch {
+      try {
+        video.muted = true;
+        await video.play();
+        setNeedsUserGesture(false);
+        return true;
+      } catch {
+        setNeedsUserGesture(true);
+        setShowControls(true);
+        setIsLoading(false);
+        setIsBuffering(false);
+        return false;
+      }
+    }
+  }, []);
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
@@ -364,16 +487,19 @@ export default function PremiumPlayer({
   }, [dataSaver]);
 
   useEffect(() => {
-    if (isPlaying) warmBackupStreams(allUrlsList, urlIdx);
-  }, [isPlaying, allUrlsList, urlIdx]);
-
-  useEffect(() => {
     urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setIsSwitching(false);
+    setNeedsUserGesture(false);
     setGeoRestricted(false);
+    setServerWaking(false);
+    setEverPlayed(false);
+    everPlayedRef.current = false;
+    playbackStartedRef.current = false;
     linkRetryRef.current = 0;
     hlsRecoveryRef.current = 0;
+    serverWakeRetryRef.current = 0;
+    stallCountRef.current = 0;
     firstHideDoneRef.current = false;
     hintShownRef.current = false;
     setShowHint(false);
@@ -382,12 +508,23 @@ export default function PremiumPlayer({
       clearTimeout(linkRetryTimerRef.current);
       linkRetryTimerRef.current = null;
     }
-  }, [streamIdentity]);
+    if (retryPendingRef.current) {
+      clearTimeout(retryPendingRef.current);
+      retryPendingRef.current = null;
+    }
+    if (stablePlaybackTimerRef.current) {
+      clearTimeout(stablePlaybackTimerRef.current);
+      stablePlaybackTimerRef.current = null;
+    }
+    clearRunningIssueTimer();
+  }, [streamIdentity, clearRunningIssueTimer]);
 
   useEffect(
     () => () => {
       if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+      if (runningIssueTimerRef.current) clearTimeout(runningIssueTimerRef.current);
+      runningIssueExpiredRef.current = false;
     },
     []
   );
@@ -407,7 +544,13 @@ export default function PremiumPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    const loadGen = ++loadGenRef.current;
     const cleanup = () => {
+      try {
+        video.pause();
+      } catch {
+        /* */
+      }
       healthTrackerRef.current?.destroy();
       healthTrackerRef.current = null;
       const hls = hlsRef.current;
@@ -434,12 +577,21 @@ export default function PremiumPlayer({
     setQualityOptions([{ label: "Auto", value: -1 }]);
     setSelectedQuality(-1);
     setBufferedPct(0);
-    setIsLoading(true);
     setHasError(false);
+    setNeedsUserGesture(false);
     setGeoRestricted(false);
-    playbackStartedRef.current = false;
+    const resumePlayback = everPlayedRef.current;
+    if (resumePlayback) {
+      setIsBuffering(true);
+    } else {
+      playbackStartedRef.current = false;
+      setIsLoading(true);
+    }
 
-    const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
+    const allUrls = dedupePlaybackUrls([
+      ...buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile),
+      ...resolvedDirect.filter(canTryDirectPlaybackUrl),
+    ]);
     if (!allUrls.length) {
       setIsLoading(false);
       setHasError(true);
@@ -462,16 +614,20 @@ export default function PremiumPlayer({
       });
       player.initialize(video, effectiveUrl, true);
       const onError = () => {
+        if (keepRunningPlaybackOnIssue()) return;
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
         if (nextIdx < allUrls.length) {
           urlPlayIndexRef.current = nextIdx;
           setUrlIdx(nextIdx);
-          setIsSwitching(true);
-          setIsLoading(true);
-          /* dash.js typings omit in-place source swap; remount via retryKey like HLS destroy path */
-          setRetryKey((k) => k + 1);
+          if (everPlayedRef.current) {
+            setIsBuffering(true);
+          } else {
+            setIsSwitching(true);
+            setIsLoading(true);
+          }
+          scheduleRetryKey();
         } else {
           setIsSwitching(false);
           setHasError(true);
@@ -483,10 +639,7 @@ export default function PremiumPlayer({
         setIsLoading(false);
         setHasError(false);
         setIsSwitching(false);
-        void video.play().catch(() => {
-          video.muted = true;
-          void video.play().catch(() => {});
-        });
+        void attemptVideoPlayback();
       };
       player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, onStreamInitialized);
       return cleanup;
@@ -520,24 +673,52 @@ export default function PremiumPlayer({
           }
           const onEnd = () => {
             xhr.removeEventListener("loadend", onEnd);
-            if (xhr.status >= 500 || xhr.status === 429) {
-              if (tryFailover()) return;
+            if (xhr.status === 503) {
+              if (keepRunningPlaybackOnIssue()) return;
+              // Backend is hibernating (Render free tier) — show waking message and retry after delay
+              setServerWaking(true);
+              if (everPlayedRef.current) {
+                setIsBuffering(true);
+              } else {
+                setIsLoading(true);
+              }
+              if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
+              const wakeAttempt = Math.min(serverWakeRetryRef.current, SERVER_WAKE_RETRY_DELAYS_MS.length - 1);
+              serverWakeRetryRef.current += 1;
+              linkRetryTimerRef.current = setTimeout(() => {
+                linkRetryTimerRef.current = null;
+                setServerWaking(false);
+                if (loadGen === loadGenRef.current) scheduleRetryKey();
+              }, SERVER_WAKE_RETRY_DELAYS_MS[wakeAttempt]);
+              return;
+            }
+            serverWakeRetryRef.current = 0;
+            setServerWaking(false);
+            if (xhr.status === 403 || xhr.status === 401) {
+              if (tryFailover()) {
+                setGeoRestricted(false);
+                return;
+              }
+              if (keepRunningPlaybackOnIssue()) return;
+              if (parseGeoFromXhr(xhr)) {
+                setGeoRestricted(true);
+              } else {
+                setHasError(true);
+              }
               setIsLoading(false);
               setIsSwitching(false);
+              return;
+            }
+            if (xhr.status >= 500 || xhr.status === 429) {
+              if (tryFailover()) return;
+              if (keepRunningPlaybackOnIssue()) return;
+              setIsLoading(false);
+              setIsSwitching(false);
+              setHasError(true);
               hlsInstance?.destroy();
               if (hlsRef.current === hlsInstance) hlsRef.current = null;
               return;
             }
-            if (!parseGeoFromXhr(xhr)) return;
-            if (tryFailover()) {
-              setGeoRestricted(false);
-              return;
-            }
-            setGeoRestricted(true);
-            setIsLoading(false);
-            setIsSwitching(false);
-            hlsInstance?.destroy();
-            if (hlsRef.current === hlsInstance) hlsRef.current = null;
           };
           xhr.addEventListener("loadend", onEnd);
         },
@@ -545,16 +726,22 @@ export default function PremiumPlayer({
       hlsInstance = hls;
       hlsRef.current = hls;
       tryFailover = (): boolean => {
+        if (!canAutoReloadBeforePlayback()) return false;
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
         if (nextIdx >= allUrls.length || !hlsInstance) return false;
         urlPlayIndexRef.current = nextIdx;
         setUrlIdx(nextIdx);
-        playbackStartedRef.current = false;
-        setIsSwitching(true);
-        setIsLoading(true);
+        if (everPlayedRef.current) {
+          setIsBuffering(true);
+        } else {
+          setIsSwitching(true);
+          playbackStartedRef.current = false;
+          setIsLoading(true);
+        }
         try {
+          hls.stopLoad();
           hls.loadSource(allUrls[nextIdx]!);
           hls.startLoad(-1);
         } catch {
@@ -577,7 +764,7 @@ export default function PremiumPlayer({
         healthTracker.recordError();
         const httpCode = data.response?.code;
 
-        if (httpCode === 403 || httpCode === 401) {
+        if (httpCode === 403 || httpCode === 401 || httpCode === 451) {
           if (hlsRecoveryRef.current < MAX_HLS_RECOVERY_ATTEMPTS) {
             hlsRecoveryRef.current += 1;
             if (trySilentHlsRecovery(hls)) {
@@ -586,22 +773,25 @@ export default function PremiumPlayer({
             }
           }
           const authRetries = linkRetryRef.current;
-          if (authRetries < LINK_RETRY_ATTEMPTS - 1) {
+          if (canAutoReloadBeforePlayback() && authRetries < LINK_RETRY_ATTEMPTS - 1) {
             linkRetryRef.current = authRetries + 1;
-            if (!playbackStartedRef.current) {
+            if (!playbackStartedRef.current && !everPlayedRef.current) {
               setIsLoading(true);
               setIsSwitching(true);
+            } else {
+              setIsBuffering(true);
             }
             if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
             linkRetryTimerRef.current = setTimeout(() => {
               linkRetryTimerRef.current = null;
-              setRetryKey((k) => k + 1);
+              if (loadGen === loadGenRef.current) scheduleRetryKey();
             }, linkRetryDelayMs(authRetries));
             return;
           }
           linkRetryRef.current = 0;
-          if (tryFailover()) return;
-          const confirmedGeo = parseGeoFromHlsResponse(data.response);
+          if (canAutoReloadBeforePlayback() && tryFailover()) return;
+          if (keepRunningPlaybackOnIssue()) return;
+          const confirmedGeo = parseGeoFromHlsResponse(data.response) || httpCode === 451;
           setGeoRestricted(confirmedGeo || geoHint);
           setHasError(!(confirmedGeo || geoHint));
           setIsLoading(false);
@@ -643,23 +833,26 @@ export default function PremiumPlayer({
 
         if (isNet || isManifest || isLevel || isFrag) {
           const retries = linkRetryRef.current;
-          if (retries < LINK_RETRY_ATTEMPTS - 1) {
+          if (canAutoReloadBeforePlayback() && retries < LINK_RETRY_ATTEMPTS - 1) {
             linkRetryRef.current = retries + 1;
-            if (!playbackStartedRef.current) {
+            if (!playbackStartedRef.current && !everPlayedRef.current) {
               setIsLoading(true);
               setIsSwitching(true);
+            } else {
+              setIsBuffering(true);
             }
             if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
             linkRetryTimerRef.current = setTimeout(() => {
               linkRetryTimerRef.current = null;
-              setRetryKey((k) => k + 1);
+              if (loadGen === loadGenRef.current) scheduleRetryKey();
             }, linkRetryDelayMs(retries));
             return;
           }
           linkRetryRef.current = 0;
-          if (tryFailover()) return;
+          if (canAutoReloadBeforePlayback() && tryFailover()) return;
         }
 
+        if (keepRunningPlaybackOnIssue()) return;
         setIsSwitching(false);
         setHasError(true);
         setIsLoading(false);
@@ -696,11 +889,9 @@ export default function PremiumPlayer({
           if (underSd.length > 0) hls.autoLevelCapping = Math.max(...underSd);
         }
         setHasError(false);
+        setNeedsUserGesture(false);
         setIsSwitching(false);
-        void video.play().catch(() => {
-          video.muted = true;
-          void video.play().catch(() => {});
-        });
+        void attemptVideoPlayback();
         const levelMap = new Map<number, QualityOption>();
         hls.levels.forEach((level, idx) => {
           if (!level.height) return;
@@ -721,11 +912,70 @@ export default function PremiumPlayer({
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = effectiveUrl;
+      video.load();
       setIsSwitching(false);
+      const onNativeReady = () => {
+        setHasError(false);
+        setNeedsUserGesture(false);
+        setIsLoading(false);
+        setIsSwitching(false);
+        void attemptVideoPlayback();
+      };
+      const onNativeError = (event: Event) => {
+        event.stopImmediatePropagation();
+        const cur = urlPlayIndexRef.current;
+        markUrlFailed(allUrls[cur] ?? "");
+        const nextIdx = cur + 1;
+        if (canAutoReloadBeforePlayback() && nextIdx < allUrls.length && loadGen === loadGenRef.current) {
+          urlPlayIndexRef.current = nextIdx;
+          setUrlIdx(nextIdx);
+          if (everPlayedRef.current) {
+            setIsBuffering(true);
+          } else {
+            playbackStartedRef.current = false;
+            setIsLoading(true);
+            setIsSwitching(true);
+          }
+          video.src = allUrls[nextIdx]!;
+          video.load();
+          void attemptVideoPlayback();
+          return;
+        }
+        setIsBuffering(false);
+        setIsLoading(false);
+        setIsSwitching(false);
+        if (keepRunningPlaybackOnIssue()) return;
+        setHasError(true);
+      };
+      video.addEventListener("loadedmetadata", onNativeReady);
+      video.addEventListener("canplay", onNativeReady);
+      video.addEventListener("error", onNativeError);
+      void attemptVideoPlayback();
+      return () => {
+        video.removeEventListener("loadedmetadata", onNativeReady);
+        video.removeEventListener("canplay", onNativeReady);
+        video.removeEventListener("error", onNativeError);
+        cleanup();
+      };
     }
 
     return cleanup;
-  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile, geoHint, dataSaver, lowLatencyMode, isMobilePlayer]);
+  }, [
+    streamIdentity,
+    retryKey,
+    directUrls,
+    resolvedDirect,
+    dynamicM3U8Id,
+    headerProfile,
+    geoHint,
+    isMobilePlayer,
+    dataSaver,
+    lowLatencyMode,
+    scheduleRetryKey,
+    attemptVideoPlayback,
+    canAutoReloadBeforePlayback,
+    keepRunningPlaybackOnIssue,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -736,31 +986,57 @@ export default function PremiumPlayer({
     const onWaiting = () => {
       healthTrackerRef.current?.recordStall();
       if (playbackStartedRef.current) {
+        setIsBuffering(true);
+        keepRunningPlaybackOnIssue();
         stallCountRef.current += 1;
         if (stallCountRef.current >= 3) {
           stallCountRef.current = 0;
-          setRetryKey((k) => k + 1);
+          scheduleRetryKey();
         }
         return;
       }
       setIsLoading(true);
     };
     const onPlaying = () => {
+      clearRunningIssueTimer();
+      setIsBuffering(false);
       playbackStartedRef.current = true;
+      everPlayedRef.current = true;
+      setEverPlayed(true);
+      autoRetryCountRef.current = 0;
       stallCountRef.current = 0;
       hlsRecoveryRef.current = 0;
+      serverWakeRetryRef.current = 0;
+      setNeedsUserGesture(false);
       healthTrackerRef.current?.recordPlaying();
       setIsLoading(false);
       setHasError(false);
-      warmBackupStreams(allUrlsList, urlIdx);
+      if (stablePlaybackTimerRef.current) clearTimeout(stablePlaybackTimerRef.current);
+      stablePlaybackTimerRef.current = setTimeout(() => {
+        stablePlaybackTimerRef.current = null;
+        warmBackupStreams(allUrlsList, urlIdx);
+      }, 10_000);
     };
-    const onCanPlay = () => setIsLoading(false);
-    const onError = () => { setHasError(true); setIsLoading(false); };
+    const onCanPlay = () => {
+      clearRunningIssueTimer();
+      setIsLoading(false);
+      setIsBuffering(false);
+    };
+    const onError = () => {
+      if (geoRestricted) {
+        setIsLoading(false);
+        return;
+      }
+      if (keepRunningPlaybackOnIssue()) return;
+      setHasError(true);
+      setIsLoading(false);
+    };
     const onProgress = () => {
       if (!video.buffered.length) return;
       const end = video.buffered.end(video.buffered.length - 1);
       const dur = video.duration;
       if (dur > 0 && Number.isFinite(dur)) setBufferedPct(Math.min(100, (end / dur) * 100));
+      else setBufferedPct(0);
     };
     const onTimeUpdate = () => {
       setCurrentTime(video.currentTime);
@@ -799,7 +1075,7 @@ export default function PremiumPlayer({
       video.removeEventListener("enterpictureinpicture", onEnterPiP);
       video.removeEventListener("leavepictureinpicture", onLeavePiP);
     };
-  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx]);
+  }, [clearHideTimer, scheduleHideControls, allUrlsList, urlIdx, scheduleRetryKey, geoRestricted, keepRunningPlaybackOnIssue, clearRunningIssueTimer]);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -818,27 +1094,13 @@ export default function PremiumPlayer({
     let touchStartY = 0;
     let touchStartX = 0;
     let touchStartVol = 1;
-    let touchStartBright = 1;
     let touchStartScale = 1;
     let initialPinchDist = 0;
     let isSwiping = false;
-    let swipeMode: "volume" | "brightness" | null = null;
-
-    function showSeekRipple(dir: "left" | "right", secs: number) {
-      if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
-      setSeekFeedback({ dir, secs, key: Date.now() });
-      seekFeedbackTimerRef.current = setTimeout(() => setSeekFeedback(null), 900);
-    }
 
     function showVolOverlay(vol: number) {
       if (volFeedbackTimerRef.current) clearTimeout(volFeedbackTimerRef.current);
       setVolFeedback(Math.round(vol * 100));
-      volFeedbackTimerRef.current = setTimeout(() => setVolFeedback(null), 1200);
-    }
-
-    function showBrightOverlay(level: number) {
-      if (volFeedbackTimerRef.current) clearTimeout(volFeedbackTimerRef.current);
-      setVolFeedback(Math.round(level * 100));
       volFeedbackTimerRef.current = setTimeout(() => setVolFeedback(null), 1200);
     }
 
@@ -855,9 +1117,7 @@ export default function PremiumPlayer({
       touchStartY = touch.clientY;
       touchStartX = touch.clientX - rect.left;
       touchStartVol = video!.volume;
-      touchStartBright = brightnessPct;
       isSwiping = false;
-      swipeMode = null;
 
       const now = Date.now();
       const tapX = touch.clientX - rect.left;
@@ -889,20 +1149,14 @@ export default function PremiumPlayer({
       if (!isSwiping && Math.abs(deltaY) < 20) return;
       isSwiping = true;
       const rect = container!.getBoundingClientRect();
-      if (!swipeMode) swipeMode = touchStartX < rect.width / 2 ? "brightness" : "volume";
+      if (touchStartX < rect.width / 2) return;
       const delta = deltaY / rect.height;
-      if (swipeMode === "volume") {
-        const newVol = Math.min(1, Math.max(0, touchStartVol + delta));
-        video!.volume = newVol;
-        video!.muted = newVol === 0;
-        setVolumeState(newVol);
-        setIsMuted(newVol === 0);
-        showVolOverlay(newVol);
-      } else {
-        const newBright = Math.min(100, Math.max(10, Math.round(touchStartBright + delta * 100)));
-        setBrightnessPct(newBright);
-        showBrightOverlay(newBright);
-      }
+      const newVol = Math.min(1, Math.max(0, touchStartVol + delta));
+      video!.volume = newVol;
+      video!.muted = newVol === 0;
+      setVolumeState(newVol);
+      setIsMuted(newVol === 0);
+      showVolOverlay(newVol);
     }
 
     container.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -923,30 +1177,13 @@ export default function PremiumPlayer({
     }
   }, [isMobileSheet, isFullscreen, isTheaterMode]);
 
-  /** Auto PiP when player scrolls out of view */
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    if (!("IntersectionObserver" in window)) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry) return;
-        if (!entry.isIntersecting && isPlaying && document.pictureInPictureEnabled && videoRef.current && !document.pictureInPictureElement) {
-          videoRef.current.requestPictureInPicture().catch(() => {});
-        } else if (entry.isIntersecting && document.pictureInPictureElement === videoRef.current) {
-          document.exitPictureInPicture().catch(() => {});
-        }
-      },
-      { threshold: 0.15 }
-    );
-    obs.observe(container);
-    return () => obs.disconnect();
-  }, [isPlaying]);
-
   useEffect(
     () => () => {
       tryUnlockPlaybackOrientation();
       clearHideTimer();
+      if (retryPendingRef.current) clearTimeout(retryPendingRef.current);
+      if (stablePlaybackTimerRef.current) clearTimeout(stablePlaybackTimerRef.current);
+      clearRunningIssueTimer();
       healthTrackerRef.current?.destroy();
       healthTrackerRef.current = null;
       const hls = hlsRef.current;
@@ -961,7 +1198,7 @@ export default function PremiumPlayer({
       }
       hlsRef.current = null;
     },
-    [clearHideTimer]
+    [clearHideTimer, clearRunningIssueTimer]
   );
 
   useEffect(() => {
@@ -1045,34 +1282,65 @@ export default function PremiumPlayer({
   }, [isMobileSheet, isTheaterMode]);
 
   const retryStream = useCallback(() => {
+    clearRunningIssueTimer();
     setHasError(false);
+    setNeedsUserGesture(false);
     setGeoRestricted(false);
     setIsLoading(true);
+    setIsBuffering(false);
+    setEverPlayed(false);
     setAutoRetryCountdown(0);
+    playbackStartedRef.current = false;
+    everPlayedRef.current = false;
     linkRetryRef.current = 0;
+    hlsRecoveryRef.current = 0;
+    serverWakeRetryRef.current = 0;
+    stallCountRef.current = 0;
     urlPlayIndexRef.current = 0;
     setUrlIdx(0);
     setRetryKey((k) => k + 1);
-  }, []);
+  }, [clearRunningIssueTimer]);
 
   useEffect(() => {
     onStreamErrorRef.current = onStreamError;
   }, [onStreamError]);
 
-  // Auto-retry countdown: when error or geo-block appears, count down then auto-retry
+  const retryStreamManual = useCallback(() => {
+    autoRetryCountRef.current = 0;
+    retryStream();
+  }, [retryStream]);
+
+  // Auto-retry countdown: only before first successful playback (never interrupt active viewing)
   useEffect(() => {
     if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
+    if (geoRestricted) {
+      setAutoRetryCountdown(0);
+      return;
+    }
+    if (everPlayedRef.current || playbackStartedRef.current) {
+      setAutoRetryCountdown(0);
+      return;
+    }
+    if (autoRetryCountRef.current >= MAX_AUTO_RETRIES) {
+      setAutoRetryCountdown(0);
+      return;
+    }
     onStreamErrorRef.current?.();
-    const secs = geoRestricted ? 15 : 10;
+    const secs = autoRetryCountRef.current < 2 ? 12 : 20;
     setAutoRetryCountdown(secs);
     const interval = setInterval(() => {
       setAutoRetryCountdown((c) => {
-        if (c <= 1) { clearInterval(interval); retryStream(); return 0; }
+        if (c <= 1) {
+          clearInterval(interval);
+          autoRetryCountRef.current += 1;
+          retryStream();
+          return 0;
+        }
         return c - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [hasError, geoRestricted, retryStream]);
+  }, [hasError, geoRestricted, retryStream, onStreamError]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1131,6 +1399,7 @@ export default function PremiumPlayer({
   }, [liveMatchTitle, epgProgramTitle, title]);
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const showErrorOverlay = hasError || geoRestricted;
 
   const setVolumeFromPct = useCallback(
     (pct: number) => setVolumeLevel(pct / 100),
@@ -1164,16 +1433,43 @@ export default function PremiumPlayer({
     const video = videoRef.current;
     if (!video) return;
     const audio: AudioTrackOption[] = [];
-    const vAudio = (video as HTMLVideoElement & { audioTracks?: { length: number; [i: number]: { id: string; label: string; enabled: boolean } } }).audioTracks;
-    if (vAudio?.length) {
+    const hlsAudio = (hlsRef.current as HlsAudioTrackList | null)?.audioTracks ?? [];
+    if (hlsAudio.length > 0) {
+      hlsAudio.forEach((track, idx) => {
+        audio.push({
+          id: `hls:${idx}`,
+          label: track.name || track.lang || track.groupId || `Audio ${idx + 1}`,
+        });
+      });
+    }
+    const vAudio = (video as HTMLVideoElement & { audioTracks?: NativeAudioTrackList }).audioTracks;
+    if (audio.length === 0 && vAudio?.length) {
       for (let i = 0; i < vAudio.length; i++) {
         const t = vAudio[i];
-        if (t) audio.push({ id: t.id || String(i), label: t.label || `Audio ${i + 1}` });
+        if (t) audio.push({ id: `native:${t.id || i}`, label: t.label || `Audio ${i + 1}` });
       }
-    } else {
+    }
+    if (audio.length === 0) {
       audio.push({ id: "default", label: "Default" });
     }
     setAudioTracks(audio);
+    setSelectedAudioTrack((prev) => {
+      if (audio.some((track) => track.id === prev)) return prev;
+      const hlsTrack = hlsRef.current as HlsAudioTrackList | null;
+      const activeHls = typeof hlsTrack?.audioTrack === "number" ? `hls:${hlsTrack.audioTrack}` : null;
+      if (activeHls && audio.some((track) => track.id === activeHls)) return activeHls;
+      const activeNative = vAudio
+        ? audio.find((track) => {
+            if (!track.id.startsWith("native:")) return false;
+            for (let i = 0; i < vAudio.length; i++) {
+              const t = vAudio[i];
+              if (t?.enabled && track.id === `native:${t.id || i}`) return true;
+            }
+            return false;
+          })?.id
+        : null;
+      return activeNative ?? audio[0]?.id ?? "default";
+    });
 
     const subs: SubtitleTrackOption[] = [];
     for (let i = 0; i < video.textTracks.length; i++) {
@@ -1185,6 +1481,26 @@ export default function PremiumPlayer({
     setSubtitleTracks(subs);
   }, []);
 
+  const handleAudioTrackChange = useCallback((id: string) => {
+    const hls = hlsRef.current as HlsAudioTrackList | null;
+    if (id.startsWith("hls:") && hls) {
+      const next = Number(id.slice(4));
+      if (Number.isInteger(next)) hls.audioTrack = next;
+      setSelectedAudioTrack(id);
+      return;
+    }
+
+    const video = videoRef.current as (HTMLVideoElement & { audioTracks?: NativeAudioTrackList }) | null;
+    const vAudio = video?.audioTracks;
+    if (id.startsWith("native:") && vAudio?.length) {
+      for (let i = 0; i < vAudio.length; i++) {
+        const track = vAudio[i];
+        if (track) track.enabled = id === `native:${track.id || i}`;
+      }
+    }
+    setSelectedAudioTrack(id);
+  }, []);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -1192,6 +1508,22 @@ export default function PremiumPlayer({
     video.addEventListener("loadedmetadata", onMeta);
     return () => video.removeEventListener("loadedmetadata", onMeta);
   }, [syncMediaTracks, streamIdentity]);
+
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    const onAudioTracksUpdated = () => syncMediaTracks();
+    const onAudioTrackSwitched = (_event: unknown, data: { id?: number }) => {
+      if (typeof data.id === "number") setSelectedAudioTrack(`hls:${data.id}`);
+    };
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
+    syncMediaTracks();
+    return () => {
+      hls.off(Hls.Events.AUDIO_TRACKS_UPDATED, onAudioTracksUpdated);
+      hls.off(Hls.Events.AUDIO_TRACK_SWITCHED, onAudioTrackSwitched);
+    };
+  }, [syncMediaTracks, streamIdentity, retryKey]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1221,9 +1553,12 @@ export default function PremiumPlayer({
         return;
       }
       lastTapRef.current = now;
+      if (needsUserGesture) {
+        void attemptVideoPlayback();
+      }
       showControlsTemporarily();
     },
-    [toggleFullscreen, showControlsTemporarily]
+    [toggleFullscreen, showControlsTemporarily, needsUserGesture, attemptVideoPlayback]
   );
 
   const castAvailable =
@@ -1243,10 +1578,15 @@ export default function PremiumPlayer({
     setShowExternalPanel(true);
   }, []);
 
-  const handlePlayerPointerLeave = useCallback(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
-    if (isPlaying) setShowControls(false);
-  }, [isPlaying]);
+  const handlePlayerPointerLeave = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return;
+      const next = e.relatedTarget;
+      if (next instanceof Node && e.currentTarget.contains(next)) return;
+      if (isPlaying) setShowControls(false);
+    },
+    [isPlaying]
+  );
 
   return (
     <motion.div
@@ -1286,12 +1626,17 @@ export default function PremiumPlayer({
         />
       ) : null}
 
-      <div className="absolute inset-0 z-10 cursor-pointer" onClick={handleVideoSurfaceClick} aria-hidden />
+      <div
+        className="absolute inset-0 z-10 cursor-pointer"
+        onClick={handleVideoSurfaceClick}
+        onMouseMove={showControlsTemporarily}
+        aria-hidden
+      />
 
 
       {/* ── Loading / Switching — Premium branded screen ── */}
       <AnimatePresence>
-        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !hasError && !geoRestricted && (
+        {(isSwitching || (isLoading && !playbackStartedRef.current)) && !everPlayed && !showErrorOverlay && (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
@@ -1329,17 +1674,16 @@ export default function PremiumPlayer({
                 animate={{ scale: [1, 1.06, 1], opacity: [0.5, 1, 0.5] }}
                 transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
               />
-              {/* Logo */}
+              {/* Logo — always ABO Sports TV brand */}
               <div
-                className="relative flex h-[56px] w-[56px] items-center justify-center rounded-xl overflow-hidden"
-                style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.5)", boxShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,166,35,0.1)" }}
+                className="relative flex h-[56px] w-[56px] items-center justify-center rounded-full overflow-hidden"
+                style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,166,35,0.15)" }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
-                  alt={title || "ABO Sports TV"}
-                  className="h-[48px] w-[48px] object-contain"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
+                  src={DEFAULT_PLAYER_BRAND_LOGO}
+                  alt="ABO Sports TV"
+                  className="h-[52px] w-[52px] object-contain"
                 />
               </div>
             </div>
@@ -1350,7 +1694,7 @@ export default function PremiumPlayer({
                 {title || "ABO SPORTS TV"}
               </p>
               <p className="text-[11px] font-medium tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.75)" }}>
-                {RECONNECT_MSG}
+                {serverWaking ? "Server জাগছে… একটু অপেক্ষা করুন" : LOADING_MSG}
               </p>
             </div>
 
@@ -1367,9 +1711,72 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
+      {/* Browser autoplay policies can require a user gesture, especially on iOS/mobile data. */}
+      <AnimatePresence>
+        {needsUserGesture && !showErrorOverlay && (
+          <motion.div
+            key="tap-to-play"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-30 flex items-center justify-center p-6"
+            style={{ background: "linear-gradient(160deg, rgba(5,6,12,0.72), rgba(12,10,22,0.78))" }}
+          >
+            <button
+              type="button"
+              onClick={() => void attemptVideoPlayback()}
+              className="flex flex-col items-center gap-3 rounded-2xl px-6 py-5 text-center transition active:scale-95"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(245,166,35,0.35)",
+                color: "var(--text-main)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-gold text-xl font-black text-black">
+                ▶
+              </span>
+              <span className="text-sm font-bold">Tap to play</span>
+              <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                মোবাইল ব্রাউজারে প্লে শুরু করতে একবার ট্যাপ করুন
+              </span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Buffering — compact branded indicator during rebuffer ── */}
+      <AnimatePresence>
+        {isBuffering && playbackStartedRef.current && !showErrorOverlay && (
+          <motion.div
+            key="buffering"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-none absolute inset-0 z-25 flex items-center justify-center"
+          >
+            <div
+              className="flex flex-col items-center gap-2 rounded-2xl px-5 py-4"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                backdropFilter: "blur(20px)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={DEFAULT_PLAYER_BRAND_LOGO} alt="" className="h-10 w-10 object-contain animate-pulse" />
+              <Loader2 size={16} className="animate-spin text-amber-400" aria-hidden />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Error / Geo-restricted overlay ── */}
       <AnimatePresence>
-        {(hasError || geoRestricted) && (
+        {showErrorOverlay && (
           <motion.div
             key="error"
             initial={{ opacity: 0, scale: 0.98 }}
@@ -1403,8 +1810,8 @@ export default function PremiumPlayer({
               </p>
               <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
                 {geoRestricted || geoHint
-                  ? <>এই চ্যানেলটি আপনার অঞ্চলে সীমাবদ্ধ।<br />
-                    <span style={{ color: "rgba(167,139,250,0.8)" }}>① VPN (India/BD সার্ভার) চালু করুন অথবা<br/>② নিচের External Player ব্যবহার করুন।</span></>
+                  ? <>{geoRestricted ? "এই চ্যানেলটি আপনার অঞ্চলে সীমাবদ্ধ।" : "এই চ্যানেলটি কিছু অঞ্চলে সীমাবদ্ধ হতে পারে।"}<br />
+                    <span style={{ color: "rgba(167,139,250,0.8)" }}>Player proxy ও direct fallback চেষ্টা করেছে। VPN (India/BD) অথবা External Player ব্যবহার করুন।</span></>
                   : isConstrainedNetwork()
                   ? <>নেটওয়ার্ক সংযোগ দুর্বল।<br />WiFi বা ভালো 4G-তে চেষ্টা করুন।</>
                   : <>চ্যানেলটি এখন unavailable অথবা source পরিবর্তন হয়েছে।<br />External Player চেষ্টা করুন বা একটু পরে আবার চেষ্টা করুন।</>}
@@ -1420,15 +1827,20 @@ export default function PremiumPlayer({
             </div>
             {/* Actions */}
             <div className="flex flex-wrap justify-center gap-2">
-              <button type="button" onClick={retryStream}
+              <button type="button" onClick={retryStreamManual}
                 className="flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold text-white transition active:scale-95"
                 style={{ background: "linear-gradient(135deg, rgba(245,166,35,0.25), rgba(245,166,35,0.15))", border: "1px solid rgba(245,166,35,0.45)", boxShadow: "0 4px 12px rgba(245,166,35,0.15)" }}>
                 <RefreshCw size={13} /> আবার চেষ্টা
               </button>
-              <button type="button" onClick={() => window.open(sharePlaybackUrl, "_blank", "noopener,noreferrer")}
+              <button type="button" onClick={() => window.open(externalPlaybackUrl || sharePlaybackUrl, "_blank", "noopener,noreferrer")}
                 className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold transition hover:bg-white/10 active:scale-95"
                 style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.55)" }}>
                 <ExternalLink size={13} /> Tab-এ খুলুন
+              </button>
+              <button type="button" onClick={() => setShowExternalPanel(true)}
+                className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold transition hover:bg-white/10 active:scale-95"
+                style={{ background: "rgba(99,102,241,0.14)", border: "1px solid rgba(129,140,248,0.35)", color: "rgba(199,210,254,0.95)" }}>
+                <ExternalLink size={13} /> External Player
               </button>
             </div>
           </motion.div>
@@ -1436,53 +1848,8 @@ export default function PremiumPlayer({
       </AnimatePresence>
 
 
-      <PlayerHeaderOverlay
-        programTitle={programTitle}
-        channelLogoUrl={channelLogoUrl}
-        isFullscreen={isFullscreen}
-        onExitFullscreen={() => void document.exitFullscreen()}
-      />
-
-      {/* Custom overlay */}
-      {overlay}
-
-      {/* ── Seek ripple overlay (double-tap ±10s) ── */}
-      <AnimatePresence>
-        {seekFeedback && (
-          <motion.div
-            key={`seek-${seekFeedback.key}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="pointer-events-none absolute inset-0 z-35 flex items-center"
-          >
-            <div className={`absolute flex flex-col items-center gap-1 ${seekFeedback.dir === "left" ? "left-[8%]" : "right-[8%]"}`}>
-              <motion.div
-                className="flex h-16 w-16 items-center justify-center rounded-full"
-                style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.3)", backdropFilter: "blur(4px)" }}
-                initial={{ scale: 0.7, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 1.1, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <span className="text-xl font-black" style={{ color: "#F5A623" }}>
-                  {seekFeedback.dir === "left" ? "«" : "»"}
-                </span>
-              </motion.div>
-              <motion.span
-                className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
-                style={{ background: "rgba(0,0,0,0.5)", color: "#F5A623" }}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-              >
-                {seekFeedback.dir === "left" ? `-${seekFeedback.secs}s` : `+${seekFeedback.secs}s`}
-              </motion.span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Custom overlay slot — reserved for non-obstructive UI; match metadata removed */}
+      {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30 hidden">{overlay}</div> : null}
 
       {/* ── Volume swipe indicator ── */}
       <AnimatePresence>
@@ -1542,19 +1909,18 @@ export default function PremiumPlayer({
             isPlaying={isPlaying}
             isMuted={isMuted}
             volume={volume}
-            brightness={brightnessPct}
             isFullscreen={isFullscreen}
             settingsOpen={showSettingsPanel}
+            isLive={isLive}
             currentTime={currentTime}
             duration={duration}
             bufferedPct={bufferedPct}
             VolumeIcon={VolumeIcon}
             onTogglePlay={() => void togglePlayPause()}
             onVolumeChange={setVolumeFromPct}
-            onBrightnessChange={setBrightnessFromPct}
             onOpenSettings={() => setShowSettingsPanel(true)}
             onToggleFullscreen={() => void toggleFullscreen()}
-            onSeek={handleSeek}
+            onSeek={isLive ? undefined : handleSeek}
           />
         ) : null}
       </AnimatePresence>
@@ -1583,7 +1949,7 @@ export default function PremiumPlayer({
                 <div className="max-h-[min(65dvh,30rem)] overflow-y-auto overflow-x-hidden px-3 pt-1 pb-1">
                   <ExternalPlayerPicker
                     idPrefix={externalPanelTitleId}
-                    streamUrl={sharePlaybackUrl}
+                    streamUrl={externalPlaybackUrl}
                     onClose={() => setShowExternalPanel(false)}
                   />
                 </div>
@@ -1602,7 +1968,7 @@ export default function PremiumPlayer({
         onQualityChange={changeQuality}
         audioTracks={audioTracks}
         selectedAudioTrack={selectedAudioTrack}
-        onAudioTrackChange={setSelectedAudioTrack}
+        onAudioTrackChange={handleAudioTrackChange}
         subtitleTracks={subtitleTracks}
         selectedSubtitle={selectedSubtitle}
         onSubtitleChange={setSelectedSubtitle}
@@ -1623,6 +1989,8 @@ export default function PremiumPlayer({
           source: `Mirror ${urlIdx + 1}/${allUrlsList.length}`,
         }}
         onReportIssue={reportStreamIssue}
+        brightness={brightnessPct}
+        onBrightnessChange={setBrightnessFromPct}
       />
     </motion.div>
   );

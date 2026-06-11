@@ -7,28 +7,98 @@ import type { PremiumDirectSportEntry } from "@/lib/types";
 export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
   // ── India ──────────────────────────────────────────────────────────────────
   {
+    name: "Star Sports 1 HD",
+    module: "india",
+    category: "Sports",
+    country: "India",
+    geo_hint: true,
+    header_profile: "star_sports",
+    stream_urls: [
+      "http://103.162.136.235:4500/play/a01f/index.m3u8",
+      "http://103.55.144.46/hls/stersports1hd.m3u8",
+      "http://198.195.239.50:8095/StarSports1/tracks-v1a1/mono.m3u8",
+      "http://198.195.239.50:8095/StarSports1HD/index.m3u8",
+      "http://5.188.1.211:8080/hls/starsports1hd/index.m3u8",
+    ],
+  },
+  {
+    name: "Star Sports 2 HD",
+    module: "india",
+    category: "Sports",
+    country: "India",
+    geo_hint: true,
+    header_profile: "star_sports",
+    stream_urls: [
+      "http://103.162.136.235:4500/play/a01g/index.m3u8",
+      "http://103.55.144.46/hls/starsports2hd.m3u8",
+      "http://198.195.239.50:8095/StarSports2/tracks-v1a1/mono.m3u8",
+      "http://198.195.239.50:8095/StarSports2HD/index.m3u8",
+    ],
+  },
+  {
+    name: "Star Sports Select 1 HD",
+    module: "india",
+    category: "Sports",
+    country: "India",
+    geo_hint: true,
+    header_profile: "star_sports",
+    stream_urls: [
+      "http://103.162.136.235:4500/play/a01h/index.m3u8",
+      "http://103.55.144.46/hls/starselect1hd.m3u8",
+      "http://198.195.239.50:8095/StarSportsSelect1/tracks-v1a1/mono.m3u8",
+    ],
+  },
+  {
+    name: "Star Sports 1 Hindi",
+    module: "india",
+    category: "Sports",
+    country: "India",
+    geo_hint: true,
+    header_profile: "star_sports",
+    stream_urls: [
+      "http://103.162.136.235:4500/play/a01e/index.m3u8",
+      "http://198.195.239.50:8095/StarSports1Hindi/tracks-v1a1/mono.m3u8",
+      "http://103.55.144.46/hls/starsports1hindi.m3u8",
+    ],
+  },
+  {
     name: "Sony Ten 1 HD",
     module: "india",
+    category: "Sports",
+    country: "India",
+    geo_hint: true,
+    header_profile: "sony_sports",
     stream_urls: [
       "http://103.162.136.235:4500/play/a018/index.m3u8",
       "http://66.102.120.18:8000/play/a00e/index.m3u8",
+      "http://198.195.239.50:8095/SonyTen1/tracks-v1a1/mono.m3u8",
     ],
   },
   {
     name: "Sony Ten 2 HD",
     module: "india",
+    category: "Sports",
+    country: "India",
+    geo_hint: true,
+    header_profile: "sony_sports",
     stream_urls: [
       "http://103.162.136.235:4500/play/a00o/index.m3u8",
       "http://103.229.254.25:7001/play/a02t/index.m3u8",
       "http://103.55.144.46/hls/sonyten2.m3u8",
+      "http://198.195.239.50:8095/SonyTen2/tracks-v1a1/mono.m3u8",
     ],
   },
   {
-    name: "Star Sports 1 HD",
+    name: "Sony Ten 3 HD",
     module: "india",
+    category: "Sports",
+    country: "India",
+    geo_hint: true,
+    header_profile: "sony_sports",
     stream_urls: [
-      "http://103.162.136.235:4500/play/a01f/index.m3u8",
-      "http://103.55.144.46/hls/stersports1hd.m3u8",
+      "http://198.195.239.50:8095/SonyTen3/tracks-v1a1/mono.m3u8",
+      "http://103.162.136.235:4500/play/a019/index.m3u8",
+      "http://103.55.144.46/hls/sonyten3.m3u8",
     ],
   },
 
@@ -43,7 +113,11 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
     name: "PTV Sports",
     module: "global_sports",
     category: "Sports",
-    stream_urls: ["https://tvsen5.aynaott.com/Ptvsports/index.m3u8"],
+    geo_hint: true,
+    stream_urls: [
+      "https://tvsen5.aynaott.com/Ptvsports/index.m3u8",
+      "http://ptv.live.com.pk:1935/livetv/ptvsports/playlist.m3u8",
+    ],
   },
 
   // ── FAST / Free Ad-Supported TV ────────────────────────────────────────────
@@ -62,10 +136,27 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
     module: "world_cup_2026",
     category: "Sports",
     country: "India",
+    geo_hint: true,
+    header_profile: "star_sports",
     stream_urls: [
       "http://41.205.93.154/STARSPORTS1/index.m3u8",
       "http://103.162.136.235:4500/play/a01f/index.m3u8",
       "http://103.55.144.46/hls/stersports1hd.m3u8",
+      "http://198.195.239.50:8095/StarSports1HD/index.m3u8",
+      "http://5.188.1.211:8080/hls/starsports1hd/index.m3u8",
+    ],
+  },
+  {
+    name: "Star Sports 2 HD",
+    module: "world_cup_2026",
+    category: "Sports",
+    country: "India",
+    geo_hint: true,
+    header_profile: "star_sports",
+    stream_urls: [
+      "http://103.162.136.235:4500/play/a01g/index.m3u8",
+      "http://103.55.144.46/hls/starsports2hd.m3u8",
+      "http://198.195.239.50:8095/StarSports2HD/index.m3u8",
     ],
   },
   {
@@ -73,6 +164,8 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
     module: "world_cup_2026",
     category: "Sports",
     country: "India",
+    geo_hint: true,
+    header_profile: "sony_sports",
     stream_urls: [
       "http://198.195.239.50:8095/SonyTenSports5/tracks-v1a1/mono.m3u8",
       "http://103.162.136.235:4500/play/a018/index.m3u8",
@@ -83,9 +176,12 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
     module: "world_cup_2026",
     category: "Sports",
     country: "India",
+    geo_hint: true,
+    header_profile: "sony_sports",
     stream_urls: [
       "http://103.162.136.235:4500/play/a018/index.m3u8",
       "http://66.102.120.18:8000/play/a00e/index.m3u8",
+      "http://198.195.239.50:8095/SonyTen1/tracks-v1a1/mono.m3u8",
     ],
   },
   {
@@ -93,9 +189,12 @@ export const PREMIUM_DIRECT_SPORTS: ReadonlyArray<PremiumDirectSportEntry> = [
     module: "world_cup_2026",
     category: "Sports",
     country: "India",
+    geo_hint: true,
+    header_profile: "sony_sports",
     stream_urls: [
       "http://103.162.136.235:4500/play/a00o/index.m3u8",
       "http://103.229.254.25:7001/play/a02t/index.m3u8",
+      "http://198.195.239.50:8095/SonyTen2/tracks-v1a1/mono.m3u8",
     ],
   },
   {
@@ -546,6 +645,8 @@ export const APP_STREAM_CONFIG = {
       "https://iptv-org.github.io/iptv/languages/hin.m3u",
       "https://iptv-org.github.io/iptv/languages/tam.m3u",
       "https://iptv-org.github.io/iptv/languages/tel.m3u",
+      // Indian sports community playlist (frequently updated Star Sports / Sony Sports mirrors)
+      "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
     ],
   },
 

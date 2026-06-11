@@ -35,6 +35,7 @@ import {
 import Image from "next/image";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { BRAND } from "@/lib/branding";
 import type { AdminStats, Channel, StreamProbeItem, StreamProbeStatus } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
@@ -380,6 +381,8 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [channelQuery, setChannelQuery] = useState("");
   const [channelModuleFilter, setChannelModuleFilter] = useState<string>("all");
+  const [channelStatusFilter, setChannelStatusFilter] = useState<"active" | "inactive" | "all">("active");
+  const [channelListTotal, setChannelListTotal] = useState(0);
   const [probeByUrl, setProbeByUrl] = useState<Record<string, StreamProbeItem>>({});
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
   const [sessionWarning, setSessionWarning] = useState(false);
@@ -410,12 +413,23 @@ export default function AdminDashboardPage() {
   }, [channels, channelQuery, channelModuleFilter]);
 
   const moduleCounts = useMemo(() => {
+    if (stats?.active_module_counts && Object.keys(stats.active_module_counts).length > 0) {
+      return stats.active_module_counts;
+    }
     const counts: Record<string, number> = {};
     for (const ch of channels) {
+      if (!ch.is_active) continue;
       counts[ch.module] = (counts[ch.module] || 0) + 1;
     }
     return counts;
-  }, [channels]);
+  }, [stats?.active_module_counts, channels]);
+
+  const expectedChannelTotal = useMemo(() => {
+    if (!stats) return channelListTotal;
+    if (channelStatusFilter === "active") return stats.active_channels;
+    if (channelStatusFilter === "inactive") return stats.inactive_channels;
+    return stats.channels;
+  }, [stats, channelStatusFilter, channelListTotal]);
 
   /* ─── Effects ─────────────────────────────────────────────────── */
 
@@ -470,7 +484,9 @@ export default function AdminDashboardPage() {
     if (!initialFetchDone.current) setLoading(true); else setRefreshing(true);
     setError(null);
     try {
-      setChannels(await apiClient.adminListChannels(authToken));
+      const { items, total } = await apiClient.adminListChannels(authToken, channelStatusFilter);
+      setChannels(items);
+      setChannelListTotal(total);
     } catch (err) {
       setError(err instanceof Error ? err.message : "ডেটা লোড করা যায়নি");
     } finally {
@@ -496,14 +512,14 @@ export default function AdminDashboardPage() {
     void fetchAdminData();
     void fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken]);
+  }, [authToken, channelStatusFilter]);
 
   useEffect(() => {
     if (!authToken) return;
     const id = setInterval(() => { void fetchAdminData(); void fetchStats(); }, 5 * 60 * 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken]);
+  }, [authToken, channelStatusFilter]);
 
   /* ─── Actions ─────────────────────────────────────────────────── */
 
@@ -518,13 +534,12 @@ export default function AdminDashboardPage() {
       const created = result?.created ?? 0;
       const updated = result?.updated ?? 0;
       const total = result?.total ?? 0;
-      if (total === 0 && created === 0 && updated === 0) {
-        toast.warning("⚠️ Sync সম্পন্ন — কিন্তু কোনো channel parse হয়নি। M3U source check করুন।");
-      } else {
-        toast.success(`✓ Sync সম্পন্ন — ${created} নতুন, ${updated} আপডেট, ${total} মোট`);
-      }
+      const parsed = result?.parsed ?? total;
+      toast.success(`✓ Sync সম্পন্ন — ${created} নতুন, ${updated} আপডেট, ${parsed} parsed, ${total} মোট`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "M3U Sync ব্যর্থ হয়েছে");
+      const msg = err instanceof Error ? err.message : "M3U Sync ব্যর্থ হয়েছে";
+      setError(msg);
+      toast.error(msg);
     } finally {
       clearTimeout(fallback);
       setSyncing(false);
@@ -612,19 +627,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const purgeInactive = async () => {
-    if (!authToken) return;
-    if (!window.confirm("Inactive channel rows production safety-এর জন্য রাখা হবে। চালাবেন?")) return;
-    try {
-      await apiClient.adminPurgeInactive(authToken);
-      await fetchAdminData();
-      await fetchStats();
-      toast.success("✓ Inactive channel rows kept for recovery");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Purge failed");
-    }
-  };
-
   const probeAddUrl = async () => {
     if (!authToken || !channelForm.stream_url.trim()) return;
     setAddProbing(true);
@@ -652,7 +654,14 @@ export default function AdminDashboardPage() {
         header: "Channel",
         cell: (info) => (
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-white leading-tight">{info.getValue()}</span>
+            <span className={`font-semibold leading-tight ${info.row.original.is_active ? "text-white" : "text-zinc-400"}`}>
+              {info.getValue()}
+              {!info.row.original.is_active ? (
+                <span className="ml-1.5 rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rose-300 bg-rose-500/15">
+                  inactive
+                </span>
+              ) : null}
+            </span>
             <span className="text-[10px] text-zinc-500">{info.row.original.country}</span>
           </div>
         ),
@@ -757,8 +766,8 @@ export default function AdminDashboardPage() {
         <header className="sticky top-0 z-20 -mx-4 mb-2 border-b border-white/[0.06] bg-[#07080f]/90 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <Image src="/icons/abo-sports-tv-logo.png" alt="" width={40} height={40}
-                className="h-10 w-10 shrink-0 rounded-xl ring-1 ring-white/10 object-contain mix-blend-screen brightness-110 contrast-125 saturate-125" />
+              <Image src={BRAND.logo.png} alt={BRAND.name} width={40} height={40}
+                className="h-10 w-10 shrink-0 rounded-full object-contain" />
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-400/90">Admin</p>
                 <h1 className="truncate text-xl font-bold tracking-tight text-white sm:text-2xl">Control center</h1>
@@ -864,9 +873,9 @@ export default function AdminDashboardPage() {
                 {(stats.inactive_channels ?? 0) > 0 && (
                   <span className="flex items-center gap-1">
                     <span className="text-red-400">●</span> Inactive <span className="font-semibold text-red-300">{(stats.inactive_channels ?? 0).toLocaleString()}</span>
-                    <button type="button" onClick={() => void purgeInactive()}
+                    <button type="button" onClick={() => setChannelStatusFilter("inactive")}
                       className="ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 transition">
-                      Purge
+                      View
                     </button>
                   </span>
                 )}
@@ -888,6 +897,7 @@ export default function AdminDashboardPage() {
               {/* Module breakdown */}
               {Object.keys(moduleCounts).length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
+                  <span className="mr-1 text-[9px] text-zinc-600">Active:</span>
                   {Object.entries(moduleCounts).sort((a,b) => b[1]-a[1]).slice(0,4).map(([mod, cnt]) => (
                     <span key={mod} className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: "rgba(255,255,255,0.06)", color: "#a1a1aa" }}>
                       {MODULE_LABELS[mod] ?? mod} {cnt}
@@ -920,6 +930,11 @@ export default function AdminDashboardPage() {
                     {stats.last_sync_status === "success" ? "✓ Sync OK" : stats.last_sync_status === "failed" ? "✗ Sync failed" : "⟳ Syncing…"}
                   </span></>
                 )}
+                {(stats.last_sync_created ?? 0) > 0 || (stats.last_sync_updated ?? 0) > 0 ? (
+                  <><br /><span className="text-[10px] text-zinc-500">
+                    Last sync: +{stats.last_sync_created ?? 0} new, {stats.last_sync_updated ?? 0} updated
+                  </span></>
+                ) : null}
                 {stats.last_sync_error && (
                   <><br /><span className="text-[10px] text-rose-300/80" title={stats.last_sync_error}>
                     {stats.last_sync_error.length > 70 ? stats.last_sync_error.slice(0, 70) + "…" : stats.last_sync_error}
@@ -1098,7 +1113,8 @@ export default function AdminDashboardPage() {
               </div>
               {channels.length > 0 && (
                 <span className="text-xs text-zinc-500">
-                  {filteredAdminChannels.length} / {channels.length} channels
+                  {filteredAdminChannels.length} / {channels.length} shown
+                  {expectedChannelTotal > 0 ? ` · DB ${expectedChannelTotal.toLocaleString()}` : ""}
                   {channelModuleFilter !== "all" ? ` in ${MODULE_LABELS[channelModuleFilter] ?? channelModuleFilter}` : ""}
                 </span>
               )}
@@ -1118,8 +1134,14 @@ export default function AdminDashboardPage() {
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Filter size={14} className="shrink-0 text-zinc-500" />
+                <select value={channelStatusFilter} onChange={(e) => setChannelStatusFilter(e.target.value as "active" | "inactive" | "all")}
+                  className="min-w-[7.5rem] rounded-lg border border-white/20 bg-black/30 px-2 py-2 text-sm text-white outline-none focus:border-emerald-400">
+                  <option value="active">Active only</option>
+                  <option value="inactive">Inactive only</option>
+                  <option value="all">All channels</option>
+                </select>
                 <select value={channelModuleFilter} onChange={(e) => setChannelModuleFilter(e.target.value)}
                   className="min-w-[9rem] rounded-lg border border-white/20 bg-black/30 px-2 py-2 text-sm text-white outline-none focus:border-emerald-400">
                   <option value="all">All modules</option>
@@ -1131,6 +1153,15 @@ export default function AdminDashboardPage() {
                 </select>
               </div>
             </div>
+
+            {expectedChannelTotal > 0 && channels.length > 0 && channels.length < expectedChannelTotal && (
+              <div className="mb-3 rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                Loaded {channels.length.toLocaleString()} of {expectedChannelTotal.toLocaleString()} channels (API total {channelListTotal.toLocaleString()}) —{" "}
+                <button type="button" onClick={() => void fetchAdminData()} className="font-semibold underline hover:text-white">
+                  Reload list
+                </button>
+              </div>
+            )}
 
             {loading && channels.length === 0 ? (
               <p className="text-sm text-zinc-400">Loading…</p>

@@ -1,10 +1,13 @@
+import { BRAND } from "./branding";
+
 /** App metadata for drawer/footer */
 export const APP_META = {
   version: "1.0.0",
   build: typeof process !== "undefined" && process.env.NEXT_PUBLIC_BUILD_ID
     ? process.env.NEXT_PUBLIC_BUILD_ID
     : "2026.06",
-  developer: "ABO Enterprise",
+  developer: BRAND.developer,
+  developerWebsiteUrl: BRAND.developerWebsiteUrl,
   copyright: "© 2026 ABO Sports TV",
 } as const;
 

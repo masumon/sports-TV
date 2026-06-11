@@ -32,6 +32,9 @@ class ChannelCreate(BaseModel):
     quality_tag: str = Field(default="auto", max_length=40)
     module: str = Field(default="global_sports", max_length=40)
     is_active: bool = True
+    alternate_urls: list[str] | None = None
+    header_profile: str | None = Field(default=None, max_length=40)
+    geo_hint: bool = False
 
 
 class ChannelUpdate(BaseModel):
@@ -45,10 +48,13 @@ class ChannelUpdate(BaseModel):
     module: str | None = Field(default=None, max_length=40)
     alternate_urls: list[str] | None = None
     is_active: bool | None = None
+    header_profile: str | None = Field(default=None, max_length=40)
+    geo_hint: bool | None = None
 
 
 class ChannelRead(ChannelBase):
     id: int
+    source: str = "manual"
     alternate_urls: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

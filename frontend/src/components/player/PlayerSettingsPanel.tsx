@@ -11,6 +11,7 @@ import {
   PictureInPicture2,
   RefreshCw,
   Subtitles,
+  Sun,
   Volume2,
   X,
   Zap,
@@ -57,6 +58,8 @@ type Props = {
     source: string;
   };
   onReportIssue?: () => void;
+  brightness?: number;
+  onBrightnessChange?: (pct: number) => void;
 };
 
 export function PlayerSettingsPanel({
@@ -84,6 +87,8 @@ export function PlayerSettingsPanel({
   onLowLatencyModeChange,
   streamInfo,
   onReportIssue,
+  brightness = 100,
+  onBrightnessChange,
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>("quality");
 
@@ -100,8 +105,8 @@ export function PlayerSettingsPanel({
       transition={{ type: "spring", damping: 28, stiffness: 320 }}
       className={`player-settings-panel flex flex-col overflow-hidden ${
         isMobile
-          ? "fixed inset-x-0 bottom-0 z-[130] max-h-[min(88dvh,40rem)] rounded-t-[22px]"
-          : "fixed inset-y-0 right-0 z-[130] w-full max-w-sm"
+          ? "absolute inset-x-0 bottom-0 z-[130] max-h-[min(78%,22rem)] rounded-t-[20px]"
+          : "absolute inset-y-0 right-0 z-[130] w-[min(100%,17.5rem)] max-w-full rounded-l-2xl"
       }`}
       onClick={(e) => e.stopPropagation()}
       role="dialog"
@@ -183,6 +188,24 @@ export function PlayerSettingsPanel({
           />
         </SettingsSection>
 
+        {onBrightnessChange ? (
+          <SettingsSection title="Brightness" icon={<Sun size={14} />} open={expanded === "brightness"} onToggle={() => toggle("brightness")}>
+            <div className="flex items-center gap-3 px-1 py-2">
+              <Sun size={14} className="shrink-0 text-white/50" aria-hidden />
+              <input
+                type="range"
+                min={10}
+                max={100}
+                value={brightness}
+                onChange={(e) => onBrightnessChange(Number(e.target.value))}
+                className="player-live-timeline flex-1"
+                aria-label="Brightness"
+              />
+              <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/70">{brightness}%</span>
+            </div>
+          </SettingsSection>
+        ) : null}
+
         <SettingsSection title="Cast" icon={<Cast size={14} />} open={expanded === "cast"} onToggle={() => toggle("cast")}>
           <p className="py-2 text-xs text-white/45">
             {castAvailable ? "Select a Cast device from your browser menu." : "No Cast devices detected on this browser."}
@@ -256,7 +279,7 @@ export function PlayerSettingsPanel({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[125] border-0 bg-black/40 backdrop-blur-[2px]"
+            className="absolute inset-0 z-[125] border-0 bg-black/50 backdrop-blur-[2px]"
             aria-label="Close settings"
             onClick={onClose}
           />

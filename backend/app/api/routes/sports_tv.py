@@ -7,14 +7,16 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import cache_get_json, cache_set_json, invalidate_list_caches
 from app.core.config import settings
 from app.db.session import get_db
+from app.core.security import get_current_admin_user
 from app.models.channel import Channel
+from app.models.user import User
 from app.models.live_fixture import LiveFixture
 from app.schemas.channel import ChannelFiltersResponse, ChannelListResponse, ChannelRead
 from app.schemas.live_fixture import LiveFixtureListResponse, LiveFixtureRead
@@ -74,6 +76,30 @@ router = APIRouter(prefix="/sports-tv", tags=["sports-tv"])
 
 CHANNELS_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}, stale-while-revalidate=120"
 CDN_CACHE_HEADER = f"public, s-maxage={min(settings.cache_ttl_seconds, 300)}"
+
+_COUNTRY_CODE_ALIASES: dict[str, tuple[str, ...]] = {
+    "AF": ("afghanistan",),
+    "AR": ("argentina",),
+    "AU": ("australia",),
+    "BD": ("bangladesh", "bd"),
+    "BR": ("brazil",),
+    "CA": ("canada",),
+    "DE": ("germany", "deutschland"),
+    "ES": ("spain",),
+    "FR": ("france",),
+    "GB": ("united kingdom", "uk", "great britain", "england"),
+    "IN": ("india",),
+    "IT": ("italy",),
+    "LK": ("sri lanka",),
+    "NP": ("nepal",),
+    "NL": ("netherlands",),
+    "PK": ("pakistan",),
+    "QA": ("qatar",),
+    "SA": ("saudi arabia",),
+    "US": ("united states", "usa", "us", "america"),
+    "ZA": ("south africa",),
+    "AE": ("united arab emirates", "uae"),
+}
 
 _FIXTURE_ATTRIBUTION = {
     "openligadb": "Schedule: OpenLigaDB (api.openligadb.de) — official league fixtures; not affiliated.",
@@ -223,18 +249,12 @@ async def list_channels(
         "module": module,
         "page": page,
         "page_size": page_size,
+        "geo": cf_country or "",
     }
     cached = cache_get_json("channels", params)
     if cached is not None:
         try:
-            result = ChannelListResponse.model_validate(cached)
-            # Apply geo-sort AFTER reading from cache so the cached copy is
-            # country-neutral and all users share the same cache entry.
-            if cf_country:
-                result.items.sort(
-                    key=lambda c: 0 if c.country.upper()[:2] == cf_country else 1
-                )
-            return result
+            return ChannelListResponse.model_validate(cached)
         except Exception:
             logger.debug("cache miss parse, refetching")
 
@@ -255,10 +275,23 @@ async def list_channels(
         subq = base_query.subquery()
         total = (await db.execute(select(func.count()).select_from(subq))).scalar() or 0
 
+        order_by = [Channel.updated_at.desc(), Channel.name.asc()]
+        if cf_country:
+            aliases = _COUNTRY_CODE_ALIASES.get(cf_country, ())
+            country_match = or_(
+                func.upper(Channel.country) == cf_country,
+                func.lower(Channel.country).in_(aliases),
+            )
+            geo_rank = case(
+                (country_match, 0),
+                else_=1,
+            )
+            order_by = [geo_rank, Channel.updated_at.desc(), Channel.name.asc()]
+
         channels = list(
             (
                 await db.execute(
-                    base_query.order_by(Channel.updated_at.desc(), Channel.name.asc())
+                    base_query.order_by(*order_by)
                     .offset((page - 1) * page_size)
                     .limit(page_size)
                 )
@@ -284,13 +317,6 @@ async def list_channels(
         cache_set_json("channels", params, result.model_dump(mode="json"))
     except Exception as e:
         logger.debug("cache set failed: %s", e)
-
-    # Geo-sort: same-country channels float to top of the page (stable sort).
-    # Does NOT affect total count or pagination offsets.
-    if cf_country:
-        result.items.sort(
-            key=lambda c: 0 if c.country.upper()[:2] == cf_country else 1
-        )
 
     return result
 
@@ -334,13 +360,10 @@ async def get_filters(db: AsyncSession = Depends(get_db)) -> ChannelFiltersRespo
 
 
 @router.post("/invalidate-cache")
-async def invalidate_sports_tv_cache() -> dict[str, str]:
-    """
-    Public: flush server-side list caches (Redis) for /channels and /filters.
-
-    Safe: does not require auth. Call after re-deploy or to bust stale list data.
-    Vercel/CDN may still cache briefly — use a hard browser refresh or wait for s-maxage.
-    """
+async def invalidate_sports_tv_cache(
+    _: User = Depends(get_current_admin_user),
+) -> dict[str, str]:
+    """Admin-only: flush server-side list caches for /channels and /filters."""
     invalidate_list_caches()
     return {"detail": "ok", "message": "Channel and filter list caches cleared"}
 

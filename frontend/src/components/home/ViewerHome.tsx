@@ -32,14 +32,19 @@ import { MoreSheet } from "@/components/layout/MoreSheet";
 import { CategoryTabs } from "@/components/home/CategoryTabs";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
-import { LiveStatsOverlay } from "@/components/player/LiveStatsOverlay";
 import { CategorySkeletonRow, ChannelSkeletonGrid, PlayerSkeleton } from "@/components/ui/ChannelSkeleton";
-import { isFixtureLive, groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
+import { groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
 import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
+import { CatalogRefreshBar } from "@/components/CatalogRefreshBar";
 import { fetchDbChannelsForMerge, apiClient } from "@/lib/apiClient";
-import { getChannelListCache, hydrateChannelListCache, setChannelListCache } from "@/lib/channelListCache";
+import {
+  getChannelListCache,
+  getStaleChannelListCache,
+  hydrateChannelListCache,
+  setChannelListCache,
+} from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import {
   loadFullCatalogWithLive,
@@ -47,13 +52,17 @@ import {
   replaceLiveMatches,
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
-import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
+import {
+  mergeDbChannelsIntoViewerCatalog,
+  viewerCatalogFromDbChannels,
+} from "@/lib/viewerCatalogMerge";
 import { useSwipeGesture } from "@/lib/useSwipeGesture";
 import { CHANNEL_GRID_INITIAL, CHANNEL_GRID_BATCH } from "@/lib/constants";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
+import { wakeBackend } from "@/lib/backendWakeup";
 
 const PremiumPlayer = dynamic(
   () => import("@/components/PremiumPlayer").then((m) => m.default),
@@ -239,11 +248,26 @@ const PRIMARY_CATEGORIES: { id: ViewerModule | "more"; label: string; icon: stri
   { id: "more", label: "More", icon: "📂" },
 ];
 
+function isViewerModule(module: string): module is ViewerModule {
+  return (MODULE_ORDER as readonly string[]).includes(module);
+}
+
 export function ViewerHome() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
-  const [allChannels, setAllChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [allChannels, setAllChannels] = useState<Channel[]>(() =>
+    typeof window === "undefined" ? [] : (getStaleChannelListCache() ?? [])
+  );
+  const [blockingLoad, setBlockingLoad] = useState(() =>
+    typeof window === "undefined" ? true : !(getStaleChannelListCache()?.length)
+  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState(0);
+  const [showingCached, setShowingCached] = useState(
+    () => typeof window !== "undefined" && !!(getStaleChannelListCache()?.length)
+  );
+  const loading = blockingLoad && allChannels.length === 0;
+  const catalogBusy = blockingLoad || isRefreshing;
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearch = useDeferredValue(searchQuery);
@@ -269,6 +293,8 @@ export function ViewerHome() {
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
   const launchRestoreDoneRef = useRef(false);
+  const lastSelectedByModuleRef = useRef<Partial<Record<ViewerModule, number>>>({});
+  const suppressAutoSelectRef = useRef(false);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
@@ -314,7 +340,12 @@ export function ViewerHome() {
   /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
   const selectChannel = useCallback(
     (ch: Channel) => {
+      suppressAutoSelectRef.current = false;
+      if (isViewerModule(ch.module)) {
+        lastSelectedByModuleRef.current[ch.module] = ch.id;
+      }
       startTransition(() => {
+        setActiveModule(ch.module as ViewerModule);
         setActiveChannel(ch);
       });
       setShowErrorSuggestions(false);
@@ -335,7 +366,7 @@ export function ViewerHome() {
         });
       }
     },
-    [setActiveChannel]
+    [setActiveChannel, setActiveModule]
   );
   const requestMatchNotification = useCallback(async (fx: LiveFixture) => {
     if (!("Notification" in window)) return;
@@ -387,24 +418,51 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  /** Ceiling for full catalog; clears spinner even if fetches never settle. */
+  /** Ceiling for full catalog fetch; UI unblocks earlier via CATALOG_UI_BLOCK_MS. */
   const CATALOG_LOAD_TIMEOUT_MS = 30_000;
+  const CATALOG_UI_BLOCK_MS = 12_000;
 
   const loadChannels = useCallback(
-    async (showToast = false, silent = false) => {
-      const hasCache = (getChannelListCache()?.length ?? 0) > 0;
-      if (!silent && (!hasCache || showToast)) {
-        setLoading(true);
+    async (showToast = false, options?: { fromCache?: boolean }) => {
+      const fromCache =
+        options?.fromCache ?? (getStaleChannelListCache()?.length ?? 0) > 0;
+      const hasFreshCache = (getChannelListCache()?.length ?? 0) > 0;
+
+      if (!fromCache || showToast) {
+        setBlockingLoad(true);
       }
+      setIsRefreshing(true);
+      setRefreshProgress(0);
       setError(null);
+
+      const progressStart = Date.now();
+      const progressTimer = setInterval(() => {
+        const elapsed = Date.now() - progressStart;
+        setRefreshProgress(Math.min(92, (elapsed / CATALOG_UI_BLOCK_MS) * 92));
+      }, 120);
+
+      const uiUnblockTimer = setTimeout(() => {
+        setBlockingLoad(false);
+      }, CATALOG_UI_BLOCK_MS);
+
+      let db: Channel[] = [];
+      try {
+        db = await fetchDbChannelsForMerge({}, !hasFreshCache).catch(() => []);
+        if (db.length > 0) {
+          const quick = viewerCatalogFromDbChannels(db);
+          setAllChannels(quick);
+          setChannelListCache(quick);
+          setBlockingLoad(false);
+        }
+      } catch {
+        /* DB leg failed — fall through to full catalog attempt */
+      }
+
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          const merged = Promise.all([
-            loadFullCatalogWithLive(),
-            fetchDbChannelsForMerge({}, !hasCache).catch(() => []),
-          ]).then(([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db));
-          void merged
+          void loadFullCatalogWithLive()
+            .then((viewer) => mergeDbChannelsIntoViewerCatalog(viewer, db))
             .then((d) => {
               clearTimeout(id);
               resolve(d);
@@ -416,14 +474,24 @@ export function ViewerHome() {
         });
         setAllChannels(data);
         setChannelListCache(data);
+        setRefreshProgress(100);
         if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
       } catch (e) {
-        if (silent) return;
-        const msg = e instanceof Error ? e.message : "Load failed";
-        setError(msg);
-        toast.error(msg);
+        if (fromCache || db.length > 0) {
+          if (showToast) {
+            toast.error(e instanceof Error ? e.message : "M3U refresh failed");
+          }
+        } else {
+          const msg = e instanceof Error ? e.message : "Load failed";
+          setError(msg);
+          toast.error(msg);
+        }
       } finally {
-        if (!silent) setLoading(false);
+        clearTimeout(uiUnblockTimer);
+        clearInterval(progressTimer);
+        setBlockingLoad(false);
+        setIsRefreshing(false);
+        setTimeout(() => setRefreshProgress(0), 500);
       }
     },
     [t]
@@ -506,28 +574,31 @@ export function ViewerHome() {
     );
   }, [scheduleFixtures]);
 
-  /** Free-tier UX: show last channel list from localStorage/IDB before network (stale-while-revalidate). */
+  /** Stale-while-revalidate: show cached catalog instantly, refresh in background. */
   useEffect(() => {
-    const c = getChannelListCache();
-    if (c?.length) {
+    const stale = getStaleChannelListCache();
+    if (stale?.length) {
       startTransition(() => {
-        setAllChannels(c);
-        setLoading(false);
+        setAllChannels(stale);
+        setBlockingLoad(false);
+        setShowingCached(true);
       });
     }
-    void hydrateChannelListCache().then((idb) => {
-      if (idb?.length && idb.length > (c?.length ?? 0)) {
+    void hydrateChannelListCache().then((cached) => {
+      if (cached?.length && cached.length >= (stale?.length ?? 0)) {
         startTransition(() => {
-          setAllChannels(idb);
-          setLoading(false);
+          setAllChannels(cached);
+          setBlockingLoad(false);
+          setShowingCached(true);
         });
       }
     });
   }, []);
 
   useEffect(() => {
-    const hasCache = (getChannelListCache()?.length ?? 0) > 0;
-    void loadChannels(false, hasCache);
+    wakeBackend();
+    const hasStale = (getStaleChannelListCache()?.length ?? 0) > 0;
+    void loadChannels(false, { fromCache: hasStale });
   }, [loadChannels]);
 
   useEffect(() => {
@@ -553,6 +624,10 @@ export function ViewerHome() {
     if (!ch) {
       toast.error("চ্যানেলটি পাওয়া যায়নি বা সরিয়ে নেওয়া হয়েছে।");
       return;
+    }
+    suppressAutoSelectRef.current = false;
+    if (isViewerModule(ch.module)) {
+      lastSelectedByModuleRef.current[ch.module] = ch.id;
     }
     startTransition(() => {
       setActiveModule(ch.module as ViewerModule);
@@ -595,12 +670,26 @@ export function ViewerHome() {
     [allChannels, activeModule]
   );
 
+  const channelById = useMemo(() => new Map(allChannels.map((c) => [c.id, c])), [allChannels]);
+
+  useEffect(() => {
+    if (!activeChannel || !allChannels.length) return;
+    if (isViewerModule(activeChannel.module)) {
+      lastSelectedByModuleRef.current[activeChannel.module] = activeChannel.id;
+    }
+    const refreshed = channelById.get(activeChannel.id);
+    if (refreshed && refreshed !== activeChannel) {
+      startTransition(() => setActiveChannel(refreshed));
+    }
+  }, [activeChannel, allChannels.length, channelById, setActiveChannel]);
+
   // Launch: restore last channel or featured live; then module-aware selection
   useEffect(() => {
     if (loading || !allChannels.length || channelIdParam) return;
 
     if (!launchRestoreDoneRef.current) {
       launchRestoreDoneRef.current = true;
+      if (activeChannel) return;
       let lastId: number | undefined = recentlyWatched[0];
       if (!lastId) {
         try {
@@ -617,10 +706,16 @@ export function ViewerHome() {
       const lastCh = lastId ? allChannels.find((c) => c.id === lastId) : undefined;
       const pick =
         lastCh ??
-        allChannels.find((c) => c.module === "live_matches" && c.is_active) ??
-        allChannels.find((c) => c.module === "global_sports" && c.is_active) ??
+        allChannels.find((c) => c.module === "global_sports" && c.is_active && !c.geo_hint) ??
+        allChannels.find((c) => c.module === "bangladesh" && c.is_active && !c.geo_hint) ??
+        allChannels.find((c) => c.module === "india" && c.is_active && !c.geo_hint) ??
+        allChannels.find((c) => c.module === "live_matches" && c.is_active && !c.geo_hint) ??
         moduleChannels[0];
       if (pick) {
+        suppressAutoSelectRef.current = false;
+        if (isViewerModule(pick.module)) {
+          lastSelectedByModuleRef.current[pick.module] = pick.id;
+        }
         startTransition(() => {
           setActiveModule(pick.module as ViewerModule);
           setActiveChannel(pick);
@@ -630,13 +725,14 @@ export function ViewerHome() {
     }
 
     if (moduleChannels.length === 0) {
-      if (activeChannel && activeChannel.module !== activeModule) {
-        startTransition(() => setActiveChannel(null));
-      }
       return;
     }
-    if (!activeChannel || activeChannel.module !== activeModule) {
-      startTransition(() => setActiveChannel(moduleChannels[0]!));
+    if (!activeChannel && !suppressAutoSelectRef.current) {
+      const lastSelectedId = lastSelectedByModuleRef.current[activeModule];
+      const pick =
+        (lastSelectedId ? moduleChannels.find((c) => c.id === lastSelectedId) : undefined) ??
+        moduleChannels[0]!;
+      startTransition(() => setActiveChannel(pick));
     }
   }, [
     loading,
@@ -862,8 +958,6 @@ export function ViewerHome() {
     return orderedStreamUrlsForChannel(activeChannel);
   }, [activeChannel]);
 
-  const channelById = useMemo(() => new Map(allChannels.map((c) => [c.id, c])), [allChannels]);
-
   const recentChannelObjects = useMemo(
     () => recentlyWatched.map((id) => channelById.get(id)).filter(Boolean) as Channel[],
     [recentlyWatched, channelById]
@@ -961,11 +1055,6 @@ export function ViewerHome() {
     [transitionSetActiveModule],
   );
 
-  const featuredLiveFixture = useMemo(
-    () => scheduleFixtures.find(isFixtureLive) ?? null,
-    [scheduleFixtures],
-  );
-
   const dashboardFeatured = useMemo(
     () => scheduleGroups.live[0] ?? scheduleGroups.upcoming[0] ?? null,
     [scheduleGroups],
@@ -1006,6 +1095,7 @@ export function ViewerHome() {
 
   return (
     <>
+    <CatalogRefreshBar active={isRefreshing} progress={refreshProgress} fromCache={showingCached} />
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
@@ -1015,7 +1105,11 @@ export function ViewerHome() {
             {activeChannel && (
               <button
                 type="button"
-                onClick={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
+                onClick={() => {
+                  suppressAutoSelectRef.current = true;
+                  startTransition(() => setActiveChannel(null));
+                  document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" });
+                }}
                 className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
                 style={{ color: "var(--text-muted)" }}
               >
@@ -1028,30 +1122,19 @@ export function ViewerHome() {
               <HeroVideoPlayer
                 isLive={Boolean(activeChannel)}
                 title={activeChannel?.name ?? t("noChannel")}
-                overlay={
-                  featuredLiveFixture && isFixtureLive(featuredLiveFixture) ? (
-                    <LiveStatsOverlay
-                      homeTeam={featuredLiveFixture.home_team}
-                      awayTeam={featuredLiveFixture.away_team}
-                      period={featuredLiveFixture.status}
-                      venue={featuredLiveFixture.league_name}
-                      format={featuredLiveFixture.sport}
-                      series={featuredLiveFixture.league_name}
-                    />
-                  ) : undefined
-                }
               >
                 {activeChannel ? (
                   <PremiumPlayer
+                    key={activeChannel.id}
                     streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
                     streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                    alternateUrls={[]}
                     title={activeChannel.name}
                     isTheaterMode={isTheaterMode}
                     onToggleTheaterMode={toggleTheaterMode}
                     headerProfile={activeChannel.header_profile ?? null}
                     geoHint={Boolean(activeChannel.geo_hint)}
                     channelLogoUrl={activeChannel.logo_url}
+                    isLive
                     onStreamError={() => setShowErrorSuggestions(true)}
                   />
                 ) : null}
@@ -1074,53 +1157,30 @@ export function ViewerHome() {
             )}
 
             {activeChannel && (
-              <div
-                key={activeChannel.id}
-                className="mt-2 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  {activeChannel.logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={activeChannel.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white sm:h-10 sm:w-10" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                  ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white sm:h-10 sm:w-10" style={{ background: "var(--primary-accent)" }}>
-                      {activeChannel.name.slice(0, 1)}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
-                    <p className="truncate text-sm font-bold leading-tight" style={{ color: "var(--text-main)" }}>{activeChannel.name}</p>
-                    <p className="truncate text-[10px]" style={{ color: "var(--text-muted)" }}>
-                      {flagFromCountryName(activeChannel.country)} {activeChannel.country} · {activeChannel.quality_tag.toUpperCase()}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <button
-                      type="button"
-                      title={t("shareChannel")}
-                      onClick={async () => {
-                        if (!activeChannel) return;
-                        const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
-                        try {
-                          if (navigator.share) {
-                            await navigator.share({ title: activeChannel.name, url });
-                            toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
-                          } else {
-                            await navigator.clipboard.writeText(url);
-                            toast.success(`🔗 ${t("shareCopied")}`);
-                          }
-                        } catch { /* user cancelled */ }
-                      }}
-                      className="flex items-center justify-center gap-1 rounded-full p-1.5 text-xs font-semibold transition hover:opacity-80 sm:gap-1.5 sm:px-2.5 sm:py-1"
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
-                      aria-label={t("shareChannel")}
-                    >
-                      <Share2 size={12} />
-                      <span className="hidden sm:inline">{t("shareChannel")}</span>
-                    </button>
-                  </div>
-                </div>
+              <div className="mt-2 flex justify-end px-1">
+                <button
+                  type="button"
+                  title={t("shareChannel")}
+                  onClick={async () => {
+                    if (!activeChannel) return;
+                    const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
+                    try {
+                      if (navigator.share) {
+                        await navigator.share({ title: activeChannel.name, url });
+                        toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
+                      } else {
+                        await navigator.clipboard.writeText(url);
+                        toast.success(`🔗 ${t("shareCopied")}`);
+                      }
+                    } catch { /* user cancelled */ }
+                  }}
+                  className="flex items-center justify-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition hover:opacity-80"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                  aria-label={t("shareChannel")}
+                >
+                  <Share2 size={12} />
+                  <span>{t("shareChannel")}</span>
+                </button>
               </div>
             )}
 
@@ -1609,11 +1669,13 @@ export function ViewerHome() {
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 {loading
                   ? t("loading")
-                  : error
-                    ? error
-                    : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${
-                        deferredSearch.trim() ? ` · ${nameMatchCount} ${t("searchMatches")}` : ""
-                      }`}
+                  : isRefreshing && showingCached
+                    ? t("updatingFromCache")
+                    : error
+                      ? error
+                      : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${
+                          deferredSearch.trim() ? ` · ${nameMatchCount} ${t("searchMatches")}` : ""
+                        }`}
               </p>
               {!loading && !error && hasActiveFilters && (
                 <div className="flex flex-wrap items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
@@ -1636,17 +1698,17 @@ export function ViewerHome() {
             <button
               type="button"
               onClick={() => {
-                if (loading) {
+                if (catalogBusy) {
                   toast.info(t("refreshWait"));
                   return;
                 }
                 void loadChannels(true);
               }}
-              aria-busy={loading}
+              aria-busy={catalogBusy}
               className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-opacity"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)", opacity: loading ? 0.75 : 1 }}
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)", opacity: catalogBusy ? 0.75 : 1 }}
             >
-              <RefreshCw size={15} className={loading ? "animate-spin" : ""} aria-hidden />
+              <RefreshCw size={15} className={catalogBusy ? "animate-spin" : ""} aria-hidden />
               <span className="hidden sm:inline">{t("refresh")}</span>
             </button>
 

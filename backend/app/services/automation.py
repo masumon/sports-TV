@@ -106,7 +106,7 @@ def run_channel_sync(*, include_discovery: bool = True, source: str = "scheduler
     logger.info("channel_sync start source=%s started_at=%s", source, started_at.isoformat())
     if not try_acquire_sync_lock():
         logger.warning("channel_sync skipped source=%s reason=sync_already_running", source)
-        return {"created": 0, "updated": 0, "total": 0, "skipped": 1}
+        return {"created": 0, "updated": 0, "total": 0, "skipped": 1, "status": "skipped"}
     mark_sync_started()
 
     db = SessionLocal()
@@ -127,18 +127,31 @@ def run_channel_sync(*, include_discovery: bool = True, source: str = "scheduler
         created = result.get("created", 0)
         updated = result.get("updated", 0)
         total = result.get("total", 0)
+        parsed = result.get("parsed", 0)
+        sources_ok = result.get("sources_ok", 0)
+        sources_failed = result.get("sources_failed", 0)
         # Only mark success if we actually parsed channels; zero total = upstream sources all failed.
         if total == 0 and created == 0 and updated == 0:
-            mark_sync_failure("Sync completed but no channels were parsed from any source. "
-                              "Check M3U source URLs and network connectivity.")
+            msg = (
+                f"Sync completed but no channels were parsed ({sources_ok}/{sources_ok + sources_failed} "
+                f"sources OK). Check M3U source URLs and network connectivity."
+            )
+            mark_sync_failure(msg, created=created, updated=updated)
             logger.warning(
                 "channel_sync partial-failure source=%s duration_seconds=%.2f — "
-                "no channels returned from any source",
+                "no channels returned from any source (sources_ok=%s sources_failed=%s parsed=%s)",
                 source,
                 (datetime.now(tz=timezone.utc) - started_at).total_seconds(),
+                sources_ok,
+                sources_failed,
+                parsed,
             )
+            result["status"] = "failed"
+            result["message"] = msg
         else:
-            mark_sync_success()
+            mark_sync_success(created=created, updated=updated)
+            result["status"] = "success"
+            result["message"] = f"Synced {created} new, {updated} updated ({total} total)."
             logger.info(
                 "channel_sync success source=%s duration_seconds=%.2f created=%s updated=%s total=%s "
                 "deactivated=%s duplicates_removed=%s",

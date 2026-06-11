@@ -196,10 +196,10 @@ async def lifespan(app: FastAPI):
                 logger.exception("Scheduled M3U discovery failed")
 
         def scheduled_m3u8_refresh() -> None:
-            """Re-extract .m3u8 tokens for DynamicStream records expiring within 15 minutes.
+            """Re-extract .m3u8 tokens for DynamicStream records expiring within the lead window.
 
             Runs every `m3u8_refresh_interval_minutes`.  For each active record
-            whose token is absent or expires within the 15-minute safety window
+            whose token is absent or expires within ``m3u8_token_refresh_lead_minutes``
             the Playwright engine is invoked.  The old URL is kept as a fallback
             so the proxy always has a valid stream to serve.
 
@@ -214,7 +214,8 @@ async def lifespan(app: FastAPI):
 
             sdb = SessionLocal()
             try:
-                refresh_window = datetime.now(tz=_tz.utc) + timedelta(minutes=15)
+                lead = max(1, int(settings.m3u8_token_refresh_lead_minutes))
+                refresh_window = datetime.now(tz=_tz.utc) + timedelta(minutes=lead)
                 # Select active streams with no URL yet, or whose token expires soon.
                 stmt = _select(_DS).where(
                     _DS.is_active.is_(True),
@@ -332,10 +333,13 @@ async def lifespan(app: FastAPI):
                 max_instances=1,
                 coalesce=True,
                 misfire_grace_time=60,
+                # First run on deploy so tokens near expiry are refreshed without waiting one interval.
+                next_run_time=datetime.now(tz=timezone.utc),
             )
             logger.info(
-                "Scheduled dynamic m3u8 refresh every %s min",
+                "Scheduled dynamic m3u8 refresh every %s min (T-%s min lead window)",
                 settings.m3u8_refresh_interval_minutes,
+                max(1, settings.m3u8_token_refresh_lead_minutes),
             )
 
         if settings.live_fixtures_sync_interval_minutes and settings.live_fixtures_sync_interval_minutes > 0:
@@ -374,6 +378,9 @@ app = FastAPI(
     version="1.0.0",
     description="Global Sports Live TV backend API",
     lifespan=lifespan,
+    docs_url=None if (settings.app_env or "").lower() in {"production", "prod"} else "/docs",
+    redoc_url=None if (settings.app_env or "").lower() in {"production", "prod"} else "/redoc",
+    openapi_url=None if (settings.app_env or "").lower() in {"production", "prod"} else "/openapi.json",
 )
 
 app.add_middleware(

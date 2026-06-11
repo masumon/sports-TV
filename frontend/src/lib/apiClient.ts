@@ -182,6 +182,8 @@ type AdminChannelCreateBody = {
   module: string;
   is_active: boolean;
   alternate_urls?: string[];
+  header_profile?: string | null;
+  geo_hint?: boolean;
 };
 
 export async function fetchAllChannels(
@@ -260,8 +262,29 @@ export const apiClient = {
     return apiRequest<AdminStats>("/admin/stats", { method: "GET", authToken: token });
   },
 
-  adminListChannels(token: string) {
-    return apiRequest<Channel[]>("/admin/channels", { method: "GET", authToken: token });
+  adminListChannels(token: string, status: "active" | "inactive" | "all" = "active") {
+    const pageSize = 500;
+    const loadPage = (page: number) =>
+      apiRequest<ChannelListResponse>(
+        `/admin/channels?page=${page}&page_size=${pageSize}&status=${status}`,
+        {
+          method: "GET",
+          authToken: token,
+        }
+      );
+    return loadPage(1).then(async (first) => {
+      const all = [...first.items];
+      const total = first.total;
+      if (all.length >= total) return { items: all, total };
+      let page = 2;
+      const maxPages = Math.ceil(total / pageSize) + 1;
+      for (; page <= maxPages; page += 1) {
+        const batch = await loadPage(page);
+        all.push(...batch.items);
+        if (all.length >= total || batch.items.length === 0) break;
+      }
+      return { items: all, total };
+    });
   },
 
   adminCreateChannel(token: string, body: AdminChannelCreateBody) {
@@ -285,7 +308,7 @@ export const apiClient = {
   },
 
   adminSyncChannels(token: string) {
-    return apiRequest<Record<string, number>>("/admin/channels/sync", {
+    return apiRequest<Record<string, number | string>>("/admin/channels/sync", {
       method: "POST",
       authToken: token,
       timeoutMs: 5 * 60 * 1000, // 5 minutes — M3U sync can be slow on free tier

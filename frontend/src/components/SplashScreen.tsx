@@ -2,11 +2,26 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { BRAND } from "@/lib/branding";
 
-/** Premium OTT splash — max ~1s visible, no fake progress. */
+/** Premium OTT splash — brief branded intro while cache hydrates. */
 export function SplashScreen({ ready }: { ready: boolean }) {
   const [visible, setVisible] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
+  const [progress, setProgress] = useState(8);
+
+  useEffect(() => {
+    if (ready) {
+      setProgress(100);
+      return;
+    }
+    const start = Date.now();
+    const id = setInterval(() => {
+      const elapsed = Date.now() - start;
+      setProgress(Math.min(94, 8 + (elapsed / 900) * 86));
+    }, 60);
+    return () => clearInterval(id);
+  }, [ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -34,28 +49,14 @@ export function SplashScreen({ ready }: { ready: boolean }) {
         pointerEvents: fadeOut ? "none" : "auto",
       }}
     >
-      <div
-        style={{
-          width: 88,
-          height: 88,
-          borderRadius: 20,
-          background: "#fff",
-          border: "2px solid rgba(245,166,35,0.45)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
-        }}
-      >
-        <Image
-          src="/icons/abo-sports-tv-logo.png"
-          alt=""
-          width={64}
-          height={64}
-          style={{ objectFit: "contain", padding: 4 }}
-          priority
-        />
-      </div>
+      <Image
+        src={BRAND.logo.png}
+        alt={BRAND.name}
+        width={96}
+        height={96}
+        style={{ objectFit: "contain", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.45))" }}
+        priority
+      />
       <p
         style={{
           marginTop: 16,
@@ -65,8 +66,11 @@ export function SplashScreen({ ready }: { ready: boolean }) {
           color: "#F5A623",
         }}
       >
-        ABO SPORTS TV
+        {BRAND.nameFull}
       </p>
+      <div className="splash-progress-track" aria-hidden>
+        <div className="splash-progress-fill" style={{ width: `${progress}%` }} />
+      </div>
     </div>
   );
 }
