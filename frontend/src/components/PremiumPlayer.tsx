@@ -36,6 +36,7 @@ import { warmBackupStreams } from "@/lib/streamWarmup";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  augmentProxiedStreamUrl,
   buildProxyM3U8RequestUrl,
   buildProxyStreamUrl,
   isDashProxiedStreamUrl,
@@ -172,7 +173,7 @@ const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
 const RETRY_KEY_MIN_INTERVAL_MS = 2000;
 const URL_FAIL_COOLDOWN_MS = 90 * 1000;
-const RUNNING_PLAYBACK_ERROR_GRACE_MS = 15_000;
+const RUNNING_PLAYBACK_ERROR_GRACE_MS = 5_000;
 const SERVER_WAKE_RETRY_DELAYS_MS = [8000, 15000, 30000];
 const recentlyFailedUrlUntil = new Map<string, number>();
 
@@ -664,7 +665,11 @@ export default function PremiumPlayer({
         ...buildHlsConfig({ lightNet, mobile: mobileNet }),
         lowLatencyMode: useLowLatency,
         xhrSetup: (xhr, requestUrl) => {
-          const nextUrl = relayHlsStreamUrl(requestUrl, {
+          let nextUrl = relayHlsStreamUrl(requestUrl, {
+            dynamicM3U8Id: dynamicM3U8Id ?? undefined,
+            headerProfile,
+          });
+          nextUrl = augmentProxiedStreamUrl(nextUrl, {
             dynamicM3U8Id: dynamicM3U8Id ?? undefined,
             headerProfile,
           });
@@ -700,11 +705,9 @@ export default function PremiumPlayer({
                 return;
               }
               if (keepRunningPlaybackOnIssue()) return;
-              if (parseGeoFromXhr(xhr)) {
-                setGeoRestricted(true);
-              } else {
-                setHasError(true);
-              }
+              const isGeo = parseGeoFromXhr(xhr);
+              setGeoRestricted(isGeo);
+              setHasError(!isGeo);
               setIsLoading(false);
               setIsSwitching(false);
               return;
@@ -726,7 +729,6 @@ export default function PremiumPlayer({
       hlsInstance = hls;
       hlsRef.current = hls;
       tryFailover = (): boolean => {
-        if (!canAutoReloadBeforePlayback()) return false;
         const cur = urlPlayIndexRef.current;
         markUrlFailed(allUrls[cur] ?? "");
         const nextIdx = cur + 1;
@@ -765,6 +767,7 @@ export default function PremiumPlayer({
         const httpCode = data.response?.code;
 
         if (httpCode === 403 || httpCode === 401 || httpCode === 451) {
+          if (tryFailover()) return;
           if (hlsRecoveryRef.current < MAX_HLS_RECOVERY_ATTEMPTS) {
             hlsRecoveryRef.current += 1;
             if (trySilentHlsRecovery(hls)) {
@@ -772,24 +775,6 @@ export default function PremiumPlayer({
               return;
             }
           }
-          const authRetries = linkRetryRef.current;
-          if (canAutoReloadBeforePlayback() && authRetries < LINK_RETRY_ATTEMPTS - 1) {
-            linkRetryRef.current = authRetries + 1;
-            if (!playbackStartedRef.current && !everPlayedRef.current) {
-              setIsLoading(true);
-              setIsSwitching(true);
-            } else {
-              setIsBuffering(true);
-            }
-            if (linkRetryTimerRef.current) clearTimeout(linkRetryTimerRef.current);
-            linkRetryTimerRef.current = setTimeout(() => {
-              linkRetryTimerRef.current = null;
-              if (loadGen === loadGenRef.current) scheduleRetryKey();
-            }, linkRetryDelayMs(authRetries));
-            return;
-          }
-          linkRetryRef.current = 0;
-          if (canAutoReloadBeforePlayback() && tryFailover()) return;
           if (keepRunningPlaybackOnIssue()) return;
           const confirmedGeo = parseGeoFromHlsResponse(data.response) || httpCode === 451;
           setGeoRestricted(confirmedGeo || geoHint);
