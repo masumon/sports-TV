@@ -66,6 +66,19 @@ export function buildProxyStreamUrl(
   return out;
 }
 
+/** Same-origin DRM license relay — POST challenge bytes via /api/v1/proxy/license. */
+export function buildProxyLicenseUrl(
+  licenseUrl: string,
+  options?: { dynamicM3U8Id?: number | null; headerProfile?: string | null }
+): string {
+  let out = `${buildApiUrl("/proxy/license")}?url=${encodeURIComponent(licenseUrl)}`;
+  const id = options?.dynamicM3U8Id;
+  if (id != null) out += `&stream_id=${id}`;
+  const hp = options?.headerProfile?.trim();
+  if (hp) out += `&header_profile=${encodeURIComponent(hp)}`;
+  return out;
+}
+
 /** True when the proxied URL targets an MPEG-DASH manifest (``.mpd``) — HLS.js cannot play these. */
 export function isDashProxiedStreamUrl(proxiedUrl: string): boolean {
   if (!proxiedUrl.includes("proxy/stream") && !proxiedUrl.includes("proxy%2Fstream")) {

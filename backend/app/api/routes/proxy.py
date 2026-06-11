@@ -10,6 +10,7 @@ Forwards IPTV stream content through the backend with:
 Endpoints:
   GET /api/v1/proxy/stream?url=<encoded_stream_url>
   GET /api/v1/proxy/m3u8?stream_id=<id>
+  POST /api/v1/proxy/license?url=<encoded_license_url>
 """
 from __future__ import annotations
 
@@ -208,6 +209,28 @@ _STREAM_PROXY_RESPONSE_HEADERS: dict[str, str] = {
     "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, Content-Type",
     "Cache-Control": "no-store, no-cache, must-revalidate",
 }
+_LICENSE_PROXY_RESPONSE_HEADERS: dict[str, str] = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+}
+# DRM license POST: device-generated challenge headers pass through; DB headers supply auth context.
+_DRM_CLIENT_FORWARD_HEADER_NAMES: tuple[str, ...] = (
+    "authorization",
+    "referer",
+    "origin",
+    "user-agent",
+    "cookie",
+    "soapaction",
+    "x-playready-client-info",
+    "x-axdrm-message",
+    "x-keyos-authorization",
+    "x-widevine-user-agent",
+    "x-dt-auth-token",
+)
+_LICENSE_POST_TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=10.0)
 
 
 def _proxy_error_response(
@@ -215,6 +238,7 @@ def _proxy_error_response(
     message: str = "Stream fetch failed",
     *,
     code: str | None = None,
+    cors_headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     """JSON error + CORS so the browser never hides failures behind opaque network errors."""
     body: dict[str, object] = {"error": message, "status": status_code, "detail": message}
@@ -223,8 +247,82 @@ def _proxy_error_response(
     return JSONResponse(
         status_code=status_code,
         content=body,
-        headers={**_STREAM_PROXY_RESPONSE_HEADERS},
+        headers={**(cors_headers or _STREAM_PROXY_RESPONSE_HEADERS)},
     )
+
+
+def _geo_restricted_response(
+    cors_headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """Clean geo-block signal for clients — never raw upstream HLS/CDN errors."""
+    return _proxy_error_response(
+        403,
+        "This premium content is geo-restricted.",
+        code="GEO_RESTRICTED",
+        cors_headers=cors_headers,
+    )
+
+
+def _drm_license_allowlist_hosts() -> frozenset[str]:
+    raw = (getattr(settings, "drm_license_allowlist_hosts", None) or "").strip()
+    if not raw:
+        return frozenset()
+    return frozenset(h.strip().lower() for h in raw.split(",") if h.strip())
+
+
+def _validate_license_url(url: str) -> str:
+    """SSRF-safe validation + hostname allowlist for owned DRM license servers."""
+    validated = _validate_stream_url(url)
+    host = (urllib.parse.urlparse(validated).hostname or "").lower()
+    if not host:
+        raise HTTPException(status_code=400, detail="License URL must have a valid host")
+    allowlist = _drm_license_allowlist_hosts()
+    if not allowlist:
+        raise HTTPException(
+            status_code=503,
+            detail="DRM license relay is not configured (set DRM_LICENSE_ALLOWLIST_HOSTS)",
+        )
+    if host not in allowlist:
+        raise HTTPException(status_code=403, detail="License host is not allowlisted")
+    return validated
+
+
+async def _forward_headers_for_stream_id(
+    request: Request,
+    db: AsyncSession,
+    stream_id: int | None,
+    *,
+    header_profile: str | None = None,
+) -> dict[str, str]:
+    """Merge Playwright/DB headers for tokenized origins; used by stream + license relays."""
+    forward = _merge_stream_forward_headers(request, None)
+    if stream_id is not None:
+        try:
+            row = await db.get(DynamicStream, stream_id)
+        except Exception as exc:
+            logger.warning("DynamicStream lookup failed stream_id=%s: %s", stream_id, exc)
+            row = None
+        if row is not None and row.is_active:
+            forward = _merge_stream_forward_headers_for_stream_id(request, row)
+    forward = _apply_header_profile(forward, header_profile)
+    return forward
+
+
+def _merge_license_upstream_headers(
+    request: Request,
+    db_forward: dict[str, str],
+    body_content_type: str,
+) -> dict[str, str]:
+    """DB auth context + device challenge headers; Content-Type preserved byte-for-byte semantics."""
+    out = dict(db_forward)
+    out["content-type"] = body_content_type
+    for name in _DRM_CLIENT_FORWARD_HEADER_NAMES:
+        if name == "content-type":
+            continue
+        val = request.headers.get(name)
+        if val and val.strip():
+            out[name] = val.strip()
+    return out
 
 
 def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
@@ -591,6 +689,35 @@ async def _get_with_validated_redirects(
     raise HTTPException(status_code=502, detail="Too many upstream redirects")
 
 
+async def _post_with_validated_redirects(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    content: bytes,
+    headers: dict[str, str],
+    timeout: httpx.Timeout,
+) -> tuple[httpx.Response, str]:
+    """Buffered POST with SSRF-safe redirect following (allowlisted license hosts only)."""
+    current = _validate_license_url(url)
+    resp: httpx.Response | None = None
+    for _ in range(_MAX_REDIRECT_HOPS):
+        resp = await client.post(
+            current,
+            content=content,
+            headers=headers,
+            timeout=timeout,
+            follow_redirects=False,
+        )
+        if resp.status_code not in _REDIRECT_STATUS:
+            return resp, current
+        location = resp.headers.get("location")
+        if not location:
+            raise HTTPException(status_code=502, detail="Invalid upstream redirect")
+        joined = urllib.parse.urljoin(str(resp.url), location.strip())
+        current = _validate_license_url(joined)
+    raise HTTPException(status_code=502, detail="Too many upstream redirects")
+
+
 # Do not use platform HTTP(S)_PROXY for stream relay — a bad build env var breaks every channel.
 def _http_stream_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
@@ -693,11 +820,7 @@ async def _build_chunked_streaming_response(
         await resp.aclose()
         await client.aclose()
         if resp.status_code in _GEO_BLOCK_STATUS:
-            return _proxy_error_response(
-                403,
-                "This premium content is geo-restricted.",
-                code="GEO_RESTRICTED",
-            )
+            return _geo_restricted_response()
         return _proxy_error_response(502)
 
     ct = (
@@ -1074,11 +1197,7 @@ async def proxy_stream(
             if not mtext:
                 st_peek, _, _ = await _async_peek_stream(effective_url, forward)
                 if st_peek in _GEO_BLOCK_STATUS:
-                    return _proxy_error_response(
-                        403,
-                        "This premium content is geo-restricted.",
-                        code="GEO_RESTRICTED",
-                    )
+                    return _geo_restricted_response()
                 return _proxy_error_response(502)
             lead = mtext.lstrip("\ufeff").lstrip()
             if not lead.startswith("#EXTM3U"):
@@ -1122,11 +1241,7 @@ async def proxy_stream(
 
         if st >= 400:
             if st in _GEO_BLOCK_STATUS:
-                return _proxy_error_response(
-                    403,
-                    "This premium content is geo-restricted.",
-                    code="GEO_RESTRICTED",
-                )
+                return _geo_restricted_response()
             return _proxy_error_response(502)
 
         if _content_type_suggests_hls_playlist(content_type):
@@ -1247,11 +1362,7 @@ async def proxy_playlist_raw(
         if r is None:
             return _proxy_error_response(502)
         if r.status_code in _GEO_BLOCK_STATUS:
-            return _proxy_error_response(
-                403,
-                "This premium content is geo-restricted.",
-                code="GEO_RESTRICTED",
-            )
+            return _geo_restricted_response()
         if r.status_code >= 400:
             return _proxy_error_response(502)
         if len(r.content) > _MAX_PLAYLIST_RAW_BYTES:
@@ -1407,10 +1518,12 @@ def _rewrite_m3u8_segments(
 async def _fetch_m3u8_manifest(
     url: str,
     headers: dict[str, str],
-) -> str | None:
+) -> tuple[str | None, int | None]:
     """
     Fetch an HLS manifest from ``url`` using ``headers``.
-    Returns the manifest text on success, None on any error.
+
+    Returns ``(text, None)`` on success, ``(None, status_code)`` on HTTP failure
+    (including geo blocks), ``(None, None)`` on transport errors.
     """
     try:
         async with httpx.AsyncClient(
@@ -1420,11 +1533,11 @@ async def _fetch_m3u8_manifest(
             resp, _final = await _get_with_validated_redirects(client, url, headers=headers)
             if resp.status_code >= 400:
                 logger.warning("M3U8 fetch returned %d for %s", resp.status_code, url[:80])
-                return None
-            return resp.text
+                return None, resp.status_code
+            return resp.text, None
     except Exception as exc:
         logger.warning("M3U8 fetch error for %s: %s", url[:80], exc)
-        return None
+        return None, None
 
 
 @router.get("/m3u8")
@@ -1464,8 +1577,9 @@ async def proxy_m3u8(
     manifest_source_url: str = ""
     m3u8_src = "primary"
 
+    last_status: int | None = None
     if stream.m3u8_url:
-        manifest = await _fetch_m3u8_manifest(stream.m3u8_url, h_primary)
+        manifest, last_status = await _fetch_m3u8_manifest(stream.m3u8_url, h_primary)
         if manifest is not None:
             manifest_source_url = stream.m3u8_url
             m3u8_src = "primary"
@@ -1474,14 +1588,18 @@ async def proxy_m3u8(
         logger.info(
             "Primary m3u8 failed for stream %d — serving fallback", stream_id
         )
-        manifest = await _fetch_m3u8_manifest(
+        manifest, fb_status = await _fetch_m3u8_manifest(
             stream.fallback_m3u8_url, h_fb
         )
+        if fb_status is not None:
+            last_status = fb_status
         if manifest is not None:
             manifest_source_url = stream.fallback_m3u8_url
             m3u8_src = "fallback"
 
     if manifest is None:
+        if last_status in _GEO_BLOCK_STATUS:
+            return _geo_restricted_response()
         raise HTTPException(
             status_code=503,
             detail="Stream unavailable — both primary and fallback failed",
@@ -1503,3 +1621,122 @@ async def proxy_m3u8(
 async def proxy_m3u8_preflight() -> Response:
     """Handle CORS preflight for the m3u8 proxy endpoint."""
     return Response(status_code=204, headers=_M3U8_CORS_HEADERS)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Transparent DRM License Relay  (/api/v1/proxy/license)
+# ─────────────────────────────────────────────────────────────────────────────
+# Pass-through POST for allowlisted Widevine / PlayReady / FairPlay license
+# servers you operate. Challenge bytes and Content-Type are forwarded unchanged;
+# Playwright-captured DB headers supply auth context when stream_id is set.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _relative_proxy_license_path(
+    license_url: str,
+    stream_id: int | None,
+    header_profile: str | None = None,
+) -> str:
+    q = urllib.parse.quote(license_url, safe="")
+    out = f"/api/v1/proxy/license?url={q}"
+    if stream_id is not None:
+        out += f"&stream_id={stream_id}"
+    if header_profile:
+        out += f"&header_profile={urllib.parse.quote(header_profile, safe='')}"
+    return out
+
+
+@router.options("/license")
+async def proxy_license_preflight() -> Response:
+    """CORS preflight for DRM license relay."""
+    return Response(status_code=204, headers=_LICENSE_PROXY_RESPONSE_HEADERS)
+
+
+@router.post("/license", response_model=None)
+async def proxy_license(
+    request: Request,
+    url: str = Query(..., min_length=7, max_length=2048, description="Allowlisted license server URL"),
+    stream_id: int | None = Query(
+        default=None,
+        description="Optional DynamicStream id — DB Playwright headers merged into upstream request",
+    ),
+    header_profile: str | None = Query(
+        default=None,
+        description="Optional allowlisted header preset for upstream requests",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> Response | JSONResponse:
+    """
+    Transparent DRM license relay for owned, allowlisted license endpoints.
+
+    - Forwards request body bytes unchanged (Widevine / PlayReady challenge payload).
+    - Preserves client ``Content-Type`` on the upstream POST.
+    - Merges DB-captured headers when ``stream_id`` is set (same context as manifest fetch).
+    - Returns upstream license response bytes unchanged on success.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+
+    try:
+        license_url = _validate_license_url(url)
+        hp = (header_profile or "").strip() or None
+        body = await request.body()
+        if not body:
+            return _proxy_error_response(400, "License challenge body is required", cors_headers=_LICENSE_PROXY_RESPONSE_HEADERS)
+
+        content_type = (request.headers.get("content-type") or "application/octet-stream").strip()
+        db_forward = await _forward_headers_for_stream_id(request, db, stream_id, header_profile=hp)
+        upstream_headers = _merge_license_upstream_headers(request, db_forward, content_type)
+
+        async with httpx.AsyncClient(
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            **_upstream_httpx_base_kwargs(),
+        ) as client:
+            try:
+                resp, _final = await _post_with_validated_redirects(
+                    client,
+                    license_url,
+                    content=body,
+                    headers=upstream_headers,
+                    timeout=_LICENSE_POST_TIMEOUT,
+                )
+            except HTTPException as exc:
+                return _proxy_error_response(
+                    exc.status_code,
+                    str(exc.detail),
+                    cors_headers=_LICENSE_PROXY_RESPONSE_HEADERS,
+                )
+            except (
+                httpx.TimeoutException,
+                httpx.ConnectError,
+                httpx.ReadError,
+                httpx.RemoteProtocolError,
+                httpx.WriteError,
+            ) as exc:
+                logger.warning("License relay failed for %s: %s", license_url[:80], exc)
+                return _proxy_error_response(502, cors_headers=_LICENSE_PROXY_RESPONSE_HEADERS)
+            except Exception as exc:
+                logger.warning("License relay unexpected for %s: %s", license_url[:80], exc)
+                return _proxy_error_response(502, cors_headers=_LICENSE_PROXY_RESPONSE_HEADERS)
+
+        if resp.status_code in _GEO_BLOCK_STATUS:
+            return _geo_restricted_response(cors_headers=_LICENSE_PROXY_RESPONSE_HEADERS)
+
+        out_headers = dict(_LICENSE_PROXY_RESPONSE_HEADERS)
+        if upstream_ct := resp.headers.get("content-type"):
+            out_headers["Content-Type"] = upstream_ct
+
+        if resp.status_code >= 500:
+            logger.warning("License upstream %s for %s", resp.status_code, license_url[:80])
+            return _proxy_error_response(502, cors_headers=_LICENSE_PROXY_RESPONSE_HEADERS)
+
+        return Response(
+            content=resp.content,
+            status_code=resp.status_code,
+            headers=out_headers,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("proxy/license fatal: %s", exc)
+        return _proxy_error_response(502, cors_headers=_LICENSE_PROXY_RESPONSE_HEADERS)

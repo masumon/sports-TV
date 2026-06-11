@@ -72,8 +72,14 @@ class Settings(BaseSettings):
     db_pool_size: int = 3
     db_max_overflow: int = 5
     # Dynamic .m3u8 token refresh — how often to check (Playwright). 0 = disabled.
+    # Production licensed IPTV: set 10 (checks every 10m; refreshes tokens expiring within lead window).
     # Default 0: Playwright on a small Render free instance is a common OOM / CPU source.
     m3u8_refresh_interval_minutes: int = 0
+    # Pre-fetch new M3U8 URLs / JWTs this many minutes before expires_at (T−N safety window).
+    m3u8_token_refresh_lead_minutes: int = 15
+    # Comma-separated hostnames for POST /proxy/license (your Widevine/PlayReady servers only).
+    # Empty = license relay disabled (403). Example: license.example.com,drm.example.com
+    drm_license_allowlist_hosts: str = ""
     # Sample active channels and deactivate dead URLs. 0 = do not run scheduled checks.
     # When >0, runs on this interval. Was previously hardcoded to 15m whenever M3U sync was on
     # (harsh for free tier + datacenter-IP false negatives). Set e.g. 60–120 on paid/stable hosts.

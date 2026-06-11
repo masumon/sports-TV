@@ -42,24 +42,30 @@ export function buildHlsConfig(opts: { lightNet: boolean; mobile: boolean }): Pa
   return {
     enableWorker: true,
     lowLatencyMode: false,
+    
+    // --- DRM / EME Base Config ---
+    // (Turned on dynamically in PremiumPlayer for DRM protected streams)
+    emeEnabled: false,
+    // -----------------------------
+    
     startFragPrefetch: true,
     testBandwidth: true,
     progressive: false,
-    maxBufferLength: constrained ? 12 : 24,
-    maxMaxBufferLength: constrained ? 20 : 45,
-    backBufferLength: constrained ? 6 : 12,
-    maxBufferSize: constrained ? 22 * 1000 * 1000 : 50 * 1000 * 1000,
+    maxBufferLength: constrained? 12 : 24,
+    maxMaxBufferLength: constrained? 20 : 45,
+    backBufferLength: constrained? 6 : 12,
+    maxBufferSize: constrained? 22 * 1000 * 1000 : 50 * 1000 * 1000,
     maxBufferHole: 0.5,
     highBufferWatchdogPeriod: 2,
     nudgeOffset: 0.1,
     nudgeMaxRetry: 8,
-    liveSyncDurationCount: constrained ? 3 : 4,
-    liveMaxLatencyDurationCount: constrained ? 8 : 12,
+    liveSyncDurationCount: constrained? 3 : 4,
+    liveMaxLatencyDurationCount: constrained? 8 : 12,
     liveDurationInfinity: true,
-    liveBackBufferLength: constrained ? 0 : 4,
-    abrEwmaDefaultEstimate: constrained ? 350_000 : 900_000,
-    abrBandWidthFactor: constrained ? 0.88 : 0.93,
-    abrBandWidthUpFactor: constrained ? 0.5 : 0.65,
+    liveBackBufferLength: constrained? 0 : 4,
+    abrEwmaDefaultEstimate: constrained? 350_000 : 900_000,
+    abrBandWidthFactor: constrained? 0.88 : 0.93,
+    abrBandWidthUpFactor: constrained? 0.5 : 0.65,
     abrMaxWithRealBitrate: true,
     manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
     manifestLoadingMaxRetry: HLS_MANIFEST_MAX_RETRY,
@@ -69,7 +75,7 @@ export function buildHlsConfig(opts: { lightNet: boolean; mobile: boolean }): Pa
     levelLoadingRetryDelay: 800,
     fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
     fragLoadingMaxRetry: HLS_FRAG_MAX_RETRY,
-    fragLoadingRetryDelay: constrained ? 1200 : 800,
+    fragLoadingRetryDelay: constrained? 1200 : 800,
     startLevel: -1,
     capLevelToPlayerSize: true,
   };
@@ -121,7 +127,7 @@ export class StreamHealthTracker {
   private stalls = 0;
   private errors = 0;
   private startupMs: number | null = null;
-  private stallTimestamps: number[] = [];
+  private stallTimestamps: number =;
   private stableSince: number | null = null;
   private stableTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -152,7 +158,7 @@ export class StreamHealthTracker {
     this.stalls = 0;
     this.errors = 0;
     this.startupMs = null;
-    this.stallTimestamps = [];
+    this.stallTimestamps =;
     this.stableSince = null;
   }
 
@@ -169,7 +175,7 @@ export class StreamHealthTracker {
     this.stableSince = null;
     if (this.stallTimestamps.length >= 2) {
       this.onDowngrade();
-      this.stallTimestamps = [];
+      this.stallTimestamps =;
     }
   }
 
@@ -181,7 +187,7 @@ export class StreamHealthTracker {
   latencyFromHls(hls: Hls | null): number | null {
     if (!hls?.latency) return null;
     const l = hls.latency;
-    return Number.isFinite(l) && l >= 0 ? l : null;
+    return Number.isFinite(l) && l >= 0? l : null;
   }
 
   snapshot(hls: Hls | null): StreamHealthSnapshot {

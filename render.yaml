@@ -55,8 +55,14 @@ services:
       - key: SOURCE_DISCOVERY_INTERVAL_HOURS
         value: "0"
       # Playwright Chromium — high RAM on small instances; keep 0 unless you rely on DynamicStream token refresh.
+      # Licensed production IPTV: set 10 (poll every 10m; refreshes tokens within lead window).
       - key: M3U8_REFRESH_INTERVAL_MINUTES
         value: "0"
+      - key: M3U8_TOKEN_REFRESH_LEAD_MINUTES
+        value: "15"
+      # Comma-separated hostnames for POST /api/v1/proxy/license (your DRM servers only).
+      - key: DRM_LICENSE_ALLOWLIST_HOSTS
+        sync: false
       # Deactivate dead stream URLs on a sample; 120m aligns with sync cadence. Set 0 to disable checks only.
       - key: STREAM_VALIDATION_INTERVAL_MINUTES
         value: "120"

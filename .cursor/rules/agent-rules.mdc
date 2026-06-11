@@ -1,0 +1,48 @@
+---
+description: Production IPTV/OTT/PWA agent rules — minimal scope, stability-first fixes
+alwaysApply: true
+---
+
+# Agent Rules
+
+Follow `AGENT_RULES.md` at project root. Summary:
+
+## Project mode
+
+Production IPTV / OTT / PWA. Prioritize stability, reliability, minimal changes, minimal tokens, zero regressions. Never optimize for large rewrites.
+
+## Token & scope
+
+Before acting: identify exact task and exact files. Ignore everything else.
+
+- Do NOT scan entire repo, src, app, pages, or components unless explicitly requested.
+- Read only task-required files. Initial scope: **3–10 files**. Expand only when necessary.
+
+## Workflow
+
+1. Determine affected files
+2. Read only those files
+3. Find root cause
+4. Smallest possible fix
+5. Validate modified area only
+
+## Fix policy
+
+**small fix > medium refactor > large rewrite.** Never rewrite working systems or replace stable code without evidence.
+
+## Domain preservation
+
+- **Player:** channel switching, playback, volume, settings, preferences, recovery
+- **PWA:** service worker, cache, offline, install — never interrupt playback for cache refresh
+- **UI:** no redesign unless asked; no duplicate controls/settings
+- **Errors:** no stack traces, raw HLS/fetch errors — silent recovery, user-friendly messages only
+
+## Changes & responses
+
+- Touch only directly related files. Minimize diff size.
+- Keep responses short: root cause, fix, validation result only.
+- One issue = one commit (e.g. `fix(player): resolve playback interruption`).
+
+## Prohibitions
+
+No repeated full-repo scans, placeholders, duplicate features, unnecessary code/reports, or excessive token use.
