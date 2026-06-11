@@ -171,10 +171,10 @@ function buildOrderedStreamUrls(
 
 const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
-const RETRY_KEY_MIN_INTERVAL_MS = 2000;
+const RETRY_KEY_MIN_INTERVAL_MS = 15000;  // 15s min — was 2s (too aggressive, caused rapid reconnects)
 const URL_FAIL_COOLDOWN_MS = 90 * 1000;
-const RUNNING_PLAYBACK_ERROR_GRACE_MS = 5_000;
-const SERVER_WAKE_RETRY_DELAYS_MS = [8000, 15000, 30000];
+const RUNNING_PLAYBACK_ERROR_GRACE_MS = 8_000;  // Increased from 5s
+const SERVER_WAKE_RETRY_DELAYS_MS = [8000, 20000, 45000];  // More patient retry delays
 const recentlyFailedUrlUntil = new Map<string, number>();
 
 function isUrlTemporarilyFailed(url: string): boolean {
@@ -818,7 +818,9 @@ export default function PremiumPlayer({
 
         if (isNet || isManifest || isLevel || isFrag) {
           const retries = linkRetryRef.current;
-          if (canAutoReloadBeforePlayback() && retries < LINK_RETRY_ATTEMPTS - 1) {
+          // Don't failover during playback — let HLS retry same URL with its own timeouts
+          const shouldFailover = !everPlayedRef.current && canAutoReloadBeforePlayback() && retries < LINK_RETRY_ATTEMPTS - 1;
+          if (shouldFailover) {
             linkRetryRef.current = retries + 1;
             if (!playbackStartedRef.current && !everPlayedRef.current) {
               setIsLoading(true);

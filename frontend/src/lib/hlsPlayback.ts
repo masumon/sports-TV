@@ -70,13 +70,13 @@ export function buildHlsConfig(opts: { lightNet: boolean; mobile: boolean }): Pa
     abrMaxWithRealBitrate: true,
     manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
     manifestLoadingMaxRetry: HLS_MANIFEST_MAX_RETRY,
-    manifestLoadingRetryDelay: 1000,
+    manifestLoadingRetryDelay: 2000,  // Increased from 1000ms to give servers more time
     levelLoadingTimeOut: HLS_LEVEL_LOAD_TIMEOUT_MS,
     levelLoadingMaxRetry: HLS_LEVEL_MAX_RETRY,
-    levelLoadingRetryDelay: 800,
+    levelLoadingRetryDelay: 2000,  // Increased from 800ms
     fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
     fragLoadingMaxRetry: HLS_FRAG_MAX_RETRY,
-    fragLoadingRetryDelay: constrained? 1200 : 800,
+    fragLoadingRetryDelay: constrained? 3000 : 2000,  // Increased from 1200/800ms
     startLevel: -1,
     capLevelToPlayerSize: true,
   };

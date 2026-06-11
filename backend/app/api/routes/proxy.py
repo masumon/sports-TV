@@ -190,13 +190,13 @@ _ALLOWED_SCHEMES = {"http", "https"}
 
 # Connect bound (~10s). Manifest/peek reads allow a longer first-byte wait (IPTV/CDN often >10s);
 # that is still a small buffered response — never used for TS/mp4 relay.
-_CONNECT_TIMEOUT = 10.0
-_MANIFEST_PEEK_READ_TIMEOUT = 25.0
+_CONNECT_TIMEOUT = 30.0  # Increased from 10s — some streams slow to connect
+_MANIFEST_PEEK_READ_TIMEOUT = 60.0  # Increased from 25s — HLS manifests can be large
 # Read timeout between chunks while relaying TS/mp4 (live HLS must not stall on idle).
-_READ_TIMEOUT = 120.0
+_READ_TIMEOUT = 180.0  # Increased from 120s — prevent stalls on slow networks
 # httpx >=0.28 requires all four timeout parts when using keyword args (no implicit default).
-_WRITE_TIMEOUT = 30.0
-_POOL_TIMEOUT = 10.0
+_WRITE_TIMEOUT = 60.0  # Increased from 30s — allow slow uploads
+_POOL_TIMEOUT = 30.0   # Increased from 10s — connection pooling needs time
 # HLS manifests are small; buffer + rewrite so every variant/segment/key URL stays same-origin (HTTPS)
 # and mixed-content / wrong relative resolution against /proxy/stream?... is avoided.
 _MAX_MANIFEST_BYTES = 4 * 1024 * 1024
