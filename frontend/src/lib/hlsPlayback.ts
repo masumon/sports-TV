@@ -7,9 +7,10 @@ export const HLS_FRAG_MAX_RETRY = 2;
 export const MAX_HLS_RECOVERY_ATTEMPTS = 4;
 export const LINK_RETRY_ATTEMPTS = 3;
 
-export const HLS_MANIFEST_LOAD_TIMEOUT_MS = 5500;
-export const HLS_LEVEL_LOAD_TIMEOUT_MS = 5500;
-export const HLS_FRAG_LOAD_TIMEOUT_MS = 9000;
+/** Geo/header-proxied manifests can be slower than direct CDN — avoid false timeouts. */
+export const HLS_MANIFEST_LOAD_TIMEOUT_MS = 8000;
+export const HLS_LEVEL_LOAD_TIMEOUT_MS = 8000;
+export const HLS_FRAG_LOAD_TIMEOUT_MS = 12000;
 
 type NetConn = { saveData?: boolean; effectiveType?: string };
 
@@ -19,7 +20,7 @@ export function isConstrainedNetwork(): boolean {
   if (!c) return false;
   if (c.saveData) return true;
   const t = c.effectiveType;
-  return t === "slow-2g" || t === "2g" || t === "3g";
+  return t === "slow-2g" || t === "2g";
 }
 
 export function isMobilePlayback(): boolean {
@@ -38,17 +39,17 @@ export function linkRetryDelayMs(attempt: number): number {
  * Tighter buffers on mobile/slow networks for faster start and less stall risk.
  */
 export function buildHlsConfig(opts: { lightNet: boolean; mobile: boolean }): Partial<HlsConfig> {
-  const constrained = opts.lightNet || opts.mobile;
+  const constrained = opts.lightNet;
   return {
     enableWorker: true,
     lowLatencyMode: false,
     startFragPrefetch: true,
     testBandwidth: true,
     progressive: false,
-    maxBufferLength: constrained ? 12 : 24,
-    maxMaxBufferLength: constrained ? 20 : 45,
-    backBufferLength: constrained ? 6 : 12,
-    maxBufferSize: constrained ? 22 * 1000 * 1000 : 50 * 1000 * 1000,
+    maxBufferLength: constrained ? 14 : 32,
+    maxMaxBufferLength: constrained ? 28 : 65,
+    backBufferLength: constrained ? 10 : 22,
+    maxBufferSize: constrained ? 28 * 1000 * 1000 : 65 * 1000 * 1000,
     maxBufferHole: 0.5,
     highBufferWatchdogPeriod: 2,
     nudgeOffset: 0.1,

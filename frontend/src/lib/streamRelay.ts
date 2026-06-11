@@ -54,9 +54,54 @@ export function buildProxyM3U8RequestUrl(
  * When the same channel is served as `/proxy/m3u8?…`, `stream_id` is appended
  * to that URL so manifest + segment requests keep DB header context.
  */
+export type ProxyStreamOptions = {
+  dynamicM3U8Id?: number | null;
+  headerProfile?: string | null;
+};
+
+function isProxiedStreamUrl(url: string): boolean {
+  return (
+    (url.includes("/proxy/stream") || url.includes("/api/v1/proxy/stream")) &&
+    url.includes("url=")
+  );
+}
+
+/**
+ * Segment / variant URLs rewritten by the backend may omit `header_profile` or
+ * `stream_id`; re-attach them so geo-bypass headers stay on every HLS request.
+ */
+export function augmentProxiedStreamUrl(
+  url: string,
+  options?: ProxyStreamOptions
+): string {
+  if (!isProxiedStreamUrl(url)) return url;
+  const id = options?.dynamicM3U8Id;
+  const hp = options?.headerProfile?.trim();
+  if (id == null && !hp) return url;
+  try {
+    const base =
+      typeof window !== "undefined" ? window.location.origin : "https://localhost";
+    const u = new URL(url, base);
+    let changed = false;
+    if (id != null && !u.searchParams.has("stream_id")) {
+      u.searchParams.set("stream_id", String(id));
+      changed = true;
+    }
+    if (hp && !u.searchParams.has("header_profile")) {
+      u.searchParams.set("header_profile", hp);
+      changed = true;
+    }
+    if (!changed) return url;
+    if (url.startsWith("http://") || url.startsWith("https://")) return u.toString();
+    return u.pathname + u.search + u.hash;
+  } catch {
+    return url;
+  }
+}
+
 export function buildProxyStreamUrl(
   targetUrl: string,
-  options?: { dynamicM3U8Id?: number | null; headerProfile?: string | null }
+  options?: ProxyStreamOptions
 ): string {
   let out = `${buildApiUrl("/proxy/stream")}?url=${encodeURIComponent(targetUrl)}`;
   const id = options?.dynamicM3U8Id;
@@ -64,6 +109,23 @@ export function buildProxyStreamUrl(
   const hp = options?.headerProfile?.trim();
   if (hp) out += `&header_profile=${encodeURIComponent(hp)}`;
   return out;
+}
+
+/** Route every HLS XHR through the API proxy and preserve geo/header context. */
+export function relayHlsStreamUrl(url: string, options?: ProxyStreamOptions): string {
+  if (!url || url.startsWith("blob:") || url.startsWith("data:")) return url;
+  const id = options?.dynamicM3U8Id;
+  const hp = options?.headerProfile?.trim() || undefined;
+  const opt =
+    id == null && !hp ? undefined : { dynamicM3U8Id: id, headerProfile: hp };
+  if (isProxiedStreamUrl(url)) {
+    return augmentProxiedStreamUrl(url, opt);
+  }
+  try {
+    return buildProxyStreamUrl(url, opt);
+  } catch {
+    return url;
+  }
 }
 
 /** True when the proxied URL targets an MPEG-DASH manifest (``.mpd``) — HLS.js cannot play these. */
