@@ -337,19 +337,19 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-white/5 py-1">
+    <div className="border-b border-white/8 py-0.5">
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between gap-2 py-2.5 text-left"
+        className="player-settings-section-header"
       >
-        <span className="flex items-center gap-2 text-xs font-semibold text-white/90">
-          <span className="text-white/50">{icon}</span>
-          {title}
+        <span className="flex items-center gap-3">
+          <span className="text-white/60">{icon}</span>
+          <span className="text-sm font-bold text-white">{title}</span>
         </span>
-        <ChevronRight size={14} className={`text-white/40 transition ${open ? "rotate-90" : ""}`} />
+        <ChevronRight size={16} className={`text-white/50 transition duration-200 ${open ? "rotate-90" : ""}`} />
       </button>
-      {open ? <div className="pb-3">{children}</div> : null}
+      {open ? <div className="pb-3 pt-1">{children}</div> : null}
     </div>
   );
 }
@@ -364,7 +364,7 @@ function OptionGrid({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-2.5">
       {options.map((opt) => (
         <button
           key={opt.id}
@@ -372,7 +372,10 @@ function OptionGrid({
           onClick={() => onSelect(opt.id)}
           className={`player-settings-chip ${selected === opt.id ? "player-settings-chip-active" : ""}`}
         >
-          {opt.label}
+          <span className="flex items-center justify-center gap-1.5">
+            {opt.label}
+            {selected === opt.id && <span className="text-sm">✓</span>}
+          </span>
         </button>
       ))}
     </div>
@@ -389,18 +392,18 @@ function OptionList({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       {options.map((opt) => (
         <button
           key={opt.id}
           type="button"
           onClick={() => onSelect(opt.id)}
-          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-medium transition ${
-            selected === opt.id ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5"
-          }`}
+          className={`player-settings-option-list ${selected === opt.id ? "player-settings-option-active" : ""}`}
         >
-          {opt.label}
-          {selected === opt.id ? <span className="text-[10px] text-red-400">Active</span> : null}
+          <span className="flex items-center justify-between w-full">
+            <span>{opt.label}</span>
+            {selected === opt.id && <span className="text-sm text-amber-300">✓</span>}
+          </span>
         </button>
       ))}
     </div>
