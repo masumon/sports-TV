@@ -60,6 +60,8 @@ HTTP_HEADERS = {
 # caused repeated 404 retries and slowed admin/scheduled sync jobs.
 SPORTS_CATEGORY_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/categories/sports.m3u",
+    # LegalStream — curated US sports (NFL, NCAA, NASCAR, etc.)
+    "https://raw.githubusercontent.com/notanewbie/LegalStream/master/packages/sports/live.m3u8",
 ]
 
 # India — full iptv-org country list (all genres; module=india for UI)

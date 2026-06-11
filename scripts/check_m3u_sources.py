@@ -11,7 +11,10 @@ import urllib.request
 
 # Keep in sync with backend seeds (iptv_scraper + discovery light list)
 SEEDS: list[str] = [
+    "https://iptv-org.github.io/iptv/index.m3u",
     "https://iptv-org.github.io/iptv/categories/sports.m3u",
+    "https://raw.githubusercontent.com/notanewbie/LegalStream/master/packages/sports/live.m3u8",
+    "https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
     "https://iptv-org.github.io/iptv/countries/in.m3u",
     "https://iptv-org.github.io/iptv/countries/bd.m3u",
     "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",

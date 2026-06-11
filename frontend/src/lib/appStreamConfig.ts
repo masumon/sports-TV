@@ -613,8 +613,13 @@ export const APP_STREAM_CONFIG = {
   // Global sports M3U playlists — filtered to football/cricket by streamCatalog.
   // Processing order: last wins on name-based dedup within global_sports.
   dynamic_master_playlists: [
-    // iptv-org verified collections (existing)
+    // iptv-org master index (~10k+ channels worldwide)
     "https://iptv-org.github.io/iptv/index.m3u",
+    // iptvplayer.stream curated public directory (resolved to iptv-org + Free-TV M3U)
+    "https://iptvplayer.stream/public-iptv-playlist",
+    // LegalStream — US sports (NFL, NCAA, NASCAR, etc.)
+    "https://raw.githubusercontent.com/notanewbie/LegalStream/master/packages/sports/live.m3u8",
+    // iptv-org sports category
     "https://iptv-org.github.io/iptv/categories/sports.m3u",
     "https://iptv-org.github.io/iptv/categories/sport.m3u",
     // SM-Live-TV combined (hourly update) — BD+India sports channels
