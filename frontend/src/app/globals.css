@@ -570,6 +570,39 @@ a {
   box-shadow: -8px 0 40px rgba(0, 0, 0, 0.45);
 }
 
+/* Subtle background loading indicator */
+.player-bg-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.5rem 0.75rem;
+  background: rgba(245, 166, 35, 0.08);
+  border: 1px solid rgba(245, 166, 35, 0.25);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  font-weight: 500;
+  color: #fef3c7;
+}
+
+.player-bg-loading__dot {
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+  background: #F5A623;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .player-settings-chip {
   border-radius: 10px;
   padding: 0.5rem 0.25rem;

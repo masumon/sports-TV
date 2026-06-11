@@ -271,6 +271,7 @@ export function ViewerHome() {
     () => typeof window !== "undefined" && !!(getStaleChannelListCache()?.length)
   );
   const loading = blockingLoad && allChannels.length === 0;
+  const backgroundLoading = isRefreshing && !blockingLoad; // Show subtle loader after 5s
   const catalogBusy = blockingLoad || isRefreshing;
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -430,7 +431,7 @@ export function ViewerHome() {
 
   /** Ceiling for full catalog fetch; UI unblocks earlier via CATALOG_UI_BLOCK_MS. */
   const CATALOG_LOAD_TIMEOUT_MS = 30_000;
-  const CATALOG_UI_BLOCK_MS = 12_000;
+  const CATALOG_UI_BLOCK_MS = 5_000; // Show loading bar for 5s only, then continue background
 
   const loadChannels = useCallback(
     async (showToast = false, options?: { fromCache?: boolean }) => {
@@ -1165,6 +1166,7 @@ export function ViewerHome() {
                     channelLogoUrl={activeChannel.logo_url}
                     isLive
                     onStreamError={() => setShowErrorSuggestions(true)}
+                    backgroundLoading={backgroundLoading}
                   />
                 ) : null}
               </HeroVideoPlayer>

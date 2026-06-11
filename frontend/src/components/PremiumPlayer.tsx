@@ -88,6 +88,8 @@ export type PremiumPlayerProps = {
   onStreamError?: () => void;
   /** Live IPTV hides seek bar and shows LIVE badge only. */
   isLive?: boolean;
+  /** Show subtle loading animation (catalog loading in background). */
+  backgroundLoading?: boolean;
 };
 
 /** App brand logo for loading, buffering, and fallback states. */
@@ -277,6 +279,7 @@ export default function PremiumPlayer({
   epgProgramTitle = null,
   onStreamError,
   isLive = true,
+  backgroundLoading = false,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1909,6 +1912,23 @@ export default function PremiumPlayer({
             >
               Tap for controls · Double-tap ±10s seek
             </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Subtle background loading indicator */}
+      <AnimatePresence>
+        {backgroundLoading && !showErrorOverlay && (
+          <motion.div
+            key="bg-loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="pointer-events-none absolute bottom-20 right-6 z-20 player-bg-loading"
+          >
+            <div className="player-bg-loading__dot" />
+            <span>Loading channels...</span>
           </motion.div>
         )}
       </AnimatePresence>
