@@ -29,8 +29,11 @@ from app.schemas.auth import (
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger("app.auth")
 
-# In-process rate limit for password reset (per email; fine for single Render instance)
+# In-process rate limiting (single Render instance)
 _last_admin_password_reset_at: dict[str, float] = {}
+_login_attempts: dict[str, list[float]] = {}  # { email: [timestamp, ...] }
+_login_rate_limit_attempts = 5  # Max 5 attempts
+_login_rate_limit_window_seconds = 300  # Per 5 minutes
 
 # Pre-computed bcrypt hash — ensures verify_password always runs even for unknown emails
 # to prevent timing-based email enumeration (OWASP Authentication Cheat Sheet).
@@ -87,6 +90,21 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     normalized_email = payload.email.strip().lower()
+
+    # SECURITY: Rate limit login attempts (5 per 5 minutes)
+    now = time.time()
+    if normalized_email in _login_attempts:
+        _login_attempts[normalized_email] = [
+            t for t in _login_attempts[normalized_email]
+            if now - t < _login_rate_limit_window_seconds
+        ]
+        if len(_login_attempts[normalized_email]) >= _login_rate_limit_attempts:
+            logger.warning("Login rate limit exceeded: email=%s", normalized_email)
+            raise HTTPException(status_code=429, detail="Too many login attempts. Try again in 5 minutes.")
+    else:
+        _login_attempts[normalized_email] = []
+    _login_attempts[normalized_email].append(now)
+
     result = await db.execute(select(User).where(func.lower(User.email) == normalized_email))
     user = result.scalar_one_or_none()
     # Always call verify_password regardless of whether the user exists so that

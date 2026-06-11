@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     database_url: str | None = None
     sqlite_fallback_url: str = "sqlite:///./sports_tv.db"
 
-    jwt_secret_key: str = Field(default="replace-with-strong-secret")
+    jwt_secret_key: str = Field(default="") # SECURITY: Must be set via JWT_SECRET_KEY env var
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
     # Admin password reset token (no email — token returned in API response; short TTL for security)
@@ -26,10 +26,10 @@ class Settings(BaseSettings):
     # Minimum seconds between password reset requests for the same email (abuse / DB load)
     password_reset_rate_limit_seconds: int = 120
 
-    # Canonical defaults (overridable via ADMIN_* env on deploy): user locks these for local/parity.
-    admin_email: str = "admin@test.com"
-    admin_password: str = "Admin12345!"
-    admin_full_name: str = "Platform Admin"
+    # SECURITY: No defaults — must be set via ENV vars on all environments
+    admin_email: str = Field(default="")
+    admin_password: str = Field(default="")
+    admin_full_name: str = Field(default="Admin")
     # When true, each process startup deletes all users except ADMIN_EMAIL (seeding above). Set false only if you need public registration to persist.
     # CHANGED DEFAULT: False to prevent accidental data loss on restart. Set explicitly to True if desired.
     prune_non_default_users_on_startup: bool = False

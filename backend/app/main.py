@@ -107,16 +107,29 @@ async def lifespan(app: FastAPI):
         settings.app_env,
         settings.admin_email,
     )
-    _is_prod = (settings.app_env or "").lower() in {"production", "prod"}
-    if _is_prod and settings.admin_password == "Admin12345!":
+
+    # SECURITY: Enforce strong secrets in ALL environments
+    if not settings.admin_email or not settings.admin_email.strip():
         raise RuntimeError(
-            "SECURITY FATAL: Default admin password 'Admin12345!' detected in PRODUCTION. "
-            "This is a critical security issue. Set ADMIN_PASSWORD environment variable immediately."
+            "SECURITY FATAL: ADMIN_EMAIL not set. Set ADMIN_EMAIL environment variable immediately."
         )
-    if _is_prod and settings.admin_email == "admin@test.com":
+    if not settings.admin_password or not settings.admin_password.strip() or len(settings.admin_password) < 12:
         raise RuntimeError(
-            "SECURITY FATAL: Default admin email 'admin@test.com' detected in PRODUCTION. "
-            "Set ADMIN_EMAIL environment variable immediately."
+            "SECURITY FATAL: ADMIN_PASSWORD not set or too weak (min 12 chars). "
+            "Set ADMIN_PASSWORD environment variable with strong password immediately."
+        )
+    if not settings.jwt_secret_key or not settings.jwt_secret_key.strip() or len(settings.jwt_secret_key) < 32:
+        raise RuntimeError(
+            "SECURITY FATAL: JWT_SECRET_KEY not set or too weak (min 32 chars). "
+            "Set JWT_SECRET_KEY environment variable immediately."
+        )
+
+    # PERFORMANCE: Require Redis in production for channel caching
+    _is_prod = (settings.app_env or "").lower() in {"production", "prod"}
+    if _is_prod and not settings.redis_url:
+        logger.warning(
+            "PERFORMANCE WARNING: Redis not configured in production. "
+            "Set REDIS_URL for channel list caching. Using in-memory cache (not cluster-safe)."
         )
 
     Base.metadata.create_all(bind=engine)

@@ -30,6 +30,7 @@ _engine_kwargs: dict = {
     "future": True,
     "pool_pre_ping": True,
     "connect_args": connect_args,
+    "execution_options": {"timeout": 10},  # Query timeout: 10 seconds max
 }
 if not DATABASE_URL.startswith("sqlite"):
     _engine_kwargs["pool_size"] = settings.db_pool_size
