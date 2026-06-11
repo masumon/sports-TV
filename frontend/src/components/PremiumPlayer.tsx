@@ -1740,7 +1740,7 @@ export default function PremiumPlayer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="pointer-events-none absolute inset-0 z-25 flex items-center justify-center"
+            className="pointer-events-none absolute inset-0 z-[25] flex items-center justify-center"
           >
             <div
               className="flex flex-col items-center gap-2 rounded-2xl px-5 py-4"
@@ -1834,7 +1834,7 @@ export default function PremiumPlayer({
 
 
       {/* Custom overlay slot — reserved for non-obstructive UI; match metadata removed */}
-      {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30 hidden">{overlay}</div> : null}
+      {overlay ? <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30">{overlay}</div> : null}
 
       {/* ── Volume swipe indicator ── */}
       <AnimatePresence>
@@ -1881,7 +1881,7 @@ export default function PremiumPlayer({
               className="rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-wide"
               style={{ background: "rgba(0,0,0,0.38)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(4px)" }}
             >
-              Tap for controls · Double-tap fullscreen
+              Tap for controls · Double-tap ±10s seek
             </span>
           </motion.div>
         )}

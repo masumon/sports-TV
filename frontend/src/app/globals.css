@@ -282,20 +282,21 @@ a {
 }
 
 .glass-player-bar {
-  background: rgba(6, 8, 14, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  -webkit-backdrop-filter: blur(6px) saturate(130%);
-  backdrop-filter: blur(6px) saturate(130%);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+  background: rgba(10, 12, 22, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .glass-player-bar-premium {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(12, 14, 24, 0.78) 0%, rgba(18, 20, 32, 0.72) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-top-color: rgba(255, 255, 255, 0.22);
   border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
 }
 
 .live-badge-inline {

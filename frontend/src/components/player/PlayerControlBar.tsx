@@ -133,7 +133,7 @@ export function PlayerControlBar({
                   aria-valuemax={100}
                   aria-valuenow={isMuted ? 0 : volumePct}
                   style={{
-                    background: `linear-gradient(to right, #EF4444 ${isMuted ? 0 : volumePct}%, rgba(255,255,255,0.16) ${isMuted ? 0 : volumePct}%)`,
+                    background: `linear-gradient(to right, #F5A623 ${isMuted ? 0 : volumePct}%, rgba(255,255,255,0.16) ${isMuted ? 0 : volumePct}%)`,
                   }}
                 />
               </div>
