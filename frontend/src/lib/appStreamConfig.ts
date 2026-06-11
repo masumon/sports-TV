@@ -639,6 +639,8 @@ export const APP_STREAM_CONFIG = {
       "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
       "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
       "https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
+      // Premium curated sports + news channels (Somoy, Star News, Gazi, T Sports, etc.)
+      "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
       // T Sports — premium Bangladesh sports channel (updates every 12h)
       // NS Player format (standard M3U, broad player compatibility)
       "https://raw.githubusercontent.com/Gtajisan/iptv-TSports/main/NS_Player_Tsports_live.m3u",
