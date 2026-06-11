@@ -33,7 +33,6 @@ import {
   upgradeHlsQuality,
 } from "@/lib/hlsPlayback";
 import { warmBackupStreams } from "@/lib/streamWarmup";
-import { isSlowNetwork } from "@/lib/networkDetection";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
