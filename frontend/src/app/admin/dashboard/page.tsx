@@ -502,8 +502,12 @@ export default function AdminDashboardPage() {
       const s = await apiClient.adminStats(authToken);
       setStats(s);
     } catch (err) {
-      // Don't silently swallow — log so dev tools surface the error
-      console.warn("[Admin] fetchStats failed:", err instanceof Error ? err.message : err);
+      // Log error but don't block — stats are optional
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn("[Admin] fetchStats failed:", errMsg);
+      if (errMsg.includes("timeout")) {
+        console.warn("[Admin] Stats request timed out — backend may be slow");
+      }
     }
   };
 
