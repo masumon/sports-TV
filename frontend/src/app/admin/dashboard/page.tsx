@@ -1210,6 +1210,54 @@ export default function AdminDashboardPage() {
           </div>
         </section>
 
+        {/* ── Users Management ── */}
+        <section className="w-full">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="admin-glass rounded-2xl p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">Users Management</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (authToken) {
+                    void (async () => {
+                      try {
+                        const res = await apiClient.adminListUsers(authToken, 1, 100);
+                        console.log("Users:", res);
+                        toast.success(`Loaded ${res.items.length} users`);
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Failed to load users");
+                      }
+                    })();
+                  }
+                }}
+                className="player-control-btn text-xs"
+              >
+                Refresh Users
+              </button>
+            </div>
+            <p className="text-xs text-zinc-500 mb-3">Total users: {stats?.users ?? 0}</p>
+            <div className="rounded-lg border border-white/5 overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-white/5 bg-white/2">
+                  <tr>
+                    <th className="px-3 py-2.5 font-semibold text-zinc-300">Email</th>
+                    <th className="px-3 py-2.5 font-semibold text-zinc-300">Name</th>
+                    <th className="px-3 py-2.5 font-semibold text-zinc-300">Admin</th>
+                    <th className="px-3 py-2.5 font-semibold text-zinc-300">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-center text-zinc-500">
+                      Click "Refresh Users" to load user list (currently loading on demand)
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        </section>
+
         {/* ── Google AdSense Settings ── */}
         <AdminAdsenseSection />
       </div>
