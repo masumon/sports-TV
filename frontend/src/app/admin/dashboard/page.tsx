@@ -393,7 +393,68 @@ export default function AdminDashboardPage() {
   // Add channel form
   const [channelForm, setChannelForm] = useState<ChannelFormState>(initialChannelForm);
 
+  // Bulk operations
+  const [selectedChannels, setSelectedChannels] = useState<Set<number>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+
   const authToken = token;
+
+  const toggleChannelSelection = (id: number) => {
+    const newSet = new Set(selectedChannels);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedChannels(newSet);
+  };
+
+  const selectAll = (select: boolean) => {
+    if (select) {
+      setSelectedChannels(new Set(filteredAdminChannels.map((c) => c.id)));
+    } else {
+      setSelectedChannels(new Set());
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (selectedChannels.size === 0) {
+      toast.error("No channels selected");
+      return;
+    }
+    if (!confirm(`Delete ${selectedChannels.size} channels? This cannot be undone.`)) return;
+
+    setBulkActionLoading(true);
+    try {
+      const res = await apiClient.adminBulkDelete(authToken, Array.from(selectedChannels));
+      toast.success(`✓ Deleted ${res.deleted} channels`);
+      setSelectedChannels(new Set());
+      await fetchAdminData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk delete failed");
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const bulkToggleStatus = async (isActive: boolean) => {
+    if (selectedChannels.size === 0) {
+      toast.error("No channels selected");
+      return;
+    }
+
+    setBulkActionLoading(true);
+    try {
+      const res = await apiClient.adminBulkUpdateStatus(authToken, Array.from(selectedChannels), isActive);
+      toast.success(`✓ Updated ${res.updated} channels to ${isActive ? "active" : "inactive"}`);
+      setSelectedChannels(new Set());
+      await fetchAdminData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk update failed");
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
 
   /* ─── Derived ─────────────────────────────────────────────────── */
 
@@ -649,6 +710,19 @@ export default function AdminDashboardPage() {
 
   const adminColumns = useMemo(
     () => [
+      columnHelper.display({
+        id: "select",
+        header: "",
+        cell: (info) => (
+          <input
+            type="checkbox"
+            checked={selectedChannels.has(info.row.original.id)}
+            onChange={() => toggleChannelSelection(info.row.original.id)}
+            title="Select channel for bulk operations"
+            className="rounded border border-blue-400 cursor-pointer"
+          />
+        ),
+      }),
       columnHelper.display({
         id: "probe",
         header: "Health",
@@ -1164,6 +1238,50 @@ export default function AdminDashboardPage() {
                 <button type="button" onClick={() => void fetchAdminData()} className="font-semibold underline hover:text-white">
                   Reload list
                 </button>
+              </div>
+            )}
+
+            {/* Bulk Actions */}
+            {channels.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2.5">
+                <label className="flex items-center gap-2 text-xs text-blue-100 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedChannels.size === filteredAdminChannels.length && filteredAdminChannels.length > 0}
+                    onChange={(e) => selectAll(e.target.checked)}
+                    className="rounded border border-blue-400"
+                  />
+                  Select All ({selectedChannels.size} selected)
+                </label>
+                {selectedChannels.size > 0 && (
+                  <>
+                    <span className="text-xs text-blue-300/60">|</span>
+                    <button
+                      type="button"
+                      onClick={() => bulkToggleStatus(true)}
+                      disabled={bulkActionLoading}
+                      className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                    >
+                      ✓ Activate ({selectedChannels.size})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => bulkToggleStatus(false)}
+                      disabled={bulkActionLoading}
+                      className="text-xs font-semibold text-amber-400 hover:text-amber-300 disabled:opacity-50"
+                    >
+                      ✗ Deactivate ({selectedChannels.size})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => bulkDelete()}
+                      disabled={bulkActionLoading}
+                      className="text-xs font-semibold text-rose-400 hover:text-rose-300 disabled:opacity-50"
+                    >
+                      🗑 Delete ({selectedChannels.size})
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
