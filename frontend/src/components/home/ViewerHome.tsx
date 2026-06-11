@@ -33,6 +33,8 @@ import { CategoryTabs } from "@/components/home/CategoryTabs";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { ChannelDetailsPanel } from "@/components/channels/ChannelDetailsPanel";
 import { GoLiveButton } from "@/components/home/GoLiveButton";
+import { TrendingChannels } from "@/components/home/TrendingChannels";
+import { FeedbackButton } from "@/components/home/FeedbackButton";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
 import { CategorySkeletonRow, ChannelSkeletonGrid, PlayerSkeleton } from "@/components/ui/ChannelSkeleton";
 import { groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
@@ -2304,6 +2306,7 @@ export function ViewerHome() {
     />
 
     <MoreSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
+    <FeedbackButton />
     </>
   );
 }

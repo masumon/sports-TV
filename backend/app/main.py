@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from app.api.routes import admin, auth, proxy, sports_tv
+from app.api.routes import admin, auth, proxy, sports_tv, metrics, feedback
 from app.api.routes import aggregator
 from app.core.config import settings
 from app.core.security import get_password_hash
@@ -561,4 +561,6 @@ app.include_router(sports_tv.router, prefix=settings.api_v1_prefix)
 app.include_router(admin.router, prefix=settings.api_v1_prefix)
 app.include_router(proxy.router, prefix=settings.api_v1_prefix)
 app.include_router(aggregator.router, prefix=settings.api_v1_prefix)
+app.include_router(metrics.router, prefix=settings.api_v1_prefix)  # Health + metrics endpoints
+app.include_router(feedback.router, prefix=settings.api_v1_prefix)  # User feedback collection
 
