@@ -32,6 +32,7 @@ import { MoreSheet } from "@/components/layout/MoreSheet";
 import { CategoryTabs } from "@/components/home/CategoryTabs";
 import { ChannelGrid } from "@/components/channels/ChannelGrid";
 import { ChannelDetailsPanel } from "@/components/channels/ChannelDetailsPanel";
+import { GoLiveButton } from "@/components/home/GoLiveButton";
 import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
 import { CategorySkeletonRow, ChannelSkeletonGrid, PlayerSkeleton } from "@/components/ui/ChannelSkeleton";
 import { groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
@@ -2262,6 +2263,17 @@ export function ViewerHome() {
         </>)}
       </div>
     </AppShell>
+
+    {/* Go Live Button */}
+    <GoLiveButton
+      liveChannelCount={moduleChannels.filter((c) => c.module === "live_matches").length}
+      onJumpToLive={() => {
+        transitionSetActiveModule("live_matches");
+        document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" });
+      }}
+      isVisible={activeModule !== "live_matches"}
+    />
+
     <MoreSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
     </>
   );
