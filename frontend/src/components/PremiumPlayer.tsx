@@ -33,6 +33,7 @@ import {
   upgradeHlsQuality,
 } from "@/lib/hlsPlayback";
 import { warmBackupStreams } from "@/lib/streamWarmup";
+import { isVpnModeEnabled } from "@/lib/vpnMode";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -172,9 +173,10 @@ function buildOrderedStreamUrls(
 const LOADING_MSG = "Loading stream…";
 const RECONNECT_MSG = "Reconnecting…";
 const RETRY_KEY_MIN_INTERVAL_MS = 15000;  // 15s min — was 2s (too aggressive, caused rapid reconnects)
-const URL_FAIL_COOLDOWN_MS = 90 * 1000;
+const URL_FAIL_COOLDOWN_MS = 120 * 1000;  // 2 min cooldown for failed URLs (was 90s) — prevent ISP throttle detection as geo-block
 const RUNNING_PLAYBACK_ERROR_GRACE_MS = 8_000;  // Increased from 5s
 const SERVER_WAKE_RETRY_DELAYS_MS = [8000, 20000, 45000];  // More patient retry delays
+const MAX_DIRECT_URL_FAILURES = 10;  // Only fail to geo-block after ALL direct URLs fail
 const recentlyFailedUrlUntil = new Map<string, number>();
 
 function isUrlTemporarilyFailed(url: string): boolean {
@@ -589,10 +591,21 @@ export default function PremiumPlayer({
       setIsLoading(true);
     }
 
-    const allUrls = dedupePlaybackUrls([
-      ...buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile),
-      ...resolvedDirect.filter(canTryDirectPlaybackUrl),
-    ]);
+    // CRITICAL: Proxy URLs MUST come first to bypass geo-blocks
+    // Direct URLs can cause 403 from ISP/CDN, so only try after proxy fails
+    const proxyUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
+    const directFallbackUrls = resolvedDirect.filter(canTryDirectPlaybackUrl);
+
+    // If VPN mode enabled: ONLY use proxy URLs (bypass geo-blocks completely)
+    const vpnModeActive = isVpnModeEnabled();
+    const allUrls = dedupePlaybackUrls(
+      vpnModeActive
+        ? proxyUrls  // VPN mode: only proxy (no direct fallback)
+        : [
+            ...proxyUrls,  // Try proxy first (bypasses geo-blocks)
+            ...directFallbackUrls,  // Only use direct URLs if proxy fails completely
+          ]
+    );
     if (!allUrls.length) {
       setIsLoading(false);
       setHasError(true);
@@ -767,7 +780,10 @@ export default function PremiumPlayer({
         const httpCode = data.response?.code;
 
         if (httpCode === 403 || httpCode === 401 || httpCode === 451) {
+          // CRITICAL: Try failover/proxy BEFORE assuming geo-block
           if (tryFailover()) return;
+
+          // Try recovery even on 403 - might be ISP throttling, not actual geo-block
           if (hlsRecoveryRef.current < MAX_HLS_RECOVERY_ATTEMPTS) {
             hlsRecoveryRef.current += 1;
             if (trySilentHlsRecovery(hls)) {
@@ -775,10 +791,17 @@ export default function PremiumPlayer({
               return;
             }
           }
+
           if (keepRunningPlaybackOnIssue()) return;
-          const confirmedGeo = parseGeoFromHlsResponse(data.response) || httpCode === 451;
-          setGeoRestricted(confirmedGeo || geoHint);
-          setHasError(!(confirmedGeo || geoHint));
+
+          // Only show geo-restricted if EXPLICITLY confirmed (451 status or clear geo header)
+          // Don't assume 403 is geo-block - it might be ISP throttling or temporary issue
+          const isExplicitGeoBlock = httpCode === 451 || (data.response?.text?.toLowerCase().includes("geolocation") ?? false);
+          const confirmedGeo = isExplicitGeoBlock && parseGeoFromHlsResponse(data.response);
+
+          // DEFAULT: Show generic error, not geo-block (user can enable VPN)
+          setGeoRestricted(confirmedGeo && geoHint);  // Only if explicitly confirmed AND geoHint is set
+          setHasError(true);  // Show error message, user can try VPN
           setIsLoading(false);
           setIsSwitching(false);
           return;
