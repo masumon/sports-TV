@@ -407,4 +407,98 @@ export const apiClient = {
       }),
     });
   },
+
+  /* ─── User Management ─── */
+  adminListUsers(token: string, page: number = 1, pageSize: number = 100) {
+    return apiRequest<{
+      total: number;
+      items: Array<{
+        id: number;
+        email: string;
+        full_name: string;
+        is_admin: boolean;
+        created_at: string | null;
+        updated_at: string | null;
+      }>;
+      page: number;
+      page_size: number;
+    }>(`/admin/users?page=${page}&page_size=${pageSize}`, {
+      method: "GET",
+      authToken: token,
+      timeoutMs: 15_000,
+      retries: 2,
+    });
+  },
+
+  adminGetUser(token: string, userId: number) {
+    return apiRequest<{
+      id: number;
+      email: string;
+      full_name: string;
+      is_admin: boolean;
+      created_at: string | null;
+      updated_at: string | null;
+    }>(`/admin/users/${userId}`, {
+      method: "GET",
+      authToken: token,
+      timeoutMs: 10_000,
+    });
+  },
+
+  adminUpdateUser(token: string, userId: number, data: { full_name?: string; is_admin?: boolean }) {
+    return apiRequest<{
+      id: number;
+      email: string;
+      full_name: string;
+      is_admin: boolean;
+      created_at: string | null;
+      updated_at: string | null;
+    }>(`/admin/users/${userId}`, {
+      method: "PUT",
+      authToken: token,
+      body: JSON.stringify(data),
+      timeoutMs: 10_000,
+      retries: 2,
+    });
+  },
+
+  adminDeleteUser(token: string, userId: number) {
+    return apiRequest<void>(`/admin/users/${userId}`, {
+      method: "DELETE",
+      authToken: token,
+      timeoutMs: 10_000,
+      retries: 2,
+    });
+  },
+
+  /* ─── Bulk Channel Operations ─── */
+  adminBulkUpdateStatus(token: string, ids: number[], isActive: boolean) {
+    return apiRequest<{ updated: number }>("/admin/channels/bulk-update-status", {
+      method: "POST",
+      authToken: token,
+      body: JSON.stringify({ ids, is_active: isActive }),
+      timeoutMs: 20_000,
+      retries: 1,
+    });
+  },
+
+  adminBulkDelete(token: string, ids: number[]) {
+    return apiRequest<{ deleted: number }>("/admin/channels/bulk-delete", {
+      method: "POST",
+      authToken: token,
+      body: JSON.stringify({ ids }),
+      timeoutMs: 20_000,
+      retries: 1,
+    });
+  },
+
+  adminBulkUpdateModule(token: string, ids: number[], module: string) {
+    return apiRequest<{ updated: number }>("/admin/channels/bulk-update-module", {
+      method: "POST",
+      authToken: token,
+      body: JSON.stringify({ ids, module }),
+      timeoutMs: 20_000,
+      retries: 1,
+    });
+  },
 };

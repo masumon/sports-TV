@@ -463,3 +463,185 @@ async def admin_trigger_m3u8_refresh(
         await db.refresh(stream)
 
     return DynamicStreamRead.model_validate(stream)
+
+
+# ─── User Management ───────────────────────────────────────────────────
+
+
+@router.get("/users", response_model=dict[str, int | list])
+async def admin_list_users(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict[str, int | list]:
+    """List all users with pagination."""
+    total = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
+    stmt = (
+        select(User)
+        .order_by(User.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+    items = [
+        {
+            "id": u.id,
+            "email": u.email,
+            "full_name": u.full_name,
+            "is_admin": u.is_admin,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+            "updated_at": u.updated_at.isoformat() if u.updated_at else None,
+        }
+        for u in rows
+    ]
+    return {"total": total, "items": items, "page": page, "page_size": page_size}
+
+
+@router.get("/users/{user_id}")
+async def admin_get_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict:
+    """Get user details."""
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_admin": user.is_admin,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+    }
+
+
+@router.put("/users/{user_id}")
+async def admin_update_user(
+    user_id: int,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict:
+    """Update user (full_name, is_admin)."""
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    if "full_name" in payload:
+        user.full_name = str(payload["full_name"]).strip()
+    if "is_admin" in payload:
+        user.is_admin = bool(payload["is_admin"])
+
+    await db.commit()
+    await db.refresh(user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_admin": user.is_admin,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+    }
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_current_admin_user),
+) -> None:
+    """Delete user (cannot delete yourself)."""
+    if user_id == admin_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account.")
+
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    await db.delete(user)
+    await db.commit()
+
+
+# ─── Bulk Channel Operations ───────────────────────────────────────────
+
+
+@router.post("/channels/bulk-update-status")
+async def admin_bulk_update_status(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict[str, int]:
+    """Bulk update channel status (is_active) by IDs."""
+    channel_ids = payload.get("ids", [])
+    is_active = payload.get("is_active", False)
+
+    if not channel_ids:
+        raise HTTPException(status_code=400, detail="No channel IDs provided.")
+
+    stmt = (
+        select(Channel)
+        .where(Channel.id.in_(channel_ids))
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No channels found.")
+
+    for ch in rows:
+        ch.is_active = bool(is_active)
+
+    await db.commit()
+    invalidate_list_caches()
+    return {"updated": len(rows)}
+
+
+@router.post("/channels/bulk-delete")
+async def admin_bulk_delete(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict[str, int]:
+    """Bulk delete channels by IDs."""
+    channel_ids = payload.get("ids", [])
+
+    if not channel_ids:
+        raise HTTPException(status_code=400, detail="No channel IDs provided.")
+
+    stmt = delete(Channel).where(Channel.id.in_(channel_ids))
+    result = await db.execute(stmt)
+    await db.commit()
+    invalidate_list_caches()
+    return {"deleted": result.rowcount or 0}
+
+
+@router.post("/channels/bulk-update-module")
+async def admin_bulk_update_module(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict[str, int]:
+    """Bulk update channel module by IDs."""
+    channel_ids = payload.get("ids", [])
+    module = payload.get("module", "global_sports")
+
+    if not channel_ids:
+        raise HTTPException(status_code=400, detail="No channel IDs provided.")
+
+    stmt = (
+        select(Channel)
+        .where(Channel.id.in_(channel_ids))
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No channels found.")
+
+    for ch in rows:
+        ch.module = str(module).strip()
+
+    await db.commit()
+    invalidate_list_caches()
+    return {"updated": len(rows)}
