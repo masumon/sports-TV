@@ -1024,11 +1024,11 @@ export default function PremiumPlayer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.25 } }}
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5"
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 sm:gap-7"
             style={{ background: "linear-gradient(160deg, rgba(5,6,12,0.95) 0%, rgba(12,10,22,0.95) 100%)", backdropFilter: "blur(8px)" }}
           >
-            {/* Logo ring spinner */}
-            <div className="relative flex h-[88px] w-[88px] items-center justify-center">
+            {/* Logo ring spinner — LARGER */}
+            <div className="relative flex h-[120px] w-[120px] sm:h-[140px] sm:w-[140px] items-center justify-center">
               {/* Outer spinning arc */}
               <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 88 88" fill="none">
                 <circle cx="44" cy="44" r="40" stroke="rgba(245,166,35,0.12)" strokeWidth="3" />
@@ -1058,33 +1058,36 @@ export default function PremiumPlayer({
               />
               {/* Logo */}
               <div
-                className="relative flex h-[56px] w-[56px] items-center justify-center rounded-xl overflow-hidden"
+                className="relative flex h-[70px] w-[70px] items-center justify-center rounded-xl overflow-hidden"
                 style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.5)", boxShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,166,35,0.1)" }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
                   alt={title || "ABO Sports TV"}
-                  className="h-[48px] w-[48px] object-contain"
+                  className="h-[60px] w-[60px] object-contain"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
                 />
               </div>
             </div>
 
-            {/* Text */}
-            <div className="flex flex-col items-center gap-1.5">
-              <p className="text-[13px] font-bold tracking-wide text-white truncate max-w-[200px] text-center" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.6)" }}>
+            {/* Text — CLEARER AND LARGER */}
+            <div className="flex flex-col items-center gap-2.5">
+              <p className="text-base sm:text-lg font-bold tracking-wide text-white truncate max-w-[280px] text-center" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.6)" }}>
                 {title || "ABO SPORTS TV"}
               </p>
-              <p className="text-[11px] font-medium tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.75)" }}>
-                {isSwitching
-                  ? (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "ব্যাকআপ চ্যানেলে যাচ্ছে…")
-                  : (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "লাইভ সংযোগ হচ্ছে…")}
-              </p>
+              <div className="flex flex-col items-center gap-1">
+                <p className="text-[12px] sm:text-sm font-semibold tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.9)" }}>
+                  {isSwitching
+                    ? (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "ব্যাকআপ চ্যানেলে যাচ্ছে…")
+                    : (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "লাইভ সংযোগ হচ্ছে…")}
+                </p>
+                <p className="text-[10px] sm:text-[11px] opacity-70 animate-pulse">লোডিং হচ্ছে...</p>
+              </div>
             </div>
 
-            {/* Shimmer progress bar */}
-            <div className="h-[3px] w-36 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
+            {/* Shimmer progress bar — LARGER */}
+            <div className="h-1 w-48 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
               <motion.div
                 className="h-full w-1/2 rounded-full"
                 style={{ background: "linear-gradient(90deg, transparent, #F5A623, transparent)" }}
@@ -1271,6 +1274,31 @@ export default function PremiumPlayer({
             >
               স্পর্শ করুন · ডাবল ট্যাপ ±10s · উপরে/নিচে ভলিউম
             </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Rebuffering indicator (during playback) ── */}
+      <AnimatePresence>
+        {playbackStartedRef.current && isLoading && !hasError && (
+          <motion.div
+            key="rebuffer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-none absolute left-1/2 top-1/2 z-35 -translate-x-1/2 -translate-y-1/2"
+          >
+            <div className="flex flex-col items-center gap-2">
+              <motion.div
+                className="flex h-12 w-12 items-center justify-center"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 1.2, repeat: Infinity }}
+              >
+                <Loader2 size={24} className="animate-spin" style={{ color: "#F5A623" }} />
+              </motion.div>
+              <span className="text-[10px] font-semibold" style={{ color: "rgba(245,166,35,0.8)" }}>বাফারিং...</span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
