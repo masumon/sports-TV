@@ -55,6 +55,8 @@ export type PremiumPlayerProps = {
   channelLogoUrl?: string | null;
   /** Called when all stream sources have errored out. */
   onStreamError?: () => void;
+  /** Hint that this is a live stream (used by callers; currently informational). */
+  isLive?: boolean;
 };
 
 /** Matches `TopBar` / `Sidebar` — always shown on the player when channel has no logo. */
