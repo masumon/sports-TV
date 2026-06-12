@@ -104,7 +104,7 @@ function tryUnlockPlaybackOrientation(): void {
 }
 
 /* ────────────────────────────────────────────────────────── Helpers ── */
-const HIDE_CONTROLS_AFTER_MS = 3500;
+const HIDE_CONTROLS_AFTER_MS = 4500;
 /** First-play: keep controls visible longer so new users can orient themselves. */
 const HIDE_CONTROLS_INITIAL_MS = 8000;
 
@@ -1297,8 +1297,9 @@ export default function PremiumPlayer({
             </div>
 
             <div
-              className="mx-2 mb-[7px] overflow-hidden rounded-2xl sm:mx-3"
+              className="mx-2 overflow-hidden rounded-2xl sm:mx-3"
               style={{
+                marginBottom: "max(7px, env(safe-area-inset-bottom, 7px))",
                 background: "rgba(6,7,14,0.88)",
                 border: "1px solid rgba(255,255,255,0.07)",
                 backdropFilter: "blur(24px) saturate(160%)",
@@ -1307,7 +1308,7 @@ export default function PremiumPlayer({
               }}
             >
               {/* ── Now playing row ── */}
-              <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-2 sm:px-4 sm:pt-3">
+              <div className="flex items-center gap-2 px-2.5 pt-2 pb-1.5 sm:gap-2.5 sm:px-4 sm:pt-3 sm:pb-2">
                 {/* Channel logo */}
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
@@ -1356,7 +1357,7 @@ export default function PremiumPlayer({
               <div className="mx-3 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
 
               {/* ── Main controls row ── */}
-              <div className="flex items-center gap-1.5 px-2.5 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
+              <div className="flex items-center gap-1 px-2 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
                 {/* Play / Pause — primary CTA */}
                 <button
                   type="button"
@@ -1402,16 +1403,18 @@ export default function PremiumPlayer({
                   onChange={changeQuality}
                 />
 
-                {/* PiP */}
-                <button
-                  type="button"
-                  onClick={() => void togglePictureInPicture()}
-                  aria-label="Picture-in-Picture"
-                  title="PiP"
-                  className="control-btn shrink-0 active:scale-90 transition"
-                >
-                  <PictureInPicture2 size={16} />
-                </button>
+                {/* PiP — only when browser supports it */}
+                {typeof document !== "undefined" && !!document.pictureInPictureEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => void togglePictureInPicture()}
+                    aria-label="Picture-in-Picture"
+                    title="PiP"
+                    className="control-btn shrink-0 active:scale-90 transition hidden sm:inline-flex"
+                  >
+                    <PictureInPicture2 size={16} />
+                  </button>
+                )}
 
                 {/* Theater */}
                 <button
@@ -1431,7 +1434,7 @@ export default function PremiumPlayer({
                   <Tv size={16} />
                 </button>
 
-                {/* Sleep timer button */}
+                {/* Sleep timer button — hidden on very small phones */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1442,7 +1445,7 @@ export default function PremiumPlayer({
                       if (next) startSleepTimer(next); else cancelSleepTimer();
                     }
                   }}
-                  className="control-btn relative shrink-0 active:scale-90 transition"
+                  className="control-btn relative shrink-0 active:scale-90 transition hidden min-[380px]:inline-flex"
                   title={sleepMinutes ? `Sleep: ${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, "0")}` : "Sleep timer"}
                   aria-label="Sleep timer"
                   style={sleepMinutes ? { color: "var(--primary-accent)" } : {}}
