@@ -11,9 +11,19 @@ type ChannelGridProps = {
 export function ChannelGrid({ channels, activeId, onSelect, isLive = false, className }: ChannelGridProps) {
   if (channels.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border-subtle bg-surface-secondary/50 py-12 px-4 text-center">
-        <p className="text-sm font-medium text-foreground">No channels found</p>
-        <p className="text-xs text-muted-foreground">Try adjusting your filters or search terms</p>
+      <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border-subtle bg-surface-secondary/50 py-16 px-6 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.25)" }}>
+          <span className="text-2xl" aria-hidden>📺</span>
+        </div>
+        <div>
+          <p className="text-base font-semibold text-foreground">কোনো চ্যানেল পাওয়া যায়নি</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">আপনার ফিল্টার বা সার্চ টার্ম সামঞ্জস্য করে দেখুন</p>
+        </div>
+        <ul className="mt-2 text-xs text-muted-foreground space-y-1">
+          <li>✓ সার্চ টেক্সট পরিবর্তন করুন</li>
+          <li>✓ অন্য ক্যাটাগরি বেছে নিন</li>
+          <li>✓ সব ফিল্টার সরান এবং আবার চেষ্টা করুন</li>
+        </ul>
       </div>
     );
   }
