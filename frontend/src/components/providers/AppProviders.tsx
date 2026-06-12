@@ -49,7 +49,8 @@ function AppSplashGate({ children }: { children: React.ReactNode }) {
     };
     const hasCache = (getStaleChannelListCache()?.length ?? 0) > 0;
     void hydrateChannelListCache().finally(finish);
-    const t = setTimeout(finish, hasCache ? 220 : 900);
+    // Auto-seed runs silently in background on backend startup — dismiss splash immediately
+    const t = setTimeout(finish, hasCache ? 120 : 400);
     return () => {
       cancelled = true;
       clearTimeout(t);

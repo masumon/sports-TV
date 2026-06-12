@@ -170,6 +170,26 @@ async def lifespan(app: FastAPI):
 
     ran_startup_fixture_sync = needs_fixture_sync
 
+    # Auto-seed BDIX + International channels on startup (silent background)
+    def auto_seed_channels() -> None:
+        from app.services.bdix_seeder import seed_bdix_channels
+        from app.services.international_seeder import seed_international_channels
+        sdb = SessionLocal()
+        try:
+            logger.info("Auto-seeding BDIX Bangladesh channels...")
+            bdix_result = seed_bdix_channels(sdb)
+            logger.info(f"BDIX seed complete: {bdix_result['created']} created, {bdix_result['updated']} updated")
+
+            logger.info("Auto-seeding International FREE sources...")
+            intl_result = seed_international_channels(sdb)
+            logger.info(f"International seed complete: {intl_result['created']} created, {intl_result['updated']} updated")
+        except Exception as e:
+            logger.warning(f"Auto-seed skipped: {e}")
+        finally:
+            sdb.close()
+
+    await run_in_threadpool(auto_seed_channels)
+
     _needs_scheduler = (
         settings.scheduled_sync_interval_minutes > 0
         or settings.m3u8_refresh_interval_minutes > 0
