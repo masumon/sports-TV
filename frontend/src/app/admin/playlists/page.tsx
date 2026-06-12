@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, RefreshCw, Trash2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { ChevronLeft, RefreshCw, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { PlaylistUploader } from "@/components/admin/PlaylistUploader";
@@ -33,6 +33,7 @@ export default function PlaylistsPage() {
   }, [user, router]);
 
   const loadPlaylists = async () => {
+    setIsLoading(true);
     try {
       const response = await fetch("/api/v1/admin/playlists");
       if (response.ok) {
@@ -47,6 +48,11 @@ export default function PlaylistsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    await loadPlaylists();
+    toast.success("Playlist list refreshed");
   };
 
   return (
@@ -83,9 +89,25 @@ export default function PlaylistsPage() {
 
         {/* Playlists list */}
         <div>
-          <h2 className="mb-4 text-lg font-bold" style={{ color: "var(--text-main)" }}>
-            Your Playlists {playlists.length > 0 && <span className="text-sm font-normal">({playlists.length})</span>}
-          </h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
+              Your Playlists {playlists.length > 0 && <span className="text-sm font-normal">({playlists.length})</span>}
+            </h2>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition hover:opacity-80 active:scale-95"
+              style={{
+                background: "rgba(245,166,35,0.1)",
+                border: "1px solid rgba(245,166,35,0.3)",
+                color: "var(--primary-accent)",
+              }}
+            >
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+              {isLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
 
           {isLoading ? (
             <div className="text-center py-12">

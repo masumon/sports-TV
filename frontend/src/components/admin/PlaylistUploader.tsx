@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Upload, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/apiClient";
 
 type PlaylistImportResult = {
   success: boolean;
@@ -90,18 +89,28 @@ export function PlaylistUploader() {
         }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       const data: PlaylistImportResult = await response.json();
       setResult(data);
 
       if (data.success) {
-        toast.success(`Imported ${data.total} channels from "${data.playlist_name}"`);
+        toast.success(`✅ Imported ${data.total} channels from "${data.playlist_name}"`);
         setFileContent("");
         setPlaylistName("");
       } else {
-        toast.error(data.error || "Import failed");
+        toast.error(`❌ ${data.error || "Import failed"}`);
+        setResult(data);
       }
     } catch (err) {
-      toast.error("Import request failed");
+      const message = err instanceof Error ? err.message : "Import request failed";
+      toast.error(`⚠️ ${message}`);
+      setResult({
+        success: false,
+        error: message,
+      });
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -111,12 +120,11 @@ export function PlaylistUploader() {
   return (
     <div className="space-y-6">
       {/* Drag-drop zone */}
-      <div
+      <label
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        className={`relative rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-all ${
+        className={`relative rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-all block ${
           isDragging
             ? "border-accent-gold bg-accent-gold/10"
             : "border-border-subtle hover:border-accent-gold/50"
@@ -143,7 +151,7 @@ export function PlaylistUploader() {
             <p className="text-sm text-muted-foreground mt-1">or click to select</p>
           </div>
         </motion.div>
-      </div>
+      </label>
 
       {/* File preview */}
       {fileContent && (
@@ -181,8 +189,9 @@ export function PlaylistUploader() {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold mb-2 text-foreground">Module</label>
+          <label htmlFor="playlist-module" className="block text-sm font-semibold mb-2 text-foreground">Module</label>
           <select
+            id="playlist-module"
             value={selectedModule}
             onChange={(e) => setSelectedModule(e.target.value)}
             className="w-full rounded-xl border border-border-subtle bg-surface-secondary px-4 py-2.5 text-sm text-foreground outline-none focus:border-accent-gold transition"

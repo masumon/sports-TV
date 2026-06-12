@@ -869,6 +869,10 @@ export default function AdminDashboardPage() {
                 className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-medium text-zinc-200 transition hover:border-white/25 hover:bg-white/10">
                 <Home size={16} className="opacity-80" /><span className="hidden sm:inline">Viewer</span>
               </Link>
+              <Link href="/admin/playlists"
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-medium text-zinc-200 transition hover:border-white/25 hover:bg-white/10">
+                <Tv2 size={16} className="opacity-80" /><span className="hidden sm:inline">Playlists</span>
+              </Link>
               <button type="button" onClick={() => { void fetchAdminData(); void fetchStats(); }}
                 disabled={loading || refreshing}
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 text-sm text-white transition hover:bg-white/10 disabled:opacity-50">
