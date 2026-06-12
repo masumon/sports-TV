@@ -764,3 +764,37 @@ async def admin_bulk_update_module(
     await db.commit()
     invalidate_list_caches()
     return {"updated": len(rows)}
+
+
+@router.get("/audit-logs")
+async def admin_get_audit_logs(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict:
+    """Get audit logs for admin actions (import, edit, delete)."""
+    stmt = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)
+    logs = (await db.execute(stmt)).scalars().all()
+
+    # Get total count
+    count_stmt = select(func.count(AuditLog.id))
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    return {
+        "logs": [
+            {
+                "id": log.id,
+                "action": log.action,
+                "entity_type": log.entity_type,
+                "entity_id": log.entity_id,
+                "admin_user": log.admin_user,
+                "details": _json.loads(log.details) if log.details else None,
+                "created_at": log.created_at.isoformat(),
+            }
+            for log in logs
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
