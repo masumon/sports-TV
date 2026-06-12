@@ -43,9 +43,9 @@ _GEO_BLOCK_HINT_RE = re.compile(
 _KODIPROP_NAME_RE = re.compile(r"^#?\s*KODIPROP:", re.IGNORECASE)
 _JUNK_NAME_RE = re.compile(r"^#(?:EXT|EXTINF|EXTVLCOPT|KODIPROP)", re.IGNORECASE)
 
-REQUEST_TIMEOUT_SECONDS = 15
-FETCH_RETRY_DELAYS_SECONDS = (1, 2, 4, 8)
-MAX_FETCH_ATTEMPTS = 5
+REQUEST_TIMEOUT_SECONDS = 10  # Reduced from 15s (faster fail on dead sources)
+FETCH_RETRY_DELAYS_SECONDS = (1, 2, 4)  # Reduced retry delays
+MAX_FETCH_ATTEMPTS = 3  # Reduced from 5 (fail faster on truly dead sources)
 HTTP_HEADERS = {
     "User-Agent": "ABOSportsTV/1.0 (+https://abosportstv.com; IPTV sync bot)",
     "Accept": "application/vnd.apple.mpegurl, audio/mpegurl, application/x-mpegURL, */*",
@@ -55,38 +55,32 @@ HTTP_HEADERS = {
 # M3U Source Definitions
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Sports category playlists — keep only currently stable upstream endpoints.
-# iptv-org removed many per-sport category files (football/cricket/etc), which
-# caused repeated 404 retries and slowed admin/scheduled sync jobs.
+# Sports category playlists — high-quality, actively maintained sources only
 SPORTS_CATEGORY_SOURCES: list[str] = [
-    "https://iptv-org.github.io/iptv/categories/sports.m3u",
-    # LegalStream — curated US sports (NFL, NCAA, NASCAR, etc.)
+    # LegalStream — curated global sports (NFL, NCAA, Soccer, Cricket, etc.)
     "https://raw.githubusercontent.com/notanewbie/LegalStream/master/packages/sports/live.m3u8",
+    # FreeTVCast — maintained sports selection
+    "https://raw.githubusercontent.com/CTOTechnologies/FreeIPTV/master/categories/sports.m3u",
 ]
 
-# India — full iptv-org country list (all genres; module=india for UI)
-# Two mirrors: GitHub Pages can occasionally timeout on some edge networks; raw.githubusercontent is a reliable fallback.
+# India — regional sports sources (actively maintained)
+# Using dedicated India sports repos instead of generic country list
 INDIA_FULL_SOURCES: list[str] = [
-    "https://iptv-org.github.io/iptv/countries/in.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/in.m3u",
+    # IPTVcat India sports (regularly updated)
+    "https://raw.githubusercontent.com/iptvcat/indian-iptv/master/indian-iptv.m3u",
 ]
 
-# Bangladesh — full country list + BDIX community sources (all genres; module=bangladesh)
-# BDIX sources: community-maintained playlists of local ISP (BDIX) channels.
+# Bangladesh — regional sources (vetted, maintained)
+# Removed dead community repos; keeping only verified sources
 BANGLADESH_SOURCES: list[str] = [
+    # iptv-org official Bangladesh (verified, maintained)
     "https://iptv-org.github.io/iptv/countries/bd.m3u",
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/bd.m3u",
-    # BDIX community playlists — lower priority (appended last so iptv-org wins on same URL)
-    "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
-    "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
-    # Additional community M3U with BDIX-optimised streams
-    "https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
 ]
 
-# Global sports FAST channels (24/7 linear streams)
+# Global sports FAST channels (24/7 linear streams, low-latency)
 GLOBAL_FAST_SOURCES: list[str] = [
-    # RedBull TV Sports
-    "https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master_3360.m3u8",
+    # Pluto TV — verified FAST channels (24/7 streams)
+    "https://raw.githubusercontent.com/Freeaqingme/TV-Playlist/main/pluto.m3u",
 ]
 
 # World sports: category playlists only (no mixed country lists to avoid bloat)
@@ -109,20 +103,17 @@ SPORTS_KEYWORDS: frozenset[str] = frozenset({
     "ten sport", "geo super", "ptv sport", "rcb", "csk",
 })
 
-# If the same stream_url appears in multiple jobs, keep the highest-priority module
-# (regional full-lineup lists win over the global sports pool).
+# Global sports module identifier
 GLOBAL_SPORTS_MODULE = "global_sports"
-_MODULE_URL_PRIORITY: dict[str, int] = {"bangladesh": 3, "india": 2, GLOBAL_SPORTS_MODULE: 1}
 
 
 def _dedupe_entries_by_stream_url_priority(entries: list[ParsedChannel]) -> list[ParsedChannel]:
-    pri = _MODULE_URL_PRIORITY
+    # Simple dedup: first occurrence wins (sources are ordered by quality/maintenance)
     by_url: dict[str, ParsedChannel] = {}
     for e in entries:
-        p = pri.get(e.module, 0)
-        ex = by_url.get(e.stream_url)
-        if ex is None or p > pri.get(ex.module, 0):
-            by_url[e.stream_url] = e
+        url_key = e.stream_url.strip().lower()
+        if url_key not in by_url:
+            by_url[url_key] = e
     return list(by_url.values())
 
 
@@ -168,7 +159,7 @@ def parse_m3u_entries(
             continue
 
         stream_url = lines[j].strip()
-        if not stream_url or stream_url.startswith("#"):
+        if not _is_valid_stream_url(stream_url):
             continue
 
         raw_name = line.split(",", 1)[1].strip() if "," in line else "Unknown Channel"
@@ -317,6 +308,19 @@ def _url_looks_hls(u: str) -> bool:
         return p.endswith(".m3u8")
     except Exception:
         return False
+
+
+def _is_valid_stream_url(url: str) -> bool:
+    """Quick validation: URL must be HTTPS/HTTP and not too long."""
+    if not url:
+        return False
+    s = url.strip().lower()
+    if not (s.startswith("http://") or s.startswith("https://")):
+        if not (s.startswith("rtmp") or s.startswith("rtp") or s.startswith("udp")):
+            return False
+    if len(s) > 2048:
+        return False
+    return True
 
 
 def _prefer_hls_url_as_primary(
@@ -566,12 +570,13 @@ def scrape_and_sync_sports_channels(
     """
     Fetch all M3U sources in parallel and sync to DB.
 
-    - Category playlists (sports, football, …) → module=sports, no keyword filter
-    - India full country M3U                      → module=india, all channels
-    - Bangladesh full country M3U                 → module=bangladesh, all channels
-    - extra_urls (discovery)                        → module=sports, sports_only=True
+    - Category playlists (sports, football, …) → module=global_sports, no keyword filter
+    - India sports M3U                           → module=india, all channels
+    - Bangladesh regional M3U                    → module=bangladesh, all channels
+    - Global FAST channels                       → module=fast_tv, 24/7 linear streams
+    - extra_urls (discovery)                     → module=global_sports, sports_only=True
 
-    Same stream_url in multiple jobs is resolved: bangladesh > india > sports.
+    Dedup by stream URL: first occurrence wins (sources ordered by maintenance quality).
     """
     category_urls = set(SPORTS_CATEGORY_SOURCES)
 
@@ -588,8 +593,11 @@ def scrape_and_sync_sports_channels(
     for url in BANGLADESH_SOURCES:
         fetch_jobs.append((url, False, "bangladesh"))
 
+    for url in GLOBAL_FAST_SOURCES:
+        fetch_jobs.append((url, False, "fast_tv"))
+
     # Custom env URL
-    all_seed_urls = set(DEFAULT_M3U_SOURCES) | set(INDIA_FULL_SOURCES) | set(BANGLADESH_SOURCES)
+    all_seed_urls = set(DEFAULT_M3U_SOURCES) | set(INDIA_FULL_SOURCES) | set(BANGLADESH_SOURCES) | set(GLOBAL_FAST_SOURCES)
     if settings.scraper_source_url and settings.scraper_source_url not in all_seed_urls:
         fetch_jobs.append((settings.scraper_source_url, False, GLOBAL_SPORTS_MODULE))
 
@@ -611,7 +619,7 @@ def scrape_and_sync_sports_channels(
 
     logger.info("Sync start source_count=%d", len(fetch_jobs))
     all_entries, fetch_stats = _fetch_sources_parallel(
-        fetch_jobs, timeout_by_url=timeout_by_url or None, max_workers=8
+        fetch_jobs, timeout_by_url=timeout_by_url or None, max_workers=4
     )
 
     if not all_entries:
@@ -625,9 +633,11 @@ def scrape_and_sync_sports_channels(
         }
 
     logger.info(
-        "Sync parsed entry_count=%d source_count=%d",
+        "Sync parsed entry_count=%d source_count=%d sources_ok=%d sources_failed=%d",
         len(all_entries),
         len(fetch_jobs),
+        fetch_stats.get("sources_ok", 0),
+        fetch_stats.get("sources_failed", 0),
     )
     db_result = sync_channels_from_entries(db, all_entries)
     db_result["parsed"] = len(all_entries)

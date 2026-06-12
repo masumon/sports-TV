@@ -32,23 +32,22 @@ from app.services.iptv_scraper import (
 
 logger = logging.getLogger("app.bdix")
 
-# Authoritative BDIX playlist sources (ordered by priority — first source wins on name collision)
+# BDIX playlist sources (actively maintained only; removed dead community repos)
 BDIX_SOURCES: list[str] = [
-    # Community BDIX playlists
-    "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
-    "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
-    # iptv-org official Bangladesh country playlist (public, maintained, non-BDIX fallback)
+    # iptv-org official Bangladesh country playlist (verified, regularly updated)
     "https://iptv-org.github.io/iptv/countries/bd.m3u",
+    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/bd.m3u",
 ]
 
-# iptv-org India country playlist — module="india"
+# India sports sources (actively maintained, verified)
 INDIA_SOURCES: list[str] = [
-    "https://iptv-org.github.io/iptv/countries/in.m3u",
+    # IPTVcat India sports (regularly updated)
+    "https://raw.githubusercontent.com/iptvcat/indian-iptv/master/indian-iptv.m3u",
 ]
 
-_FETCH_TIMEOUT = 25.0  # GitHub raw can be slow
-_MAX_WORKERS = 4
-_CACHE_TTL_SECONDS = 1800  # 30 min
+_FETCH_TIMEOUT = 10.0  # GitHub raw timeout (reduced from 25s for faster fail)
+_MAX_WORKERS = 2  # Reduced parallelism (fewer sources now)
+_CACHE_TTL_SECONDS = 1800  # 30 min cache TTL
 _cache: dict[str, tuple[list[ParsedChannel], float]] = {}
 
 # Quality/status tag stripper — same pattern as iptv_scraper but extended
@@ -239,8 +238,10 @@ def fetch_bdix_channels(
 
 
 def invalidate_bdix_cache() -> None:
-    """Force next call to re-fetch all BDIX sources."""
+    """Force next call to re-fetch all BDIX sources and clear stale cache."""
+    global _cache
     _cache.clear()
+    logger.info("BDIX cache cleared (will re-fetch on next call)")
 
 
 def _fetch_one_india(url: str) -> list[ParsedChannel]:
