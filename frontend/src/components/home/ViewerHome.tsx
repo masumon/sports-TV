@@ -230,6 +230,8 @@ const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2
 
 export function ViewerHome() {
   const { t } = useI18n();
+  const tRef = useRef(t);
+  useEffect(() => { tRef.current = t; }, [t]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [allChannels, setAllChannels] = useState<Channel[]>([]);
@@ -399,8 +401,9 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  /** Ceiling for full catalog; clears spinner even if fetches never settle. */
-  const CATALOG_LOAD_TIMEOUT_MS = 30_000;
+  /** Ceiling for full catalog; clears spinner even if fetches never settle.
+   *  75s gives Render free-tier enough time to wake before we give up. */
+  const CATALOG_LOAD_TIMEOUT_MS = 75_000;
 
   const loadChannels = useCallback(
     async (showToast = false, silent = false) => {
@@ -409,9 +412,12 @@ export function ViewerHome() {
         setLoading(true);
       }
       setError(null);
-      // Cold-start detection: if backend takes > 3s, show wakeup banner
+      // Cold-start detection: if backend takes > 3s, show wakeup banner.
+      // Never reset dismissed state on manual refresh (showToast=true) —
+      // only reset on the automatic initial load so repeated refreshes
+      // don't re-show a banner the user already dismissed.
       if (!silent) {
-        setColdStartDismissed(false);
+        if (!showToast) setColdStartDismissed(false);
         setColdStart(false);
         setColdStartSeconds(0);
         if (coldStartTimerRef.current) {
@@ -433,7 +439,7 @@ export function ViewerHome() {
       }
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
-          const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
+          const id = setTimeout(() => reject(new Error(tRef.current("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
           const merged = Promise.all([loadFullCatalogWithLive(), fetchAllChannels().catch(() => [])]).then(
             ([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db)
           );
@@ -468,7 +474,8 @@ export function ViewerHome() {
         }
       }
     },
-    [t]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   const refreshLiveMatchesOnly = useCallback(async () => {
