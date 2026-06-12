@@ -9,13 +9,13 @@ import {
   Tv2,
   ChevronRight,
   Star,
+  X,
   Share2,
   Clock,
   AlertTriangle,
-  Search,
-  Radio,
 } from "lucide-react";
 import {
+  memo,
   startTransition,
   useCallback,
   useDeferredValue,
@@ -24,31 +24,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AppShell } from "@/components/layout/AppShell";
-import { MoreSheet } from "@/components/layout/MoreSheet";
-import { CategoryTabs } from "@/components/home/CategoryTabs";
-import { ChannelGrid } from "@/components/channels/ChannelGrid";
-import { ChannelDetailsPanel } from "@/components/channels/ChannelDetailsPanel";
-import { GoLiveButton } from "@/components/home/GoLiveButton";
-import { TrendingChannels } from "@/components/home/TrendingChannels";
-import { FeedbackButton } from "@/components/home/FeedbackButton";
-import { HeroVideoPlayer } from "@/components/player/HeroVideoPlayer";
-import { CategorySkeletonRow, ChannelSkeletonGrid, PlayerSkeleton } from "@/components/ui/ChannelSkeleton";
-import { groupFixtures, FIXTURE_HOURS_BACK, isFixtureFinished } from "@/lib/matchPresentation";
+import { ChannelSkeletonGrid } from "@/components/ui/ChannelSkeleton";
 import { WorldCupSchedule } from "@/components/home/WorldCupSchedule";
-import { HomeSportsDashboard } from "@/components/home/HomeSportsDashboard";
 import { flagFromCountryName } from "@/components/channel/flagEmoji";
-import { CatalogRefreshBar } from "@/components/CatalogRefreshBar";
-import { fetchDbChannelsForMerge, apiClient } from "@/lib/apiClient";
-import {
-  getChannelListCache,
-  getStaleChannelListCache,
-  hydrateChannelListCache,
-  setChannelListCache,
-} from "@/lib/channelListCache";
+import { fetchAllChannels, apiClient } from "@/lib/apiClient";
+import { getChannelListCache, setChannelListCache } from "@/lib/channelListCache";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import {
   loadFullCatalogWithLive,
@@ -56,17 +40,13 @@ import {
   replaceLiveMatches,
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
-import {
-  mergeDbChannelsIntoViewerCatalog,
-  viewerCatalogFromDbChannels,
-} from "@/lib/viewerCatalogMerge";
+import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
 import { useSwipeGesture } from "@/lib/useSwipeGesture";
 import { CHANNEL_GRID_INITIAL, CHANNEL_GRID_BATCH } from "@/lib/constants";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useUiStore } from "@/store/uiStore";
-import { wakeBackend } from "@/lib/backendWakeup";
 
 const PremiumPlayer = dynamic(
   () => import("@/components/PremiumPlayer").then((m) => m.default),
@@ -122,17 +102,21 @@ function inferLeague(name: string): string {
 
 // Top-level sport-type filter: matches by DB category field OR inferred league
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
-  { id: "football",   label: "Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
-  { id: "cricket",    label: "Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
+  { id: "football",   label: "⚽ Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
+  { id: "cricket",    label: "🏏 Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
 ];
 
 const BD_CATEGORIES: Record<string, string> = {
-  sports: "🏆",
   news: "📰",
   entertainment: "🎭",
-  movies: "🎥",
-  kids: "🧒",
+  drama: "🎬",
+  sports: "🏆",
   music: "🎵",
+  kids: "🧒",
+  movies: "🎥",
+  general: "📺",
+  religious: "🕌",
+  cooking: "🍽️",
 };
 
 const SPORT_ICONS: Record<string, string> = {
@@ -209,7 +193,7 @@ function FilterChips({
   return (
     <div role="group" aria-label={ariaLabel ?? label}>
       <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <div className="filter-chip-row">
+      <div className="flex flex-wrap gap-1.5">
         <button
           type="button"
           className={`filter-chip${value === "" ? " active" : ""}`}
@@ -242,37 +226,14 @@ function FilterChips({
 }
 
 
-const MODULE_ORDER: ViewerModule[] = ["live_matches", "global_sports", "bangladesh", "fast_tv", "world_cup_2026", "india"];
-
-const PRIMARY_CATEGORIES: { id: ViewerModule | "more"; label: string; icon: string }[] = [
-  { id: "live_matches", label: "Live", icon: "🔴" },
-  { id: "global_sports", label: "Sports", icon: "🏆" },
-  { id: "bangladesh", label: "BD TV", icon: "🇧🇩" },
-  { id: "fast_tv", label: "FAST TV", icon: "⚡" },
-  { id: "more", label: "More", icon: "📂" },
-];
-
-function isViewerModule(module: string): module is ViewerModule {
-  return (MODULE_ORDER as readonly string[]).includes(module);
-}
+const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
 
 export function ViewerHome() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
-  const [allChannels, setAllChannels] = useState<Channel[]>(() =>
-    typeof window === "undefined" ? [] : (getStaleChannelListCache() ?? [])
-  );
-  const [blockingLoad, setBlockingLoad] = useState(() =>
-    typeof window === "undefined" ? true : !(getStaleChannelListCache()?.length)
-  );
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshProgress, setRefreshProgress] = useState(0);
-  const [showingCached, setShowingCached] = useState(
-    () => typeof window !== "undefined" && !!(getStaleChannelListCache()?.length)
-  );
-  const loading = blockingLoad && allChannels.length === 0;
-  const backgroundLoading = isRefreshing && !blockingLoad; // Show subtle loader after 5s
-  const catalogBusy = blockingLoad || isRefreshing;
+  const router = useRouter();
+  const [allChannels, setAllChannels] = useState<Channel[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearch = useDeferredValue(searchQuery);
@@ -288,24 +249,23 @@ export function ViewerHome() {
   const tier = useSubscriptionStore((s) => s.tier);
   const gridSentinelRef = useRef<HTMLDivElement | null>(null);
   const [gridVisibleCount, setGridVisibleCount] = useState(CHANNEL_GRID_INITIAL);
-  const [searchResultsPage, setSearchResultsPage] = useState(1);  // Pagination for search results
   const [scheduleFixtures, setScheduleFixtures] = useState<LiveFixture[]>([]);
   const [scheduleUpdated, setScheduleUpdated] = useState<string | null>(null);
   const [fixturesLoading, setFixturesLoading] = useState(false);
-  const [fixturesLoadError, setFixturesLoadError] = useState(false);
-  const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "recent_results">("live");
+  const [scheduleView, setScheduleView] = useState<"live" | "upcoming" | "finished">("live");
   const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [coldStart, setColdStart] = useState(false);
+  const [coldStartDismissed, setColdStartDismissed] = useState(false);
+  const coldStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [coldStartSeconds, setColdStartSeconds] = useState(0);
+  const coldStartCounterRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
-  const launchRestoreDoneRef = useRef(false);
-  const lastSelectedByModuleRef = useRef<Partial<Record<ViewerModule, number>>>({});
-  const suppressAutoSelectRef = useRef(false);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
   const setSearchSuggestions = useUiStore((s) => s.setSearchSuggestions);
-  const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
 
   const activeChannel = usePlayerStore((state) => state.activeChannel);
   const isTheaterMode = usePlayerStore((state) => state.isTheaterMode);
@@ -315,12 +275,6 @@ export function ViewerHome() {
   const playerSectionRef = useRef<HTMLElement | null>(null);
   const [showErrorSuggestions, setShowErrorSuggestions] = useState(false);
   const [notifyIds, setNotifyIds] = useState<Set<string>>(new Set());
-  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
-
-  // Reset search pagination when search query changes
-  useEffect(() => {
-    setSearchResultsPage(1);
-  }, [deferredSearch]);
 
   useEffect(() => {
     try {
@@ -351,17 +305,12 @@ export function ViewerHome() {
   /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
   const selectChannel = useCallback(
     (ch: Channel) => {
-      suppressAutoSelectRef.current = false;
-      if (isViewerModule(ch.module)) {
-        lastSelectedByModuleRef.current[ch.module] = ch.id;
-      }
       startTransition(() => {
-        setActiveModule(ch.module as ViewerModule);
         setActiveChannel(ch);
       });
       setShowErrorSuggestions(false);
       setRecentlyWatched((prev) => {
-        const next = [ch.id, ...prev.filter((id) => id !== ch.id)].slice(0, 50);  // Increased from 10 to 50
+        const next = [ch.id, ...prev.filter((id) => id !== ch.id)].slice(0, 10);
         try { localStorage.setItem("gstv-recently-watched", JSON.stringify(next)); } catch { /* ignore */ }
         return next;
       });
@@ -377,8 +326,29 @@ export function ViewerHome() {
         });
       }
     },
-    [setActiveChannel, setActiveModule]
+    [setActiveChannel]
   );
+  const toggleFavorite = useCallback((ch: Channel) => {
+    setFavorites((prev) => {
+      const isAdding = !prev.includes(ch.id);
+      const next = isAdding
+        ? [ch.id, ...prev].slice(0, 30)
+        : prev.filter((id) => id !== ch.id);
+      try { localStorage.setItem("gstv-favorites", JSON.stringify(next)); } catch { /* ignore */ }
+      toast(isAdding ? `⭐ ${ch.name} favorites-এ যোগ হয়েছে` : `${ch.name} favorites থেকে সরানো হয়েছে`, { duration: 2000 });
+      return next;
+    });
+  }, []);
+
+  const shareChannel = useCallback((ch: Channel) => {
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/?channel=${encodeURIComponent(ch.name)}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator.share({ title: ch.name, text: `Watch ${ch.name} live`, url }).catch(() => null);
+    } else {
+      navigator.clipboard?.writeText(url).then(() => toast(`🔗 লিংক কপি হয়েছে: ${ch.name}`, { duration: 2500 })).catch(() => null);
+    }
+  }, []);
+
   const requestMatchNotification = useCallback(async (fx: LiveFixture) => {
     if (!("Notification" in window)) return;
     const fxKey = fx.external_id || String(fx.id);
@@ -429,51 +399,45 @@ export function ViewerHome() {
     [setActiveCategory]
   );
 
-  /** Ceiling for full catalog fetch; UI unblocks earlier via CATALOG_UI_BLOCK_MS. */
+  /** Ceiling for full catalog; clears spinner even if fetches never settle. */
   const CATALOG_LOAD_TIMEOUT_MS = 30_000;
-  const CATALOG_UI_BLOCK_MS = 5_000; // Show loading bar for 5s only, then continue background
 
   const loadChannels = useCallback(
-    async (showToast = false, options?: { fromCache?: boolean }) => {
-      const fromCache =
-        options?.fromCache ?? (getStaleChannelListCache()?.length ?? 0) > 0;
-      const hasFreshCache = (getChannelListCache()?.length ?? 0) > 0;
-
-      if (!fromCache || showToast) {
-        setBlockingLoad(true);
+    async (showToast = false, silent = false) => {
+      const hasCache = (getChannelListCache()?.length ?? 0) > 0;
+      if (!silent && (!hasCache || showToast)) {
+        setLoading(true);
       }
-      setIsRefreshing(true);
-      setRefreshProgress(0);
       setError(null);
-
-      const progressStart = Date.now();
-      const progressTimer = setInterval(() => {
-        const elapsed = Date.now() - progressStart;
-        setRefreshProgress(Math.min(92, (elapsed / CATALOG_UI_BLOCK_MS) * 92));
-      }, 120);
-
-      const uiUnblockTimer = setTimeout(() => {
-        setBlockingLoad(false);
-      }, CATALOG_UI_BLOCK_MS);
-
-      let db: Channel[] = [];
-      try {
-        db = await fetchDbChannelsForMerge({}, !hasFreshCache).catch(() => []);
-        if (db.length > 0) {
-          const quick = viewerCatalogFromDbChannels(db);
-          setAllChannels(quick);
-          setChannelListCache(quick);
-          setBlockingLoad(false);
+      // Cold-start detection: if backend takes > 3s, show wakeup banner
+      if (!silent) {
+        setColdStartDismissed(false);
+        setColdStart(false);
+        setColdStartSeconds(0);
+        if (coldStartTimerRef.current) {
+          clearTimeout(coldStartTimerRef.current);
+          coldStartTimerRef.current = null;
         }
-      } catch {
-        /* DB leg failed — fall through to full catalog attempt */
+        if (coldStartCounterRef.current) {
+          clearInterval(coldStartCounterRef.current);
+          coldStartCounterRef.current = null;
+        }
+        coldStartTimerRef.current = setTimeout(() => {
+          setColdStart(true);
+          setColdStartSeconds(0);
+          if (coldStartCounterRef.current) clearInterval(coldStartCounterRef.current);
+          coldStartCounterRef.current = setInterval(() => {
+            setColdStartSeconds((s) => s + 1);
+          }, 1000);
+        }, 3000);
       }
-
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(t("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          void loadFullCatalogWithLive()
-            .then((viewer) => mergeDbChannelsIntoViewerCatalog(viewer, db))
+          const merged = Promise.all([loadFullCatalogWithLive(), fetchAllChannels().catch(() => [])]).then(
+            ([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db)
+          );
+          void merged
             .then((d) => {
               clearTimeout(id);
               resolve(d);
@@ -485,24 +449,23 @@ export function ViewerHome() {
         });
         setAllChannels(data);
         setChannelListCache(data);
-        setRefreshProgress(100);
         if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
       } catch (e) {
-        if (fromCache || db.length > 0) {
-          if (showToast) {
-            toast.error(e instanceof Error ? e.message : "M3U refresh failed");
-          }
-        } else {
-          const msg = e instanceof Error ? e.message : "Load failed";
-          setError(msg);
-          toast.error(msg);
-        }
+        if (silent) return;
+        const msg = e instanceof Error ? e.message : "Load failed";
+        setError(msg);
+        toast.error(msg);
       } finally {
-        clearTimeout(uiUnblockTimer);
-        clearInterval(progressTimer);
-        setBlockingLoad(false);
-        setIsRefreshing(false);
-        setTimeout(() => setRefreshProgress(0), 500);
+        if (!silent) {
+          setLoading(false);
+          setColdStart(false);
+          setColdStartSeconds(0);
+          if (coldStartTimerRef.current) clearTimeout(coldStartTimerRef.current);
+          if (coldStartCounterRef.current) {
+            clearInterval(coldStartCounterRef.current);
+            coldStartCounterRef.current = null;
+          }
+        }
       }
     },
     [t]
@@ -522,30 +485,31 @@ export function ViewerHome() {
 
   const loadFixturesSchedule = useCallback(async () => {
     setFixturesLoading(true);
-    setFixturesLoadError(false);
     try {
-      const res = await apiClient.getLiveFixtures({ hours_back: FIXTURE_HOURS_BACK, days_ahead: 14 });
+      const res = await apiClient.getLiveFixtures({ hours_back: 6, days_ahead: 14 });
       setScheduleFixtures(res.items);
       setScheduleUpdated(res.updated_hint ?? null);
     } catch {
       setScheduleFixtures([]);
-      setFixturesLoadError(true);
     } finally {
       setFixturesLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
     void loadFixturesSchedule();
-  }, [loadFixturesSchedule]);
+  }, [activeModule, loadFixturesSchedule]);
 
-  // Poll every 90s when tab visible — keeps live/upcoming status fresh on home dashboard.
+  // Poll every 90 seconds so live scores/statuses feel real-time.
+  // Skip fetch when the tab is hidden — saves battery and bandwidth on mobile.
   useEffect(() => {
+    if (activeModule !== "live_matches" && activeModule !== "world_cup_2026") return;
     const id = setInterval(() => {
       if (!document.hidden) void loadFixturesSchedule();
     }, 90_000);
     return () => clearInterval(id);
-  }, [loadFixturesSchedule]);
+  }, [activeModule, loadFixturesSchedule]);
 
   // Count seconds since last fixtures refresh (for "last updated X sec ago" badge)
   useEffect(() => {
@@ -563,15 +527,31 @@ export function ViewerHome() {
   }, [activeModule]);
 
   const scheduleGroups = useMemo(() => {
+    const now = Date.now();
+    const live: LiveFixture[] = [];
+    const upcoming: LiveFixture[] = [];
+    const finished: LiveFixture[] = [];
     const filtered = fixtureSportFilter === "all"
       ? scheduleFixtures
       : scheduleFixtures.filter((fx) => (fx.sport || "Soccer") === fixtureSportFilter);
-    return groupFixtures(filtered);
+    for (const fx of filtered) {
+      const s = (fx.status || "").toLowerCase();
+      // Compute real-time status from starts_at_utc (avoids stale DB status between 3h syncs)
+      const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
+      const elapsed = startMs > 0 ? (now - startMs) / 60_000 : 0; // minutes since kick-off
+      if (s === "finished" || elapsed > 130) finished.push(fx); // >130 min = likely done
+      else if (startMs > 0 && startMs <= now) live.push(fx); // started but not finished
+      else upcoming.push(fx);
+    }
+    // Sort live by most recently started
+    live.sort((a, b) => new Date(b.starts_at_utc).getTime() - new Date(a.starts_at_utc).getTime());
+    upcoming.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
+    return { live, upcoming, finished };
   }, [scheduleFixtures, fixtureSportFilter]);
 
   const activeScheduleItems = useMemo(() => {
     if (scheduleView === "live") return scheduleGroups.live;
-    if (scheduleView === "recent_results") return scheduleGroups.recentResults;
+    if (scheduleView === "finished") return scheduleGroups.finished;
     return scheduleGroups.upcoming;
   }, [scheduleGroups, scheduleView]);
 
@@ -585,37 +565,36 @@ export function ViewerHome() {
     );
   }, [scheduleFixtures]);
 
-  /** Stale-while-revalidate: show cached catalog instantly, refresh in background. */
+  /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
   useEffect(() => {
-    const stale = getStaleChannelListCache();
-    if (stale?.length) {
+    const c = getChannelListCache();
+    if (c?.length) {
       startTransition(() => {
-        setAllChannels(stale);
-        setBlockingLoad(false);
-        setShowingCached(true);
+        setAllChannels(c);
+        setLoading(false);
       });
     }
-    void hydrateChannelListCache().then((cached) => {
-      if (cached?.length && cached.length >= (stale?.length ?? 0)) {
-        startTransition(() => {
-          setAllChannels(cached);
-          setBlockingLoad(false);
-          setShowingCached(true);
-        });
-      }
-    });
   }, []);
 
   useEffect(() => {
-    wakeBackend();
-    const hasStale = (getStaleChannelListCache()?.length ?? 0) > 0;
-    void loadChannels(false, { fromCache: hasStale });
+    void loadChannels(false);
   }, [loadChannels]);
 
   useEffect(() => {
     const id = setInterval(() => void refreshLiveMatchesOnly(), 30 * 60_000);
     return () => clearInterval(id);
   }, [refreshLiveMatchesOnly]);
+
+  useEffect(() => {
+    return () => {
+      if (coldStartTimerRef.current) {
+        clearTimeout(coldStartTimerRef.current);
+      }
+      if (coldStartCounterRef.current) {
+        clearInterval(coldStartCounterRef.current);
+      }
+    };
+  }, []);
 
   // Deep link: /?module=…
   const qParam = searchParams.get("q")?.trim() ?? "";
@@ -634,11 +613,8 @@ export function ViewerHome() {
     const ch = allChannels.find((c) => c.id === id);
     if (!ch) {
       toast.error("চ্যানেলটি পাওয়া যায়নি বা সরিয়ে নেওয়া হয়েছে।");
+      router.replace("/", { scroll: false });
       return;
-    }
-    suppressAutoSelectRef.current = false;
-    if (isViewerModule(ch.module)) {
-      lastSelectedByModuleRef.current[ch.module] = ch.id;
     }
     startTransition(() => {
       setActiveModule(ch.module as ViewerModule);
@@ -681,92 +657,28 @@ export function ViewerHome() {
     [allChannels, activeModule]
   );
 
-  const channelById = useMemo(() => new Map(allChannels.map((c) => [c.id, c])), [allChannels]);
-
+  // Auto-select first channel of active module; clear selection if this module has no rows (e.g. India not synced)
   useEffect(() => {
-    if (!activeChannel || !allChannels.length) return;
-    if (isViewerModule(activeChannel.module)) {
-      lastSelectedByModuleRef.current[activeChannel.module] = activeChannel.id;
-    }
-    const refreshed = channelById.get(activeChannel.id);
-    if (refreshed && refreshed !== activeChannel) {
-      startTransition(() => setActiveChannel(refreshed));
-    }
-  }, [activeChannel, allChannels.length, channelById, setActiveChannel]);
-
-  // Launch: restore last channel or featured live; then module-aware selection
-  useEffect(() => {
-    if (loading || !allChannels.length || channelIdParam) return;
-
-    if (!launchRestoreDoneRef.current) {
-      launchRestoreDoneRef.current = true;
-      if (activeChannel) return;
-      let lastId: number | undefined = recentlyWatched[0];
-      if (!lastId) {
-        try {
-          const stored = localStorage.getItem("gstv-recently-watched");
-          if (stored) {
-            const parsed: unknown = JSON.parse(stored);
-            if (Array.isArray(parsed)) {
-              const found = parsed.find((x): x is number => typeof x === "number");
-              if (typeof found === "number") lastId = found;
-            }
-          }
-        } catch { /* */ }
-      }
-      const lastCh = lastId ? allChannels.find((c) => c.id === lastId) : undefined;
-      const pick =
-        lastCh ??
-        allChannels.find((c) => c.module === "global_sports" && c.is_active && !c.geo_hint) ??
-        allChannels.find((c) => c.module === "bangladesh" && c.is_active && !c.geo_hint) ??
-        allChannels.find((c) => c.module === "india" && c.is_active && !c.geo_hint) ??
-        allChannels.find((c) => c.module === "live_matches" && c.is_active && !c.geo_hint) ??
-        moduleChannels[0];
-      if (pick) {
-        suppressAutoSelectRef.current = false;
-        if (isViewerModule(pick.module)) {
-          lastSelectedByModuleRef.current[pick.module] = pick.id;
-        }
+    if (moduleChannels.length === 0) {
+      if (activeChannel && activeChannel.module !== activeModule) {
         startTransition(() => {
-          setActiveModule(pick.module as ViewerModule);
-          setActiveChannel(pick);
+          setActiveChannel(null);
         });
       }
       return;
     }
-
-    if (moduleChannels.length === 0) {
-      return;
+    if (!activeChannel || activeChannel.module !== activeModule) {
+      startTransition(() => {
+        setActiveChannel(moduleChannels[0]!);
+      });
     }
-    if (!activeChannel && !suppressAutoSelectRef.current) {
-      const lastSelectedId = lastSelectedByModuleRef.current[activeModule];
-      const pick =
-        (lastSelectedId ? moduleChannels.find((c) => c.id === lastSelectedId) : undefined) ??
-        moduleChannels[0]!;
-      startTransition(() => setActiveChannel(pick));
-    }
-  }, [
-    loading,
-    allChannels,
-    channelIdParam,
-    recentlyWatched,
-    moduleChannels,
-    activeModule,
-    activeChannel,
-    setActiveChannel,
-    setActiveModule,
-  ]);
+  }, [moduleChannels, activeModule, activeChannel, setActiveChannel]);
 
   const filtered = useMemo(() => {
     let list = moduleChannels;
     const q = deferredSearch.trim().toLowerCase();
+    if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
 
-    // Apply search FIRST, then other filters (search + filters work together)
-    if (q) {
-      list = list.filter((c) => c.name.toLowerCase().includes(q));
-    }
-
-    // Apply category filters (works even during search)
     if (activeModule === "global_sports") {
       // Sport type: hero tabs and sidebar both set activeCategory (single source of truth)
       if (activeCategory) {
@@ -783,14 +695,13 @@ export function ViewerHome() {
         list = list.filter((c) => inferLeague(c.name) === filterLeague);
       }
     } else {
-      // India / Bangladesh: filter by DB category (applies during search too)
+      // India / Bangladesh: filter by DB category
       if (activeCategory) {
         const f = activeCategory.toLowerCase();
         list = list.filter((c) => c.category.toLowerCase().includes(f));
       }
     }
 
-    // Country and language filters apply to search results too
     if (filterCountry) {
       const f = filterCountry.toLowerCase();
       list = list.filter((c) => c.country.toLowerCase().includes(f));
@@ -862,32 +773,22 @@ export function ViewerHome() {
     return () => obs.disconnect();
   }, [loading, filtered.length, gridVisibleCount]);
 
-  // For search results: paginate 24 per page. For normal browsing: use lazy loading.
-  const isSearching = deferredSearch.trim().length > 0;
-  const resultsPerPage = 24;
-  const searchPageStart = (searchResultsPage - 1) * resultsPerPage;
-  const searchPageEnd = searchPageStart + resultsPerPage;
+  const gridSlice = filtered.length <= gridVisibleCount ? filtered : filtered.slice(0, gridVisibleCount);
+  const gridHasMore = !loading && filtered.length > gridSlice.length;
 
-  const gridSlice = isSearching
-    ? filtered.slice(searchPageStart, searchPageEnd)  // Paginated search results
-    : filtered.length <= gridVisibleCount
-      ? filtered
-      : filtered.slice(0, gridVisibleCount);  // Normal infinite scroll
-
-  const gridHasMore = isSearching
-    ? filtered.length > searchPageEnd  // More search results available
-    : !loading && filtered.length > gridSlice.length;  // More to lazy load
-
-  const categoryOptions = useMemo(() => {
+  const categoryCountMap = useMemo(() => {
     const counts = new Map<string, number>();
     for (const c of moduleChannels) {
       counts.set(c.category, (counts.get(c.category) ?? 0) + 1);
     }
-    return [...counts.entries()]
+    return counts;
+  }, [moduleChannels]);
+  const categoryOptions = useMemo(() => {
+    return [...categoryCountMap.entries()]
       .filter(([, n]) => n >= 3)
       .map(([cat]) => cat)
       .sort((a, b) => a.localeCompare(b));
-  }, [moduleChannels]);
+  }, [categoryCountMap]);
   const countryOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const c of moduleChannels) counts.set(c.country, (counts.get(c.country) ?? 0) + 1);
@@ -988,6 +889,8 @@ export function ViewerHome() {
     return orderedStreamUrlsForChannel(activeChannel);
   }, [activeChannel]);
 
+  const channelById = useMemo(() => new Map(allChannels.map((c) => [c.id, c])), [allChannels]);
+
   const recentChannelObjects = useMemo(
     () => recentlyWatched.map((id) => channelById.get(id)).filter(Boolean) as Channel[],
     [recentlyWatched, channelById]
@@ -1015,7 +918,7 @@ export function ViewerHome() {
 
   const bdCategoryOptions = useMemo(() => {
     if (activeModule !== "bangladesh") return categoryOptions;
-    const BD_CAT_ORDER = ["sports", "news", "entertainment", "movies", "kids", "music"];
+    const BD_CAT_ORDER = ["sports", "news", "entertainment", "drama", "general", "music", "movies", "religious", "kids", "cooking"];
     return [...categoryOptions].sort((a, b) => {
       const ai = BD_CAT_ORDER.findIndex((k) => a.toLowerCase().includes(k));
       const bi = BD_CAT_ORDER.findIndex((k) => b.toLowerCase().includes(k));
@@ -1066,47 +969,38 @@ export function ViewerHome() {
     setSearchSuggestions(suggestions);
   }, [searchQuery, allChannels, activeModule, setSearchSuggestions]);
 
+  // EPG-lite: map channel id → live fixture text for sport channels
+  const liveEpgMap = useMemo(() => {
+    const map = new Map<number, string>();
+    const live = scheduleFixtures.filter((f) => f.status === "IN_PROGRESS" || f.status === "LIVE" || f.status === "1H" || f.status === "2H" || f.status === "HT");
+    if (!live.length) return map;
+    for (const ch of moduleChannels) {
+      const n = ch.name.toLowerCase();
+      const chCountry = ch.country.toLowerCase();
+      const matched = live.find((f) => {
+        const ft = `${f.home_team} ${f.away_team} ${f.league_name}`.toLowerCase();
+        // Name-prefix match (≥6 chars to avoid spurious short matches)
+        if (n.length >= 6 && ft.includes(n.slice(0, 6))) return true;
+        // Channel country aligns with one of the playing teams
+        if (chCountry.length >= 4 && (
+          f.home_team.toLowerCase().includes(chCountry) ||
+          f.away_team.toLowerCase().includes(chCountry) ||
+          ft.includes(chCountry)
+        )) return true;
+        return false;
+      });
+      if (matched) {
+        map.set(ch.id, `🔴 ${matched.home_team} vs ${matched.away_team}`);
+      }
+    }
+    return map;
+  }, [scheduleFixtures, moduleChannels]);
+
   // Recently added: top 10 channels by highest id (proxy for DB insertion order)
   const recentlyAdded = useMemo(() => {
     if (activeModule !== "global_sports" && activeModule !== "bangladesh" && activeModule !== "india") return [];
     return [...moduleChannels].sort((a, b) => b.id - a.id).slice(0, 10);
   }, [activeModule, moduleChannels]);
-
-  const moduleCategoryTabs = useMemo(() => PRIMARY_CATEGORIES, []);
-
-  const handlePrimaryCategory = useCallback(
-    (id: ViewerModule | "more") => {
-      if (id === "more") {
-        setMoreSheetOpen(true);
-        return;
-      }
-      transitionSetActiveModule(id);
-    },
-    [transitionSetActiveModule],
-  );
-
-  const dashboardFeatured = useMemo(
-    () => scheduleGroups.live[0] ?? scheduleGroups.upcoming[0] ?? null,
-    [scheduleGroups],
-  );
-
-  const popularSportsChannels = useMemo(() => {
-    if (activeModule === "bangladesh") return bdPopularChannels;
-    return [...allChannels]
-      .filter((c) => c.module === "global_sports" || c.category.toLowerCase().includes("sport"))
-      .slice(0, 12);
-  }, [activeModule, bdPopularChannels, allChannels]);
-
-  const trendingChannels = useMemo(() => {
-    const liveNames = new Set(scheduleGroups.live.flatMap((fx) => [fx.home_team, fx.away_team, fx.league_name].filter(Boolean)));
-    return [...allChannels]
-      .filter((c) => c.module === "live_matches" || c.module === "global_sports")
-      .filter((c) => {
-        const n = c.name.toLowerCase();
-        return [...liveNames].some((t) => t && n.includes(String(t).toLowerCase().slice(0, 6)));
-      })
-      .slice(0, 12);
-  }, [allChannels, scheduleGroups.live]);
 
   // Swipe gesture: left/right to cycle modules
   const swipeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1125,226 +1019,126 @@ export function ViewerHome() {
 
   return (
     <>
-    <CatalogRefreshBar active={isRefreshing} progress={refreshProgress} fromCache={showingCached} />
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
-        {/* ── Live Player (first content section) ── */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
-          <section ref={playerSectionRef} className="min-w-0 md:col-span-7 lg:col-span-8">
-            {activeChannel && (
-              <button
-                type="button"
-                onClick={() => {
-                  suppressAutoSelectRef.current = true;
-                  startTransition(() => setActiveChannel(null));
-                  document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" });
-                }}
-                className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
-              </button>
-            )}
-            {loading && !activeChannel ? (
-              <PlayerSkeleton />
-            ) : (
-              <HeroVideoPlayer
-                isLive={Boolean(activeChannel)}
-                title={activeChannel?.name ?? t("noChannel")}
-              >
-                {activeChannel ? (
-                  <PremiumPlayer
-                    key={activeChannel.id}
-                    streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
-                    streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
-                    title={activeChannel.name}
-                    isTheaterMode={isTheaterMode}
-                    onToggleTheaterMode={toggleTheaterMode}
-                    headerProfile={activeChannel.header_profile ?? null}
-                    geoHint={Boolean(activeChannel.geo_hint)}
-                    channelLogoUrl={activeChannel.logo_url}
-                    isLive
-                    onStreamError={() => setShowErrorSuggestions(true)}
-                    backgroundLoading={backgroundLoading}
-                  />
-                ) : null}
-              </HeroVideoPlayer>
-            )}
-
-            {activeChannel && (
-              <div className="mt-3">
-                <ChannelDetailsPanel channel={activeChannel} />
-              </div>
-            )}
-
-            {!activeChannel && recentChannelObjects[0] && (
-              <button
-                type="button"
-                onClick={() => selectChannel(recentChannelObjects[0]!)}
-                className="mt-2 flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-left transition active:scale-[0.99]"
-                style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.3)" }}
-              >
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-accent-gold">Continue Watching</p>
-                  <p className="truncate text-sm font-bold" style={{ color: "var(--text-main)" }}>{recentChannelObjects[0].name}</p>
-                </div>
-                <ChevronRight size={16} className="shrink-0 text-accent-gold" />
-              </button>
-            )}
-
-            {activeChannel && (
-              <div className="mt-2 flex justify-end px-1">
-                <button
-                  type="button"
-                  title={t("shareChannel")}
-                  onClick={async () => {
-                    if (!activeChannel) return;
-                    const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
-                    try {
-                      if (navigator.share) {
-                        await navigator.share({ title: activeChannel.name, url });
-                        toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
-                      } else {
-                        await navigator.clipboard.writeText(url);
-                        toast.success(`🔗 ${t("shareCopied")}`);
-                      }
-                    } catch { /* user cancelled */ }
-                  }}
-                  className="flex items-center justify-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition hover:opacity-80"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
-                  aria-label={t("shareChannel")}
-                >
-                  <Share2 size={12} />
-                  <span>{t("shareChannel")}</span>
-                </button>
-              </div>
-            )}
-
-            {showErrorSuggestions && activeChannel && filtered.length > 1 && (
-              <div className="mt-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                <p className="mb-2 text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>অন্য চ্যানেল চেষ্টা করুন:</p>
-                <div className="flex flex-wrap gap-2">
-                  {filtered.filter((c) => c.id !== activeChannel.id).slice(0, 4).map((ch) => (
-                    <button key={ch.id} type="button"
-                      onClick={() => { selectChannel(ch); setShowErrorSuggestions(false); }}
-                      className="rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
-                      style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}>
-                      {ch.name.slice(0, 20)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-
-          <aside className="flex min-w-0 flex-col gap-3 md:col-span-5 lg:col-span-4">
-            {tier === "free" && <AdSlot variant="inline" />}
-            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("quickPicks")}</h2>
-                  <span className="text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
-                </div>
-              </div>
-              <div
-                className="max-h-[min(40dvh,22rem)] overflow-y-auto overscroll-y-contain divide-y md:max-h-[min(52dvh,26rem)] lg:max-h-[26.25rem]"
-                style={{ borderColor: "var(--border)" }}
-              >
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
-                      <div className="h-9 w-9 rounded-lg" style={{ background: "var(--bg-hover)" }} />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3 w-2/3 rounded" style={{ background: "var(--bg-hover)" }} />
-                        <div className="h-2.5 w-1/2 rounded" style={{ background: "var(--bg-hover)" }} />
-                      </div>
+        {/* ── Cold-start banner ── */}
+        <AnimatePresence>
+          {coldStart && !coldStartDismissed && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              className="flex items-center gap-3 rounded-xl px-4 py-3"
+              style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
+            >
+              <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold leading-snug" style={{ color: "var(--text-main)" }}>
+                  🚀 সার্ভার চালু হচ্ছে…
+                </p>
+                <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                  {coldStartSeconds < 15
+                    ? "সার্ভার জেগে উঠছে — সাধারণত ১০–৩০ সেকেন্ড লাগে।"
+                    : coldStartSeconds < 40
+                      ? "এখনো লোড হচ্ছে… একটু অপেক্ষা করুন।"
+                      : "একটু বেশি সময় লাগছে। অপেক্ষা করুন বা রিফ্রেশ দিন।"}
+                </p>
+                {coldStartSeconds > 0 && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(245,166,35,0.15)" }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{ background: "var(--primary-accent)", width: `${Math.min(80, (coldStartSeconds / 60) * 100)}%` }}
+                      />
                     </div>
-                  ))
-                ) : (
-                  filtered.slice(0, 12).map((ch) => (
-                    <button
-                      key={ch.id}
-                      type="button"
-                      onClick={() => selectChannel(ch)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
-                      style={{
-                        background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
-                        borderLeft: activeChannel?.id === ch.id ? "3px solid var(--primary-accent)" : "3px solid transparent",
-                      }}
-                    >
-                      {ch.logo_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                      ) : (
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: "var(--bg-hover)" }}>
-                          {ch.name.slice(0, 1)}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium" style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }} title={ch.name}>
-                          {ch.name}
-                        </p>
-                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                          {flagFromCountryName(ch.country)} {ch.country}
-                        </p>
-                      </div>
-                      {activeChannel?.id === ch.id && <span className="pulse-dot shrink-0" />}
-                    </button>
-                  ))
+                    <span className="shrink-0 text-[10px] tabular-nums font-bold" style={{ color: "var(--primary-accent)" }}>
+                      {coldStartSeconds}s / ~60s
+                    </span>
+                  </div>
                 )}
               </div>
-            </div>
-          </aside>
-        </div>
+              <button
+                type="button"
+                onClick={() => setColdStartDismissed(true)}
+                className="shrink-0 rounded p-1 hover:bg-white/10"
+                style={{ color: "var(--text-muted)" }}
+                aria-label={t("coldStartDismiss")}
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Quick Actions — directly below player */}
-        <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none" data-swipe-ignore="true">
-          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("live_matches")}>
-            <Radio size={13} aria-hidden /> Live
-          </button>
-          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("global_sports")}>
-            <Globe size={13} aria-hidden /> Sports
-          </button>
-          <button type="button" className="filter-chip shrink-0" onClick={() => transitionSetActiveModule("bangladesh")}>
-            <Tv2 size={13} aria-hidden /> BD TV
+        {/* ── Module tabs: hidden on mobile (bottom nav handles navigation there) ── */}
+        <div className="hidden md:flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible">
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("global_sports");
+            }}
+            className={`module-tab shrink-0 snap-start${activeModule === "global_sports" ? " active" : ""}`}
+          >
+            🌍 Global Sports
+            {gsCount > 0 && <span className="module-tab-badge">{gsCount}</span>}
           </button>
           <button
             type="button"
-            className="filter-chip shrink-0 border-accent-gold/35 bg-accent-gold/10 text-accent-gold"
             onClick={() => {
-              requestSearchFocus();
-              queueMicrotask(() => document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+              transitionSetActiveModule("bangladesh");
             }}
+            className={`module-tab shrink-0 snap-start${activeModule === "bangladesh" ? " active bd" : ""}`}
           >
-            <Search size={13} aria-hidden /> Search
+            🇧🇩 Bangladesh
+            {bdCount > 0 && <span className="module-tab-badge">{bdCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("india");
+            }}
+            className={`module-tab module-tab--in shrink-0 snap-start${activeModule === "india" ? " active" : ""}`}
+          >
+            🇮🇳 India
+            {inCount > 0 && <span className="module-tab-badge">{inCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("fast_tv");
+            }}
+            className={`module-tab shrink-0 snap-start${activeModule === "fast_tv" ? " active" : ""}`}
+          >
+            ⚡ FAST TV
+            {fastCount > 0 && <span className="module-tab-badge">{fastCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("live_matches");
+            }}
+            className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "#f87171" }} aria-hidden />
+              Live Matches
+            </span>
+            {liveCount > 0 && <span className="module-tab-badge">{liveCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              transitionSetActiveModule("world_cup_2026");
+            }}
+            className={`module-tab shrink-0 snap-start${activeModule === "world_cup_2026" ? " active" : ""}`}
+            style={activeModule === "world_cup_2026" ? { background: "rgba(245,166,35,0.15)", borderColor: "rgba(245,166,35,0.5)" } : {}}
+          >
+            🏆 World Cup 2026
+            {wcCount > 0 && <span className="module-tab-badge">{wcCount}</span>}
           </button>
         </div>
-
-        <CategoryTabs
-          className="pb-1"
-          tabs={moduleCategoryTabs}
-          activeCategory={activeModule}
-          onChange={(id) => handlePrimaryCategory(id as ViewerModule | "more")}
-        />
-
-        {activeModule !== "live_matches" && activeModule !== "world_cup_2026" && (
-          <HomeSportsDashboard
-            live={scheduleGroups.live}
-            upcoming={scheduleGroups.upcoming}
-            featured={dashboardFeatured}
-            totalChannels={allChannels.length}
-            continueWatching={recentChannelObjects}
-            trendingChannels={trendingChannels.length ? trendingChannels : popularSportsChannels}
-            countryModules={moduleCategoryTabs}
-            fixturesLoading={fixturesLoading}
-            fixturesError={fixturesLoadError}
-            onSelectChannel={selectChannel}
-            onSelectModule={handlePrimaryCategory}
-            onOpenLiveCenter={() => transitionSetActiveModule("live_matches")}
-            onRefreshFixtures={() => void loadFixturesSchedule()}
-          />
-        )}
 
         {/* ── Live Matches: full premium standalone view ── */}
         {activeModule === "live_matches" && (
@@ -1427,18 +1221,18 @@ export function ViewerHome() {
               </button>
               <button
                 type="button"
-                onClick={() => setScheduleView("recent_results")}
+                onClick={() => setScheduleView("finished")}
                 className="fixture-stat-tile"
                 style={{
-                  background: scheduleView === "recent_results" ? "rgba(160,160,176,0.1)" : "var(--bg-card)",
-                  borderColor: scheduleView === "recent_results" ? "rgba(160,160,176,0.35)" : "var(--border)",
+                  background: scheduleView === "finished" ? "rgba(160,160,176,0.1)" : "var(--bg-card)",
+                  borderColor: scheduleView === "finished" ? "rgba(160,160,176,0.35)" : "var(--border)",
                 }}
               >
                 <span className="text-2xl font-black tabular-nums" style={{ color: "var(--text-muted)" }}>
-                  {scheduleGroups.recentResults.length}
+                  {scheduleGroups.finished.length}
                 </span>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  LAST 5 DAYS
+                  FINISHED
                 </p>
               </button>
             </div>
@@ -1475,13 +1269,21 @@ export function ViewerHome() {
                     <div key={i} className="h-24 animate-pulse rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }} />
                   ))}
                 </div>
-              ) : activeScheduleItems.length === 0 ? null : (
+              ) : activeScheduleItems.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 rounded-xl py-14 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <span className="text-3xl" aria-hidden>📅</span>
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmptyByStatus")}</p>
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>Switch to a different tab above</p>
+                  </div>
+                </div>
+              ) : (
                 activeScheduleItems.slice(0, 48).map((fx) => {
                   const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
                   const nowMs = Date.now();
                   const elapsedMin = startMs > 0 ? Math.floor((nowMs - startMs) / 60_000) : 0;
                   const isReallyLive = startMs > 0 && startMs <= nowMs && (fx.status || "").toLowerCase() !== "finished" && elapsedMin <= 130;
-                  const isFinished = isFixtureFinished(fx);
+                  const isFinished = (fx.status || "").toLowerCase() === "finished" || elapsedMin > 130;
                   const sportIcon = fx.sport === "Cricket" ? "🏏" : fx.sport === "Soccer" ? "⚽" : "🏆";
                   return (
                     <div
@@ -1605,6 +1407,26 @@ export function ViewerHome() {
               )}
             </div>
 
+            {/* No fixtures at all — configuration guidance */}
+            {!fixturesLoading && scheduleFixtures.length === 0 && (
+              <div className="flex flex-col items-center gap-4 rounded-xl py-16 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <span className="text-4xl" aria-hidden>📡</span>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmpty")}</p>
+                  <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    Set FOOTBALL_DATA_ORG_API_TOKEN &amp; CRICAPI_KEY in your backend environment to load live fixtures.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
+                  className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 active:scale-95"
+                  style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
+                >
+                  <RefreshCw size={14} /> Try Again
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1706,13 +1528,11 @@ export function ViewerHome() {
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 {loading
                   ? t("loading")
-                  : isRefreshing && showingCached
-                    ? t("updatingFromCache")
-                    : error
-                      ? error
-                      : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${
-                          deferredSearch.trim() ? ` · ${nameMatchCount} ${t("searchMatches")}` : ""
-                        }`}
+                  : error
+                    ? error
+                    : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${
+                        deferredSearch.trim() ? ` · ${nameMatchCount} ${t("searchMatches")}` : ""
+                      }`}
               </p>
               {!loading && !error && hasActiveFilters && (
                 <div className="flex flex-wrap items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
@@ -1735,17 +1555,17 @@ export function ViewerHome() {
             <button
               type="button"
               onClick={() => {
-                if (catalogBusy) {
+                if (loading) {
                   toast.info(t("refreshWait"));
                   return;
                 }
                 void loadChannels(true);
               }}
-              aria-busy={catalogBusy}
+              aria-busy={loading}
               className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-opacity"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)", opacity: catalogBusy ? 0.75 : 1 }}
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-main)", opacity: loading ? 0.75 : 1 }}
             >
-              <RefreshCw size={15} className={catalogBusy ? "animate-spin" : ""} aria-hidden />
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} aria-hidden />
               <span className="hidden sm:inline">{t("refresh")}</span>
             </button>
 
@@ -1844,12 +1664,10 @@ export function ViewerHome() {
 
         {/* ── Category / Sport-type tabs ── */}
         {activeModule === "global_sports" ? (
+          /* Sports module: smart sport-type chips (auto-filtered, only non-empty) */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
-          {loading ? (
-            <CategorySkeletonRow />
-          ) : (
-          <div className="cat-tab-row" data-swipe-ignore="true">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-swipe-ignore="true">
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
@@ -1860,7 +1678,7 @@ export function ViewerHome() {
                 });
               }}
             >
-              {t("filterAll")}
+              📺 {t("filterAll")}
             </button>
             {SPORT_TYPES.filter((s) => (sportChannelCount[s.id] ?? 0) > 0).map((sport) => (
               <button
@@ -1875,18 +1693,16 @@ export function ViewerHome() {
                 }}
               >
                 {sport.label}
+                <span className="module-tab-badge">{sportChannelCount[sport.id]}</span>
               </button>
             ))}
           </div>
-          )}
           </div>
         ) : (
+          /* Regional / FAST / Live: category tabs from parsed group-title */
           <div className="space-y-1.5">
           <p className="px-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("sportFilterHint")}</p>
-          {loading ? (
-            <CategorySkeletonRow />
-          ) : (
-          <div className="cat-tab-row" data-swipe-ignore="true">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-swipe-ignore="true">
             <button
               type="button"
               className={`cat-tab${activeCategory === "" ? " active" : ""}`}
@@ -1894,7 +1710,7 @@ export function ViewerHome() {
                 transitionSetActiveCategory("");
               }}
             >
-              {t("filterAll")}
+              📺 {t("filterAll")}
             </button>
             {(activeModule === "bangladesh" ? bdCategoryOptions : categoryOptions).map((cat) => (
               <button
@@ -1905,11 +1721,13 @@ export function ViewerHome() {
                   transitionSetActiveCategory(activeCategory === cat ? "" : cat);
                 }}
               >
-                {cat}
+                {categoryEmoji(cat, activeModule)} {cat}
+                <span className="ml-1 rounded-full px-1 text-[9px] font-bold opacity-60" style={{ background: "rgba(255,255,255,0.1)" }}>
+                  {categoryCountMap.get(cat) ?? 0}
+                </span>
               </button>
             ))}
           </div>
-          )}
           </div>
         )}
 
@@ -1923,7 +1741,7 @@ export function ViewerHome() {
               🏆 League / Competition
             </p>
             <p className="mb-2 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{t("leagueFilterHint")}</p>
-            <div className="filter-chip-row">
+            <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 className={`filter-chip${filterLeague === "" ? " active" : ""}`}
@@ -2007,6 +1825,211 @@ export function ViewerHome() {
           </AnimatePresence>
         </div>
 
+        {/* ── Main grid: player + channel list ── */}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
+
+          {/* Player — hidden on mobile until a channel is selected */}
+          <section ref={playerSectionRef} className={`min-w-0 md:col-span-7 lg:col-span-8 ${!activeChannel ? "hidden md:block" : ""}`}>
+            {/* Mobile back button */}
+            {activeChannel && (
+              <button
+                type="button"
+                onClick={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
+                className="mb-2 flex items-center gap-1.5 text-xs font-semibold md:hidden"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <ChevronRight size={14} className="rotate-180" /> চ্যানেল তালিকা
+              </button>
+            )}
+            {activeChannel ? (
+              <PremiumPlayer
+                streamUrl={playbackUrls[0] ?? activeChannel.stream_url}
+                streamUrls={playbackUrls.length > 0 ? playbackUrls : undefined}
+                alternateUrls={[]}
+                title={activeChannel.name}
+                isTheaterMode={isTheaterMode}
+                onToggleTheaterMode={toggleTheaterMode}
+                headerProfile={activeChannel.header_profile ?? null}
+                geoHint={Boolean(activeChannel.geo_hint)}
+                channelLogoUrl={activeChannel.logo_url}
+                onStreamError={() => setShowErrorSuggestions(true)}
+              />
+            ) : (
+              <div className="player-shell flex aspect-video items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+                {t("noChannel")}
+              </div>
+            )}
+
+            {/* Now playing info strip */}
+            {activeChannel && (
+              <div
+                key={activeChannel.id}
+                className="mt-2 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Logo */}
+                  {activeChannel.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={activeChannel.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white sm:h-10 sm:w-10" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                  ) : (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white sm:h-10 sm:w-10" style={{ background: "var(--primary-accent)" }}>
+                      {activeChannel.name.slice(0, 1)}
+                    </div>
+                  )}
+                  {/* Channel info */}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
+                    <p className="truncate text-sm font-bold leading-tight" style={{ color: "var(--text-main)" }}>{activeChannel.name}</p>
+                    <p className="truncate text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      {flagFromCountryName(activeChannel.country)} {activeChannel.country} · {activeChannel.quality_tag.toUpperCase()}
+                    </p>
+                  </div>
+                  {/* Actions — LIVE badge + share */}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs" style={{ background: "rgba(245,166,35,0.12)", color: "var(--primary-accent)", border: "1px solid rgba(245,166,35,0.35)" }}>
+                      <span className="pulse-dot" style={{ width: 5, height: 5 }} /> LIVE
+                    </span>
+                    <button
+                      type="button"
+                      title={t("shareChannel")}
+                      onClick={async () => {
+                        if (!activeChannel) return;
+                        const url = `${window.location.origin}/?channel_id=${activeChannel.id}`;
+                        try {
+                          if (navigator.share) {
+                            await navigator.share({ title: activeChannel.name, url });
+                            toast.success(`✅ শেয়ার করা হয়েছে: ${activeChannel.name}`);
+                          } else {
+                            await navigator.clipboard.writeText(url);
+                            toast.success(`🔗 ${t("shareCopied")}`);
+                          }
+                        } catch { /* user cancelled or no clipboard */ }
+                      }}
+                      className="flex items-center justify-center gap-1 rounded-full p-1.5 text-xs font-semibold transition hover:opacity-80 sm:gap-1.5 sm:px-2.5 sm:py-1"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                      aria-label={t("shareChannel")}
+                    >
+                      <Share2 size={12} />
+                      <span className="hidden sm:inline">{t("shareChannel")}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showErrorSuggestions && activeChannel && filtered.length > 1 && (
+              <div className="mt-2 rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <p className="mb-2 text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>অন্য চ্যানেল চেষ্টা করুন:</p>
+                <div className="flex flex-wrap gap-2">
+                  {filtered.filter((c) => c.id !== activeChannel.id).slice(0, 4).map((ch) => (
+                    <button key={ch.id} type="button"
+                      onClick={() => { selectChannel(ch); setShowErrorSuggestions(false); }}
+                      className="rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
+                      style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "var(--primary-accent)" }}>
+                      {ch.name.slice(0, 20)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </section>
+
+          {/* Sidebar: upcoming channels */}
+          <aside className="flex min-w-0 flex-col gap-3 md:col-span-5 lg:col-span-4">
+            {tier === "free" && <AdSlot variant="inline" />}
+
+            {/* Featured channels quick list */}
+            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("quickPicks")}</h2>
+                  <span className="text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>{t("tapToPlay")}</span>
+                </div>
+                <p className="mt-0.5 text-[10px] leading-snug" style={{ color: "var(--text-muted)" }}>{t("quickPicksHint")}</p>
+                {!loading && (
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+                    <span>
+                      {t("showingFirst")} {Math.min(12, filtered.length)} {t("ofTotal")} {filtered.length}
+                    </span>
+                    {filtered.length > 12 && (
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                        className="font-semibold transition hover:underline"
+                        style={{ color: "var(--primary-accent)" }}
+                      >
+                        {t("scrollToGrid")} ↓
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div
+                className="max-h-[min(50dvh,26rem)] overflow-y-auto overscroll-y-contain divide-y sm:max-h-[min(55dvh,28rem)] md:max-h-[min(52dvh,26rem)] lg:max-h-[26.25rem]"
+                style={{ borderColor: "var(--border)" }}
+              >
+                {loading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
+                      <div className="h-9 w-9 rounded-lg" style={{ background: "var(--bg-hover)" }} />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 w-2/3 rounded" style={{ background: "var(--bg-hover)" }} />
+                        <div className="h-2.5 w-1/2 rounded" style={{ background: "var(--bg-hover)" }} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  filtered.slice(0, 12).map((ch) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => {
+                        selectChannel(ch);
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
+                      style={{
+                        background: activeChannel?.id === ch.id ? "rgba(245,166,35,0.08)" : "transparent",
+                        borderLeft: activeChannel?.id === ch.id ? "3px solid var(--primary-accent)" : "3px solid transparent",
+                      }}
+                    >
+                      {ch.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={ch.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain bg-white" style={{ border: "1px solid var(--border)" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      ) : (
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ background: "var(--bg-hover)" }}>
+                          {ch.name.slice(0, 1)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="truncate text-sm font-medium"
+                          style={{ color: activeChannel?.id === ch.id ? "var(--primary-accent)" : "var(--text-main)" }}
+                          title={ch.name}
+                        >
+                          {ch.name}
+                        </p>
+                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${ch.country} · ${ch.language}`}>
+                          {flagFromCountryName(ch.country)} {ch.country} · {ch.language} · {ch.quality_tag.toUpperCase()}
+                        </p>
+                      </div>
+                      {activeChannel?.id === ch.id && (
+                        <span className="pulse-dot shrink-0" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Install hint */}
+            <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
+              {t("installHint")}
+            </p>
+          </aside>
+        </div>
+
         {/* ── Favorites ── */}
         {favoriteChannelObjects.length > 0 && (
           <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid rgba(245,166,35,0.25)" }}>
@@ -2062,8 +2085,8 @@ export function ViewerHome() {
           </div>
         )}
 
-        {/* ── Recently Watched (dashboard modules use Continue Watching instead) ── */}
-        {recentChannelObjects.length > 0 && activeModule === "world_cup_2026" && (
+        {/* ── Recently Watched ── */}
+        {recentChannelObjects.length > 0 && (
           <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="flex items-center gap-2">
@@ -2237,19 +2260,23 @@ export function ViewerHome() {
               )}
 
 
-              <ChannelGrid
-                channels={gridSlice.map((ch) => ({
-                  id: ch.id,
-                  name: ch.name,
-                  logoUrl: ch.logo_url,
-                }))}
-                activeId={activeChannel?.id ?? null}
-                isLive={false}
-                onSelect={(card) => {
-                  const full = gridSlice.find((ch) => ch.id === card.id);
-                  if (full) selectChannel(full);
-                }}
-              />
+              <div role="list" className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4 xl:grid-cols-6 2xl:grid-cols-8">
+                {gridSlice.map((ch) => (
+                  <div key={ch.id} role="listitem">
+                    <PremiumChannelCard
+                      channel={ch}
+                      active={activeChannel?.id === ch.id}
+                      onSelect={selectChannel}
+                      activeModule={activeModule}
+                      isFavorited={favorites.includes(ch.id)}
+                      onToggleFavorite={toggleFavorite}
+                      onShare={shareChannel}
+                      highlight={deferredSearch}
+                      epgText={liveEpgMap.get(ch.id) ?? null}
+                    />
+                  </div>
+                ))}
+              </div>
               {gridHasMore ? (
                 <>
                   <div ref={gridSentinelRef} className="h-1 w-full" aria-hidden />
@@ -2258,11 +2285,7 @@ export function ViewerHome() {
                     type="button"
                     onClick={() => {
                       startTransition(() => {
-                        if (isSearching) {
-                          setSearchResultsPage((p) => p + 1);  // Next search page
-                        } else {
-                          setGridVisibleCount((c) => Math.min(c + CHANNEL_GRID_BATCH, filtered.length));
-                        }
+                        setGridVisibleCount((c) => Math.min(c + CHANNEL_GRID_BATCH, filtered.length));
                       });
                     }}
                     className="group w-full rounded-2xl py-5 text-center transition-all active:scale-[0.98]"
@@ -2296,20 +2319,176 @@ export function ViewerHome() {
         </>)}
       </div>
     </AppShell>
-
-    {/* Go Live Button */}
-    <GoLiveButton
-      liveChannelCount={moduleChannels.filter((c) => c.module === "live_matches").length}
-      onJumpToLive={() => {
-        transitionSetActiveModule("live_matches");
-        document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" });
-      }}
-      isVisible={activeModule !== "live_matches"}
-    />
-
-    <MoreSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
-    <FeedbackButton />
     </>
   );
 }
+
+/* ── Highlight matching text in search results ── */
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark style={{ background: "rgba(229,9,20,0.35)", color: "#fff", borderRadius: 2, padding: "0 1px" }}>
+        {text.slice(idx, idx + query.length)}
+      </mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
+/* ── Premium Channel Card ── */
+const PremiumChannelCard = memo(function PremiumChannelCard({
+  channel,
+  active,
+  onSelect,
+  activeModule,
+  isFavorited,
+  onToggleFavorite,
+  onShare,
+  highlight,
+  epgText,
+}: {
+  channel: Channel;
+  active: boolean;
+  onSelect: (c: Channel) => void;
+  activeModule: ViewerModule;
+  isFavorited: boolean;
+  onToggleFavorite: (c: Channel) => void;
+  onShare: (c: Channel) => void;
+  highlight?: string;
+  epgText?: string | null;
+}) {
+  const isHD =
+    channel.quality_tag.toLowerCase().includes("hd") ||
+    channel.quality_tag.toLowerCase().includes("fhd") ||
+    channel.quality_tag.toLowerCase().includes("4k") ||
+    channel.quality_tag.toLowerCase().includes("1080");
+
+  return (
+    <div className={`ch-card group w-full${active ? " active" : ""}`}>
+      <button
+        type="button"
+        onClick={() => onSelect(channel)}
+        className="w-full text-left"
+        aria-label={channel.name}
+      >
+        {/* ── Thumbnail ── */}
+        <div
+          className="relative w-full overflow-hidden"
+          style={{
+            aspectRatio: "1 / 1",
+            background: active
+              ? "linear-gradient(135deg,rgb(var(--primary-rgb)/0.16),rgb(var(--primary-rgb)/0.05))"
+              : "var(--bg-hover)",
+          }}
+        >
+          {channel.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={channel.logo_url}
+              alt=""
+              className="absolute inset-0 h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+              onError={(e) => {
+                const t = e.currentTarget;
+                t.style.display = "none";
+                const fb = t.nextElementSibling as HTMLElement | null;
+                if (fb) fb.style.display = "flex";
+              }}
+            />
+          ) : null}
+          <div
+            className="absolute inset-0 flex-col items-center justify-center gap-1"
+            style={{
+              background: "linear-gradient(135deg,rgba(8,11,18,0.95) 0%,rgba(16,21,31,0.9) 100%)",
+              display: channel.logo_url ? "none" : "flex",
+            }}
+          >
+            <span
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-lg font-black"
+              style={{
+                background: "rgb(var(--primary-rgb)/0.15)",
+                border: "1.5px solid rgb(var(--primary-rgb)/0.3)",
+                color: "var(--primary-accent)",
+                boxShadow: "var(--glow-accent)",
+              }}
+            >
+              {channel.name.replace(/\s*\[.*?\]/g, "").slice(0, 2).toUpperCase()}
+            </span>
+          </div>
+
+          {/* LIVE overlay when active */}
+          {active && (
+            <div className="absolute inset-0 flex items-end justify-center pb-2"
+              style={{ background: "linear-gradient(to top,rgba(0,0,0,0.7) 0%,transparent 60%)" }}>
+              <span className="live-badge text-[9px]">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" /> LIVE
+              </span>
+            </div>
+          )}
+
+          {/* EPG live match badge */}
+          {!active && epgText && (
+            <div className="absolute bottom-0 left-0 right-0 px-1.5 pb-1.5"
+              style={{ background: "linear-gradient(to top,rgba(0,0,0,0.8) 0%,transparent 100%)" }}>
+              <p className="truncate text-[8px] font-bold leading-tight" style={{ color: "#fbbf24" }}>{epgText}</p>
+            </div>
+          )}
+
+
+          {/* HD badge */}
+          {isHD && (
+            <span
+              className="absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider"
+              style={{ background: "rgba(16,185,129,0.92)", color: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,0.4)" }}
+            >
+              HD
+            </span>
+          )}
+
+          {/* Action buttons: favorite + share (show on hover) */}
+          <div className="absolute right-1 top-1 flex flex-col gap-1 opacity-0 transition-all group-hover:opacity-100">
+            <button
+              type="button"
+              aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+              onClick={(e) => { e.stopPropagation(); onToggleFavorite(channel); }}
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs transition hover:scale-110"
+              style={{ background: isFavorited ? "rgba(245,166,35,0.9)" : "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(6px)" }}
+            >
+              {isFavorited ? "⭐" : "☆"}
+            </button>
+            <button
+              type="button"
+              aria-label="Share channel"
+              onClick={(e) => { e.stopPropagation(); onShare(channel); }}
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs transition hover:scale-110"
+              style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(6px)", color: "#94A3B8" }}
+            >
+              <Share2 size={10} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Info ── */}
+        <div className="px-2 py-1.5">
+          <p
+            className="truncate text-[11px] font-semibold leading-tight"
+            style={{ color: active ? "var(--primary-accent)" : "var(--text-main)" }}
+            title={channel.name.replace(/\s*\[.*?\]/g, "").trim()}
+          >
+            <HighlightText text={channel.name.replace(/\s*\[.*?\]/g, "").trim()} query={highlight ?? ""} />
+          </p>
+          <p className="mt-0.5 flex items-center gap-0.5 truncate text-[9px] leading-none" style={{ color: "var(--text-muted)" }}>
+            <span className="shrink-0">{flagFromCountryName(channel.country)}</span>
+            <span className="truncate">{categoryEmoji(channel.category, activeModule)} {channel.category}</span>
+          </p>
+        </div>
+      </button>
+    </div>
+  );
+});
+
 

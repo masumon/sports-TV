@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Globe, MoreHorizontal, Radio, Search, Tv2 } from "lucide-react";
 import { useUiStore } from "@/store/uiStore";
@@ -17,8 +17,17 @@ export function MobileBottomNav() {
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [swipeHintDismissed, setSwipeHintDismissed] = useState(true);
 
   const isHome = pathname === "/";
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("gstv-swipe-hint-seen")) {
+        setSwipeHintDismissed(false);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   function haptic() {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -62,6 +71,33 @@ export function MobileBottomNav() {
 
   return (
     <>
+      {/* First-visit swipe hint */}
+      {!swipeHintDismissed && isHome && (
+        <div
+          className="fixed z-29 md:hidden flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-[10px]"
+          style={{
+            bottom: "max(5.25rem, calc(env(safe-area-inset-bottom, 0.75rem) + 4.5rem))",
+            left: "0.75rem",
+            right: "0.75rem",
+            background: "rgba(8,11,18,0.88)",
+            border: "1px solid rgba(245,166,35,0.3)",
+            backdropFilter: "blur(16px)",
+          }}
+        >
+          <span style={{ color: "rgba(245,166,35,0.9)" }}>👆 বাম/ডানে সোয়াইপ করে মডিউল পরিবর্তন করুন</span>
+          <button
+            type="button"
+            onClick={() => {
+              setSwipeHintDismissed(true);
+              try { localStorage.setItem("gstv-swipe-hint-seen", "1"); } catch { /* */ }
+            }}
+            className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold transition hover:opacity-80"
+            style={{ background: "rgba(245,166,35,0.15)", color: "rgba(245,166,35,0.9)" }}
+          >
+            ✓ বুঝেছি
+          </button>
+        </div>
+      )}
       <nav
         className="glass-premium fixed z-30 flex items-stretch justify-around md:hidden"
         style={{
