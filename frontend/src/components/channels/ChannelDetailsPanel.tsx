@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, Radio, Zap, AlertCircle, X } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 import type { Channel } from "@/lib/types";
 
 type ChannelDetailsPanelProps = {
