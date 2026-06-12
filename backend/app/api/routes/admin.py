@@ -32,6 +32,8 @@ from app.services.stream_probe import run_probe_batch
 from app.schemas.channel import ChannelCreate, ChannelListResponse, ChannelRead, ChannelUpdate
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
 from app.services.automation import run_channel_sync, run_health_sweep, run_live_fixtures_job
+from app.services.playlist_import import import_m3u8_from_content, get_playlists
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -321,6 +323,44 @@ async def admin_delete_channel(
     await db.commit()
     invalidate_list_caches()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ─── M3U8 Playlist Import ─────────────────────────────────────
+
+
+class PlaylistImportRequest(BaseModel):
+    """Import M3U8 playlist."""
+    name: str
+    content: str
+    module: str = "global_sports"
+
+
+@router.post("/playlists/import", response_model=dict)
+async def import_playlist(
+    payload: PlaylistImportRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> dict:
+    """Import channels from M3U8 content."""
+    result = await import_m3u8_from_content(
+        db=db,
+        name=payload.name,
+        content=payload.content,
+        source_type="m3u8_file",
+        module_default=payload.module,
+    )
+    if result.get("success"):
+        invalidate_list_caches()
+    return result
+
+
+@router.get("/playlists", response_model=list[dict])
+async def list_playlists(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin_user),
+) -> list[dict]:
+    """List all imported playlists."""
+    return await get_playlists(db)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
