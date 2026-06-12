@@ -33,7 +33,11 @@ from app.schemas.channel import ChannelCreate, ChannelListResponse, ChannelRead,
 from app.schemas.dynamic_stream import DynamicStreamCreate, DynamicStreamRead, DynamicStreamUpdate
 from app.services.automation import run_channel_sync, run_health_sweep, run_live_fixtures_job
 from app.services.playlist_import import import_m3u8_from_content, get_playlists
+from app.models.playlist import Playlist
+from app.models.audit_log import AuditLog
 from pydantic import BaseModel
+import json as _json
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -357,10 +361,85 @@ async def import_playlist(
 @router.get("/playlists", response_model=list[dict])
 async def list_playlists(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_admin_user),
+    user: User = Depends(get_current_admin_user),
 ) -> list[dict]:
     """List all imported playlists."""
     return await get_playlists(db)
+
+
+class PlaylistUpdate(BaseModel):
+    name: str | None = None
+    is_active: bool | None = None
+    auto_sync: bool | None = None
+
+
+@router.put("/playlists/{playlist_id}", response_model=dict)
+async def update_playlist(
+    playlist_id: int,
+    payload: PlaylistUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+) -> dict:
+    """Update playlist metadata."""
+    stmt = select(Playlist).where(Playlist.id == playlist_id)
+    playlist = (await db.execute(stmt)).scalars().first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    data = payload.model_dump(exclude_unset=True)
+    for field, value in data.items():
+        if value is not None:
+            setattr(playlist, field, value)
+
+    await db.commit()
+    await db.refresh(playlist)
+
+    # Audit log
+    db.add(AuditLog(
+        action="edit",
+        entity_type="playlist",
+        entity_id=playlist_id,
+        admin_user=user.email,
+        details=_json.dumps(data),
+    ))
+    await db.commit()
+    invalidate_list_caches()
+
+    return {
+        "success": True,
+        "id": playlist.id,
+        "name": playlist.name,
+        "is_active": playlist.is_active,
+        "channel_count": playlist.channel_count,
+    }
+
+
+@router.delete("/playlists/{playlist_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_playlist(
+    playlist_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+) -> Response:
+    """Delete a playlist."""
+    stmt = select(Playlist).where(Playlist.id == playlist_id)
+    playlist = (await db.execute(stmt)).scalars().first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    playlist.is_active = False
+    await db.commit()
+
+    # Audit log
+    db.add(AuditLog(
+        action="delete",
+        entity_type="playlist",
+        entity_id=playlist_id,
+        admin_user=user.email,
+    ))
+    await db.commit()
+    invalidate_list_caches()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
