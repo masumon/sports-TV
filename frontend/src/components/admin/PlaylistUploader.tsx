@@ -124,7 +124,7 @@ export function PlaylistUploader() {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`relative rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-all block ${
+        className={`relative rounded-2xl border-2 border-dashed p-6 sm:p-12 text-center cursor-pointer transition-all block ${
           isDragging
             ? "border-accent-gold bg-accent-gold/10"
             : "border-border-subtle hover:border-accent-gold/50"

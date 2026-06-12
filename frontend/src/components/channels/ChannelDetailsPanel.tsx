@@ -46,6 +46,21 @@ export function ChannelDetailsPanel({ channel, onClose }: ChannelDetailsPanelPro
         </div>
       </div>
 
+      {/* Source badge */}
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold">
+        {channel.source === "manual" || !channel.source ? (
+          <>
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#10b981" }} />
+            <span style={{ color: "#34d399" }}>✏ Manually Added</span>
+          </>
+        ) : (
+          <>
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#3b82f6" }} />
+            <span style={{ color: "#93c5fd" }}>📺 From Playlist</span>
+          </>
+        )}
+      </div>
+
       {/* Alert for geo-restriction */}
       {channel.geo_hint && (
         <div className="flex items-start gap-2.5 rounded-lg px-3 py-2.5" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}>
