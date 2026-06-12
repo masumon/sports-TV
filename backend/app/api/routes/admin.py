@@ -36,6 +36,7 @@ from app.services.playlist_import import import_m3u8_from_content, get_playlists
 from app.models.playlist import Playlist
 from app.models.audit_log import AuditLog
 from app.services.bdix_seeder import seed_bdix_channels
+from app.services.international_seeder import seed_international_channels
 from pydantic import BaseModel
 import json as _json
 from datetime import datetime, timezone
@@ -821,6 +822,39 @@ async def admin_seed_bdix_channels(
         return {
             "success": True,
             "message": f"Seeded BDIX channels: {result['created']} created, {result['updated']} updated",
+            **result,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+@router.post("/seed-international-channels")
+async def admin_seed_international_channels(
+    _: User = Depends(get_current_admin_user),
+) -> dict:
+    """Auto-seed international FREE broadcasting sources (CazéTV, SBS, ZDF, TF1, RTVE).
+
+    These are authorized public broadcasters with World Cup rights.
+    NO VPN needed - completely legal and free access.
+    """
+    from starlette.concurrency import run_in_threadpool
+    from app.db.session import SessionLocal
+
+    def _seed():
+        db = SessionLocal()
+        try:
+            return seed_international_channels(db)
+        finally:
+            db.close()
+
+    try:
+        result = await run_in_threadpool(_seed)
+        return {
+            "success": True,
+            "message": f"Seeded international channels: {result['created']} created, {result['updated']} updated",
             **result,
         }
     except Exception as e:
