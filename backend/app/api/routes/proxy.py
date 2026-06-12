@@ -42,6 +42,11 @@ logger = logging.getLogger("app.proxy")
 # Rate limiting: prevent DoS attacks on proxy endpoints (per IP, per minute)
 _rate_limit_window_sec = 60
 _rate_limit_max_requests = 120  # 2 requests per second max
+
+# Stream timeout settings - increased for slow/geo-restricted sources
+_STREAM_CONNECT_TIMEOUT = 15.0  # increased from default
+_STREAM_READ_TIMEOUT = 30.0  # increased for slow streams
+_MANIFEST_TIMEOUT = 10.0  # M3U8 manifest fetch timeout
 _rate_limit_requests: dict[str, list[float]] = defaultdict(list)
 _rate_limit_lock = Lock()
 
@@ -190,13 +195,13 @@ _ALLOWED_SCHEMES = {"http", "https"}
 
 # Connect bound (~10s). Manifest/peek reads allow a longer first-byte wait (IPTV/CDN often >10s);
 # that is still a small buffered response — never used for TS/mp4 relay.
-_CONNECT_TIMEOUT = 30.0  # Increased from 10s — some streams slow to connect
-_MANIFEST_PEEK_READ_TIMEOUT = 60.0  # Increased from 25s — HLS manifests can be large
+_CONNECT_TIMEOUT = 60.0  # Increased for geo-blocked/slow CDN sources
+_MANIFEST_PEEK_READ_TIMEOUT = 120.0  # Increased for large/slow manifests
 # Read timeout between chunks while relaying TS/mp4 (live HLS must not stall on idle).
-_READ_TIMEOUT = 180.0  # Increased from 120s — prevent stalls on slow networks
+_READ_TIMEOUT = 300.0  # Increased for slow/unreliable networks
 # httpx >=0.28 requires all four timeout parts when using keyword args (no implicit default).
-_WRITE_TIMEOUT = 60.0  # Increased from 30s — allow slow uploads
-_POOL_TIMEOUT = 30.0   # Increased from 10s — connection pooling needs time
+_WRITE_TIMEOUT = 90.0  # Increased for slow client uploads
+_POOL_TIMEOUT = 60.0   # Increased for connection pooling delays
 # HLS manifests are small; buffer + rewrite so every variant/segment/key URL stays same-origin (HTTPS)
 # and mixed-content / wrong relative resolution against /proxy/stream?... is avoided.
 _MAX_MANIFEST_BYTES = 4 * 1024 * 1024
