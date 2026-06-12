@@ -35,6 +35,7 @@ from app.services.automation import run_channel_sync, run_health_sweep, run_live
 from app.services.playlist_import import import_m3u8_from_content, get_playlists
 from app.models.playlist import Playlist
 from app.models.audit_log import AuditLog
+from app.services.bdix_seeder import seed_bdix_channels
 from pydantic import BaseModel
 import json as _json
 from datetime import datetime, timezone
@@ -798,3 +799,32 @@ async def admin_get_audit_logs(
         "limit": limit,
         "offset": offset,
     }
+
+
+@router.post("/seed-bdix-channels")
+async def admin_seed_bdix_channels(
+    _: User = Depends(get_current_admin_user),
+) -> dict:
+    """Auto-seed BDIX local CDN Bangladesh sports channels (T Sports, Gazi, BTV, Somoy)."""
+    from starlette.concurrency import run_in_threadpool
+    from app.db.session import SessionLocal
+
+    def _seed():
+        db = SessionLocal()
+        try:
+            return seed_bdix_channels(db)
+        finally:
+            db.close()
+
+    try:
+        result = await run_in_threadpool(_seed)
+        return {
+            "success": True,
+            "message": f"Seeded BDIX channels: {result['created']} created, {result['updated']} updated",
+            **result,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
