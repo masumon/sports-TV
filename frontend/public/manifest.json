@@ -1,0 +1,82 @@
+{
+  "name": "ABO SPORTS TV LIVE - বিশ্বের সব খেলা এক জায়গায়",
+  "short_name": "ABO SPORTS TV",
+  "description": "FIFA World Cup 2026 + লাইভ খেলাধুলা সম্প্রচার - Bangladesh IPTV Platform",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0A0E17",
+  "background_color": "#000000",
+  "lang": "bn-BD",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["sports", "entertainment"],
+  "screenshots": [
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "লাইভ খেলা দেখুন",
+      "short_name": "লাইভ",
+      "description": "বর্তমান চলমান খেলা",
+      "url": "/live?utm_source=homescreen",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "সব চ্যানেল",
+      "short_name": "চ্যানেল",
+      "description": "সম্পূর্ণ চ্যানেল তালিকা",
+      "url": "/sports?utm_source=homescreen",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}

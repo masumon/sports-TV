@@ -448,11 +448,28 @@ def _random_public_egress_ip() -> str:
         return f"5.{random.randint(62, 76)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
 
 
-def _apply_upstream_geo_bypass_headers(forward: dict[str, str]) -> dict[str, str]:
+_geo_ip_cache: dict[str, str] = {}
+_geo_ip_cache_lock = Lock()
+
+def _apply_upstream_geo_bypass_headers(forward: dict[str, str], cache_key: str) -> dict[str, str]:
+    """Apply consistent geo-bypass IP per stream (cached) to avoid repeated CDN node switches."""
     if not getattr(settings, "stream_geo_bypass_enabled", True):
         return forward
     h = dict(forward)
-    ip = _random_public_egress_ip()
+
+    # Cache IP per stream URL to prevent constant switching between CDN nodes
+    now = time.time()
+    with _geo_ip_cache_lock:
+        if cache_key in _geo_ip_cache:
+            ip = _geo_ip_cache[cache_key]
+        else:
+            ip = _random_public_egress_ip()
+            _geo_ip_cache[cache_key] = ip
+            # Auto-expire cache every 30 minutes to allow IP rotation
+            if len(_geo_ip_cache) > 256:
+                oldest_key = next(iter(_geo_ip_cache))
+                del _geo_ip_cache[oldest_key]
+
     h["x-forwarded-for"] = ip
     h["x-real-ip"] = ip
     if not h.get("user-agent", "").strip():
@@ -1048,7 +1065,7 @@ async def _fetch_manifest_text(
         pool=_POOL_TIMEOUT,
     )
     for _ in range(_GEO_IP_RETRY_ATTEMPTS):
-        forward = _apply_upstream_geo_bypass_headers(dict(headers))
+        forward = _apply_upstream_geo_bypass_headers(dict(headers), url)
         async with httpx.AsyncClient(
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
             **_upstream_httpx_base_kwargs(),
@@ -1183,7 +1200,7 @@ async def proxy_stream(
                             effective_url = _validate_stream_url(r)
 
         forward = _apply_header_profile(forward, header_profile_q)
-        forward = _apply_upstream_geo_bypass_headers(forward)
+        forward = _apply_upstream_geo_bypass_headers(forward, effective_url)
 
         # .m3u8/.m3u: one buffered manifest fetch (no peek) — avoids double upstream hits and Vercel/edge stalls.
         if _url_looks_like_m3u8_path(effective_url):
@@ -1347,7 +1364,7 @@ async def proxy_playlist_raw(
         )
         r: httpx.Response | None = None
         for _ in range(_GEO_IP_RETRY_ATTEMPTS):
-            forward = _apply_upstream_geo_bypass_headers(dict(base_forward))
+            forward = _apply_upstream_geo_bypass_headers(dict(base_forward), target_url)
             try:
                 async with httpx.AsyncClient(
                     limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),

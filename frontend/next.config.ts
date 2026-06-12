@@ -11,6 +11,7 @@ if (
   throw new Error("next-pwa: missing default 'apis' cache — update this file if the plugin changed");
 }
 
+// Streams must NEVER be cached (NetworkOnly) to prevent stale/broken playback
 const proxyStreamNetworkOnly: RuntimeCaching = {
   urlPattern: ({ sameOrigin, url: { pathname } }) =>
     Boolean(sameOrigin && pathname.startsWith("/api/v1/proxy/")),
@@ -19,6 +20,7 @@ const proxyStreamNetworkOnly: RuntimeCaching = {
   options: undefined,
 };
 
+// Channel metadata + fixtures = NetworkFirst (fast cache hit, fallback to network)
 const apisRestNetworkFirst: RuntimeCaching = {
   urlPattern: ({ sameOrigin, url: { pathname } }) =>
     Boolean(
@@ -31,8 +33,20 @@ const apisRestNetworkFirst: RuntimeCaching = {
   method: "GET",
   options: {
     cacheName: "apis",
-    expiration: { maxEntries: 16, maxAgeSeconds: 86_400 },
-    networkTimeoutSeconds: 10,
+    expiration: { maxEntries: 32, maxAgeSeconds: 3600 }, // Shorter TTL for fresher data
+    networkTimeoutSeconds: 8, // Quick timeout forces cache hit if network is slow
+  },
+};
+
+// Images = CacheFirst (offline-friendly, long TTL)
+const imageCacheFirst: RuntimeCaching = {
+  urlPattern: ({ url: { pathname } }) =>
+    Boolean(pathname.match(/\.(png|jpg|jpeg|svg|webp|avif|gif)$/i)),
+  handler: "CacheFirst",
+  method: "GET",
+  options: {
+    cacheName: "images",
+    expiration: { maxEntries: 128, maxAgeSeconds: 604_800 }, // 7 days
   },
 };
 
@@ -47,8 +61,9 @@ const pwaWorkboxRuntimeCaching: RuntimeCaching[] = [
   ...defaultCache.filter(
     (e) => !e?.options || (e.options as { cacheName?: string }).cacheName !== "apis",
   ),
-  proxyStreamNetworkOnly,
-  apisRestNetworkFirst,
+  proxyStreamNetworkOnly, // Must be first: exact match for live streams
+  apisRestNetworkFirst,   // API metadata with shorter TTL
+  imageCacheFirst,        // Channel logos + UI images (offline-friendly)
 ];
 
 const withPWA = withPWAInit({

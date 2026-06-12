@@ -160,9 +160,11 @@ function relayHlsXhrUrlIfNeeded(
   }
 }
 
-const LINK_RETRY_ATTEMPTS = 3;
+const LINK_RETRY_ATTEMPTS = 2;
 /** Shorter remount delay so we rotate to the next mirror quickly. */
-const LINK_RETRY_DELAY_MS = 800;
+const LINK_RETRY_DELAY_MS = 1200;
+/** Only retry on persistent network errors, not transient blips */
+const LINK_RETRY_ONLY_ON_PERSISTENT = true;
 const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
 const recentlyFailedUrlUntil = new Map<string, number>();
 
@@ -351,7 +353,8 @@ export default function PremiumPlayer({
     return [streamUrl, ...(alternateUrls ?? [])].filter((u) => u && u.trim().startsWith("http"));
   }, [streamUrls, streamUrl, alternateUrls]);
 
-  const streamIdentity = useMemo(() => resolvedDirect.join("\0"), [resolvedDirect]);
+  // Only trigger remount if the primary URL (index 0) changes, not all URLs
+  const streamIdentity = useMemo(() => resolvedDirect[0] ?? "", [resolvedDirect]);
 
   const dynamicM3U8Id = useMemo(() => {
     for (const u of resolvedDirect) {
@@ -508,27 +511,29 @@ export default function PremiumPlayer({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: !lightNet,
-        maxBufferLength: lightNet ? 12 : 30,
-        maxMaxBufferLength: lightNet ? 25 : 60,
-        maxBufferSize: lightNet ? 25 * 1000 * 1000 : 60 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        liveSyncDurationCount: lightNet ? 2 : 3,
-        liveMaxLatencyDurationCount: lightNet ? 6 : 10,
+        // Better buffer management: prevent excessive buffering + thrashing
+        maxBufferLength: lightNet ? 10 : 20,
+        maxMaxBufferLength: lightNet ? 20 : 40,
+        maxBufferSize: lightNet ? 20 * 1000 * 1000 : 50 * 1000 * 1000,
+        maxBufferHole: 0.3, // Tighter hole tolerance to detect stalls faster
+        liveSyncDurationCount: lightNet ? 3 : 4,
+        liveMaxLatencyDurationCount: lightNet ? 8 : 12,
         liveDurationInfinity: true,
         abrEwmaDefaultEstimate: lightNet ? 400_000 : 1_000_000,
-        abrBandWidthFactor: lightNet ? 0.9 : 0.95,
-        abrBandWidthUpFactor: lightNet ? 0.55 : 0.7,
+        abrBandWidthFactor: lightNet ? 0.92 : 0.95,
+        abrBandWidthUpFactor: lightNet ? 0.6 : 0.75,
         manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
         manifestLoadingMaxRetry: 0,
-        manifestLoadingRetryDelay: 350,
+        manifestLoadingRetryDelay: 500, // Increased to avoid rapid retries
         levelLoadingTimeOut: HLS_LEVEL_LOAD_TIMEOUT_MS,
         levelLoadingMaxRetry: 0,
-        levelLoadingRetryDelay: 350,
+        levelLoadingRetryDelay: 500,
         fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
-        fragLoadingMaxRetry: 1,
-        fragLoadingRetryDelay: lightNet ? 600 : 400,
+        fragLoadingMaxRetry: 2, // Increased for network resilience
+        fragLoadingRetryDelay: lightNet ? 800 : 600,
         startLevel: -1,
         capLevelToPlayerSize: true,
+        testBandwidth: true, // Enable bandwidth estimation
         xhrSetup: (xhr, requestUrl) => {
           const nextUrl = relayHlsXhrUrlIfNeeded(requestUrl, dynamicM3U8Id, headerProfile);
           if (nextUrl !== requestUrl) {
@@ -614,11 +619,24 @@ export default function PremiumPlayer({
           data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
           data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR;
 
-        if (isNet || isManifest || isFrag) {
+        // Only retry on manifest/fragment errors or during initial load, not routine network blips
+        if ((isManifest || (isFrag && !playbackStartedRef.current)) && !isNet) {
           if (tryFailover()) return;
         }
 
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        // Network errors during playback = skip retry, failover immediately
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && playbackStartedRef.current) {
+          if (tryFailover()) return;
+          linkRetryRef.current = 0;
+          setIsSwitching(false);
+          setHasError(true);
+          setIsLoading(false);
+          toast.error("সব স্ট্রিম অনুপলব্ধ — অন্য চ্যানেল বা এক্সটার্নাল প্লেয়ার চেষ্টা করুন");
+          return;
+        }
+
+        // Only retry network errors during initial manifest load (not during playback)
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !playbackStartedRef.current) {
           const retries = linkRetryRef.current;
           if (retries < LINK_RETRY_ATTEMPTS - 1) {
             linkRetryRef.current = retries + 1;
@@ -829,7 +847,36 @@ export default function PremiumPlayer({
     () => () => {
       tryUnlockPlaybackOrientation();
       clearHideTimer();
-      hlsRef.current?.destroy();
+      // Cleanup HLS instance completely
+      if (hlsRef.current) {
+        try {
+          hlsRef.current.stopLoad?.();
+          hlsRef.current.detachMedia?.();
+          hlsRef.current.destroy?.();
+        } catch {
+          /* */
+        }
+        hlsRef.current = null;
+      }
+      // Cleanup DASH instance
+      if (dashRef.current) {
+        try {
+          dashRef.current.reset?.();
+        } catch {
+          /* */
+        }
+        dashRef.current = null;
+      }
+      // Clear video source to prevent dangling connections
+      const video = videoRef.current;
+      if (video) {
+        video.src = "";
+        try {
+          video.pause?.();
+        } catch {
+          /* */
+        }
+      }
     },
     [clearHideTimer]
   );
