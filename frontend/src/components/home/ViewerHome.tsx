@@ -40,6 +40,7 @@ import {
 } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
 import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
+import { wakeBackend } from "@/lib/backendWakeup";
 import { useSwipeGesture } from "@/lib/useSwipeGesture";
 import { CHANNEL_GRID_INITIAL, CHANNEL_GRID_BATCH } from "@/lib/constants";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
@@ -484,6 +485,8 @@ export function ViewerHome() {
       });
     }
   }, []);
+
+  useEffect(() => { wakeBackend(); }, []);
 
   useEffect(() => {
     void loadChannels(false);

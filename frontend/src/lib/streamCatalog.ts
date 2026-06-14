@@ -335,22 +335,6 @@ function mergePremiumDirectSportsIntoSeen(seen: Set<string>, out: Channel[] | nu
  *
  * FanCode live rows are merged in loadFullCatalogWithLive / 30m refresh on the client.
  */
-/** Timeout wrapper: if load takes >20s, return partial results and continue in background. */
-function withLoadTimeout<T>(fn: () => Promise<T>, timeoutMs: number = 20_000): Promise<T> {
-  return Promise.race([
-    fn(),
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("Channel load timeout — showing partial results")), timeoutMs)
-    ),
-  ]).catch((err) => {
-    if (err instanceof Error && err.message.includes("timeout")) {
-      console.warn("Channel load timeout — using cached/partial data");
-      return undefined as T;
-    }
-    throw err;
-  });
-}
-
 export async function loadStaticCatalogChannels(): Promise<Channel[]> {
   const seen = new Set<string>();
   const out: Channel[] = [];
