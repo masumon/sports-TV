@@ -102,8 +102,9 @@ function inferLeague(name: string): string {
 
 // Top-level sport-type filter: matches by DB category field OR inferred league
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
-  { id: "football",   label: "⚽ Football",      leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
-  { id: "cricket",    label: "🏏 Cricket",        leagueEmoji: "🏏", categoryKeys: ["cricket"] },
+  { id: "football",  label: "⚽ Football",   leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
+  { id: "cricket",   label: "🏏 Cricket",    leagueEmoji: "🏏", categoryKeys: ["cricket"] },
+  { id: "world_cup", label: "🏆 World Cup",  leagueEmoji: "🏆", categoryKeys: ["world cup", "fifa", "copa mundial", "copa del mundo"] },
 ];
 
 const BD_CATEGORIES: Record<string, string> = {
@@ -243,10 +244,7 @@ export function ViewerHome() {
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const activeCategory = useUiStore((s) => s.activeCategory);
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
-  const [filterCountry, setFilterCountry] = useState("");
-  const [filterLanguage, setFilterLanguage] = useState("");
   const [filterLeague, setFilterLeague] = useState("");
-  const [showAllFilters, setShowAllFilters] = useState(false);
   const reduceM = useReducedMotion();
   const tier = useSubscriptionStore((s) => s.tier);
   const gridSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -258,11 +256,6 @@ export function ViewerHome() {
   const [fixtureSportFilter, setFixtureSportFilter] = useState<"all" | "Soccer" | "Cricket">("all");
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [coldStart, setColdStart] = useState(false);
-  const [coldStartDismissed, setColdStartDismissed] = useState(false);
-  const coldStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [coldStartSeconds, setColdStartSeconds] = useState(0);
-  const coldStartCounterRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
@@ -412,31 +405,6 @@ export function ViewerHome() {
         setLoading(true);
       }
       setError(null);
-      // Cold-start detection: if backend takes > 3s, show wakeup banner.
-      // Never reset dismissed state on manual refresh (showToast=true) —
-      // only reset on the automatic initial load so repeated refreshes
-      // don't re-show a banner the user already dismissed.
-      if (!silent) {
-        if (!showToast) setColdStartDismissed(false);
-        setColdStart(false);
-        setColdStartSeconds(0);
-        if (coldStartTimerRef.current) {
-          clearTimeout(coldStartTimerRef.current);
-          coldStartTimerRef.current = null;
-        }
-        if (coldStartCounterRef.current) {
-          clearInterval(coldStartCounterRef.current);
-          coldStartCounterRef.current = null;
-        }
-        coldStartTimerRef.current = setTimeout(() => {
-          setColdStart(true);
-          setColdStartSeconds(0);
-          if (coldStartCounterRef.current) clearInterval(coldStartCounterRef.current);
-          coldStartCounterRef.current = setInterval(() => {
-            setColdStartSeconds((s) => s + 1);
-          }, 1000);
-        }, 3000);
-      }
       try {
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(tRef.current("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
@@ -464,13 +432,6 @@ export function ViewerHome() {
       } finally {
         if (!silent) {
           setLoading(false);
-          setColdStart(false);
-          setColdStartSeconds(0);
-          if (coldStartTimerRef.current) clearTimeout(coldStartTimerRef.current);
-          if (coldStartCounterRef.current) {
-            clearInterval(coldStartCounterRef.current);
-            coldStartCounterRef.current = null;
-          }
         }
       }
     },
@@ -592,16 +553,6 @@ export function ViewerHome() {
     return () => clearInterval(id);
   }, [refreshLiveMatchesOnly]);
 
-  useEffect(() => {
-    return () => {
-      if (coldStartTimerRef.current) {
-        clearTimeout(coldStartTimerRef.current);
-      }
-      if (coldStartCounterRef.current) {
-        clearInterval(coldStartCounterRef.current);
-      }
-    };
-  }, []);
 
   // Deep link: /?module=…
   const qParam = searchParams.get("q")?.trim() ?? "";
@@ -652,8 +603,6 @@ export function ViewerHome() {
   // Reset local filters when module changes (deferred: avoids blocking the tab click)
   useEffect(() => {
     startTransition(() => {
-      setFilterCountry("");
-      setFilterLanguage("");
       setFilterLeague("");
       setActiveCategory("");
     });
@@ -709,15 +658,6 @@ export function ViewerHome() {
       }
     }
 
-    if (filterCountry) {
-      const f = filterCountry.toLowerCase();
-      list = list.filter((c) => c.country.toLowerCase().includes(f));
-    }
-    if (filterLanguage) {
-      const f = filterLanguage.toLowerCase();
-      list = list.filter((c) => c.language.toLowerCase().includes(f));
-    }
-
     // WC 2026: Bangladesh first, India second
     if (activeModule === "world_cup_2026") {
       list = [...list].sort((a, b) => {
@@ -750,12 +690,12 @@ export function ViewerHome() {
     }
 
     return list;
-  }, [moduleChannels, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague, activeModule]);
+  }, [moduleChannels, deferredSearch, activeCategory, filterLeague, activeModule]);
 
   const gridFilterKey = useMemo(
     () =>
-      [activeModule, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague].join("\u0001"),
-    [activeModule, deferredSearch, activeCategory, filterCountry, filterLanguage, filterLeague]
+      [activeModule, deferredSearch, activeCategory, filterLeague].join("\u0001"),
+    [activeModule, deferredSearch, activeCategory, filterLeague]
   );
 
   // Reset to initial count when module/filter changes so user always starts fresh
@@ -796,16 +736,6 @@ export function ViewerHome() {
       .map(([cat]) => cat)
       .sort((a, b) => a.localeCompare(b));
   }, [categoryCountMap]);
-  const countryOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const c of moduleChannels) counts.set(c.country, (counts.get(c.country) ?? 0) + 1);
-    return [...counts.entries()].filter(([, n]) => n >= 2).map(([v]) => v).sort((a, b) => a.localeCompare(b));
-  }, [moduleChannels]);
-  const languageOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const c of moduleChannels) counts.set(c.language, (counts.get(c.language) ?? 0) + 1);
-    return [...counts.entries()].filter(([, n]) => n >= 2).map(([v]) => v).sort((a, b) => a.localeCompare(b));
-  }, [moduleChannels]);
   // Count channels per sport type (only render chips that have channels)
   const sportChannelCount = useMemo<Record<string, number>>(() => {
     if (activeModule !== "global_sports") return {};
@@ -858,11 +788,9 @@ export function ViewerHome() {
           (activeModule === "global_sports" && activeCategory) ||
           ((activeModule === "bangladesh" || activeModule === "india" || activeModule === "fast_tv") &&
             activeCategory) ||
-          filterLeague ||
-          filterCountry ||
-          filterLanguage
+          filterLeague
       ),
-    [deferredSearch, activeModule, activeCategory, filterLeague, filterCountry, filterLanguage]
+    [deferredSearch, activeModule, activeCategory, filterLeague]
   );
 
   const clearAllFilters = useCallback(() => {
@@ -870,21 +798,9 @@ export function ViewerHome() {
       setSearchQuery("");
       setActiveCategory("");
       setFilterLeague("");
-      setFilterCountry("");
-      setFilterLanguage("");
     });
   }, [setActiveCategory]);
 
-  const setFilterCountryT = useCallback((v: string) => {
-    startTransition(() => {
-      setFilterCountry(v);
-    });
-  }, []);
-  const setFilterLanguageT = useCallback((v: string) => {
-    startTransition(() => {
-      setFilterLanguage(v);
-    });
-  }, []);
   const setFilterLeagueT = useCallback((v: string) => {
     startTransition(() => {
       setFilterLeague(v);
@@ -1028,56 +944,6 @@ export function ViewerHome() {
     <>
     <AppShell searchQuery={searchQuery} onSearch={setSearchQuery}>
       <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
-
-        {/* ── Cold-start banner ── */}
-        <AnimatePresence>
-          {coldStart && !coldStartDismissed && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              className="flex items-center gap-3 rounded-xl px-4 py-3"
-              style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
-            >
-              <RefreshCw size={15} className="shrink-0 animate-spin" style={{ color: "var(--primary-accent)" }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold leading-snug" style={{ color: "var(--text-main)" }}>
-                  🚀 সার্ভার চালু হচ্ছে…
-                </p>
-                <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                  {coldStartSeconds < 15
-                    ? "সার্ভার জেগে উঠছে — সাধারণত ১০–৩০ সেকেন্ড লাগে।"
-                    : coldStartSeconds < 40
-                      ? "এখনো লোড হচ্ছে… একটু অপেক্ষা করুন।"
-                      : "একটু বেশি সময় লাগছে। অপেক্ষা করুন বা রিফ্রেশ দিন।"}
-                </p>
-                {coldStartSeconds > 0 && (
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="h-1 flex-1 rounded-full overflow-hidden" style={{ background: "rgba(245,166,35,0.15)" }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-1000"
-                        style={{ background: "var(--primary-accent)", width: `${Math.min(80, (coldStartSeconds / 60) * 100)}%` }}
-                      />
-                    </div>
-                    <span className="shrink-0 text-[10px] tabular-nums font-bold" style={{ color: "var(--primary-accent)" }}>
-                      {coldStartSeconds}s / ~60s
-                    </span>
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setColdStartDismissed(true)}
-                className="shrink-0 rounded p-1 hover:bg-white/10"
-                style={{ color: "var(--text-muted)" }}
-                aria-label={t("coldStartDismiss")}
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* ── Module tabs: hidden on mobile (bottom nav handles navigation there) ── */}
         <div className="hidden md:flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible">
@@ -1774,63 +1640,6 @@ export function ViewerHome() {
           </div>
         )}
 
-        {/* ── Filter chips ── */}
-        <div>
-          <div className="mb-0.5 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                startTransition(() => {
-                  setShowAllFilters((v) => !v);
-                });
-              }}
-              className="flex items-center gap-1.5 text-xs"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <Globe size={13} />
-              {showAllFilters ? t("hideFilters") : t("moreFilters")}
-              <ChevronRight size={13} className={`transition-transform ${showAllFilters ? "rotate-90" : ""}`} />
-            </button>
-            {hasActiveFilters && (
-              <span className="text-[10px] hidden sm:inline" style={{ color: "var(--text-muted)" }}>{t("moreFiltersHint")}</span>
-            )}
-          </div>
-          <AnimatePresence>
-            {showAllFilters && (
-              <motion.div
-                initial={reduceM ? false : { height: 0, opacity: 0 }}
-                animate={reduceM ? { opacity: 1 } : { height: "auto", opacity: 1 }}
-                exit={reduceM ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                transition={reduceM ? { duration: 0 } : { duration: 0.25 }}
-                className="overflow-hidden"
-              >
-                <div className="mt-3 flex flex-col gap-3 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <FilterChips
-                    label={t("countryLabel")}
-                    options={countryOptions}
-                    value={filterCountry}
-                    onChange={setFilterCountryT}
-                    allLabel={t("filterAll")}
-                    showLessLabel={t("showLess")}
-                    moreLabel={t("moreSuffix")}
-                    ariaLabel={t("countryLabel")}
-                  />
-                  <FilterChips
-                    label={t("languageLabel")}
-                    options={languageOptions}
-                    value={filterLanguage}
-                    onChange={setFilterLanguageT}
-                    maxVisible={10}
-                    allLabel={t("filterAll")}
-                    showLessLabel={t("showLess")}
-                    moreLabel={t("moreSuffix")}
-                    ariaLabel={t("languageLabel")}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
 
         {/* ── Main grid: player + channel list ── */}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">

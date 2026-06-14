@@ -1300,10 +1300,8 @@ export default function PremiumPlayer({
               className="mx-2 overflow-hidden rounded-2xl sm:mx-3"
               style={{
                 marginBottom: "max(7px, env(safe-area-inset-bottom, 7px))",
-                background: "rgba(6,7,14,0.88)",
+                background: "rgb(6,7,14)",
                 border: "1px solid rgba(255,255,255,0.07)",
-                backdropFilter: "blur(24px) saturate(160%)",
-                WebkitBackdropFilter: "blur(24px) saturate(160%)",
                 boxShadow: "0 -4px 32px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.04)",
               }}
             >
