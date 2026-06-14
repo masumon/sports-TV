@@ -15,17 +15,19 @@ type Props = {
 };
 
 const EXTRA_MODULES = [
-  { id: "india",          label: "India",   emoji: "🇮🇳", color: "rgb(199,210,254)",  bg: "rgba(99,102,241,0.12)" },
-  { id: "world_cup_2026", label: "WC 2026", emoji: "🏆", color: "#F5A623",           bg: "rgba(245,166,35,0.12)" },
-  { id: "fast_tv",        label: "FAST TV", emoji: "⚡", color: "#F5A623",           bg: "rgba(245,166,35,0.10)" },
+  { id: "global_sports", label: "Football", emoji: "⚽", color: "#4ade80", bg: "rgba(74,222,128,0.12)", category: "football" },
+  { id: "global_sports", label: "Cricket",  emoji: "🏏", color: "#fbbf24", bg: "rgba(251,191,36,0.12)",  category: "cricket" },
+  { id: "world_cup_2026", label: "WC 2026", emoji: "🏆", color: "#F5A623", bg: "rgba(245,166,35,0.12)", category: "" },
+  { id: "india",          label: "India",   emoji: "🇮🇳", color: "rgb(199,210,254)", bg: "rgba(99,102,241,0.12)", category: "" },
+  { id: "fast_tv",        label: "FAST TV", emoji: "⚡", color: "#F5A623", bg: "rgba(245,166,35,0.10)", category: "" },
 ] as const;
 
 export function MoreSheet({ open, onClose }: Props) {
   const router = useRouter();
   const setActiveModule = useUiStore((s) => s.setActiveModule);
+  const setActiveCategory = useUiStore((s) => s.setActiveCategory);
   const { accent, setAccent } = useThemeAccentStore();
 
-  // Close on Escape key
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -33,15 +35,15 @@ export function MoreSheet({ open, onClose }: Props) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // Prevent body scroll when sheet is open
   useEffect(() => {
     if (open) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  function navigateTo(moduleId: string) {
+  function navigateTo(moduleId: string, category: string) {
     setActiveModule(moduleId as Parameters<typeof setActiveModule>[0]);
+    if (category) setActiveCategory(category);
     router.push("/");
     onClose();
   }
@@ -50,7 +52,6 @@ export function MoreSheet({ open, onClose }: Props) {
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 bg-black/60"
         style={{ backdropFilter: "blur(4px)" }}
@@ -58,7 +59,6 @@ export function MoreSheet({ open, onClose }: Props) {
         aria-hidden
       />
 
-      {/* Sheet */}
       <div
         className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[92dvh] flex-col rounded-t-3xl px-4 pt-4"
         style={{
@@ -84,16 +84,15 @@ export function MoreSheet({ open, onClose }: Props) {
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
 
-        {/* More modules */}
         <p className="mb-3 px-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
           আরও মডিউল
         </p>
         <div className="grid grid-cols-3 gap-3 mb-6">
-          {EXTRA_MODULES.map((m) => (
+          {EXTRA_MODULES.map((m, i) => (
             <button
-              key={m.id}
+              key={i}
               type="button"
-              onClick={() => navigateTo(m.id)}
+              onClick={() => navigateTo(m.id, m.category)}
               className="flex flex-col items-center gap-2 rounded-2xl py-4 transition active:scale-95"
               style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
             >
@@ -103,7 +102,6 @@ export function MoreSheet({ open, onClose }: Props) {
           ))}
         </div>
 
-        {/* Theme picker */}
         <p className="mb-3 px-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
           থিম রং
         </p>
