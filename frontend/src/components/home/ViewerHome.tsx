@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
-  Globe,
   RefreshCw,
   Signal,
   Tv2,
@@ -167,64 +166,6 @@ function categoryEmoji(category: string, module: string): string {
   return "📺";
 }
 
-/* ── Chip filter component ── */
-function FilterChips({
-  label,
-  options,
-  value,
-  onChange,
-  maxVisible = 8,
-  allLabel,
-  showLessLabel,
-  moreLabel,
-  ariaLabel,
-}: {
-  label: string;
-  options: string[];
-  value: string;
-  onChange: (v: string) => void;
-  maxVisible?: number;
-  allLabel: string;
-  showLessLabel: string;
-  moreLabel: string;
-  ariaLabel?: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? options : options.slice(0, maxVisible);
-  return (
-    <div role="group" aria-label={ariaLabel ?? label}>
-      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <div className="flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          className={`filter-chip${value === "" ? " active" : ""}`}
-          onClick={() => onChange("")}
-        >
-          {allLabel}
-        </button>
-        {visible.map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            className={`filter-chip${value === opt ? " active" : ""}`}
-            onClick={() => onChange(value === opt ? "" : opt)}
-          >
-            {flagFromCountryName(opt)} {opt}
-          </button>
-        ))}
-        {options.length > maxVisible && (
-          <button
-            type="button"
-            className="filter-chip"
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? showLessLabel : `+${options.length - maxVisible} ${moreLabel}`}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 
 const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
