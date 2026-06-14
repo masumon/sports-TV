@@ -168,10 +168,10 @@ const LINK_RETRY_ONLY_ON_PERSISTENT = true;
 const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
 const recentlyFailedUrlUntil = new Map<string, number>();
 
-/** Fail over to the next URL instead of waiting ~10s per dead mirror (HLS.js defaults). */
-const HLS_MANIFEST_LOAD_TIMEOUT_MS = 5500;
-const HLS_LEVEL_LOAD_TIMEOUT_MS = 5500;
-const HLS_FRAG_LOAD_TIMEOUT_MS = 9000;
+/** Wait long enough for the Render proxy to respond; fail fast enough to still feel responsive. */
+const HLS_MANIFEST_LOAD_TIMEOUT_MS = 10_000;
+const HLS_LEVEL_LOAD_TIMEOUT_MS = 10_000;
+const HLS_FRAG_LOAD_TIMEOUT_MS = 12_000;
 
 function isUrlTemporarilyFailed(url: string): boolean {
   const until = recentlyFailedUrlUntil.get(url);
