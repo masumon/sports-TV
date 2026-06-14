@@ -267,7 +267,7 @@ export const APP_STREAM_CONFIG = {
       "https://iptv-org.github.io/iptv/languages/ben.m3u",
       // BDIX community M3U sources (Bangladesh ISP-local, low latency)
       "https://raw.githubusercontent.com/Shadmanislam/bdiptv/master/BD%20IPTV.m3u",
-      "https://github.com/abusaeeidx/Mrgify-BDIX-IPTV/raw/main/playlist.m3u",
+      "https://raw.githubusercontent.com/abusaeeidx/Mrgify-BDIX-IPTV/main/playlist.m3u",
       "https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
       // SM-Live-TV: BD + India channels (hourly update)
       "https://raw.githubusercontent.com/sm-monirulislam/SM-Live-TV/refs/heads/main/Combined_Live_TV.m3u",
