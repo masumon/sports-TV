@@ -370,7 +370,7 @@ export function ViewerHome() {
         if (silent) return;
         const msg = e instanceof Error ? e.message : "Load failed";
         setError(msg);
-        toast.error(msg);
+        if (showToast) toast.error(msg);
       } finally {
         if (!silent) {
           setLoading(false);
