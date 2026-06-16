@@ -38,7 +38,7 @@ export const useUiStore = create<UiState>()((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   mobileMenuOpen: false,
   setMobileMenuOpen: (v) => set({ mobileMenuOpen: v }),
-  activeModule: "bangladesh",
+  activeModule: "world_cup_2026",
   setActiveModule: (m) => set({ activeModule: m, activeCategory: "" }),
   activeCategory: "",
   setActiveCategory: (c) => set({ activeCategory: c }),

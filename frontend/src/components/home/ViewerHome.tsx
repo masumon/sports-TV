@@ -169,7 +169,7 @@ function categoryEmoji(category: string, module: string): string {
 
 
 
-const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
+const MODULE_ORDER: ViewerModule[] = ["world_cup_2026", "live_matches", "bangladesh", "global_sports", "india", "fast_tv"];
 
 export function ViewerHome() {
   const { t } = useI18n();
@@ -348,9 +348,16 @@ export function ViewerHome() {
       }
       setError(null);
       try {
+        // DB fetch with 14s ceiling so a cold Render doesn't block the spinner.
+        // loadFullCatalogWithLive() also has a 15s internal fallback, so the
+        // user sees channels in ≤15s even if Render hasn't woken up yet.
+        const dbFast = Promise.race([
+          fetchAllChannels().catch((): Channel[] => []),
+          new Promise<Channel[]>((res) => setTimeout(() => res([]), 14_000)),
+        ]);
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(tRef.current("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          const merged = Promise.all([loadFullCatalogWithLive(), fetchAllChannels().catch(() => [])]).then(
+          const merged = Promise.all([loadFullCatalogWithLive(), dbFast]).then(
             ([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db)
           );
           void merged
@@ -366,6 +373,23 @@ export function ViewerHome() {
         setAllChannels(data);
         setChannelListCache(data);
         if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
+        // Background DB retry: Render should be warm 45s after mount.
+        // Silently merge DB channels in without showing a spinner.
+        if (!showToast) {
+          setTimeout(() => {
+            void fetchAllChannels()
+              .then((db) => {
+                if (db.length > 0) {
+                  setAllChannels((prev) => {
+                    const next = mergeDbChannelsIntoViewerCatalog(prev, db);
+                    setChannelListCache(next);
+                    return next;
+                  });
+                }
+              })
+              .catch(() => {});
+          }, 45_000);
+        }
       } catch (e) {
         if (silent) return;
         const msg = e instanceof Error ? e.message : "Load failed";
