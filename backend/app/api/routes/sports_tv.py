@@ -66,8 +66,11 @@ def _check_rate_limit(key: str, max_requests: int = 100, window_seconds: int = 6
             for k in stale:
                 del _rate_store[k]
             if len(_rate_store) > 5_000:
-                _rate_store.clear()
-                logger.warning("rate_store emergency clear: >5000 active IPs")
+                # Trim oldest half — preserves recently rate-limited IPs
+                sorted_keys = sorted(_rate_store, key=lambda k: (_rate_store[k] or [0.0])[-1])
+                for k in sorted_keys[: len(_rate_store) // 2]:
+                    del _rate_store[k]
+                logger.warning("rate_store trimmed to %d active IPs", len(_rate_store))
 
         return True
 

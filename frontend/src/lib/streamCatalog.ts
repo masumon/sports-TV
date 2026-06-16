@@ -237,7 +237,16 @@ async function ingestPlaylistUrlsIntoSeen(
 
   /** Parallel fetches per group, globally throttled — faster than serial, bounded for free-tier backend. */
   const settled = await Promise.allSettled(
-    valid.map((u) => limitPlaylistFetch(() => fetchPlaylistText(u)))
+    valid.map((u) =>
+      limitPlaylistFetch(() =>
+        Promise.race([
+          fetchPlaylistText(u),
+          new Promise<string>((_, reject) =>
+            setTimeout(() => reject(new Error("playlist_fetch_timeout")), 10_000)
+          ),
+        ])
+      )
+    )
   );
 
   for (let i = 0; i < valid.length; i++) {

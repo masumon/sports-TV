@@ -301,11 +301,11 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             <button
               type="button"
               onClick={openMobileSearch}
-              className="inline-flex h-10 min-w-[2.5rem] items-center justify-center gap-1 rounded-xl border border-accent-gold/35 bg-accent-gold/10 px-2.5 text-accent-gold shadow-glow-gold transition hover:bg-accent-gold/15 md:hidden"
+              className="inline-flex h-10 min-w-[2.5rem] items-center justify-center gap-1 rounded-xl border border-glass-border px-2.5 text-foreground-muted transition hover:bg-surface-elevated hover:text-foreground md:hidden"
               aria-label={t("search")}
             >
-              <Search size={18} strokeWidth={2.25} />
-              <span className="text-[10px] font-bold uppercase tracking-wide">Search</span>
+              <Search size={18} strokeWidth={2} />
+              <span className="text-[10px] font-bold uppercase tracking-wide">খুঁজুন</span>
             </button>
 
             <Link
@@ -318,13 +318,12 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
               aria-label="Profile"
               title={user?.full_name ?? "Profile"}
             >
-              {profileInitial ? (
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-gold/15 text-xs font-bold text-accent-gold">
-                  {profileInitial}
-                </span>
-              ) : (
+              <div className="relative">
                 <User size={18} />
-              )}
+                {profileInitial && (
+                  <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent-gold" />
+                )}
+              </div>
             </Link>
           </div>
         </div>

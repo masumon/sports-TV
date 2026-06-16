@@ -147,7 +147,7 @@ function categoryEmoji(category: string): string {
 
 
 
-const MODULE_ORDER: ViewerModule[] = ["world_cup_2026", "live_matches", "global_sports"];
+const MODULE_ORDER: ViewerModule[] = ["world_cup_2026", "live_matches", "global_sports", "all_channels"];
 
 export function ViewerHome() {
   const { t } = useI18n();
@@ -366,7 +366,7 @@ export function ViewerHome() {
                   });
                 }
               })
-              .catch(() => {});
+              .catch((e: unknown) => { console.warn("[bg-db-retry]", e); });
           }, 45_000);
         }
       } catch (e) {
@@ -461,6 +461,14 @@ export function ViewerHome() {
     upcoming.sort((a, b) => new Date(a.starts_at_utc).getTime() - new Date(b.starts_at_utc).getTime());
     return { live, upcoming, finished };
   }, [scheduleFixtures, fixtureSportFilter]);
+
+  // Auto-switch to upcoming when live tab is empty (after fixtures load)
+  useEffect(() => {
+    if (scheduleView !== "live" || fixturesLoading) return;
+    if (scheduleGroups.live.length === 0 && scheduleGroups.upcoming.length > 0) {
+      setScheduleView("upcoming");
+    }
+  }, [scheduleGroups.live.length, scheduleGroups.upcoming.length, fixturesLoading, scheduleView]);
 
   const activeScheduleItems = useMemo(() => {
     if (scheduleView === "live") return scheduleGroups.live;
@@ -734,7 +742,7 @@ export function ViewerHome() {
           activeCategory ||
           filterLeague
       ),
-    [deferredSearch, activeModule, activeCategory, filterLeague]
+    [deferredSearch, activeCategory, filterLeague]
   );
 
   const clearAllFilters = useCallback(() => {
@@ -913,10 +921,10 @@ export function ViewerHome() {
                 </div>
                 <div>
                   <h1 className="text-lg font-black tracking-tight" style={{ color: "var(--text-main)" }}>
-                    Live Match Schedule
+                    লাইভ ম্যাচ সূচি
                   </h1>
                   <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                    ⚽ Football · 🏏 Cricket · Real-time fixtures
+                    ⚽ ফুটবল · 🏏 ক্রিকেট · সরাসরি স্কোর
                   </p>
                 </div>
               </div>
@@ -934,7 +942,7 @@ export function ViewerHome() {
                   style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.25)", color: "var(--primary-accent)" }}
                 >
                   <RefreshCw size={13} className={fixturesLoading ? "animate-spin" : ""} />
-                  <span className="hidden xs:inline">{fixturesLoading ? "…" : "Refresh"}</span>
+                  <span className="hidden xs:inline">{fixturesLoading ? "…" : "রিফ্রেশ"}</span>
                 </button>
               </div>
             </div>
@@ -1033,7 +1041,7 @@ export function ViewerHome() {
                   <span className="text-3xl" aria-hidden>📅</span>
                   <div>
                     <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmptyByStatus")}</p>
-                    <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>Switch to a different tab above</p>
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>উপরের ট্যাব থেকে বদলান</p>
                   </div>
                 </div>
               ) : (
@@ -1112,7 +1120,7 @@ export function ViewerHome() {
                         {/* Time row */}
                         <div className="mt-2 flex items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
                           {isReallyLive ? (
-                            <span className="font-semibold" style={{ color: "#f87171" }}>Match in progress</span>
+                            <span className="font-semibold" style={{ color: "#f87171" }}>ম্যাচ চলছে</span>
                           ) : (
                             <span>
                               🕐 {new Date(fx.starts_at_utc).toLocaleString(undefined, FIXTURE_TIME_FORMAT)}
@@ -1502,8 +1510,8 @@ export function ViewerHome() {
         {/* ── Main grid: player + channel list ── */}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6">
 
-          {/* Player — hidden on mobile until a channel is selected */}
-          <section ref={playerSectionRef} className={`min-w-0 md:col-span-7 lg:col-span-8 ${!activeChannel ? "hidden md:block" : ""}`}>
+          {/* Player — always visible; shows placeholder when no channel selected */}
+          <section ref={playerSectionRef} className="min-w-0 md:col-span-7 lg:col-span-8">
             {/* Mobile back button */}
             {activeChannel && (
               <button

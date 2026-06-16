@@ -33,7 +33,7 @@ const apisRestNetworkFirst: RuntimeCaching = {
   method: "GET",
   options: {
     cacheName: "apis",
-    expiration: { maxEntries: 32, maxAgeSeconds: 3600 }, // Shorter TTL for fresher data
+    expiration: { maxEntries: 64, maxAgeSeconds: 3600 }, // Shorter TTL for fresher data
     networkTimeoutSeconds: 8, // Quick timeout forces cache hit if network is slow
   },
 };

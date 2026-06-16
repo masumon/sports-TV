@@ -21,7 +21,7 @@ services:
     autoDeployTrigger: commit
     plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt && playwright install chromium --with-deps
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
@@ -37,20 +37,20 @@ services:
         value: "1440"
       - key: SCRAPER_SOURCE_URL
         value: https://iptv-org.github.io/iptv/categories/sports.m3u
-      # Empty DB still gets one startup sync in app/main.py — no need to force true here (saves free-tier CPU).
+      # Background startup task in app/main.py runs sync asynchronously after port bind — safe to enable.
       - key: AUTO_SYNC_CHANNELS_ON_STARTUP
-        value: "false"
+        value: "true"
       # Optional: Redis Cloud / Upstash — channel list cache (omit in dashboard if unused)
       - key: REDIS_URL
         sync: false
       - key: CACHE_TTL_SECONDS
-        value: "300"
+        value: "900"
       - key: SYNC_RATE_LIMIT_SECONDS
         value: "60"
       # APScheduler: >0 enables background jobs. Use one Render web service only (duplicate workers = duplicate jobs).
-      # 120 = every 2h — gentler on free-tier CPU/RAM than 15–30m. Set 0 to disable; use admin sync or POST /internal/sync.
+      # 240 = every 4h — gentler on free-tier CPU/RAM. Set 0 to disable; use admin sync or POST /internal/sync.
       - key: SCHEDULED_SYNC_INTERVAL_MINUTES
-        value: "120"
+        value: "240"
       # Keep 0 on free tier (extra upstream + DB load); enable on paid hosts if you want auto source discovery.
       - key: SOURCE_DISCOVERY_INTERVAL_HOURS
         value: "0"
@@ -63,12 +63,12 @@ services:
       # Comma-separated hostnames for POST /api/v1/proxy/license (your DRM servers only).
       - key: DRM_LICENSE_ALLOWLIST_HOSTS
         sync: false
-      # Deactivate dead stream URLs on a sample; 120m aligns with sync cadence. Set 0 to disable checks only.
+      # Deactivate dead stream URLs on a sample; 240m aligns with sync cadence. Set 0 to disable checks only.
       - key: STREAM_VALIDATION_INTERVAL_MINUTES
-        value: "120"
-      # Real match schedule → live_fixtures table (GET /sports-tv/fixtures). 0=off. 60=every 1h.
+        value: "240"
+      # Real match schedule → live_fixtures table (GET /sports-tv/fixtures). 0=off. 15=every 15min (WC 2026 active).
       - key: LIVE_FIXTURES_SYNC_INTERVAL_MINUTES
-        value: "60"
+        value: "15"
       - key: LIVE_FIXTURES_DAYS_AHEAD
         value: "14"
       - key: LIVE_FIXTURES_HOURS_BACK
@@ -89,11 +89,11 @@ services:
       # PD=La Liga, SA=Serie A, FL1=Ligue 1, EC=Euro Championship, WC=World Cup
       - key: FOOTBALL_DATA_COMPETITIONS
         value: "PL,CL,EL,BL1,PD,SA,FL1,EC,WC"
-      # Neon free tier: small pool (raise only if you scale workers)
+      # Neon free tier: keep pool small (1 Render worker + PgBouncer)
       - key: DB_POOL_SIZE
-        value: "3"
+        value: "2"
       - key: DB_MAX_OVERFLOW
-        value: "5"
+        value: "3"
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET_KEY
