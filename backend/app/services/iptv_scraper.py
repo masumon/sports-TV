@@ -57,6 +57,14 @@ HTTP_HEADERS = {
 
 # Sports category playlists — high-quality, actively maintained sources only
 SPORTS_CATEGORY_SOURCES: list[str] = [
+    # iptv-org official sports categories (global, maintained, high quality)
+    "https://iptv-org.github.io/iptv/categories/sports.m3u",
+    "https://iptv-org.github.io/iptv/categories/football.m3u",
+    "https://iptv-org.github.io/iptv/categories/cricket.m3u",
+    "https://iptv-org.github.io/iptv/categories/basketball.m3u",
+    "https://iptv-org.github.io/iptv/categories/tennis.m3u",
+    "https://iptv-org.github.io/iptv/categories/motor_sports.m3u",
+    "https://iptv-org.github.io/iptv/categories/boxing.m3u",
     # LegalStream — curated global sports (NFL, NCAA, Soccer, Cricket, etc.)
     "https://raw.githubusercontent.com/notanewbie/LegalStream/master/packages/sports/live.m3u8",
     # FreeTVCast — maintained sports selection
@@ -64,14 +72,14 @@ SPORTS_CATEGORY_SOURCES: list[str] = [
 ]
 
 # India — regional sports sources (actively maintained)
-# Using dedicated India sports repos instead of generic country list
 INDIA_FULL_SOURCES: list[str] = [
-    # IPTVcat India sports (regularly updated)
+    # iptv-org India country list (official, maintained)
+    "https://iptv-org.github.io/iptv/countries/in.m3u",
+    # IPTVcat India IPTV (regularly updated)
     "https://raw.githubusercontent.com/iptvcat/indian-iptv/master/indian-iptv.m3u",
 ]
 
 # Bangladesh — regional sources (vetted, maintained)
-# Removed dead community repos; keeping only verified sources
 BANGLADESH_SOURCES: list[str] = [
     # iptv-org official Bangladesh (verified, maintained)
     "https://iptv-org.github.io/iptv/countries/bd.m3u",

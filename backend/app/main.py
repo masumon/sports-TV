@@ -249,6 +249,18 @@ async def lifespan(app: FastAPI):
             - Never leaves a stream with no URL (fallback preserved).
             - Closes the browser and calls gc.collect() after every extraction.
             """
+            # Guard: if playwright is not installed, skip silently.
+            # Set M3U8_REFRESH_INTERVAL_MINUTES=0 in env to disable this job entirely.
+            try:
+                import playwright as _pw  # noqa: F401
+                del _pw
+            except ImportError:
+                logger.warning(
+                    "scheduled_m3u8_refresh skipped: playwright not installed. "
+                    "Set M3U8_REFRESH_INTERVAL_MINUTES=0 to disable this job."
+                )
+                return
+
             import json as _json
             from datetime import datetime, timedelta, timezone as _tz
             from app.services.playwright_extractor import extract_m3u8_from_page

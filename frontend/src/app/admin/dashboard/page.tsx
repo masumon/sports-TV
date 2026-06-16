@@ -118,6 +118,7 @@ const MODULE_LABELS: Record<string, string> = {
   global_sports: "🌍 Global",
   live_matches: "🔴 Live",
   world_cup_2026: "🏆 WC26",
+  all_channels: "📺 All",
 };
 
 const initialChannelForm: ChannelFormState = {
@@ -251,6 +252,7 @@ function EditChannelModal({
                   <option value="global_sports">🌍 Global Sports</option>
                   <option value="live_matches">🔴 Live Matches</option>
                   <option value="world_cup_2026">🏆 World Cup 2026</option>
+                  <option value="all_channels">📺 All Channels</option>
                 </select>
               </div>
             </div>
@@ -488,12 +490,9 @@ export default function AdminDashboardPage() {
     return counts;
   }, [stats?.active_module_counts, channels]);
 
-  const expectedChannelTotal = useMemo(() => {
-    if (!stats) return channelListTotal;
-    if (channelStatusFilter === "active") return stats.active_channels;
-    if (channelStatusFilter === "inactive") return stats.inactive_channels;
-    return stats.channels;
-  }, [stats, channelStatusFilter, channelListTotal]);
+  // channelListTotal comes from the same DB query that loaded channels — always fresh.
+  // Using stats counts (potentially cached 15s) caused false "mismatch" warnings.
+  const expectedChannelTotal = channelListTotal;
 
   /* ─── Effects ─────────────────────────────────────────────────── */
 
@@ -678,6 +677,7 @@ export default function AdminDashboardPage() {
       setAddProbeStatus(null);
       setShowAdvanced(false);
       await fetchAdminData();
+      void fetchStats();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "চ্যানেল তৈরি ব্যর্থ");
     }
@@ -689,6 +689,8 @@ export default function AdminDashboardPage() {
     try {
       await apiClient.adminDeleteChannel(authToken, id);
       setChannels(prev => prev.filter(c => c.id !== id));
+      setChannelListTotal(prev => Math.max(0, prev - 1));
+      void fetchStats();
       toast.success(`✓ "${name}" inactive`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
@@ -1100,6 +1102,7 @@ export default function AdminDashboardPage() {
                     <option value="global_sports">🌍 Global Sports</option>
                     <option value="live_matches">🔴 Live Matches</option>
                     <option value="world_cup_2026">🏆 World Cup 2026</option>
+                    <option value="all_channels">📺 All Channels</option>
                   </select>
                 </div>
               </div>
@@ -1235,6 +1238,7 @@ export default function AdminDashboardPage() {
                   <option value="global_sports">🌍 Global Sports</option>
                   <option value="live_matches">🔴 Live Matches</option>
                   <option value="world_cup_2026">🏆 World Cup 2026</option>
+                  <option value="all_channels">📺 All Channels</option>
                 </select>
               </div>
             </div>
