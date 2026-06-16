@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Noto_Sans_Bengali, Anek_Bangla, Hind_Siliguri } from "next/font/google";
+import { Inter, Hind_Siliguri } from "next/font/google";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { SkipToContentLink } from "@/components/SkipToContentLink";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -12,25 +12,12 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const notoSansBengali = Noto_Sans_Bengali({
-  subsets: ["bengali"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-bengali",
-});
-
-const anekBangla = Anek_Bangla({
-  subsets: ["bengali", "latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-anek-bangla",
-});
-
+// Single Bengali font — covers Bengali + Latin, replaces 3 previous Bengali fonts
 const hindSiliguri = Hind_Siliguri({
   subsets: ["bengali", "latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
-  variable: "--font-hind-siliguri",
+  variable: "--font-bengali",
 });
 
 // Preview: built-in VERCEL_URL keeps OG/metadataBase off production domain.
@@ -100,25 +87,30 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0A0E17" },
-    { color: "#F5C518" },
+    { media: "(prefers-color-scheme: dark)", color: "#080a11" },
+    { media: "(prefers-color-scheme: light)", color: "#e8981f" },
   ],
   colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
+  // viewport-fit=cover: required for iOS notch / Dynamic Island safe areas
+  viewportFit: "cover",
+  // Prevent double-tap zoom on iOS while keeping pinch-to-zoom
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang="bn"
-      className={`${inter.variable} ${notoSansBengali.variable} ${anekBangla.variable} ${hindSiliguri.variable} dark`}
+      lang="en"
+      className={`${inter.variable} ${hindSiliguri.variable} dark`}
       suppressHydrationWarning
     >
       <body
         className={`flex min-h-dvh min-h-screen flex-col bg-surface font-sans text-foreground antialiased ${inter.className}`}
         style={{
-          fontFamily: `var(--font-anek-bangla), var(--font-hind-siliguri), var(--font-bengali), "Hind Siliguri", "Noto Sans Bengali", system-ui, sans-serif`,
+          fontFamily: `"Hind Siliguri", var(--font-bengali), system-ui, sans-serif`,
         }}
       >
         <AppProviders>

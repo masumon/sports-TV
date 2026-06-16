@@ -1940,3 +1940,27 @@ html.light .module-tab.active.module-tab--in {
   }
 }
 
+
+/* ── PWA: iOS notch / Dynamic Island safe-area top padding ── */
+/* viewport-fit=cover + safe-area-inset-top keeps content below the status bar */
+@supports (padding-top: env(safe-area-inset-top)) {
+  header.sticky,
+  header[class*="sticky"] {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* ── PWA: touch-action manipulation removes 300ms tap delay on all interactive elements ── */
+button,
+a,
+[role="button"],
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/* ── PWA: prevent overscroll bounce on body (keeps player fixed while scrolling) ── */
+html {
+  overscroll-behavior: none;
+}

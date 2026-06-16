@@ -22,7 +22,12 @@ export function BottomNav() {
     global_sports: gsCount,
   };
 
+  function haptic() {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(8);
+  }
+
   function navigate(item: (typeof PRIMARY_NAV)[number]) {
+    haptic();
     if (item.action === "search") {
       if (pathname !== "/") {
         try { sessionStorage.setItem("gstv-focus-search", "1"); } catch { /* */ }
