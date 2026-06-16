@@ -1,29 +1,21 @@
-import type { Route } from "next";
 import type { LucideIcon } from "lucide-react";
-import { CalendarDays, Home, Menu, Radio, Search } from "lucide-react";
+import { Globe, Menu, Radio, Search, Trophy } from "lucide-react";
+import type { ViewerModule } from "@/lib/types";
 
-export type NavItemId = "home" | "live" | "sports" | "search" | "more";
+export type NavItemId = "wc" | "live" | "sports" | "search" | "more";
 
 export type NavItem = {
   id: NavItemId;
   label: string;
-  labelBn: string;
-  href?: Route;
   icon: LucideIcon;
-  action?: "search" | "more";
+  action?: "search" | "more" | "module";
+  module?: ViewerModule;
 };
 
 export const PRIMARY_NAV: NavItem[] = [
-  { id: "home", label: "Home", labelBn: "হোম", href: "/", icon: Home },
-  { id: "live", label: "Live Matches", labelBn: "লাইভ", href: "/live", icon: Radio },
-  { id: "sports", label: "Sports", labelBn: "খেলা", href: "/sports", icon: CalendarDays },
-  { id: "search", label: "Search", labelBn: "খুঁজুন", icon: Search, action: "search" },
-  { id: "more", label: "More", labelBn: "আরও", icon: Menu, action: "more" },
+  { id: "wc",     label: "WC 2026", icon: Trophy, action: "module", module: "world_cup_2026" },
+  { id: "live",   label: "Live",    icon: Radio,  action: "module", module: "live_matches"   },
+  { id: "sports", label: "Sports",  icon: Globe,  action: "module", module: "global_sports"  },
+  { id: "search", label: "Search",  icon: Search, action: "search"                           },
+  { id: "more",   label: "More",    icon: Menu,   action: "more"                             },
 ];
-
-export function isNavActive(pathname: string, item: NavItem): boolean {
-  if (item.action) return false;
-  if (item.id === "home") return pathname === "/";
-  if (!item.href) return false;
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
-}

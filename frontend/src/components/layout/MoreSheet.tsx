@@ -2,11 +2,9 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { APP_META, LEGAL_LINKS } from "@/lib/constants";
 import { DeveloperBrandCard } from "@/components/branding/DeveloperBrandCard";
-import { useUiStore } from "@/store/uiStore";
 import { useThemeAccentStore, THEME_ACCENTS } from "@/store/themeAccentStore";
 
 type Props = {
@@ -14,17 +12,7 @@ type Props = {
   onClose: () => void;
 };
 
-const EXTRA_MODULES = [
-  { id: "world_cup_2026", label: "WC 2026",  emoji: "🏆", color: "#F5A623", bg: "rgba(245,166,35,0.12)", category: "" },
-  { id: "live_matches",   label: "Live",     emoji: "🔴", color: "#f87171", bg: "rgba(239,68,68,0.12)",  category: "" },
-  { id: "global_sports",  label: "Football", emoji: "⚽", color: "#4ade80", bg: "rgba(74,222,128,0.12)", category: "football" },
-  { id: "global_sports",  label: "Cricket",  emoji: "🏏", color: "#fbbf24", bg: "rgba(251,191,36,0.12)", category: "cricket" },
-] as const;
-
 export function MoreSheet({ open, onClose }: Props) {
-  const router = useRouter();
-  const setActiveModule = useUiStore((s) => s.setActiveModule);
-  const setActiveCategory = useUiStore((s) => s.setActiveCategory);
   const { accent, setAccent } = useThemeAccentStore();
 
   useEffect(() => {
@@ -39,13 +27,6 @@ export function MoreSheet({ open, onClose }: Props) {
     else document.body.style.overflow = "";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
-
-  function navigateTo(moduleId: string, category: string) {
-    setActiveModule(moduleId as Parameters<typeof setActiveModule>[0]);
-    if (category) setActiveCategory(category);
-    router.push("/");
-    onClose();
-  }
 
   if (!open) return null;
 
@@ -82,24 +63,6 @@ export function MoreSheet({ open, onClose }: Props) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-
-        <p className="mb-3 px-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
-          আরও মডিউল
-        </p>
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {EXTRA_MODULES.map((m, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => navigateTo(m.id, m.category)}
-              className="flex flex-col items-center gap-2 rounded-2xl py-4 transition active:scale-95"
-              style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
-            >
-              <span className="text-2xl leading-none">{m.emoji}</span>
-              <span className="text-[11px] font-bold" style={{ color: m.color }}>{m.label}</span>
-            </button>
-          ))}
-        </div>
 
         <p className="mb-3 px-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
           থিম রং

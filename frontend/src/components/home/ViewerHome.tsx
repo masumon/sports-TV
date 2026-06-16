@@ -104,21 +104,7 @@ function inferLeague(name: string): string {
 const SPORT_TYPES: { id: string; label: string; leagueEmoji: string; categoryKeys: string[] }[] = [
   { id: "football",  label: "⚽ Football",   leagueEmoji: "⚽", categoryKeys: ["football", "soccer", "futbol", "fussball", "calcio"] },
   { id: "cricket",   label: "🏏 Cricket",    leagueEmoji: "🏏", categoryKeys: ["cricket"] },
-  { id: "world_cup", label: "🏆 World Cup",  leagueEmoji: "🏆", categoryKeys: ["world cup", "fifa", "copa mundial", "copa del mundo"] },
 ];
-
-const BD_CATEGORIES: Record<string, string> = {
-  news: "📰",
-  entertainment: "🎭",
-  drama: "🎬",
-  sports: "🏆",
-  music: "🎵",
-  kids: "🧒",
-  movies: "🎥",
-  general: "📺",
-  religious: "🕌",
-  cooking: "🍽️",
-};
 
 const SPORT_ICONS: Record<string, string> = {
   football: "⚽",
@@ -151,16 +137,8 @@ const FIXTURE_TIME_FORMAT: Intl.DateTimeFormatOptions = {
   timeZoneName: "short",
 };
 
-function categoryEmoji(category: string, module: string): string {
+function categoryEmoji(category: string): string {
   const key = category.toLowerCase();
-  if (module === "bangladesh" || module === "india") {
-    for (const [k, v] of Object.entries(BD_CATEGORIES)) {
-      if (key.includes(k)) return v;
-    }
-    return "📺";
-  }
-  if (module === "fast_tv") return "⚡";
-  if (module === "live_matches") return "🔴";
   for (const [k, v] of Object.entries(SPORT_ICONS)) {
     if (key.includes(k)) return v;
   }
@@ -499,6 +477,16 @@ export function ViewerHome() {
     );
   }, [scheduleFixtures]);
 
+  const hasLiveWcMatch = useMemo(() => {
+    const now = Date.now();
+    return wcFixtures.some((fx) => {
+      const startMs = fx.starts_at_utc ? new Date(fx.starts_at_utc).getTime() : 0;
+      const elapsed = startMs > 0 ? (now - startMs) / 60_000 : 0;
+      const s = (fx.status || "").toLowerCase();
+      return s !== "finished" && elapsed <= 130 && startMs > 0 && startMs <= now;
+    });
+  }, [wcFixtures]);
+
   // WC channels for the source picker (world_cup_2026 module only)
   const wcChannels = useMemo(
     () => allChannels.filter((c) => c.module === "world_cup_2026"),
@@ -623,18 +611,6 @@ export function ViewerHome() {
         const f = activeCategory.toLowerCase();
         list = list.filter((c) => c.category.toLowerCase().includes(f));
       }
-    }
-
-    // WC 2026: Bangladesh first, India second
-    if (activeModule === "world_cup_2026") {
-      list = [...list].sort((a, b) => {
-        const pri = (c: typeof a) => {
-          if (c.country.toLowerCase() === "bangladesh") return 0;
-          if (c.country.toLowerCase() === "india") return 1;
-          return 2;
-        };
-        return pri(a) - pri(b);
-      });
     }
 
     // Global Sports: sort Sports → News → Entertainment
@@ -1216,9 +1192,11 @@ export function ViewerHome() {
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.5)", color: "#f87171" }}>
-                      🔴 LIVE NOW
-                    </span>
+                    {hasLiveWcMatch && (
+                      <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.5)", color: "#f87171" }}>
+                        🔴 LIVE NOW
+                      </span>
+                    )}
                     <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.4)", color: "var(--primary-accent)" }}>
                       FIFA 2026
                     </span>
@@ -1457,7 +1435,7 @@ export function ViewerHome() {
                   transitionSetActiveCategory(activeCategory === cat ? "" : cat);
                 }}
               >
-                {categoryEmoji(cat, activeModule)} {cat}
+                {categoryEmoji(cat)} {cat}
                 <span className="ml-1 rounded-full px-1 text-[9px] font-bold opacity-60" style={{ background: "rgba(255,255,255,0.1)" }}>
                   {categoryCountMap.get(cat) ?? 0}
                 </span>
@@ -1829,7 +1807,7 @@ export function ViewerHome() {
                   : activeModule === "global_sports" && activeCategory
                     ? SPORT_TYPES.find((s) => s.id === activeCategory)?.label ?? "🌐 " + t("directory")
                     : activeCategory
-                      ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
+                      ? `${categoryEmoji(activeCategory)} ${activeCategory}`
                       : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs text-right" style={{ color: "var(--text-muted)" }}>
@@ -2155,7 +2133,7 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
           </p>
           <p className="mt-0.5 flex items-center gap-0.5 truncate text-[9px] leading-none" style={{ color: "var(--text-muted)" }}>
             <span className="shrink-0">{flagFromCountryName(channel.country)}</span>
-            <span className="truncate">{categoryEmoji(channel.category, activeModule)} {channel.category}</span>
+            <span className="truncate">{categoryEmoji(channel.category)} {channel.category}</span>
           </p>
         </div>
       </button>

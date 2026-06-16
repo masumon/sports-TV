@@ -51,7 +51,10 @@ export function WorldCupSchedule({
 }) {
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabId>("upcoming");
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    // will be updated by useEffect after fixtures load
+    return "upcoming";
+  });
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
 
   useEffect(() => {
@@ -66,6 +69,12 @@ export function WorldCupSchedule({
     const id = setInterval(() => checkAndFireUpcomingNotifications(fixtures), 60_000);
     return () => clearInterval(id);
   }, [fixtures, notifEnabled, notifPerm]);
+
+  // Auto-switch to "live" tab when live matches are present
+  useEffect(() => {
+    const hasLive = fixtures.some((f) => getStatus(f) === "live");
+    if (hasLive) setActiveTab("live");
+  }, [fixtures]);
 
   const handleToggleNotif = useCallback(async () => {
     if (!isNotificationsSupported()) {
