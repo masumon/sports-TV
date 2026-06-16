@@ -249,8 +249,7 @@ function QualityPicker({
         onClick={() => setOpen((v) => !v)}
         aria-label="Quality"
         title="Quality"
-        className="control-btn gap-1 px-2.5 text-[11px] font-bold uppercase tracking-wide active:scale-90 transition"
-        style={open ? { background: "rgba(245,166,35,0.22)", borderColor: "rgba(245,166,35,0.55)", color: "#F5A623" } : {}}
+        className={`player-control-btn gap-1 px-2.5 text-[11px] font-bold uppercase tracking-wide${open ? ' player-control-btn-active' : ''}`}
       >
         <Settings size={13} className="shrink-0" />
         <span>{currentLabel}</span>
@@ -258,8 +257,7 @@ function QualityPicker({
       </button>
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 z-50 min-w-[120px] overflow-hidden rounded-xl shadow-2xl"
-          style={{ background: "rgba(8,9,18,0.97)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(20px)" }}
+          className="glass-quality-popup absolute bottom-full mb-2 right-0 z-50 min-w-[120px] overflow-hidden rounded-xl shadow-2xl"
         >
           <p className="px-3 pt-2.5 pb-1 text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(245,166,35,0.55)" }}>
             Quality
@@ -1081,9 +1079,9 @@ export default function PremiumPlayer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.25 } }}
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 sm:gap-7"
-            style={{ background: "linear-gradient(160deg, rgba(5,6,12,0.95) 0%, rgba(12,10,22,0.95) 100%)", backdropFilter: "blur(8px)" }}
+            className="glass-loading-backdrop absolute inset-0 z-30 flex flex-col items-center justify-center"
           >
+            <div className="glass-loading-card flex flex-col items-center gap-6 px-10 py-10 sm:py-12 mx-6">
             {/* Logo ring spinner — LARGER */}
             <div className="relative flex h-[120px] w-[120px] sm:h-[140px] sm:w-[140px] items-center justify-center">
               {/* Outer spinning arc */}
@@ -1152,6 +1150,7 @@ export default function PremiumPlayer({
                 transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
               />
             </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1165,9 +1164,9 @@ export default function PremiumPlayer({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 p-6"
-            style={{ background: "linear-gradient(160deg, rgba(5,6,12,0.96) 0%, rgba(20,8,8,0.96) 100%)", backdropFilter: "blur(8px)" }}
+            className="glass-loading-backdrop absolute inset-0 z-30 flex items-center justify-center p-6"
           >
+            <div className={`${geoRestricted ? 'glass-error-panel-geo' : 'glass-error-panel'} flex flex-col items-center gap-5 p-8 w-full max-w-xs`}>
             {/* Icon */}
             <div className="relative flex h-16 w-16 items-center justify-center">
               <motion.div
@@ -1220,6 +1219,7 @@ export default function PremiumPlayer({
                 <ExternalLink size={13} /> Tab-এ খুলুন
               </button>
             </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1231,12 +1231,7 @@ export default function PremiumPlayer({
         style={{ top: "max(0.75rem, env(safe-area-inset-top, 0px))" }}
       >
         <span
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white"
-          style={{
-            background: "rgba(220,38,38,0.88)",
-            border: "1px solid rgba(255,82,82,0.45)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
-          }}
+          className="glass-live-badge inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white"
         >
           <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-white" />
           LIVE
@@ -1259,8 +1254,7 @@ export default function PremiumPlayer({
           >
             <div className={`absolute flex flex-col items-center gap-1 ${seekFeedback.dir === "left" ? "left-[8%]" : "right-[8%]"}`}>
               <motion.div
-                className="flex h-16 w-16 items-center justify-center rounded-full"
-                style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.3)", backdropFilter: "blur(4px)" }}
+                className="glass-seek-pill flex h-16 w-16 items-center justify-center"
                 initial={{ scale: 0.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 1.1, opacity: 0 }}
@@ -1293,12 +1287,10 @@ export default function PremiumPlayer({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.18 }}
-            className="pointer-events-none absolute left-1/2 top-1/2 z-35 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-2"
-            style={{ backdropFilter: "blur(12px)" }}
+            className="pointer-events-none absolute left-1/2 top-1/2 z-35 -translate-x-1/2 -translate-y-1/2"
           >
             <div
-              className="flex flex-col items-center gap-2 rounded-2xl px-6 py-4"
-              style={{ background: "rgba(10,11,18,0.82)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
+              className="glass-feedback-card flex flex-col items-center gap-2 px-6 py-4"
             >
               <VolumeIcon size={22} style={{ color: volFeedback === 0 ? "#ef4444" : "#F5A623" }} />
               {/* Bar */}
@@ -1382,12 +1374,9 @@ export default function PremiumPlayer({
             </div>
 
             <div
-              className="mx-2 overflow-hidden rounded-2xl sm:mx-3"
+              className="glass-player-bar-premium mx-2 sm:mx-3"
               style={{
                 marginBottom: "max(7px, env(safe-area-inset-bottom, 7px))",
-                background: "rgb(6,7,14)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                boxShadow: "0 -4px 32px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.04)",
               }}
             >
               {/* ── Now playing row ── */}
@@ -1446,13 +1435,7 @@ export default function PremiumPlayer({
                   type="button"
                   onClick={() => void togglePlayPause()}
                   aria-label={isPlaying ? "Pause" : "Play"}
-                  className="shrink-0 flex h-11 w-11 items-center justify-center rounded-xl transition-all active:scale-90"
-                  style={{
-                    background: isPlaying ? "rgba(245,166,35,0.22)" : "rgba(255,255,255,0.12)",
-                    border: isPlaying ? "1.5px solid rgba(245,166,35,0.6)" : "1.5px solid rgba(255,255,255,0.18)",
-                    color: isPlaying ? "#F5A623" : "#fff",
-                    boxShadow: isPlaying ? "0 0 18px rgba(245,166,35,0.18)" : "none",
-                  }}
+                  className={`player-control-btn shrink-0 h-11 w-11${isPlaying ? ' player-control-btn-active' : ''}`}
                 >
                   {isPlaying ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
                 </button>
@@ -1462,7 +1445,7 @@ export default function PremiumPlayer({
                   type="button"
                   onClick={toggleMute}
                   aria-label="Mute"
-                  className="control-btn shrink-0 active:scale-90 transition"
+                  className="player-control-btn shrink-0"
                 >
                   <VolumeIcon size={17} />
                 </button>
@@ -1493,7 +1476,7 @@ export default function PremiumPlayer({
                     onClick={() => void togglePictureInPicture()}
                     aria-label="Picture-in-Picture"
                     title="PiP"
-                    className="control-btn shrink-0 active:scale-90 transition hidden sm:inline-flex"
+                    className="player-control-btn shrink-0 hidden sm:inline-flex"
                   >
                     <PictureInPicture2 size={16} />
                   </button>
@@ -1511,8 +1494,7 @@ export default function PremiumPlayer({
                   }}
                   aria-label="Theater mode"
                   title="Theater (T)"
-                  className="control-btn shrink-0 active:scale-90 transition"
-                  style={isTheaterMode ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
+                  className={`player-control-btn shrink-0${isTheaterMode ? ' player-control-btn-active' : ''}`}
                 >
                   <Tv size={16} />
                 </button>
@@ -1528,10 +1510,9 @@ export default function PremiumPlayer({
                       if (next) startSleepTimer(next); else cancelSleepTimer();
                     }
                   }}
-                  className="control-btn relative shrink-0 active:scale-90 transition hidden min-[380px]:inline-flex"
+                  className={`player-control-btn relative shrink-0 hidden min-[380px]:inline-flex${sleepMinutes ? ' player-control-btn-active' : ''}`}
                   title={sleepMinutes ? `Sleep: ${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, "0")}` : "Sleep timer"}
                   aria-label="Sleep timer"
-                  style={sleepMinutes ? { color: "var(--primary-accent)" } : {}}
                 >
                   <span className="text-sm leading-none">🌙</span>
                   {sleepMinutes && (
@@ -1547,8 +1528,7 @@ export default function PremiumPlayer({
                   onClick={() => void toggleFullscreen()}
                   aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                   title="Fullscreen (F)"
-                  className="control-btn shrink-0 active:scale-90 transition"
-                  style={isFullscreen ? { background: "rgba(245,166,35,0.2)", borderColor: "rgba(245,166,35,0.5)", color: "#F5A623" } : {}}
+                  className={`player-control-btn shrink-0${isFullscreen ? ' player-control-btn-active' : ''}`}
                 >
                   {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
                 </button>
