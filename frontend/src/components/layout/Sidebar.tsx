@@ -3,8 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  Home, X, Tv, Globe,
-  Zap, Flame, Trophy,
+  Home, X, Globe, Flame, Trophy, Zap,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/LocaleContext";
 import { APP_META, LEGAL_LINKS } from "@/lib/constants";
@@ -34,7 +33,7 @@ export function Sidebar() {
   const setActiveModule = useUiStore((s) => s.setActiveModule);
   const activeCategory = useUiStore((s) => s.activeCategory);
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
-  const { gsCount, bdCount, inCount, fastCount, wcCount } = useUiStore((s) => s.moduleCounts);
+  const { gsCount, liveCount, wcCount } = useUiStore((s) => s.moduleCounts);
   const visibleCats = SPORTS_CATEGORIES;
 
   function handleCategoryClick(key: string) {
@@ -47,38 +46,8 @@ export function Sidebar() {
     }, 100);
   }
 
-  function handleBangladeshClick() {
-    setActiveModule("bangladesh");
-    setSidebarOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function handleIndiaClick() {
-    setActiveModule("india");
-    setSidebarOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function handleGlobalSportsClick() {
-    setActiveModule("global_sports");
-    setSidebarOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function handleFastTvClick() {
-    setActiveModule("fast_tv");
-    setSidebarOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function handleLiveMatchesClick() {
-    setActiveModule("live_matches");
-    setSidebarOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function handleWorldCupClick() {
-    setActiveModule("world_cup_2026");
+  function navigate(mod: Parameters<typeof setActiveModule>[0]) {
+    setActiveModule(mod);
     setSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -160,82 +129,8 @@ export function Sidebar() {
             </p>
             <Link
               href="/"
-              onClick={() => { setSidebarOpen(false); handleGlobalSportsClick(); }}
+              onClick={() => { setSidebarOpen(false); navigate("world_cup_2026"); }}
               className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
-              style={{
-                background: activeModule === "global_sports" ? "rgba(245,166,35,0.12)" : "transparent",
-                color: activeModule === "global_sports" ? "var(--primary-accent)" : "var(--text-muted)",
-                borderLeft: activeModule === "global_sports" ? "2px solid var(--primary-accent)" : "2px solid transparent",
-              }}
-            >
-              <Home size={17} />
-              🌍 Global Sports
-              <CountBadge count={gsCount} />
-            </Link>
-
-            <button
-              type="button"
-              onClick={handleBangladeshClick}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
-              style={{
-                background: activeModule === "bangladesh" ? "rgba(0,106,78,0.15)" : "transparent",
-                color: activeModule === "bangladesh" ? "#10b981" : "var(--text-muted)",
-                borderLeft: activeModule === "bangladesh" ? "2px solid #10b981" : "2px solid transparent",
-              }}
-            >
-              <Tv size={17} />
-              🇧🇩 Bangladesh
-              <CountBadge count={bdCount} />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleIndiaClick}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
-              style={{
-                background: activeModule === "india" ? "rgba(99,102,241,0.12)" : "transparent",
-                color: activeModule === "india" ? "rgb(199 210 254)" : "var(--text-muted)",
-                borderLeft: activeModule === "india" ? "2px solid rgb(99 102 241)" : "2px solid transparent",
-              }}
-            >
-              <Globe size={17} />
-              🇮🇳 India
-              <CountBadge count={inCount} />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleFastTvClick}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
-              style={{
-                background: activeModule === "fast_tv" ? "rgba(245,166,35,0.12)" : "transparent",
-                color: activeModule === "fast_tv" ? "var(--primary-accent)" : "var(--text-muted)",
-                borderLeft: activeModule === "fast_tv" ? "2px solid var(--primary-accent)" : "2px solid transparent",
-              }}
-            >
-              <Zap size={17} />
-              ⚡ FAST TV (24/7)
-              <CountBadge count={fastCount} />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLiveMatchesClick}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
-              style={{
-                background: activeModule === "live_matches" ? "rgba(229,57,53,0.12)" : "transparent",
-                color: activeModule === "live_matches" ? "#FF5252" : "var(--text-muted)",
-                borderLeft: activeModule === "live_matches" ? "2px solid rgba(229,57,53,0.5)" : "2px solid transparent",
-              }}
-            >
-              <Flame size={17} />
-              🔴 Live Matches
-            </button>
-
-            <button
-              type="button"
-              onClick={handleWorldCupClick}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
               style={{
                 background: activeModule === "world_cup_2026" ? "rgba(245,166,35,0.15)" : "transparent",
                 color: activeModule === "world_cup_2026" ? "var(--primary-accent)" : "var(--text-muted)",
@@ -245,6 +140,36 @@ export function Sidebar() {
               <Trophy size={17} />
               🏆 World Cup 2026
               <CountBadge count={wcCount} />
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => navigate("live_matches")}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: activeModule === "live_matches" ? "rgba(229,57,53,0.12)" : "transparent",
+                color: activeModule === "live_matches" ? "#FF5252" : "var(--text-muted)",
+                borderLeft: activeModule === "live_matches" ? "2px solid rgba(229,57,53,0.5)" : "2px solid transparent",
+              }}
+            >
+              <Flame size={17} />
+              🔴 Live Matches
+              <CountBadge count={liveCount} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("global_sports")}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: activeModule === "global_sports" ? "rgba(245,166,35,0.12)" : "transparent",
+                color: activeModule === "global_sports" ? "var(--primary-accent)" : "var(--text-muted)",
+                borderLeft: activeModule === "global_sports" ? "2px solid var(--primary-accent)" : "2px solid transparent",
+              }}
+            >
+              <Globe size={17} />
+              🌍 Global Sports
+              <CountBadge count={gsCount} />
             </button>
 
           </div>

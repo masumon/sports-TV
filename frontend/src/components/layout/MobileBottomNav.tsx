@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Globe, MoreHorizontal, Radio, Search, Tv2 } from "lucide-react";
+import { Globe, MoreHorizontal, Radio, Search, Trophy } from "lucide-react";
 import { useUiStore } from "@/store/uiStore";
 import { MoreSheet } from "@/components/layout/MoreSheet";
 
@@ -62,7 +62,7 @@ export function MobileBottomNav() {
   }
 
   const tabs = [
-    { id: "bangladesh", label: "বাংলাদেশ", Icon: Tv2, activeColor: "#10b981", activeBg: "rgba(16,185,129,0.15)", glow: "0 0 16px rgba(16,185,129,0.35)" },
+    { id: "world_cup_2026", label: "WC 2026", Icon: Trophy, activeColor: "#F5A623", activeBg: "rgba(245,166,35,0.15)", glow: "0 0 16px rgba(245,166,35,0.35)" },
     { id: "live_matches", label: "Live", Icon: Radio, activeColor: "#f87171", activeBg: "rgba(239,68,68,0.15)", glow: "0 0 16px rgba(239,68,68,0.35)" },
     { id: "global_sports", label: "Sports", Icon: Globe, activeColor: "var(--primary-accent)", activeBg: "rgb(var(--primary-rgb)/0.15)", glow: "0 0 16px var(--accent-gold-glow)" },
     { id: "search", label: "খুঁজুন", Icon: Search, activeColor: "#a78bfa", activeBg: "rgba(139,92,246,0.15)", glow: "0 0 16px rgba(139,92,246,0.35)" },

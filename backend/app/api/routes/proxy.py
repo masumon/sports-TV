@@ -472,8 +472,11 @@ def _apply_upstream_geo_bypass_headers(forward: dict[str, str], cache_key: str) 
 
     h["x-forwarded-for"] = ip
     h["x-real-ip"] = ip
-    h["true-client-ip"] = ip
-    h["cf-ipcountry"] = "IN"
+    h["true-client-ip"] = ip          # Akamai / Cloudflare
+    h["cf-ipcountry"] = "IN"          # Cloudflare country hint
+    h["fastly-client-ip"] = ip        # Fastly CDN
+    h["x-azure-clientip"] = ip        # Azure CDN / Front Door
+    h["x-client-ip"] = ip             # generic CDN fallback
     if not h.get("user-agent", "").strip():
         h["user-agent"] = _DEFAULT_USER_AGENT
     return h
