@@ -53,9 +53,9 @@ def _build_client() -> Any | None:
             "port": parsed.port or (6380 if use_ssl else 6379),
             "db": int((parsed.path or "/0").lstrip("/") or 0),
             "decode_responses": True,
-            "socket_connect_timeout": 3,
-            "socket_timeout": 3,
-            "max_connections": 10,
+            "socket_connect_timeout": 5,
+            "socket_timeout": 5,
+            "max_connections": 5,
         }
 
         # Password / username — from URL only; unquote so %xx and Redis Cloud ACL URLs parse reliably

@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     auto_sync_channels_on_startup: bool = True
     # Optional Redis for response caching (GET /sports-tv/channels, filters). If unset, caching is disabled.
     redis_url: str | None = None
-    cache_ttl_seconds: int = 600  # 10 min default (increased from 300s for better hitrate)
+    cache_ttl_seconds: int = 900  # 15 min default — fewer DB hits on free tier
     # POST /admin/channels/sync — minimum seconds between successful syncs per process (in-memory).
     sync_rate_limit_seconds: int = 60
     # Legacy DB M3U sync interval (admin / GET /sports-tv/channels). Viewer catalog is client-side M3U.
@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     # Engine pool (PostgreSQL). Neon free tier allows 25 total connections.
     # Render free tier = 1 worker; pool_size=3 + overflow=5 = max 8 connections — safe.
     # On paid/multi-worker deploys set DB_POOL_SIZE=5, DB_MAX_OVERFLOW=10 via env.
-    db_pool_size: int = 3
-    db_max_overflow: int = 5
+    db_pool_size: int = 2
+    db_max_overflow: int = 3
     # Dynamic .m3u8 token refresh — how often to check (Playwright). 0 = disabled.
     # Production licensed IPTV: set 10 (checks every 10m; refreshes tokens expiring within lead window).
     # Default 0: Playwright on a small Render free instance is a common OOM / CPU source.
@@ -110,7 +110,7 @@ class Settings(BaseSettings):
 
     # Stream validation worker count (async path). Free-tier safe default: 30.
     stream_validation_async_workers: int = Field(
-        default=30,
+        default=10,
         description="Concurrent aiohttp workers for async stream validation",
     )
 
