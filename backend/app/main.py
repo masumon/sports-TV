@@ -383,11 +383,15 @@ async def lifespan(app: FastAPI):
                 max(1, settings.m3u8_token_refresh_lead_minutes),
             )
 
+        # Enforce minimum 60min interval when no API token is set (avoids hammering OpenLigaDB at 15min cadence)
+        _fixture_interval = settings.live_fixtures_sync_interval_minutes or 60
+        if not (settings.football_data_org_api_token or "").strip():
+            _fixture_interval = max(_fixture_interval, 60)
         if settings.live_fixtures_sync_interval_minutes and settings.live_fixtures_sync_interval_minutes > 0:
             SCHEDULER.add_job(
                 scheduled_live_fixtures,
                 "interval",
-                minutes=settings.live_fixtures_sync_interval_minutes,
+                minutes=_fixture_interval,
                 id="live_fixtures",
                 max_instances=1,
                 coalesce=True,

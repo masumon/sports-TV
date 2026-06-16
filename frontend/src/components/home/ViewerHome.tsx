@@ -366,7 +366,7 @@ export function ViewerHome() {
                   });
                 }
               })
-              .catch(() => {});
+              .catch((e: unknown) => { console.warn("[bg-db-retry]", e); });
           }, 45_000);
         }
       } catch (e) {
