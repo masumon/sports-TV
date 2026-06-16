@@ -13,13 +13,14 @@ export function BottomNav() {
   const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
   const activeModule = useUiStore((s) => s.activeModule);
   const setActiveModule = useUiStore((s) => s.setActiveModule);
-  const { gsCount, liveCount, wcCount } = useUiStore((s) => s.moduleCounts);
+  const { gsCount, liveCount, wcCount, allCount } = useUiStore((s) => s.moduleCounts);
   const [moreOpen, setMoreOpen] = useState(false);
 
   const countMap: Record<string, number> = {
     world_cup_2026: wcCount,
     live_matches: liveCount,
     global_sports: gsCount,
+    all_channels: allCount,
   };
 
   function haptic() {
@@ -64,6 +65,7 @@ export function BottomNav() {
             item.module === "world_cup_2026" ? "#F5A623"
             : item.module === "live_matches" ? "#f87171"
             : item.module === "global_sports" ? "#34d399"
+            : item.module === "all_channels" ? "#a78bfa"
             : "var(--text-muted)";
 
           return (

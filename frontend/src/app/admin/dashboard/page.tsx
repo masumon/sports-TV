@@ -251,6 +251,7 @@ function EditChannelModal({
                   <option value="global_sports">🌍 Global Sports</option>
                   <option value="live_matches">🔴 Live Matches</option>
                   <option value="world_cup_2026">🏆 World Cup 2026</option>
+                  <option value="all_channels">📺 All Channels</option>
                 </select>
               </div>
             </div>
@@ -1100,6 +1101,7 @@ export default function AdminDashboardPage() {
                     <option value="global_sports">🌍 Global Sports</option>
                     <option value="live_matches">🔴 Live Matches</option>
                     <option value="world_cup_2026">🏆 World Cup 2026</option>
+                    <option value="all_channels">📺 All Channels</option>
                   </select>
                 </div>
               </div>
@@ -1235,6 +1237,7 @@ export default function AdminDashboardPage() {
                   <option value="global_sports">🌍 Global Sports</option>
                   <option value="live_matches">🔴 Live Matches</option>
                   <option value="world_cup_2026">🏆 World Cup 2026</option>
+                  <option value="all_channels">📺 All Channels</option>
                 </select>
               </div>
             </div>
