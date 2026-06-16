@@ -1,35 +1,51 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { MoreSheet } from "@/components/layout/MoreSheet";
-import { useI18n } from "@/lib/i18n/LocaleContext";
 import { cn } from "@/lib/cn";
-import { isNavActive, PRIMARY_NAV } from "@/lib/nav";
+import { PRIMARY_NAV } from "@/lib/nav";
 import { useUiStore } from "@/store/uiStore";
 
 export function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { locale } = useI18n();
   const requestSearchFocus = useUiStore((s) => s.requestSearchFocus);
+  const activeModule = useUiStore((s) => s.activeModule);
+  const setActiveModule = useUiStore((s) => s.setActiveModule);
+  const { gsCount, liveCount, wcCount } = useUiStore((s) => s.moduleCounts);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  function openSearch() {
-    if (pathname !== "/") {
-      try {
-        sessionStorage.setItem("gstv-focus-search", "1");
-      } catch {
-        /* */
+  const countMap: Record<string, number> = {
+    world_cup_2026: wcCount,
+    live_matches: liveCount,
+    global_sports: gsCount,
+  };
+
+  function haptic() {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(8);
+  }
+
+  function navigate(item: (typeof PRIMARY_NAV)[number]) {
+    haptic();
+    if (item.action === "search") {
+      if (pathname !== "/") {
+        try { sessionStorage.setItem("gstv-focus-search", "1"); } catch { /* */ }
+        router.push("/");
+      } else {
+        requestSearchFocus();
+        queueMicrotask(() => {
+          document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
       }
-      router.push("/");
       return;
     }
-    requestSearchFocus();
-    queueMicrotask(() => {
-      document.getElementById("gstv-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    if (item.action === "more") { setMoreOpen(true); return; }
+    if (item.action === "module" && item.module) {
+      setActiveModule(item.module);
+      if (pathname !== "/") router.push("/");
+      else window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   return (
@@ -40,81 +56,53 @@ export function BottomNav() {
         aria-label="Primary navigation"
       >
         {PRIMARY_NAV.map((item) => {
-          const active = isNavActive(pathname, item);
+          const isActive = item.action === "module" && pathname === "/" && activeModule === item.module;
+          const isMaybeMore = item.action === "more";
           const Icon = item.icon;
-          const label = locale === "bn" ? item.labelBn : item.label;
-
-          if (item.action === "search") {
-            return (
-              <button
-                key={item.id}
-                type="button"
-                aria-label={label}
-                onClick={openSearch}
-                className={cn(
-                  "interactive-transition flex min-h-[3.75rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 active:scale-95",
-                  "text-foreground-muted",
-                )}
-              >
-                <span className="flex h-8 w-11 items-center justify-center rounded-xl bg-transparent">
-                  <Icon size={20} strokeWidth={2} aria-hidden />
-                </span>
-                <span className="max-w-[3.5rem] truncate text-[9px] font-medium tracking-wide">{label}</span>
-              </button>
-            );
-          }
-
-          if (item.action === "more") {
-            return (
-              <button
-                key={item.id}
-                type="button"
-                aria-label={label}
-                aria-expanded={moreOpen}
-                onClick={() => setMoreOpen(true)}
-                className={cn(
-                  "interactive-transition flex min-h-[3.75rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 active:scale-95",
-                  moreOpen ? "text-accent-gold" : "text-foreground-muted",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex h-8 w-11 items-center justify-center rounded-xl transition-all duration-200",
-                    moreOpen ? "bg-accent-gold/12" : "bg-transparent",
-                  )}
-                >
-                  <Icon size={20} strokeWidth={moreOpen ? 2.5 : 2} aria-hidden />
-                </span>
-                <span className={cn("max-w-[3.5rem] truncate text-[9px] tracking-wide", moreOpen ? "font-bold" : "font-medium")}>
-                  {label}
-                </span>
-              </button>
-            );
-          }
+          const count = item.module ? (countMap[item.module] ?? 0) : 0;
+          const accentColor =
+            item.module === "world_cup_2026" ? "#F5A623"
+            : item.module === "live_matches" ? "#f87171"
+            : item.module === "global_sports" ? "#34d399"
+            : "var(--text-muted)";
 
           return (
-            <Link
+            <button
               key={item.id}
-              href={item.href!}
-              aria-label={label}
-              aria-current={active ? "page" : undefined}
+              type="button"
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+              aria-expanded={isMaybeMore ? moreOpen : undefined}
+              onClick={() => navigate(item)}
               className={cn(
                 "interactive-transition flex min-h-[3.75rem] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 active:scale-95",
-                active ? "text-accent-gold" : "text-foreground-muted",
+                isActive ? "" : "text-foreground-muted",
               )}
+              style={{ color: isActive ? accentColor : (isMaybeMore && moreOpen ? "var(--primary-accent)" : undefined) }}
             >
               <span
-                className={cn(
-                  "flex h-8 w-11 items-center justify-center rounded-xl transition-all duration-200",
-                  active ? "bg-accent-gold/18 ring-1 ring-accent-gold/40 shadow-glow-gold" : "bg-transparent",
-                )}
+                className="relative flex h-8 w-11 items-center justify-center rounded-xl transition-all duration-200"
+                style={{
+                  background: isActive ? `${accentColor}22` : (isMaybeMore && moreOpen ? "rgba(245,166,35,0.12)" : "transparent"),
+                  boxShadow: isActive ? `0 0 14px ${accentColor}44` : "none",
+                  outline: isActive ? `1.5px solid ${accentColor}66` : "none",
+                  outlineOffset: 1,
+                }}
               >
-                <Icon size={20} strokeWidth={active ? 2.75 : 2} aria-hidden />
+                <Icon size={20} strokeWidth={isActive ? 2.75 : 2} aria-hidden />
+                {count > 0 && (
+                  <span
+                    className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[8px] font-black tabular-nums"
+                    style={{ background: accentColor, color: "#0a0a0f" }}
+                  >
+                    {count > 99 ? "99+" : count}
+                  </span>
+                )}
               </span>
-              <span className={cn("max-w-[3.5rem] truncate text-[9px] tracking-wide", active ? "font-extrabold" : "font-medium")}>
-                {label}
+              <span className={cn("max-w-[3.5rem] truncate text-[8px] tracking-wide", isActive ? "font-extrabold" : "font-medium")}>
+                {item.label}
               </span>
-            </Link>
+            </button>
           );
         })}
       </nav>
