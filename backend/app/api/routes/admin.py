@@ -95,7 +95,7 @@ async def admin_stats(
         active_module_counts=active_module_counts,
     )
     try:
-        cache_set_json("admin_stats", {}, result.model_dump(mode="json"), ttl=60)
+        cache_set_json("admin_stats", {}, result.model_dump(mode="json"), ttl=15)
     except Exception:
         pass
     return result
