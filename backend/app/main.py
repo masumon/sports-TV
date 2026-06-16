@@ -160,17 +160,7 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    if needs_startup_sync:
-        logger.info("Startup M3U sync (empty DB + AUTO_SYNC_CHANNELS_ON_STARTUP=true)")
-        await run_in_threadpool(partial(run_channel_sync, include_discovery=True, source="startup"))
-
-    if needs_fixture_sync:
-        logger.info("Startup live fixtures sync (empty live_fixtures table)")
-        await run_in_threadpool(partial(run_live_fixtures_job, source="startup"))
-
-    ran_startup_fixture_sync = needs_fixture_sync
-
-    # Auto-seed BDIX + International channels on startup (silent background)
+    # Auto-seed / sync helpers — defined here so the background task can close over them
     def auto_seed_channels() -> None:
         from app.services.bdix_seeder import seed_bdix_channels
         from app.services.international_seeder import seed_international_channels
@@ -179,7 +169,6 @@ async def lifespan(app: FastAPI):
             logger.info("Auto-seeding BDIX Bangladesh channels...")
             bdix_result = seed_bdix_channels(sdb)
             logger.info(f"BDIX seed complete: {bdix_result['created']} created, {bdix_result['updated']} updated")
-
             logger.info("Auto-seeding International FREE sources...")
             intl_result = seed_international_channels(sdb)
             logger.info(f"International seed complete: {intl_result['created']} created, {intl_result['updated']} updated")
@@ -188,9 +177,28 @@ async def lifespan(app: FastAPI):
         finally:
             sdb.close()
 
-    # Only seed on first deploy — skip if channels already exist (free-tier: save startup time)
-    if existing_count == 0:
-        await run_in_threadpool(auto_seed_channels)
+    # IMPORTANT: All heavy startup tasks run as a background asyncio task so the server
+    # binds to the port immediately (fixes Render free-tier 15-min port-scan timeout).
+    import asyncio as _asyncio
+
+    async def _background_startup() -> None:
+        await _asyncio.sleep(2)  # Let server fully start first
+        try:
+            if needs_startup_sync:
+                logger.info("Background: M3U sync (empty DB + AUTO_SYNC=true)")
+                await run_in_threadpool(partial(run_channel_sync, include_discovery=True, source="startup"))
+            if needs_fixture_sync:
+                logger.info("Background: live fixtures sync (empty table)")
+                await run_in_threadpool(partial(run_live_fixtures_job, source="startup"))
+            if existing_count == 0:
+                logger.info("Background: channel seed (first deploy)")
+                await run_in_threadpool(auto_seed_channels)
+        except Exception:
+            logger.exception("Background startup task failed")
+
+    _asyncio.create_task(_background_startup())
+    # Mark as False so the scheduler also fires its first run immediately
+    ran_startup_fixture_sync = False
 
     _needs_scheduler = (
         settings.scheduled_sync_interval_minutes > 0
