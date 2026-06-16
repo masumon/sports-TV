@@ -43,7 +43,7 @@ export function WcLiveSourcePicker({ fixture, wcChannels, onSelectChannel }: Pro
         <div className="flex items-center gap-1.5">
           <Tv size={12} style={{ color: "var(--primary-accent)" }} />
           <span className="text-[11px] font-bold" style={{ color: "var(--primary-accent)" }}>
-            Watch Sources
+            সরাসরি দেখুন
           </span>
           <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             — {fixture.home_team} vs {fixture.away_team}
@@ -99,7 +99,7 @@ export function WcLiveSourcePicker({ fixture, wcChannels, onSelectChannel }: Pro
             </div>
           ) : (
             <p className="text-center text-[11px] py-3" style={{ color: "var(--text-muted)" }}>
-              No IPTV sources found for this match yet. Check Official Sites tab.
+              এই ম্যাচের IPTV সূত্র এখনো পাওয়া যায়নি। Official Sites ট্যাব দেখুন।
             </p>
           )
         ) : (

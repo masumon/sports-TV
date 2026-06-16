@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Bell, BellOff, Calendar, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { startTransition, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -127,10 +127,10 @@ export function WorldCupSchedule({
         }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base shrink-0" aria-hidden>📅</span>
+          <Calendar size={16} className="shrink-0" style={{ color: "var(--primary-accent)" }} />
           <div className="min-w-0">
             <h3 className="text-sm font-bold truncate" style={{ color: "var(--text-main)" }}>
-              World Cup 2026 Schedule
+              বিশ্বকাপ ২০২৬ সময়সূচি
             </h3>
             {fixtures.length === 0 && !loading && (
               <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
@@ -154,7 +154,7 @@ export function WorldCupSchedule({
             >
               {notifEnabled ? <Bell size={12} /> : <BellOff size={12} />}
               <span className="hidden sm:inline">
-                {notifEnabled ? "Alerts ON" : "Get Alerts"}
+                {notifEnabled ? "অ্যালার্ট চালু" : "অ্যালার্ট পান"}
               </span>
             </button>
           )}
@@ -221,8 +221,8 @@ export function WorldCupSchedule({
             </div>
           ))
         ) : activeList.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-10 text-center">
-            <span className="text-3xl" aria-hidden>📅</span>
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <Calendar size={28} style={{ color: "var(--text-muted)" }} />
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               {activeTab === "live"
                 ? "এখন কোনো ম্যাচ চলছে না"
@@ -320,7 +320,7 @@ export function WorldCupSchedule({
                         color: "#f87171",
                       }}
                     >
-                      📺 Watch Live
+                      📺 সরাসরি দেখুন
                       {expandedSource === fx.id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                     </button>
                     {expandedSource === fx.id && (
