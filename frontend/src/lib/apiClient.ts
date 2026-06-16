@@ -219,8 +219,8 @@ export const apiClient = {
     if (params.module) sp.set("module", params.module);
     const q = sp.toString();
     return apiRequest<ChannelListResponse>(`/sports-tv/channels${q ? `?${q}` : ""}`, {
-      timeoutMs: 10_000, // 10s timeout — backend may be waking
-      retries: 3, // aggressive retry for transient failures
+      timeoutMs: 12_000, // 12s timeout — backend may be waking
+      retries: 1, // one retry; background retry at 45s handles cold starts
     });
   },
 

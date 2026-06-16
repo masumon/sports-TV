@@ -169,7 +169,7 @@ function categoryEmoji(category: string, module: string): string {
 
 
 
-const MODULE_ORDER: ViewerModule[] = ["bangladesh", "live_matches", "world_cup_2026", "global_sports", "india", "fast_tv"];
+const MODULE_ORDER: ViewerModule[] = ["world_cup_2026", "live_matches", "global_sports"];
 
 export function ViewerHome() {
   const { t } = useI18n();
@@ -348,9 +348,16 @@ export function ViewerHome() {
       }
       setError(null);
       try {
+        // DB fetch with 14s ceiling so a cold Render doesn't block the spinner.
+        // loadFullCatalogWithLive() also has a 15s internal fallback, so the
+        // user sees channels in ≤15s even if Render hasn't woken up yet.
+        const dbFast = Promise.race([
+          fetchAllChannels().catch((): Channel[] => []),
+          new Promise<Channel[]>((res) => setTimeout(() => res([]), 14_000)),
+        ]);
         const data = await new Promise<Channel[]>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error(tRef.current("catalogTimeout"))), CATALOG_LOAD_TIMEOUT_MS);
-          const merged = Promise.all([loadFullCatalogWithLive(), fetchAllChannels().catch(() => [])]).then(
+          const merged = Promise.all([loadFullCatalogWithLive(), dbFast]).then(
             ([viewer, db]) => mergeDbChannelsIntoViewerCatalog(viewer, db)
           );
           void merged
@@ -366,6 +373,23 @@ export function ViewerHome() {
         setAllChannels(data);
         setChannelListCache(data);
         if (showToast && data.length) toast.success(`Loaded ${data.length} channels`);
+        // Background DB retry: Render should be warm 45s after mount.
+        // Silently merge DB channels in without showing a spinner.
+        if (!showToast) {
+          setTimeout(() => {
+            void fetchAllChannels()
+              .then((db) => {
+                if (db.length > 0) {
+                  setAllChannels((prev) => {
+                    const next = mergeDbChannelsIntoViewerCatalog(prev, db);
+                    setChannelListCache(next);
+                    return next;
+                  });
+                }
+              })
+              .catch(() => {});
+          }, 45_000);
+        }
       } catch (e) {
         if (silent) return;
         const msg = e instanceof Error ? e.message : "Load failed";
@@ -528,15 +552,8 @@ export function ViewerHome() {
 
   useEffect(() => {
     let m = searchParams.get("module")?.toLowerCase().trim();
-    if (m === "sports") m = "global_sports";
-    const allowed: ViewerModule[] = [
-      "bangladesh",
-      "global_sports",
-      "india",
-      "fast_tv",
-      "live_matches",
-      "world_cup_2026",
-    ];
+    if (m === "sports" || m === "india" || m === "bangladesh" || m === "fast_tv") m = "global_sports";
+    const allowed: ViewerModule[] = ["world_cup_2026", "live_matches", "global_sports"];
     if (m && allowed.includes(m as ViewerModule)) {
       startTransition(() => {
         setActiveModule(m as ViewerModule);
@@ -614,23 +631,17 @@ export function ViewerHome() {
       });
     }
 
-    // Bangladesh: Sports → News → Entertainment → Religious when no category filter active
-    if (activeModule === "bangladesh" && !activeCategory && !deferredSearch.trim()) {
-      const bdCatPri = (cat: string) => {
+    // Global Sports: sort Sports → News → Entertainment
+    if (activeModule === "global_sports" && !activeCategory && !deferredSearch.trim()) {
+      const catPri = (cat: string) => {
         const c = cat.toLowerCase();
         if (c.includes("sport")) return 0;
         if (c.includes("news")) return 1;
         if (c.includes("entertainment") || c.includes("drama")) return 2;
         if (c.includes("general")) return 3;
-        if (c.includes("music")) return 4;
-        if (c.includes("religious")) return 5;
-        return 6;
+        return 4;
       };
-      list = [...list].sort((a, b) => {
-        const pd = bdCatPri(a.category) - bdCatPri(b.category);
-        if (pd !== 0) return pd;
-        return 0;
-      });
+      list = [...list].sort((a, b) => catPri(a.category) - catPri(b.category));
     }
 
     return list;
@@ -729,9 +740,7 @@ export function ViewerHome() {
     () =>
       Boolean(
         deferredSearch.trim() ||
-          (activeModule === "global_sports" && activeCategory) ||
-          ((activeModule === "bangladesh" || activeModule === "india" || activeModule === "fast_tv") &&
-            activeCategory) ||
+          activeCategory ||
           filterLeague
       ),
     [deferredSearch, activeModule, activeCategory, filterLeague]
@@ -768,53 +777,23 @@ export function ViewerHome() {
     [favorites, channelById]
   );
 
-  const bdPopularChannels = useMemo(() => {
-    if (activeModule !== "bangladesh") return [];
-    const catOrder = (cat: string) => {
-      const c = cat.toLowerCase();
-      if (c.includes("sport")) return 0;
-      if (c.includes("news")) return 1;
-      if (c.includes("entertainment") || c.includes("drama")) return 2;
-      if (c.includes("general")) return 3;
-      if (c.includes("music")) return 4;
-      if (c.includes("religious")) return 5;
-      return 6;
-    };
-    return [...moduleChannels].sort((a, b) => catOrder(a.category) - catOrder(b.category)).slice(0, 12);
-  }, [activeModule, moduleChannels]);
 
-  const bdCategoryOptions = useMemo(() => {
-    if (activeModule !== "bangladesh") return categoryOptions;
-    const BD_CAT_ORDER = ["sports", "news", "entertainment", "drama", "general", "music", "movies", "religious", "kids", "cooking"];
-    return [...categoryOptions].sort((a, b) => {
-      const ai = BD_CAT_ORDER.findIndex((k) => a.toLowerCase().includes(k));
-      const bi = BD_CAT_ORDER.findIndex((k) => b.toLowerCase().includes(k));
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-    });
-  }, [activeModule, categoryOptions]);
-
-  const { gsCount, inCount, bdCount, fastCount, liveCount, wcCount } = useMemo(() => {
+  const { gsCount, liveCount, wcCount } = useMemo(() => {
     let gs = 0;
-    let i = 0;
-    let b = 0;
-    let f = 0;
     let l = 0;
     let wc = 0;
     for (const c of allChannels) {
       if (c.module === "global_sports") gs += 1;
-      else if (c.module === "india") i += 1;
-      else if (c.module === "bangladesh") b += 1;
-      else if (c.module === "fast_tv") f += 1;
       else if (c.module === "live_matches") l += 1;
       else if (c.module === "world_cup_2026") wc += 1;
     }
-    return { gsCount: gs, inCount: i, bdCount: b, fastCount: f, liveCount: l, wcCount: wc };
+    return { gsCount: gs, liveCount: l, wcCount: wc };
   }, [allChannels]);
 
   // Sync module counts to store so Sidebar can show badges
   useEffect(() => {
-    setModuleCounts({ gsCount, bdCount, inCount, fastCount, liveCount, wcCount });
-  }, [gsCount, bdCount, inCount, fastCount, liveCount, wcCount, setModuleCounts]);
+    setModuleCounts({ gsCount, liveCount, wcCount });
+  }, [gsCount, liveCount, wcCount, setModuleCounts]);
 
   // Sync search suggestions to store — filtered to active module so results are relevant
   useEffect(() => {
@@ -865,7 +844,7 @@ export function ViewerHome() {
 
   // Recently added: top 10 channels by highest id (proxy for DB insertion order)
   const recentlyAdded = useMemo(() => {
-    if (activeModule !== "global_sports" && activeModule !== "bangladesh" && activeModule !== "india") return [];
+    if (activeModule !== "global_sports" && activeModule !== "world_cup_2026") return [];
     return [...moduleChannels].sort((a, b) => b.id - a.id).slice(0, 10);
   }, [activeModule, moduleChannels]);
 
@@ -893,49 +872,16 @@ export function ViewerHome() {
         <div className="hidden md:flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible">
           <button
             type="button"
-            onClick={() => {
-              transitionSetActiveModule("global_sports");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "global_sports" ? " active" : ""}`}
+            onClick={() => transitionSetActiveModule("world_cup_2026")}
+            className={`module-tab shrink-0 snap-start${activeModule === "world_cup_2026" ? " active" : ""}`}
+            style={activeModule === "world_cup_2026" ? { background: "rgba(245,166,35,0.15)", borderColor: "rgba(245,166,35,0.5)" } : {}}
           >
-            🌍 Global Sports
-            {gsCount > 0 && <span className="module-tab-badge">{gsCount}</span>}
+            🏆 World Cup 2026
+            {wcCount > 0 && <span className="module-tab-badge">{wcCount}</span>}
           </button>
           <button
             type="button"
-            onClick={() => {
-              transitionSetActiveModule("bangladesh");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "bangladesh" ? " active bd" : ""}`}
-          >
-            🇧🇩 Bangladesh
-            {bdCount > 0 && <span className="module-tab-badge">{bdCount}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("india");
-            }}
-            className={`module-tab module-tab--in shrink-0 snap-start${activeModule === "india" ? " active" : ""}`}
-          >
-            🇮🇳 India
-            {inCount > 0 && <span className="module-tab-badge">{inCount}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("fast_tv");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "fast_tv" ? " active" : ""}`}
-          >
-            ⚡ FAST TV
-            {fastCount > 0 && <span className="module-tab-badge">{fastCount}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              transitionSetActiveModule("live_matches");
-            }}
+            onClick={() => transitionSetActiveModule("live_matches")}
             className={`module-tab shrink-0 snap-start${activeModule === "live_matches" ? " active" : ""}`}
           >
             <span className="flex items-center gap-1.5">
@@ -946,14 +892,11 @@ export function ViewerHome() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              transitionSetActiveModule("world_cup_2026");
-            }}
-            className={`module-tab shrink-0 snap-start${activeModule === "world_cup_2026" ? " active" : ""}`}
-            style={activeModule === "world_cup_2026" ? { background: "rgba(245,166,35,0.15)", borderColor: "rgba(245,166,35,0.5)" } : {}}
+            onClick={() => transitionSetActiveModule("global_sports")}
+            className={`module-tab shrink-0 snap-start${activeModule === "global_sports" ? " active" : ""}`}
           >
-            🏆 World Cup 2026
-            {wcCount > 0 && <span className="module-tab-badge">{wcCount}</span>}
+            🌍 Global Sports
+            {gsCount > 0 && <span className="module-tab-badge">{gsCount}</span>}
           </button>
         </div>
 
@@ -1319,27 +1262,11 @@ export function ViewerHome() {
             <div className="flex items-center gap-2">
               <Tv2 className="h-4 w-4 shrink-0" style={{ color: "var(--primary-accent)" }} />
               <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary-accent)" }}>
-                {activeModule === "bangladesh"
-                  ? "BANGLADESH"
-                  : activeModule === "india"
-                    ? "INDIA"
-                    : activeModule === "fast_tv"
-                      ? "FAST TV 24/7"
-                      : activeModule === "world_cup_2026"
-                        ? "FIFA WORLD CUP 2026"
-                        : "GLOBAL SPORTS"}
+                {activeModule === "world_cup_2026" ? "FIFA WORLD CUP 2026" : "GLOBAL SPORTS"}
               </span>
             </div>
             <h1 className="mt-1 text-xl font-extrabold tracking-tight md:text-2xl" style={{ color: "var(--text-main)" }}>
-              {activeModule === "bangladesh"
-                ? "🇧🇩 বাংলাদেশ টিভি চ্যানেল"
-                : activeModule === "india"
-                  ? "🇮🇳 India Channels"
-                  : activeModule === "fast_tv"
-                    ? "⚡ FAST TV 24/7"
-                    : activeModule === "world_cup_2026"
-                      ? "🏆 FIFA World Cup 2026 — Live Channels"
-                      : t("tagline")}
+              {activeModule === "world_cup_2026" ? "🏆 FIFA World Cup 2026 — Live Channels" : t("tagline")}
             </h1>
             <div className="mt-1 space-y-1">
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -1401,19 +1328,19 @@ export function ViewerHome() {
           </div>
         </div>
 
-        {/* ── Bangladesh Popular Channels Quick Row ── */}
-        {activeModule === "bangladesh" && !loading && bdPopularChannels.length > 0 && (
-          <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(0,106,78,0.07)", border: "1px solid rgba(0,106,78,0.18)" }}>
+        {/* ── Popular Channels Quick Row (World Cup) ── */}
+        {activeModule === "world_cup_2026" && !loading && recentlyAdded.length > 0 && (
+          <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,166,35,0.07)", border: "1px solid rgba(245,166,35,0.18)" }}>
             <div className="flex items-center justify-between gap-2 px-4 py-3">
               <div className="flex items-center gap-2">
-                <span className="text-base leading-none" aria-hidden>⭐</span>
-                <h3 className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: "#10b981" }}>জনপ্রিয় চ্যানেল</h3>
+                <span className="text-base leading-none" aria-hidden>🏆</span>
+                <h3 className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: "#F5A623" }}>WC চ্যানেল</h3>
               </div>
               <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>ক্লিক করে দেখুন →</span>
             </div>
             <div className="relative">
               <div className="flex gap-1 overflow-x-auto px-3 pb-3 scrollbar-none" data-swipe-ignore="true">
-                {bdPopularChannels.map((ch) => {
+                {recentlyAdded.map((ch) => {
                   const isActive = activeChannel?.id === ch.id;
                   return (
                     <button
@@ -1423,8 +1350,8 @@ export function ViewerHome() {
                       className="group flex shrink-0 flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-center transition-all hover:scale-105"
                       style={{
                         width: 72,
-                        background: isActive ? "rgba(0,106,78,0.2)" : "rgba(255,255,255,0.03)",
-                        border: isActive ? "1px solid rgba(16,185,129,0.45)" : "1px solid rgba(255,255,255,0.05)",
+                        background: isActive ? "rgba(245,166,35,0.2)" : "rgba(255,255,255,0.03)",
+                        border: isActive ? "1px solid rgba(245,166,35,0.45)" : "1px solid rgba(255,255,255,0.05)",
                       }}
                       title={ch.name}
                     >
@@ -1463,21 +1390,6 @@ export function ViewerHome() {
         {/* ── AdSlot banner ── */}
         {tier === "free" && <AdSlot variant="banner" />}
 
-        {/* ── FAST TV info card ── */}
-        {activeModule === "fast_tv" && (
-          <div
-            className="flex items-center gap-3 rounded-xl px-4 py-3"
-            style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.2)" }}
-          >
-            <span className="shrink-0 text-2xl" aria-hidden>⚡</span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold" style={{ color: "var(--primary-accent)" }}>FAST TV — Free 24/7 Channels</p>
-              <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                FAST TV runs continuously — no login or subscription needed. Tap any channel to start watching instantly.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* ── Category / Sport-type tabs ── */}
         {activeModule === "global_sports" ? (
@@ -1529,7 +1441,7 @@ export function ViewerHome() {
             >
               📺 {t("filterAll")}
             </button>
-            {(activeModule === "bangladesh" ? bdCategoryOptions : categoryOptions).map((cat) => (
+            {categoryOptions.map((cat) => (
               <button
                 key={cat}
                 type="button"
@@ -1903,22 +1815,15 @@ export function ViewerHome() {
         <section id="channel-grid">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
-              {activeModule === "global_sports" && activeCategory
-                ? SPORT_TYPES.find((s) => s.id === activeCategory)?.label ?? "🌐 " + t("directory")
-                : (activeModule === "bangladesh" ||
-                    activeModule === "india" ||
-                    activeModule === "fast_tv") &&
-                    activeCategory
-                  ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
-                  : activeModule === "bangladesh"
-                    ? "🇧🇩 Bangladesh TV Channels"
-                    : activeModule === "india"
-                      ? "🇮🇳 India TV Channels"
-                      : activeModule === "fast_tv"
-                        ? "⚡ FAST TV (24/7)"
-                        : activeModule === "world_cup_2026"
-                          ? "🏆 World Cup 2026 Live Channels"
-                          : "🌐 " + t("directory")}
+              {activeModule === "world_cup_2026" && activeCategory
+                ? `🏆 ${activeCategory}`
+                : activeModule === "world_cup_2026"
+                  ? "🏆 World Cup 2026 Live Channels"
+                  : activeModule === "global_sports" && activeCategory
+                    ? SPORT_TYPES.find((s) => s.id === activeCategory)?.label ?? "🌐 " + t("directory")
+                    : activeCategory
+                      ? `${categoryEmoji(activeCategory, activeModule)} ${activeCategory}`
+                      : "🌐 " + t("directory")}
             </h2>
             <span className="text-xs text-right" style={{ color: "var(--text-muted)" }}>
               <span className="block sm:inline">
@@ -1951,11 +1856,11 @@ export function ViewerHome() {
             <div className="flex flex-col items-center gap-4 rounded-2xl p-12 text-center" style={{ background: "var(--bg-card)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl text-4xl"
                 style={{ background: "rgba(229,9,20,0.08)", border: "1px solid rgba(229,9,20,0.15)" }}>
-                {activeModule === "bangladesh" ? "🇧🇩" : activeModule === "india" ? "🇮🇳" : activeModule === "world_cup_2026" ? "🏆" : "📡"}
+                {activeModule === "world_cup_2026" ? "🏆" : "📡"}
               </div>
               <div>
                 <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>
-                  {activeModule === "bangladesh" ? "বাংলাদেশ চ্যানেল লোড হচ্ছে…" : activeModule === "india" ? "India channels loading…" : activeModule === "world_cup_2026" ? "World Cup channels loading…" : t("emptyModule")}
+                  {activeModule === "world_cup_2026" ? "World Cup channels loading…" : t("emptyModule")}
                 </p>
                 <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>চ্যানেল না দেখালে Refresh করুন</p>
               </div>

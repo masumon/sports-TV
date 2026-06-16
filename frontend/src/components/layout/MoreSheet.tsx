@@ -15,11 +15,10 @@ type Props = {
 };
 
 const EXTRA_MODULES = [
-  { id: "global_sports", label: "Football", emoji: "⚽", color: "#4ade80", bg: "rgba(74,222,128,0.12)", category: "football" },
-  { id: "global_sports", label: "Cricket",  emoji: "🏏", color: "#fbbf24", bg: "rgba(251,191,36,0.12)",  category: "cricket" },
-  { id: "world_cup_2026", label: "WC 2026", emoji: "🏆", color: "#F5A623", bg: "rgba(245,166,35,0.12)", category: "" },
-  { id: "india",          label: "India",   emoji: "🇮🇳", color: "rgb(199,210,254)", bg: "rgba(99,102,241,0.12)", category: "" },
-  { id: "fast_tv",        label: "FAST TV", emoji: "⚡", color: "#F5A623", bg: "rgba(245,166,35,0.10)", category: "" },
+  { id: "world_cup_2026", label: "WC 2026",  emoji: "🏆", color: "#F5A623", bg: "rgba(245,166,35,0.12)", category: "" },
+  { id: "live_matches",   label: "Live",     emoji: "🔴", color: "#f87171", bg: "rgba(239,68,68,0.12)",  category: "" },
+  { id: "global_sports",  label: "Football", emoji: "⚽", color: "#4ade80", bg: "rgba(74,222,128,0.12)", category: "football" },
+  { id: "global_sports",  label: "Cricket",  emoji: "🏏", color: "#fbbf24", bg: "rgba(251,191,36,0.12)", category: "cricket" },
 ] as const;
 
 export function MoreSheet({ open, onClose }: Props) {

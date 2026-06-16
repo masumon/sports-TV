@@ -1,14 +1,8 @@
-/** Viewer catalog modules (M3U + FanCode); replaces legacy DB module slugs for the home experience. */
-export type ViewerModule =
-  | "bangladesh"
-  | "india"
-  | "global_sports"
-  | "fast_tv"
-  | "live_matches"
-  | "world_cup_2026";
+/** Viewer catalog modules — 3 tabs: World Cup, Live Matches, Global Sports. */
+export type ViewerModule = "world_cup_2026" | "live_matches" | "global_sports";
 
-/** Config-only alias for premium rows targeting the Bangladesh tab. */
-export type PremiumDirectModule = ViewerModule | "bangladesh_and_bdix";
+/** Config alias — same as ViewerModule (legacy bangladesh_and_bdix removed). */
+export type PremiumDirectModule = ViewerModule;
 
 /** Direct stream rows merged into the catalog (not fetched as M3U playlists). */
 export type PremiumDirectSportEntry = {

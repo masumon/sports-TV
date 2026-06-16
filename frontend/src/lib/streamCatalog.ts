@@ -271,7 +271,6 @@ async function ingestPlaylistUrls(
 }
 
 function resolvePremiumModule(mod: PremiumDirectModule): ViewerModule {
-  if (mod === "bangladesh_and_bdix") return "bangladesh";
   return mod;
 }
 
@@ -306,7 +305,7 @@ function mergePremiumDirectSportsIntoSeen(seen: Set<string>, out: Channel[] | nu
     }
     const country =
       p.country?.trim() ||
-      (mod === "bangladesh" ? "Bangladesh" : mod === "india" ? "India" : "Global");
+      (mod === "world_cup_2026" ? "Global" : "Global");
 
     out.push({
       id: stableId(`premium:${k}:${p.name}`),
@@ -339,26 +338,15 @@ export async function loadStaticCatalogChannels(): Promise<Channel[]> {
   const seen = new Set<string>();
   const out: Channel[] = [];
 
-  // Premium direct entries FIRST — their multi-URL failover chains must not be
-  // discarded by a later M3U playlist that claims the same primary URL with no alternates.
+  // Premium direct entries FIRST — their failover chains must not be overwritten
+  // by later M3U entries claiming the same primary URL with no alternates.
   mergePremiumDirectSportsIntoSeen(seen, out);
 
-  const fastUrls = Object.values(APP_STREAM_CONFIG.fast_tv_sources);
-  await ingestPlaylistUrls(fastUrls, "fast_tv", "Global", seen, out);
+  // World Cup playlists (T Sports, LegalStream) — no sport keyword filter
+  await ingestPlaylistUrls(APP_STREAM_CONFIG.world_cup_playlists, "world_cup_2026", "Global", seen, out);
 
-  const bdUrls = APP_STREAM_CONFIG.country_playlists.bangladesh_and_bdix;
-  await ingestPlaylistUrls(bdUrls, "bangladesh", "Bangladesh", seen, out);
-
-  const inUrls = APP_STREAM_CONFIG.country_playlists.india;
-  await ingestPlaylistUrls(inUrls, "india", "India", seen, out);
-
-  await ingestPlaylistUrls(
-    APP_STREAM_CONFIG.dynamic_master_playlists,
-    "global_sports",
-    "Global",
-    seen,
-    out
-  );
+  // Global sports playlists — football/cricket keyword filter applied inside ingestPlaylistUrls
+  await ingestPlaylistUrls(APP_STREAM_CONFIG.global_sports_playlists, "global_sports", "Global", seen, out);
 
   // Name-based dedup: collapse same-name channels from different M3U sources
   // into one card with all their URLs as failover alternates.
@@ -373,24 +361,8 @@ export async function countStaticCatalogChannels(): Promise<number> {
   const seen = new Set<string>();
 
   mergePremiumDirectSportsIntoSeen(seen, null);
-
-  const fastUrls = Object.values(APP_STREAM_CONFIG.fast_tv_sources);
-  await ingestPlaylistUrlsIntoSeen(fastUrls, "fast_tv", "Global", seen, null);
-
-  const bdUrls = APP_STREAM_CONFIG.country_playlists.bangladesh_and_bdix;
-  await ingestPlaylistUrlsIntoSeen(bdUrls, "bangladesh", "Bangladesh", seen, null);
-
-  const inUrls = APP_STREAM_CONFIG.country_playlists.india;
-  await ingestPlaylistUrlsIntoSeen(inUrls, "india", "India", seen, null);
-
-  await ingestPlaylistUrlsIntoSeen(
-    APP_STREAM_CONFIG.dynamic_master_playlists,
-    "global_sports",
-    "Global",
-    seen,
-    null
-  );
-
+  await ingestPlaylistUrlsIntoSeen(APP_STREAM_CONFIG.world_cup_playlists, "world_cup_2026", "Global", seen, null);
+  await ingestPlaylistUrlsIntoSeen(APP_STREAM_CONFIG.global_sports_playlists, "global_sports", "Global", seen, null);
   return seen.size;
 }
 
