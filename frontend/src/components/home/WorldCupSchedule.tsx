@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, RefreshCw } from "lucide-react";
+import { Bell, BellOff, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { startTransition, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -11,6 +11,7 @@ import {
   requestNotifPermission,
   setNotifPref,
 } from "@/lib/matchNotifications";
+import { WcLiveSourcePicker } from "@/components/world-cup/WcLiveSourcePicker";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 
 const TIME_FORMAT: Intl.DateTimeFormatOptions = {
@@ -36,12 +37,14 @@ function getStatus(fx: LiveFixture): TabId {
 export function WorldCupSchedule({
   fixtures,
   loading,
+  wcChannels,
   onRefresh,
   onSelectChannel,
   onModuleChange,
 }: {
   fixtures: LiveFixture[];
   loading: boolean;
+  wcChannels: Channel[];
   onRefresh: () => void;
   onSelectChannel: (ch: Channel) => void;
   onModuleChange: (m: ViewerModule) => void;
@@ -49,6 +52,7 @@ export function WorldCupSchedule({
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("upcoming");
+  const [expandedSource, setExpandedSource] = useState<number | null>(null);
 
   useEffect(() => {
     setNotifPerm(getNotifPermission());
@@ -294,8 +298,34 @@ export function WorldCupSchedule({
                   </div>
                 )}
 
-                {/* Channel suggestions */}
-                {fx.suggested_channels?.length ? (
+                {/* Watch sources — live matches get full picker, others show channel chips */}
+                {isLive ? (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSource(expandedSource === fx.id ? null : fx.id)}
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition hover:opacity-90 active:scale-95"
+                      style={{
+                        background: "rgba(239,68,68,0.14)",
+                        border: "1px solid rgba(239,68,68,0.3)",
+                        color: "#f87171",
+                      }}
+                    >
+                      📺 Watch Live
+                      {expandedSource === fx.id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </button>
+                    {expandedSource === fx.id && (
+                      <WcLiveSourcePicker
+                        fixture={fx}
+                        wcChannels={wcChannels}
+                        onSelectChannel={(ch) => {
+                          startTransition(() => onModuleChange(ch.module as ViewerModule));
+                          onSelectChannel(ch);
+                        }}
+                      />
+                    )}
+                  </div>
+                ) : fx.suggested_channels?.length ? (
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span className="shrink-0 text-[10px]" style={{ color: "var(--text-muted)" }}>
                       📺 Watch:
@@ -313,9 +343,9 @@ export function WorldCupSchedule({
                         }}
                         className="rounded-md px-2 py-0.5 text-[10px] font-semibold transition hover:opacity-90 active:scale-95"
                         style={{
-                          background: isLive ? "rgba(239,68,68,0.1)" : "rgba(245,166,35,0.1)",
-                          border: `1px solid ${isLive ? "rgba(239,68,68,0.25)" : "rgba(245,166,35,0.25)"}`,
-                          color: isLive ? "#f87171" : "var(--primary-accent)",
+                          background: "rgba(245,166,35,0.1)",
+                          border: "1px solid rgba(245,166,35,0.25)",
+                          color: "var(--primary-accent)",
                         }}
                       >
                         ▶ {ch.name}

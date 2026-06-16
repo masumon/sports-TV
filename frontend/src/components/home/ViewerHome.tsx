@@ -499,6 +499,12 @@ export function ViewerHome() {
     );
   }, [scheduleFixtures]);
 
+  // WC channels for the source picker (world_cup_2026 module only)
+  const wcChannels = useMemo(
+    () => allChannels.filter((c) => c.module === "world_cup_2026"),
+    [allChannels]
+  );
+
   /** Free-tier UX: show last channel list from localStorage before network (stale-while-revalidate). */
   useEffect(() => {
     const c = getChannelListCache();
@@ -1247,6 +1253,7 @@ export function ViewerHome() {
           <WorldCupSchedule
             fixtures={wcFixtures}
             loading={fixturesLoading}
+            wcChannels={wcChannels}
             onRefresh={() => { setFixturesSince(0); void loadFixturesSchedule(); }}
             onSelectChannel={selectChannel}
             onModuleChange={transitionSetActiveModule}
