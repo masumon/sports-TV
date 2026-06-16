@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     iptv_full_index_sync: bool = False
     iptv_full_index_url: str = "https://iptv-org.github.io/iptv/index.m3u"
     iptv_full_index_fetch_timeout_seconds: int = 120
-    auto_sync_channels_on_startup: bool = False
+    auto_sync_channels_on_startup: bool = True
     # Optional Redis for response caching (GET /sports-tv/channels, filters). If unset, caching is disabled.
     redis_url: str | None = None
     cache_ttl_seconds: int = 600  # 10 min default (increased from 300s for better hitrate)
