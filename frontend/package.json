@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",
+    "dashjs": "^5.2.0",
     "framer-motion": "^11.18.2",
     "hls.js": "^1.6.2",
     "lucide-react": "^0.503.0",
