@@ -2,10 +2,12 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { APP_META, LEGAL_LINKS } from "@/lib/constants";
 import { DeveloperBrandCard } from "@/components/branding/DeveloperBrandCard";
 import { useThemeAccentStore, THEME_ACCENTS } from "@/store/themeAccentStore";
+import { useUiStore } from "@/store/uiStore";
 
 type Props = {
   open: boolean;
@@ -14,6 +16,10 @@ type Props = {
 
 export function MoreSheet({ open, onClose }: Props) {
   const { accent, setAccent } = useThemeAccentStore();
+  const setActiveModule = useUiStore((s) => s.setActiveModule);
+  const { allCount } = useUiStore((s) => s.moduleCounts);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -90,6 +96,24 @@ export function MoreSheet({ open, onClose }: Props) {
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveModule("all_channels");
+            if (pathname !== "/") router.push("/");
+            onClose();
+          }}
+          className="mb-3 flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition active:scale-95"
+          style={{ background: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-main)" }}
+        >
+          <span>📋 All Channels</span>
+          {allCount > 0 && (
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}>
+              {allCount}
+            </span>
+          )}
+        </button>
 
         <Link
           href="/profile"
