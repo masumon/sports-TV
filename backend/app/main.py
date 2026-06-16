@@ -188,7 +188,9 @@ async def lifespan(app: FastAPI):
         finally:
             sdb.close()
 
-    await run_in_threadpool(auto_seed_channels)
+    # Only seed on first deploy — skip if channels already exist (free-tier: save startup time)
+    if existing_count == 0:
+        await run_in_threadpool(auto_seed_channels)
 
     _needs_scheduler = (
         settings.scheduled_sync_interval_minutes > 0

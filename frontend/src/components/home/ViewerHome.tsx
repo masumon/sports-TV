@@ -157,6 +157,7 @@ export function ViewerHome() {
   const router = useRouter();
   const [allChannels, setAllChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [slowLoad, setSlowLoad] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearch = useDeferredValue(searchQuery);
@@ -505,6 +506,13 @@ export function ViewerHome() {
   }, []);
 
   useEffect(() => { wakeBackend(); }, []);
+
+  // Show "server waking up" hint after 8s of initial loading (Render free-tier cold start)
+  useEffect(() => {
+    if (!loading) { setSlowLoad(false); return; }
+    const t = setTimeout(() => setSlowLoad(true), 8_000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   useEffect(() => {
     void loadChannels(false);
@@ -1256,7 +1264,7 @@ export function ViewerHome() {
             <div className="mt-1 space-y-1">
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 {loading
-                  ? t("loading")
+                  ? slowLoad ? "⏳ সার্ভার জেগে উঠছে… একটু অপেক্ষা করুন (30-60 সেকেন্ড)" : t("loading")
                   : error
                     ? error
                     : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${

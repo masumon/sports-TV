@@ -1,19 +1,24 @@
-/**
- * Pings the backend /health endpoint on app startup so that Render free-tier
- * services wake up before the user tries to play a channel.
- *
- * Called once per browser session. Safe to call multiple times — a module-level
- * flag ensures only one request ever fires per page load.
- */
-
 let pinged = false;
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
 export function wakeBackend(): void {
   if (typeof window === "undefined" || pinged) return;
   pinged = true;
-  const url = "/health";
-  // Fire-and-forget — we don't need the response, just need the server to wake up.
-  fetch(url, { method: "GET", cache: "no-store" }).catch(() => {
-    // Ignore errors — server may still be waking up; streams will retry on their own.
-  });
+  ping();
+  startKeepAlive();
+}
+
+function ping(): void {
+  fetch("/health", { method: "GET", cache: "no-store" }).catch(() => {});
+}
+
+function startKeepAlive(): void {
+  if (keepAliveTimer !== null) return;
+  // Ping every 10 minutes while the page is visible — keeps Render free tier awake.
+  keepAliveTimer = setInterval(() => {
+    if (document.visibilityState === "visible") ping();
+  }, 10 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") ping();
+  }, { once: false });
 }
