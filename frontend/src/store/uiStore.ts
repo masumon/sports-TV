@@ -7,6 +7,7 @@ type ModuleCounts = {
   gsCount: number;
   liveCount: number;
   wcCount: number;
+  allCount: number;
 };
 
 type UiState = {
@@ -41,7 +42,7 @@ export const useUiStore = create<UiState>()((set) => ({
   setActiveCategory: (c) => set({ activeCategory: c }),
   searchFocusNonce: 0,
   requestSearchFocus: () => set((s) => ({ searchFocusNonce: s.searchFocusNonce + 1 })),
-  moduleCounts: { gsCount: 0, liveCount: 0, wcCount: 0 },
+  moduleCounts: { gsCount: 0, liveCount: 0, wcCount: 0, allCount: 0 },
   setModuleCounts: (counts) => set({ moduleCounts: counts }),
   searchSuggestions: [],
   setSearchSuggestions: (channels) => set({ searchSuggestions: channels }),

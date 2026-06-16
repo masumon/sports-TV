@@ -181,7 +181,7 @@ async def health_sweep_channels(
     import time as _time
     t0 = _time.monotonic()
     try:
-        result = await run_in_threadpool(lambda: run_health_sweep(max_workers=30))
+        result = await run_in_threadpool(lambda: run_health_sweep(max_workers=settings.stream_validation_async_workers))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -212,7 +212,7 @@ def _normalize_module(mod: str | None) -> str:
     value = (mod or "global_sports").strip().lower()
     if value == "sports":
         value = "global_sports"
-    if value not in ("global_sports", "bangladesh", "india", "fast_tv", "live_matches", "world_cup_2026"):
+    if value not in ("global_sports", "live_matches", "world_cup_2026"):
         return "global_sports"
     return value
 

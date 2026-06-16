@@ -572,7 +572,7 @@ export function ViewerHome() {
   }, [activeModule, setActiveCategory]);
 
   const moduleChannels = useMemo(
-    () => allChannels.filter((c) => c.module === activeModule),
+    () => activeModule === "all_channels" ? allChannels : allChannels.filter((c) => c.module === activeModule),
     [allChannels, activeModule]
   );
 
@@ -586,7 +586,8 @@ export function ViewerHome() {
       }
       return;
     }
-    if (!activeChannel || activeChannel.module !== activeModule) {
+    // "All Channels" view: keep current channel playing (don't reset to first)
+    if (!activeChannel || (activeChannel.module !== activeModule && activeModule !== "all_channels")) {
       startTransition(() => {
         setActiveChannel(moduleChannels[0]!);
       });
@@ -768,7 +769,7 @@ export function ViewerHome() {
   );
 
 
-  const { gsCount, liveCount, wcCount } = useMemo(() => {
+  const { gsCount, liveCount, wcCount, allCount } = useMemo(() => {
     let gs = 0;
     let l = 0;
     let wc = 0;
@@ -777,13 +778,13 @@ export function ViewerHome() {
       else if (c.module === "live_matches") l += 1;
       else if (c.module === "world_cup_2026") wc += 1;
     }
-    return { gsCount: gs, liveCount: l, wcCount: wc };
+    return { gsCount: gs, liveCount: l, wcCount: wc, allCount: allChannels.length };
   }, [allChannels]);
 
   // Sync module counts to store so Sidebar can show badges
   useEffect(() => {
-    setModuleCounts({ gsCount, liveCount, wcCount });
-  }, [gsCount, liveCount, wcCount, setModuleCounts]);
+    setModuleCounts({ gsCount, liveCount, wcCount, allCount });
+  }, [gsCount, liveCount, wcCount, allCount, setModuleCounts]);
 
   // Sync search suggestions to store — filtered to active module so results are relevant
   useEffect(() => {
@@ -887,6 +888,14 @@ export function ViewerHome() {
           >
             🌍 Global Sports
             {gsCount > 0 && <span className="module-tab-badge">{gsCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => transitionSetActiveModule("all_channels")}
+            className={`module-tab shrink-0 snap-start${activeModule === "all_channels" ? " active" : ""}`}
+          >
+            📋 All Channels
+            {allCount > 0 && <span className="module-tab-badge">{allCount}</span>}
           </button>
         </div>
 

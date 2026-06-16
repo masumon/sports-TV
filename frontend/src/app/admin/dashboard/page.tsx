@@ -116,9 +116,6 @@ const columnHelper = createColumnHelper<Channel>();
 
 const MODULE_LABELS: Record<string, string> = {
   global_sports: "🌍 Global",
-  bangladesh: "🇧🇩 BD",
-  india: "🇮🇳 India",
-  fast_tv: "⚡ FAST",
   live_matches: "🔴 Live",
   world_cup_2026: "🏆 WC26",
 };
@@ -252,9 +249,7 @@ function EditChannelModal({
                 <select value={form.module} onChange={(e) => setForm(p => ({ ...p, module: e.target.value }))}
                   className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400">
                   <option value="global_sports">🌍 Global Sports</option>
-                  <option value="bangladesh">🇧🇩 Bangladesh</option>
-                  <option value="india">🇮🇳 India</option>
-                  <option value="fast_tv">⚡ FAST TV</option>
+                  <option value="live_matches">🔴 Live Matches</option>
                   <option value="world_cup_2026">🏆 World Cup 2026</option>
                 </select>
               </div>
@@ -1103,9 +1098,7 @@ export default function AdminDashboardPage() {
                   <select value={channelForm.module} onChange={(e) => setChannelForm(p => ({ ...p, module: e.target.value }))}
                     className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400">
                     <option value="global_sports">🌍 Global Sports</option>
-                    <option value="bangladesh">🇧🇩 Bangladesh</option>
-                    <option value="india">🇮🇳 India</option>
-                    <option value="fast_tv">⚡ FAST TV</option>
+                    <option value="live_matches">🔴 Live Matches</option>
                     <option value="world_cup_2026">🏆 World Cup 2026</option>
                   </select>
                 </div>
@@ -1240,9 +1233,7 @@ export default function AdminDashboardPage() {
                   className="min-w-[9rem] rounded-lg border border-white/20 bg-black/30 px-2 py-2 text-sm text-white outline-none focus:border-emerald-400">
                   <option value="all">All modules</option>
                   <option value="global_sports">🌍 Global Sports</option>
-                  <option value="bangladesh">🇧🇩 Bangladesh</option>
-                  <option value="india">🇮🇳 India</option>
-                  <option value="fast_tv">⚡ FAST TV</option>
+                  <option value="live_matches">🔴 Live Matches</option>
                   <option value="world_cup_2026">🏆 World Cup 2026</option>
                 </select>
               </div>

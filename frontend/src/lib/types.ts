@@ -1,5 +1,5 @@
-/** Viewer catalog modules — 3 tabs: World Cup, Live Matches, Global Sports. */
-export type ViewerModule = "world_cup_2026" | "live_matches" | "global_sports";
+/** Viewer catalog modules — 4 tabs: World Cup, Live Matches, Global Sports, All Channels. */
+export type ViewerModule = "world_cup_2026" | "live_matches" | "global_sports" | "all_channels";
 
 /** Config alias — same as ViewerModule (legacy bangladesh_and_bdix removed). */
 export type PremiumDirectModule = ViewerModule;
