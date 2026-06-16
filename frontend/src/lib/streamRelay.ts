@@ -141,6 +141,22 @@ export function buildProxyLicenseUrl(
   return out;
 }
 
+/** True when the proxied URL's inner target is a native video format (MP4, TS, WebM etc.) that HLS.js cannot handle. */
+export function isNativeVideoProxiedUrl(proxiedUrl: string): boolean {
+  try {
+    const u = new URL(
+      proxiedUrl,
+      typeof window !== "undefined" ? window.location.origin : "https://localhost"
+    );
+    const inner = decodeURIComponent(u.searchParams.get("url") ?? "");
+    if (!inner) return false;
+    const path = inner.split("?")[0]!.toLowerCase();
+    return /\.(mp4|webm|avi|flv|mov|mkv|ogv|3gp)$/.test(path);
+  } catch {
+    return false;
+  }
+}
+
 /** True when the proxied URL targets an MPEG-DASH manifest (``.mpd``) — HLS.js cannot play these. */
 export function isDashProxiedStreamUrl(proxiedUrl: string): boolean {
   if (!proxiedUrl.includes("proxy/stream") && !proxiedUrl.includes("proxy%2Fstream")) {

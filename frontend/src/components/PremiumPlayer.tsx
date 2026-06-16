@@ -32,6 +32,7 @@ import {
   buildProxyM3U8RequestUrl,
   buildProxyStreamUrl,
   isDashProxiedStreamUrl,
+  isNativeVideoProxiedUrl,
   parseDynamicM3U8IdFromStreamUrl,
 } from "@/lib/streamRelay";
 
@@ -463,6 +464,7 @@ export default function PremiumPlayer({
     setUrlIdx(bounded);
     const effectiveUrl = allUrls[bounded] ?? allUrls[0]!;
     const isDash = isDashProxiedStreamUrl(effectiveUrl);
+    const isNativeVideo = !isDash && isNativeVideoProxiedUrl(effectiveUrl);
 
     const lightNet = isConstrainedNetwork();
     if (isDash) {
@@ -505,7 +507,15 @@ export default function PremiumPlayer({
       return cleanup;
     }
 
-    if (Hls.isSupported()) {
+    if (isNativeVideo) {
+      // Direct video format (MP4, WebM, etc.) through proxy — use native <video> src
+      video.src = effectiveUrl;
+      setIsSwitching(false);
+      void video.play().catch(() => {
+        video.muted = true;
+        void video.play().catch(() => {});
+      });
+    } else if (Hls.isSupported()) {
       let hlsInstance: Hls | null = null;
       let tryFailover: (message?: string) => boolean = () => false;
       const hls = new Hls({
