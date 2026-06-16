@@ -21,15 +21,22 @@ const hindSiliguri = Hind_Siliguri({
 });
 
 // Preview: built-in VERCEL_URL keeps OG/metadataBase off production domain.
+function _sanitizeVercelUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const host = raw.replace(/^https?:\/\//, "").trim();
+  // Allow only valid hostname chars — no path injection or special characters
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(host)) return null;
+  return `https://${host}`;
+}
 const siteUrl = (() => {
-  if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, "")}`;
+  if (process.env.VERCEL_ENV === "preview") {
+    const preview = _sanitizeVercelUrl(process.env.VERCEL_URL);
+    if (preview) return preview;
   }
   const fromPublic = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (fromPublic) return fromPublic;
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, "")}`;
-  }
+  const fromVercel = _sanitizeVercelUrl(process.env.VERCEL_URL);
+  if (fromVercel) return fromVercel;
   return "https://sports-tv-lovat.vercel.app";
 })();
 

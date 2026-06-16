@@ -147,7 +147,7 @@ function categoryEmoji(category: string): string {
 
 
 
-const MODULE_ORDER: ViewerModule[] = ["world_cup_2026", "live_matches", "global_sports"];
+const MODULE_ORDER: ViewerModule[] = ["world_cup_2026", "live_matches", "global_sports", "all_channels"];
 
 export function ViewerHome() {
   const { t } = useI18n();
@@ -742,7 +742,7 @@ export function ViewerHome() {
           activeCategory ||
           filterLeague
       ),
-    [deferredSearch, activeModule, activeCategory, filterLeague]
+    [deferredSearch, activeCategory, filterLeague]
   );
 
   const clearAllFilters = useCallback(() => {

@@ -41,7 +41,7 @@ logger = logging.getLogger("app.proxy")
 
 # Rate limiting: prevent DoS attacks on proxy endpoints (per IP, per minute)
 _rate_limit_window_sec = 60
-_rate_limit_max_requests = 120  # 2 requests per second max
+_rate_limit_max_requests = 300  # 5 requests per second — supports 3+ concurrent HLS streams per IP
 
 # Stream timeout settings - increased for slow/geo-restricted sources
 _STREAM_CONNECT_TIMEOUT = 15.0  # increased from default

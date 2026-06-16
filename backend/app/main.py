@@ -197,8 +197,6 @@ async def lifespan(app: FastAPI):
             logger.exception("Background startup task failed")
 
     _asyncio.create_task(_background_startup())
-    # Mark as False so the scheduler also fires its first run immediately
-    ran_startup_fixture_sync = False
 
     _needs_scheduler = (
         settings.scheduled_sync_interval_minutes > 0
@@ -397,7 +395,7 @@ async def lifespan(app: FastAPI):
                 # Interval jobs otherwise wait one full period after deploy/spin-up.
                 next_run_time=(
                     None
-                    if ran_startup_fixture_sync
+                    if needs_fixture_sync  # startup task handles first sync → wait full interval
                     else datetime.now(tz=timezone.utc)
                 ),
             )
@@ -429,8 +427,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    # Vercel Preview: https://<name>-<hash>-<team>.vercel.app — list custom domains in CORS_ORIGINS.
-    allow_origin_regex=r"^https://[a-zA-Z0-9-]+\.vercel\.app$",
+    # Vercel Preview: restrict to sports-tv-* prefix only (not any Vercel subdomain).
+    allow_origin_regex=r"^https://sports-tv[a-zA-Z0-9-]*\.vercel\.app$",
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Range", "X-Sync-Secret"],

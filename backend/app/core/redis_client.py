@@ -75,8 +75,16 @@ def _build_client() -> Any | None:
         pool = _redis_pkg.ConnectionPool(**pool_kwargs)
         r = _redis_pkg.Redis(connection_pool=pool)
 
-        # Validate the connection is alive
-        r.ping()
+        # Validate the connection is alive (retry for Upstash cold-start)
+        import time as _time
+        for _attempt in range(3):
+            try:
+                r.ping()
+                break
+            except Exception:
+                if _attempt == 2:
+                    raise
+                _time.sleep(1)
         logger.info(
             "Redis connected (%s:%s, ssl=%s)",
             pool_kwargs["host"],
