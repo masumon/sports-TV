@@ -915,7 +915,7 @@ export function ViewerHome() {
       <div ref={swipeContainerRef} className="mx-auto w-full max-w-[1920px] space-y-4 sm:space-y-5 md:space-y-6">
 
         {/* ── Module tabs: hidden on mobile (bottom nav handles navigation there) ── */}
-        <div className="hidden md:flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible">
+        <div className="hidden md:flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overflow-y-hidden pb-2 scrollbar-none sm:flex-wrap sm:overflow-visible">
           <button
             type="button"
             onClick={() => transitionSetActiveModule("world_cup_2026")}

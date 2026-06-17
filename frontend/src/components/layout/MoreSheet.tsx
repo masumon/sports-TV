@@ -55,7 +55,7 @@ export function MoreSheet({ open, onClose }: Props) {
           paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))",
         }}
       >
-        <div className="relative mb-4 flex items-center justify-center">
+        <div className="relative mb-2 flex items-center justify-center">
           <div className="h-1 w-10 rounded-full" style={{ background: "rgba(255,255,255,0.15)" }} />
           <button
             type="button"
@@ -73,14 +73,14 @@ export function MoreSheet({ open, onClose }: Props) {
         <p className="mb-3 px-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
           থিম রং
         </p>
-        <div className="flex gap-2.5 mb-5">
+        <div className="flex gap-2.5 mb-3">
           {THEME_ACCENTS.map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => setAccent(t.id)}
               title={t.desc}
-              className="flex flex-1 flex-col items-center gap-1.5 rounded-xl py-3 transition active:scale-95"
+              className="flex flex-1 flex-col items-center gap-1.5 rounded-xl py-2 transition active:scale-95"
               style={{
                 background: accent === t.id ? `${t.color}18` : "var(--bg-hover)",
                 border: `1.5px solid ${accent === t.id ? t.color : "var(--border)"}`,
@@ -104,7 +104,7 @@ export function MoreSheet({ open, onClose }: Props) {
             if (pathname !== "/") router.push("/");
             onClose();
           }}
-          className="mb-3 flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition active:scale-95"
+          className="mb-2 flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition active:scale-95"
           style={{ background: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-main)" }}
         >
           <span>📋 All Channels</span>
@@ -118,7 +118,7 @@ export function MoreSheet({ open, onClose }: Props) {
         <Link
           href="/profile"
           onClick={onClose}
-          className="mb-5 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition active:scale-95"
+          className="mb-2 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition active:scale-95"
           style={{ background: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-main)" }}
         >
           Profile
@@ -126,7 +126,7 @@ export function MoreSheet({ open, onClose }: Props) {
         </div>
 
         <div
-          className="shrink-0 border-t pt-4 text-center"
+          className="shrink-0 border-t pt-3 text-center"
           style={{ borderColor: "var(--border)" }}
         >
           <p className="text-[10px] font-bold" style={{ color: "var(--text-main)" }}>ABO Sports TV v{APP_META.version}</p>
@@ -134,7 +134,7 @@ export function MoreSheet({ open, onClose }: Props) {
           <p className="mt-1 text-[9px]" style={{ color: "var(--text-muted)" }}>
             {APP_META.copyright}
           </p>
-          <DeveloperBrandCard size="sm" className="mx-auto mt-3" />
+          <DeveloperBrandCard size="sm" className="mx-auto mt-2" />
           <div className="mt-2 flex items-center justify-center gap-3 text-[10px] font-semibold">
             <a href={LEGAL_LINKS.privacy} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Privacy</a>
             <a href={LEGAL_LINKS.terms} target="_blank" rel="noreferrer" className="text-accent-gold hover:underline">Terms</a>
