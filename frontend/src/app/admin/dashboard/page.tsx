@@ -39,6 +39,7 @@ import { BRAND } from "@/lib/branding";
 import type { AdminStats, Channel, StreamProbeItem, StreamProbeStatus } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useSiteSettingsStore } from "@/store/siteSettingsStore";
+import { InsightsDashboard } from "@/components/admin/InsightsDashboard";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -1079,6 +1080,13 @@ export default function AdminDashboardPage() {
               <X size={16} />
             </button>
           </div>
+        )}
+
+        {/* ── Insights Dashboard ── */}
+        {authToken && (
+          <section>
+            <InsightsDashboard token={authToken} />
+          </section>
         )}
 
         {/* ── Add Channel Form ── */}

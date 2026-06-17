@@ -36,6 +36,7 @@ import {
   isNativeVideoProxiedUrl,
   parseDynamicM3U8IdFromStreamUrl,
 } from "@/lib/streamRelay";
+import { trackEvent } from "@/lib/analytics";
 
 /* ─────────────────────────────────────────────────────────── Types ── */
 type QualityOption = { label: string; value: number };
@@ -254,6 +255,7 @@ export default function PremiumPlayer({
   const dashRef = useRef<ReturnType<ReturnType<typeof dashjs.MediaPlayer>["create"]> | null>(null);
   /** After first `playing`, do not show the full-screen loader on routine rebuffering. */
   const playbackStartedRef = useRef(false);
+  const successTrackedRef = useRef(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -362,6 +364,7 @@ export default function PremiumPlayer({
     linkRetryRef.current = 0;
     firstHideDoneRef.current = false;
     hintShownRef.current = false;
+    successTrackedRef.current = false;
     setShowHint(false);
     if (hintTimerRef.current) { clearTimeout(hintTimerRef.current); hintTimerRef.current = null; }
     if (linkRetryTimerRef.current) {
@@ -568,6 +571,7 @@ export default function PremiumPlayer({
       };
       hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
+      if (bounded === 0) trackEvent("PLAYBACK_START", { channel_id: channelId, channel_name: title });
 
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (!data.fatal) return;
@@ -692,6 +696,10 @@ export default function PremiumPlayer({
       setIsLoading(true);
     };
     const onPlaying = () => {
+      if (!successTrackedRef.current) {
+        successTrackedRef.current = true;
+        trackEvent("PLAYBACK_SUCCESS", { channel_id: channelId, channel_name: title });
+      }
       playbackStartedRef.current = true;
       setIsLoading(false);
       setHasError(false);
@@ -919,7 +927,8 @@ export default function PremiumPlayer({
         }
       } catch { /* */ }
     }
-  }, []);
+    trackEvent("QUALITY_CHANGE", { channel_id: channelId, channel_name: title, value: level });
+  }, [channelId, title]);
 
   const togglePictureInPicture = useCallback(async () => {
     const video = videoRef.current;
@@ -1008,7 +1017,8 @@ export default function PremiumPlayer({
     urlPlayIndexRef.current = idx;
     setUrlIdx(idx);
     setRetryKey((k) => k + 1);
-  }, []);
+    trackEvent("SERVER_SWITCH", { channel_id: channelId, channel_name: title, value: idx });
+  }, [channelId, title]);
 
   // Cleanup sleep timer on unmount
   useEffect(() => () => { if (sleepTimerRef.current) clearInterval(sleepTimerRef.current); }, []);
@@ -1017,6 +1027,7 @@ export default function PremiumPlayer({
   useEffect(() => {
     if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
     onStreamError?.();
+    trackEvent(hasError ? "PLAYBACK_FAIL" : "PLAYER_ERROR", { channel_id: channelId, channel_name: title, meta: geoRestricted ? "geo" : undefined });
     const secs = geoRestricted ? 15 : 10;
     setAutoRetryCountdown(secs);
     const interval = setInterval(() => {
@@ -1026,7 +1037,7 @@ export default function PremiumPlayer({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [hasError, geoRestricted, retryStream, onStreamError]);
+  }, [hasError, geoRestricted, retryStream, onStreamError, channelId, title]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

@@ -118,6 +118,15 @@ export type AdminStats = {
   active_module_counts?: Record<string, number>;
 };
 
+export type AdminAnalyticsSummary = {
+  hours: number;
+  playback: { attempts: number; successes: number; failures: number; success_pct: number };
+  top_failed: { channel_id: number; channel_name: string; fail_count: number; last_failure: string | null }[];
+  most_watched: { channel_id: number; channel_name: string; views: number }[];
+  search_no_results: { term: string; count: number }[];
+  quick_exits: { channel_id: number; channel_name: string; exit_count: number }[];
+};
+
 export type HealthSweepResult = {
   checked: number;
   deactivated: number;

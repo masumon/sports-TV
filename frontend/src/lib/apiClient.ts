@@ -1,4 +1,5 @@
 import type {
+  AdminAnalyticsSummary,
   AdminStats,
   Channel,
   ChannelListResponse,
@@ -486,6 +487,15 @@ export const apiClient = {
       authToken: token,
       body: JSON.stringify({ ids }),
       timeoutMs: 20_000,
+      retries: 1,
+    });
+  },
+
+  getAnalyticsSummary(token: string, hours = 24) {
+    return apiRequest<AdminAnalyticsSummary>(`/admin/analytics/summary?hours=${hours}`, {
+      method: "GET",
+      authToken: token,
+      timeoutMs: 15_000,
       retries: 1,
     });
   },

@@ -42,6 +42,7 @@ import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
 import { wakeBackend } from "@/lib/backendWakeup";
 import { useSwipeGesture } from "@/lib/useSwipeGesture";
 import { CHANNEL_GRID_INITIAL, CHANNEL_GRID_BATCH } from "@/lib/constants";
+import { trackEvent } from "@/lib/analytics";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
@@ -176,6 +177,7 @@ export function ViewerHome() {
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
+  const quickExitRef = useRef<{ channelId: number; channelName: string; ts: number } | null>(null);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
@@ -189,6 +191,15 @@ export function ViewerHome() {
   const playerSectionRef = useRef<HTMLElement | null>(null);
   const [showErrorSuggestions, setShowErrorSuggestions] = useState(false);
   const [notifyIds, setNotifyIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem("gstv-app-opened")) {
+        sessionStorage.setItem("gstv-app-opened", "1");
+        trackEvent("APP_OPEN");
+      }
+    } catch { /* */ }
+  }, []);
 
   useEffect(() => {
     try {
@@ -219,6 +230,12 @@ export function ViewerHome() {
   /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
   const selectChannel = useCallback(
     (ch: Channel) => {
+      // QUICK_EXIT: if previous channel was open < 10s, track it
+      if (quickExitRef.current && Date.now() - quickExitRef.current.ts < 10_000) {
+        trackEvent("QUICK_EXIT", { channel_id: quickExitRef.current.channelId, channel_name: quickExitRef.current.channelName });
+      }
+      quickExitRef.current = { channelId: ch.id, channelName: ch.name, ts: Date.now() };
+      trackEvent("CHANNEL_OPEN", { channel_id: ch.id, channel_name: ch.name });
       startTransition(() => {
         setActiveChannel(ch);
       });
@@ -651,6 +668,13 @@ export function ViewerHome() {
       [activeModule, deferredSearch, activeCategory, filterLeague].join("\u0001"),
     [activeModule, deferredSearch, activeCategory, filterLeague]
   );
+
+  // Track SEARCH_NO_RESULT when search yields zero channels (1.5s debounce)
+  useEffect(() => {
+    if (!deferredSearch || filtered.length > 0) return;
+    const t = setTimeout(() => trackEvent("SEARCH_NO_RESULT", { meta: deferredSearch.slice(0, 100) }), 1500);
+    return () => clearTimeout(t);
+  }, [deferredSearch, filtered.length]);
 
   // Reset to initial count when module/filter changes so user always starts fresh
   useEffect(() => {
