@@ -295,9 +295,9 @@ async def analytics_summary(
     return_rate = round(rv_returning / rv_total * 100, 1) if rv_total else 0.0
 
     # Channel health score (pure Python — no extra queries)
-    success_map = {r.channel_id: r.views for r in watched_rows}
-    exit_map = {r.channel_id: r.exit_count for r in exit_rows}
-    stall_map = {r.channel_id: r.stall_count for r in stall_rows}
+    success_map = {r.channel_id: r.cnt for r in watched_rows}
+    exit_map = {r.channel_id: r.cnt for r in exit_rows}
+    stall_map = {r.channel_id: r.cnt for r in stall_rows}
     name_map: dict[int, str] = {r.channel_id: (r.channel_name or "Unknown") for r in channel_start_rows}
     for r in watched_rows:
         name_map[r.channel_id] = r.channel_name or "Unknown"
