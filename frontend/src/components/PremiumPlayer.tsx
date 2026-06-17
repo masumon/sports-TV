@@ -413,7 +413,7 @@ export default function PremiumPlayer({
     setGeoRestricted(false);
     playbackStartedRef.current = false;
 
-    const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
+    const allUrls = prioritizeHealthyUrls(buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile));
     if (!allUrls.length) {
       setIsLoading(false);
       setHasError(true);
@@ -965,7 +965,7 @@ export default function PremiumPlayer({
   }, []);
 
   const shareChannel = useCallback(async () => {
-    const url = channelId
+    const url = channelId && channelId > 0
       ? `${window.location.origin}/?channel_id=${channelId}`
       : window.location.href;
     try {
@@ -1006,7 +1006,7 @@ export default function PremiumPlayer({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [hasError, geoRestricted, retryStream]);
+  }, [hasError, geoRestricted, retryStream, onStreamError]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1578,7 +1578,11 @@ export default function PremiumPlayer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-45 flex items-center justify-center"
+            role="button"
+            aria-label="Unlock controls"
+            tabIndex={0}
             onClick={() => setIsLocked(false)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsLocked(false); }}
           >
             <div className="flex flex-col items-center gap-2 rounded-2xl px-5 py-3" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)" }}>
               <span className="text-2xl">🔒</span>

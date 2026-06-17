@@ -296,6 +296,8 @@ export function ViewerHome() {
     setNotifyIds((prev) => new Set([...prev, fxKey]));
   }, []);
 
+  const handleStreamError = useCallback(() => setShowErrorSuggestions(true), []);
+
   const transitionSetActiveModule = useCallback(
     (m: ViewerModule) => {
       startTransition(() => {
@@ -1532,7 +1534,7 @@ export function ViewerHome() {
                 headerProfile={activeChannel.header_profile ?? null}
                 geoHint={Boolean(activeChannel.geo_hint)}
                 channelLogoUrl={activeChannel.logo_url}
-                onStreamError={() => setShowErrorSuggestions(true)}
+                onStreamError={handleStreamError}
                 onBack={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
                 channelId={activeChannel.id}
               />
