@@ -61,6 +61,8 @@ export type PremiumPlayerProps = {
   onStreamError?: () => void;
   /** Called when user taps the back/close button in the player top bar. */
   onBack?: () => void;
+  /** Numeric channel ID — used to generate a valid shareable deep-link URL. */
+  channelId?: number;
   /** Hint that this is a live stream (used by callers; currently informational). */
   isLive?: boolean;
 };
@@ -311,6 +313,7 @@ export default function PremiumPlayer({
   channelLogoUrl = null,
   onStreamError,
   onBack,
+  channelId,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1032,12 +1035,14 @@ export default function PremiumPlayer({
   }, []);
 
   const shareChannel = useCallback(async () => {
-    const url = `${window.location.origin}/?channel_id=${encodeURIComponent(sharePlaybackUrl)}`;
+    const url = channelId
+      ? `${window.location.origin}/?channel_id=${channelId}`
+      : window.location.href;
     try {
       if (navigator.share) await navigator.share({ title, url });
       else { await navigator.clipboard.writeText(url); toast.success("লিঙ্ক কপি হয়েছে!"); }
     } catch { /* */ }
-  }, [title, sharePlaybackUrl]);
+  }, [title, channelId]);
 
   const changeAudio = useCallback((idx: number) => {
     if (hlsRef.current) hlsRef.current.audioTrack = idx;
