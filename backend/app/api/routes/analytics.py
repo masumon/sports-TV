@@ -27,6 +27,7 @@ _VALID_EVENT_TYPES = frozenset({
     "PLAYBACK_FAIL", "SERVER_SWITCH", "QUALITY_CHANGE", "SEARCH",
     "SEARCH_NO_RESULT", "PLAYER_ERROR", "QUICK_EXIT",
     "WATCH_DURATION", "BUFFER_STALL", "SEARCH_PLAY", "TAB_SWITCH",
+    "RETURN_VISITOR", "PLAYBACK_RETRY",
 })
 
 
@@ -232,6 +233,50 @@ async def analytics_summary(
         .order_by("hr")
     )).all()
 
+    # 13. Return visitor (new vs returning)
+    rv_rows = (await db.execute(
+        select(AnalyticsEvent.meta, func.count().label("cnt"))
+        .where(AnalyticsEvent.event_type == "RETURN_VISITOR")
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.meta.isnot(None))
+        .group_by(AnalyticsEvent.meta)
+    )).all()
+
+    # 14. Channel starts per channel (for health score)
+    channel_start_rows = (await db.execute(
+        select(
+            AnalyticsEvent.channel_id, AnalyticsEvent.channel_name,
+            func.count().label("cnt"),
+        )
+        .where(AnalyticsEvent.event_type == "PLAYBACK_START")
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.channel_id.isnot(None))
+        .group_by(AnalyticsEvent.channel_id, AnalyticsEvent.channel_name)
+    )).all()
+
+    # 15. Playback retries (failover count before first success)
+    retry_rows = (await db.execute(
+        select(
+            AnalyticsEvent.channel_id, AnalyticsEvent.channel_name,
+            func.avg(AnalyticsEvent.value).label("avg_retries"),
+            func.count().label("cnt"),
+        )
+        .where(AnalyticsEvent.event_type == "PLAYBACK_RETRY")
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.channel_id.isnot(None))
+        .where(AnalyticsEvent.value.isnot(None))
+        .group_by(AnalyticsEvent.channel_id, AnalyticsEvent.channel_name)
+        .order_by(desc("avg_retries"))
+        .limit(10)
+    )).all()
+
+    avg_retry_global = (await db.execute(
+        select(func.avg(AnalyticsEvent.value))
+        .where(AnalyticsEvent.event_type == "PLAYBACK_RETRY")
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.value.isnot(None))
+    )).scalar() or 0.0
+
     attempts = playback.get("PLAYBACK_START", 0)
     successes = playback.get("PLAYBACK_SUCCESS", 0)
     failures = playback.get("PLAYBACK_FAIL", 0)
@@ -241,6 +286,38 @@ async def analytics_summary(
     stall_rate = round(total_stalls / attempts * 100, 1) if attempts else 0.0
     search_conv_pct = round(search_plays / search_total * 100, 1) if search_total else 0.0
     failover_pct = round(total_failovers / attempts * 100, 1) if attempts else 0.0
+
+    # Return visitor stats
+    rv_map = {r.meta: r.cnt for r in rv_rows}
+    rv_new = rv_map.get("new", 0)
+    rv_returning = rv_map.get("returning", 0)
+    rv_total = rv_new + rv_returning
+    return_rate = round(rv_returning / rv_total * 100, 1) if rv_total else 0.0
+
+    # Channel health score (pure Python — no extra queries)
+    success_map = {r.channel_id: r.views for r in watched_rows}
+    exit_map = {r.channel_id: r.exit_count for r in exit_rows}
+    stall_map = {r.channel_id: r.stall_count for r in stall_rows}
+    name_map: dict[int, str] = {r.channel_id: (r.channel_name or "Unknown") for r in channel_start_rows}
+    for r in watched_rows:
+        name_map[r.channel_id] = r.channel_name or "Unknown"
+
+    health_list = []
+    for csr in channel_start_rows:
+        cid, starts = csr.channel_id, csr.cnt
+        if starts < 3 or cid is None:
+            continue
+        sr = success_map.get(cid, 0) / starts
+        er = exit_map.get(cid, 0) / starts
+        br = stall_map.get(cid, 0) / starts
+        score = round(max(0.0, min(100.0, (sr - er * 0.5 - br * 0.3) * 100)), 1)
+        health_list.append({
+            "channel_id": cid,
+            "channel_name": name_map.get(cid, "Unknown"),
+            "score": score,
+            "success_rate": round(sr * 100, 1),
+        })
+    health_list.sort(key=lambda x: x["score"], reverse=True)
 
     return {
         "hours": hours,
@@ -323,4 +400,25 @@ async def analytics_summary(
         "peak_hours": [
             {"hour": int(r.hr), "events": r.cnt} for r in hour_rows
         ],
+        "return_visitor": {
+            "new": rv_new,
+            "returning": rv_returning,
+            "return_rate_pct": return_rate,
+        },
+        "channel_health": {
+            "top": health_list[:5],
+            "worst": list(reversed(health_list[-5:])) if len(health_list) >= 5 else list(reversed(health_list)),
+        },
+        "playback_retry": {
+            "avg_retries": round(float(avg_retry_global), 2),
+            "top_channels": [
+                {
+                    "channel_id": r.channel_id,
+                    "channel_name": r.channel_name or "Unknown",
+                    "avg_retries": round(float(r.avg_retries or 0), 2),
+                    "count": r.cnt,
+                }
+                for r in retry_rows
+            ],
+        },
     }

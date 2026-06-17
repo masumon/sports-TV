@@ -199,6 +199,9 @@ export function ViewerHome() {
       if (!sessionStorage.getItem("gstv-app-opened")) {
         sessionStorage.setItem("gstv-app-opened", "1");
         trackEvent("APP_OPEN");
+        const visitCount = parseInt(localStorage.getItem("gstv-visit-count") ?? "0", 10);
+        localStorage.setItem("gstv-visit-count", String(visitCount + 1));
+        trackEvent("RETURN_VISITOR", { meta: visitCount === 0 ? "new" : "returning", value: visitCount + 1 });
       }
     } catch { /* */ }
   }, []);

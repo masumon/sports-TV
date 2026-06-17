@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, TrendingUp, AlertTriangle, Search, Zap, Eye, Clock, Activity, GitBranch, BarChart2, Layers } from "lucide-react";
+import { RefreshCw, TrendingUp, AlertTriangle, Search, Zap, Eye, Clock, Activity, GitBranch, BarChart2, Layers, Users, Heart } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import type { AdminAnalyticsSummary } from "@/lib/types";
 
@@ -293,6 +293,65 @@ export function InsightsDashboard({ token }: { token: string }) {
               <p className="text-[11px] opacity-40">No hourly data yet</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── User + Stream Intelligence ── */}
+      {data && (data.return_visitor || data.channel_health || data.playback_retry) && (
+        <div className="space-y-4">
+          <h3 className="text-[11px] font-black uppercase tracking-widest opacity-40">User &amp; Stream Intelligence</h3>
+
+          {/* Return Visitor */}
+          {data.return_visitor && (
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={Users} title="Return Visitors" />
+              <div className="flex flex-wrap gap-2.5">
+                <StatBadge value={data.return_visitor.new} label="New Users" color="#60a5fa" />
+                <StatBadge value={data.return_visitor.returning} label="Returning" color="#34d399" />
+                <StatBadge value={`${data.return_visitor.return_rate_pct}%`} label="Return Rate" color={data.return_visitor.return_rate_pct >= 30 ? "#4ade80" : "#fbbf24"} />
+              </div>
+            </div>
+          )}
+
+          {/* Channel Health Score */}
+          {data.channel_health && (data.channel_health.top.length > 0 || data.channel_health.worst.length > 0) && (
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={Heart} title="Channel Health Score (0–100)" />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wide opacity-50">Top Healthy</p>
+                  {data.channel_health.top.length
+                    ? data.channel_health.top.map((r) => (
+                        <BarRow key={r.channel_id} label={r.channel_name} value={r.score} max={100} color="#4ade80" />
+                      ))
+                    : <p className="text-[11px] opacity-40">Insufficient data (need ≥3 plays/channel)</p>}
+                </div>
+                <div>
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wide opacity-50">Worst Health</p>
+                  {data.channel_health.worst.length
+                    ? data.channel_health.worst.map((r) => (
+                        <BarRow key={r.channel_id} label={r.channel_name} value={r.score} max={100} color="#f87171" />
+                      ))
+                    : <p className="text-[11px] opacity-40">No data yet</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Playback Retry */}
+          {data.playback_retry && (
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={RefreshCw} title="Playback Retries (Failovers Before Success)" />
+              <div className="mb-3 flex flex-wrap gap-2">
+                <StatBadge value={data.playback_retry.avg_retries.toFixed(2)} label="Avg Retries" color={data.playback_retry.avg_retries > 1 ? "#f87171" : "#fbbf24"} />
+              </div>
+              {data.playback_retry.top_channels.length
+                ? data.playback_retry.top_channels.slice(0, 5).map((r) => (
+                    <BarRow key={r.channel_id} label={r.channel_name} value={r.avg_retries} max={data.playback_retry!.top_channels[0]?.avg_retries ?? 1} color="#fb923c" />
+                  ))
+                : <p className="text-[11px] opacity-40">No retries recorded</p>}
+            </div>
+          )}
         </div>
       )}
 

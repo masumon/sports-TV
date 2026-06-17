@@ -708,6 +708,9 @@ export default function PremiumPlayer({
       if (!successTrackedRef.current) {
         successTrackedRef.current = true;
         trackEvent("PLAYBACK_SUCCESS", { channel_id: channelId, channel_name: title });
+        if (urlPlayIndexRef.current > 0) {
+          trackEvent("PLAYBACK_RETRY", { channel_id: channelId, channel_name: title, value: urlPlayIndexRef.current });
+        }
       }
       playbackStartedRef.current = true;
       setIsLoading(false);

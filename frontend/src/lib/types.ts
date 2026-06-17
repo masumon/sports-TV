@@ -139,6 +139,9 @@ export type AdminAnalyticsSummary = {
   tab_engagement: { module: string; switches: number }[];
   failover_depth: { failover_pct: number; servers: { server_idx: number; count: number }[] };
   peak_hours: { hour: number; events: number }[];
+  return_visitor?: { new: number; returning: number; return_rate_pct: number };
+  channel_health?: { top: { channel_id: number; channel_name: string; score: number; success_rate: number }[]; worst: { channel_id: number; channel_name: string; score: number; success_rate: number }[] };
+  playback_retry?: { avg_retries: number; top_channels: { channel_id: number; channel_name: string; avg_retries: number; count: number }[] };
 };
 
 export type HealthSweepResult = {

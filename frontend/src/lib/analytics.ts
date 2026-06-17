@@ -15,7 +15,9 @@ export type AnalyticsEventType =
   | "WATCH_DURATION"
   | "BUFFER_STALL"
   | "SEARCH_PLAY"
-  | "TAB_SWITCH";
+  | "TAB_SWITCH"
+  | "RETURN_VISITOR"
+  | "PLAYBACK_RETRY";
 
 export type TrackPayload = {
   channel_id?: number;
