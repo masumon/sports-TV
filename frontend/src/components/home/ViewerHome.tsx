@@ -1536,6 +1536,7 @@ export function ViewerHome() {
                 geoHint={Boolean(activeChannel.geo_hint)}
                 channelLogoUrl={activeChannel.logo_url}
                 onStreamError={() => setShowErrorSuggestions(true)}
+                onBack={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
               />
             ) : (
               <div className="player-shell flex aspect-video items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
