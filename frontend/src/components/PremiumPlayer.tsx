@@ -1122,7 +1122,7 @@ export default function PremiumPlayer({
       <div className="absolute inset-0 z-10 cursor-pointer" onClick={() => void togglePlayPause()} />
 
 
-      {/* ── Loading / Switching — Premium branded screen ── */}
+      {/* ── Loading / Switching — Minimal OTT overlay (video stays visible) ── */}
       <AnimatePresence>
         {(isSwitching || (isLoading && !playbackStartedRef.current)) && !hasError && !geoRestricted && (
           <motion.div
@@ -1130,65 +1130,16 @@ export default function PremiumPlayer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.25 } }}
-            className="glass-loading-backdrop absolute inset-0 z-30 flex flex-col items-center justify-center"
+            className="absolute inset-0 z-30 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }}
           >
-            <div className="glass-loading-card flex flex-col items-center gap-6 px-10 py-10 sm:py-12 mx-6">
-            {/* Logo ring spinner — LARGER */}
-            <div className="relative flex h-[120px] w-[120px] sm:h-[140px] sm:w-[140px] items-center justify-center">
-              {/* Outer spinning arc */}
-              <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 88 88" fill="none">
-                <circle cx="44" cy="44" r="40" stroke="rgba(245,166,35,0.12)" strokeWidth="3" />
-                <motion.circle
-                  cx="44" cy="44" r="40"
-                  stroke="url(#spinGrad)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeDasharray="251"
-                  animate={{ strokeDashoffset: [251, 30, 251] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <defs>
-                  <linearGradient id="spinGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#F5A623" stopOpacity="0" />
-                    <stop offset="60%" stopColor="#F5A623" stopOpacity="1" />
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.6" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              {/* Inner subtle pulse ring */}
-              <motion.div
-                className="absolute inset-[10px] rounded-full"
-                style={{ border: "1px solid rgba(245,166,35,0.15)" }}
-                animate={{ scale: [1, 1.06, 1], opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-              />
-              {/* Center dot */}
-              <div className="h-3 w-3 rounded-full" style={{ background: "rgba(245,166,35,0.7)" }} />
-            </div>
-
-            {/* Text — CLEARER AND LARGER */}
-            <div className="flex flex-col items-center gap-2.5">
-              <p className="text-base sm:text-lg font-bold tracking-wide text-white truncate max-w-[280px] text-center" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.6)" }}>
-                {title || "ABO SPORTS TV"}
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 size={36} className="animate-spin" style={{ color: "#F5A623" }} />
+              <p className="text-[11px] font-semibold tracking-wide" style={{ color: "rgba(255,255,255,0.65)" }}>
+                {isSwitching
+                  ? (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "ব্যাকআপ চ্যানেলে যাচ্ছে…")
+                  : "লাইভ সংযোগ হচ্ছে…"}
               </p>
-              <div className="flex flex-col items-center gap-1">
-                <p className="text-[12px] sm:text-sm font-semibold tracking-[0.08em]" style={{ color: "rgba(245,166,35,0.9)" }}>
-                  {isSwitching
-                    ? (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "ব্যাকআপ চ্যানেলে যাচ্ছে…")
-                    : (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "লাইভ সংযোগ হচ্ছে…")}
-                </p>
-              </div>
-            </div>
-
-            {/* Shimmer progress bar — LARGER */}
-            <div className="h-1 w-48 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
-              <motion.div
-                className="h-full w-1/2 rounded-full"
-                style={{ background: "linear-gradient(90deg, transparent, #F5A623, transparent)" }}
-                animate={{ x: ["-100%", "300%"] }}
-                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-              />
-            </div>
             </div>
           </motion.div>
         )}
@@ -1493,14 +1444,14 @@ export default function PremiumPlayer({
               </button>
             </div>
 
-            {/* ── RIGHT SIDE — Volume + Share ── */}
-            <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 flex flex-col items-center gap-2.5 pointer-events-auto">
+            {/* ── RIGHT SIDE — Volume + secondary actions ── */}
+            <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 flex flex-col items-center gap-2 pointer-events-auto">
               {typeof document !== "undefined" && !!document.pictureInPictureEnabled && (
                 <button type="button" onClick={() => void togglePictureInPicture()} aria-label="Picture-in-Picture" className="player-control-btn shrink-0 hidden sm:inline-flex">
                   <PictureInPicture2 size={15} />
                 </button>
               )}
-              <button type="button" onClick={() => void shareChannel()} aria-label="Share channel" className="player-control-btn shrink-0">
+              <button type="button" onClick={() => void shareChannel()} aria-label="Share channel" className="player-control-btn shrink-0 hidden sm:inline-flex">
                 <Share2 size={15} />
               </button>
               <button type="button" onClick={toggleMute} aria-label={isMuted ? "Unmute" : "Mute"} className="player-control-btn shrink-0">
@@ -1630,7 +1581,7 @@ export default function PremiumPlayer({
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsLocked(false); }}
           >
             <div className="flex flex-col items-center gap-2 rounded-2xl px-5 py-3" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <span className="text-2xl">🔒</span>
+              <Lock size={22} style={{ color: "rgba(255,255,255,0.7)" }} />
               <span className="text-[11px] font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>ট্যাপ করুন আনলক করতে</span>
             </div>
           </motion.div>
