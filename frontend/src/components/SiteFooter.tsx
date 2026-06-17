@@ -5,15 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePlayerStore } from "@/store/playerStore";
 import { BRAND } from "@/lib/branding";
-import { DeveloperBrandCard } from "@/components/branding/DeveloperBrandCard";
 import {
   ChevronDown,
   ExternalLink,
   Mail,
   Phone,
-  Shield,
-  FileText,
-  BookOpen,
   Youtube,
   Facebook,
   Send,
@@ -30,16 +26,19 @@ const LEGAL_PDF = {
 } as const;
 
 const SOCIAL_LINKS = [
-  { icon: <Facebook size={16} />, label: "Facebook", href: "https://www.facebook.com/abo.enterprise", color: "#1877F2" },
-  { icon: <Send size={16} />, label: "Telegram", href: "https://t.me/01825007977", color: "#2AABEE" },
-  { icon: <MessageCircle size={16} />, label: "WhatsApp", href: "https://wa.me/8801825007977", color: "#25D366" },
-  { icon: <Youtube size={16} />, label: "YouTube", href: "https://www.youtube.com/@aboenterprise", color: "#FF0000" },
+  { icon: <Facebook size={15} />, label: "Facebook", href: "https://www.facebook.com/abo.enterprise", color: "#1877F2" },
+  { icon: <Send size={15} />, label: "Telegram", href: "https://t.me/01825007977", color: "#2AABEE" },
+  { icon: <MessageCircle size={15} />, label: "WhatsApp", href: "https://wa.me/8801825007977", color: "#25D366" },
+  { icon: <Youtube size={15} />, label: "YouTube", href: "https://www.youtube.com/@aboenterprise", color: "#FF0000" },
 ] as const;
 
-const COVERAGE_CHIPS = [
-  "⚽ Football", "🏏 Cricket", "🏀 Basketball", "🎾 Tennis",
-  "🏎️ Formula 1", "🥊 Boxing", "🏒 Hockey", "🏈 NFL",
-] as const;
+/** Uniform chip style for both Coverage and Product tags */
+const chipStyle = (accent?: string) =>
+  ({
+    background: accent ? `${accent}12` : "rgba(255,255,255,0.05)",
+    border: `1px solid ${accent ? `${accent}28` : "rgba(255,255,255,0.11)"}`,
+    color: accent ?? "var(--text-muted)",
+  }) as React.CSSProperties;
 
 export function SiteFooter() {
   const activeChannel = usePlayerStore((s) => s.activeChannel);
@@ -50,24 +49,30 @@ export function SiteFooter() {
       className={`mt-auto ${activeChannel ? "hidden md:block" : ""}`}
       style={{ background: "var(--bg-card)", borderTop: "1px solid var(--border)" }}
     >
-      {/* Brand hero — compact on mobile */}
+      {/* ── Brand hero: logo + name + badges only — no developer card ── */}
       <div
-        className="relative overflow-hidden py-4 sm:py-7"
+        className="relative overflow-hidden py-3.5 sm:py-5"
         style={{
           background: "linear-gradient(135deg, rgb(var(--primary-rgb)/0.07) 0%, rgb(var(--primary-rgb)/0.02) 100%)",
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 sm:gap-6">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 sm:gap-4">
           {/* Logo */}
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center sm:h-14 sm:w-14">
-            <Image src={BRAND.logo.png} alt={BRAND.name} width={56} height={56} className="h-11 w-11 object-contain sm:h-14 sm:w-14" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center sm:h-11 sm:w-11">
+            <Image
+              src={BRAND.logo.png}
+              alt={BRAND.name}
+              width={44}
+              height={44}
+              className="h-10 w-10 object-contain sm:h-11 sm:w-11"
+            />
           </div>
 
-          {/* Brand text + badges */}
+          {/* Name + tagline + badges */}
           <div className="min-w-0 flex-1">
             <h2
-              className="text-base font-black uppercase leading-tight tracking-[0.06em] sm:text-xl"
+              className="text-sm font-black uppercase leading-none tracking-[0.06em] sm:text-base"
               style={{
                 background: "linear-gradient(90deg,#F5A623 0%,#fff 50%,#F5A623 100%)",
                 WebkitBackgroundClip: "text",
@@ -77,52 +82,45 @@ export function SiteFooter() {
             >
               {BRAND.nameFull}
             </h2>
-            <p className="mt-0.5 text-[11px] leading-tight sm:text-sm" style={{ color: "var(--text-muted)" }}>
+            <p className="mt-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>
               Global live sports &amp; Bangladesh TV — one app.
             </p>
-            {/* Badge strip — horizontal scroll on narrow screens */}
-            <div className="-mx-0.5 mt-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5 pb-0.5 sm:flex-wrap sm:gap-2">
-              <span className="live-badge inline-flex shrink-0 items-center gap-1">
-                <Radio size={9} className="animate-pulse" /> LIVE
+            {/* Badge strip: flex-nowrap so it never wraps, scrolls on tiny viewports */}
+            <div className="-mx-0.5 mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5">
+              <span className="live-badge inline-flex shrink-0 items-center gap-1 text-[8px]">
+                <Radio size={8} className="animate-pulse" aria-hidden /> LIVE
               </span>
               <span
-                className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
-                style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.2)", color: "var(--primary-accent)" }}
+                className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                style={chipStyle("var(--primary-accent)")}
               >
                 HLS · PWA · HD
               </span>
               <span
-                className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
-                style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "#10b981" }}
+                className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                style={chipStyle("#10b981")}
               >
                 10,000+ Channels
               </span>
             </div>
           </div>
-
-          {/* Developer card — desktop only */}
-          <DeveloperBrandCard size="sm" className="hidden shrink-0 sm:inline-flex" />
-        </div>
-
-        {/* Developer card row — mobile only, centered below hero */}
-        <div className="mt-3 flex justify-center sm:hidden">
-          <DeveloperBrandCard size="sm" showLabel={false} />
         </div>
       </div>
 
-      {/* Mobile collapse toggle */}
-      <div className="mx-auto w-full max-w-6xl px-4 py-2 sm:hidden">
+      {/* ── Mobile collapse toggle ── */}
+      <div className="mx-auto w-full max-w-6xl px-4 py-1.5 sm:hidden">
         <button
           type="button"
           onClick={() => setBdExpanded(!bdExpanded)}
-          className="flex w-full items-center justify-between rounded-xl px-3 py-2 transition"
+          className="flex w-full items-center justify-between rounded-xl px-3 py-1.5 transition"
           style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
         >
-          <span className="text-xs font-bold" style={{ color: "var(--text-main)" }}>
+          <span className="text-[11px] font-bold" style={{ color: "var(--text-main)" }}>
             Features · Contact · Coverage
           </span>
           <ChevronDown
-            size={15}
+            size={14}
+            aria-hidden
             style={{
               color: "var(--text-muted)",
               transform: bdExpanded ? "rotate(0deg)" : "rotate(-90deg)",
@@ -132,25 +130,23 @@ export function SiteFooter() {
         </button>
       </div>
 
-      {/* Collapsible body — CSS-driven, no SSR flash */}
-      <div className={`mx-auto w-full max-w-6xl px-4 py-5 sm:block sm:px-6 sm:py-8 lg:px-8 ${bdExpanded ? "block" : "hidden"}`}>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3">
+      {/* ── Three-column grid — CSS collapse, no SSR flash ── */}
+      <div
+        className={`mx-auto w-full max-w-6xl px-4 py-4 sm:block sm:px-6 sm:py-5 lg:px-8 ${bdExpanded ? "block" : "hidden"}`}
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
 
           {/* Product */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Product
             </p>
-            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              HLS player · backup streams · server relay · PWA install. Tuned for mobile networks.
+            <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              HLS player · backup streams · server relay · PWA. Tuned for mobile networks.
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1">
               {(["HLS", "PWA", "Multi-region", "HD"] as const).map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
-                  style={{ background: "rgb(var(--primary-rgb) / 0.08)", border: "1px solid var(--border-accent)", color: "var(--primary-accent)" }}
-                >
+                <span key={tag} className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={chipStyle("var(--primary-accent)")}>
                   {tag}
                 </span>
               ))}
@@ -158,12 +154,12 @@ export function SiteFooter() {
           </div>
 
           {/* Contact */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Contact
             </p>
-            {/* Social icon row */}
-            <div className="flex items-center gap-2">
+            {/* Social icon buttons */}
+            <div className="flex items-center gap-1.5">
               {SOCIAL_LINKS.map(({ icon, label, href, color }) => (
                 <a
                   key={label}
@@ -171,100 +167,97 @@ export function SiteFooter() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="flex h-8 w-8 items-center justify-center rounded-xl transition hover:scale-110 active:scale-95"
-                  style={{ background: `${color}18`, border: `1px solid ${color}30`, color }}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:scale-110 active:scale-95"
+                  style={{ background: `${color}18`, border: `1px solid ${color}2e`, color }}
                 >
                   {icon}
                 </a>
               ))}
             </div>
-            {/* Email + Phone */}
-            <div className="space-y-1">
+            {/* Email + phone */}
+            <div className="flex flex-col gap-0.5">
               <a
                 href="mailto:contact@aboenterprise.com"
-                className="flex items-center gap-2 text-[11px] font-medium transition hover:opacity-80"
+                className="flex items-center gap-1.5 text-[10px] font-medium transition hover:opacity-80"
                 style={{ color: "var(--text-muted)" }}
               >
-                <Mail size={12} style={{ color: "var(--primary-accent)" }} />
+                <Mail size={11} style={{ color: "var(--primary-accent)", flexShrink: 0 }} aria-hidden />
                 contact@aboenterprise.com
               </a>
               <a
                 href="tel:+8801825007977"
-                className="flex items-center gap-2 text-[11px] font-medium transition hover:opacity-80"
+                className="flex items-center gap-1.5 text-[10px] font-medium transition hover:opacity-80"
                 style={{ color: "var(--text-muted)" }}
               >
-                <Phone size={12} style={{ color: "#10b981" }} />
+                <Phone size={11} style={{ color: "#10b981", flexShrink: 0 }} aria-hidden />
                 +880 1825-007977
               </a>
             </div>
           </div>
 
           {/* Coverage */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Coverage
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {COVERAGE_CHIPS.map((s) => (
-                <span
-                  key={s}
-                  className="rounded-full px-2.5 py-1 text-[10px] font-medium"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    color: "var(--text-muted)",
-                  }}
-                >
+            <div className="flex flex-wrap gap-1">
+              {(["⚽ Football", "🏏 Cricket", "🏀 Basketball", "🎾 Tennis", "🏎️ F1", "🥊 Boxing", "🏒 Hockey", "🏈 NFL"] as const).map((s) => (
+                <span key={s} className="rounded-full px-2 py-0.5 text-[9px] font-medium" style={chipStyle()}>
                   {s}
                 </span>
               ))}
             </div>
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold transition hover:opacity-80"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold transition hover:opacity-80"
               style={{ color: "var(--primary-accent)" }}
             >
-              <Star size={11} fill="currentColor" />
+              <Star size={10} fill="currentColor" aria-hidden />
               Browse channels
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Bottom bar */}
-      <div className="px-4 py-3" style={{ borderTop: "1px solid var(--border)" }}>
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          {/* Legal links */}
-          <div className="-mx-1 flex items-center gap-x-3 overflow-x-auto px-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
-            {[
-              { icon: <Shield size={10} />, label: "Privacy", href: LEGAL_PDF.privacy },
-              { icon: <FileText size={10} />, label: "Terms", href: LEGAL_PDF.terms },
-              { icon: <BookOpen size={10} />, label: "License", href: LEGAL_PDF.license },
-              { icon: <FileText size={10} />, label: "International", href: LEGAL_PDF.international },
-            ].map(({ icon, label, href }) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex shrink-0 items-center gap-1 transition hover:opacity-80"
-              >
-                {icon} {label}
-                <ExternalLink size={8} className="opacity-40" />
-              </a>
-            ))}
+      {/* ── "Powered by ABO Enterprise" — subtle attribution near footer ── */}
+      <div
+        className="flex items-center justify-center py-2"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        <a
+          href={BRAND.developerWebsiteUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-[10px] font-medium transition hover:opacity-75"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Powered by
+          <span className="font-bold" style={{ color: "var(--primary-accent)" }}>
+            {BRAND.developer}
+          </span>
+          <ExternalLink size={9} aria-hidden className="opacity-40" />
+        </a>
+      </div>
+
+      {/* ── Legal + copyright — single compact row, no scroll needed ── */}
+      <div className="px-4 py-2" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          {/* Dot-separated legal links — no icons, guaranteed one-line fit */}
+          <div className="flex flex-nowrap items-center text-[10px]" style={{ color: "var(--text-muted)" }}>
+            <a href={LEGAL_PDF.privacy} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Privacy</a>
+            <span aria-hidden className="mx-2 opacity-30">·</span>
+            <a href={LEGAL_PDF.terms} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Terms</a>
+            <span aria-hidden className="mx-2 opacity-30">·</span>
+            <a href={LEGAL_PDF.license} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">License</a>
+            <span aria-hidden className="mx-2 opacity-30">·</span>
+            <a href={LEGAL_PDF.international} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Intl. Use</a>
           </div>
           {/* Copyright */}
-          <p className="shrink-0 text-[11px] sm:text-right" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             © {new Date().getFullYear()}{" "}
             <Link href="/" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
               ABO Sports TV
             </Link>
-            {" · "}
-            <a href={BRAND.developerWebsiteUrl} target="_blank" rel="noopener noreferrer"
-              className="hover:opacity-80 transition" style={{ color: "var(--primary-accent)" }}>
-              {BRAND.developer}
-            </a>
           </p>
         </div>
       </div>
