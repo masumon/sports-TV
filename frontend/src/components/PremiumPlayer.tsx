@@ -160,18 +160,18 @@ function relayHlsXhrUrlIfNeeded(
   }
 }
 
-const LINK_RETRY_ATTEMPTS = 2;
+const LINK_RETRY_ATTEMPTS = 3;
 /** Shorter remount delay so we rotate to the next mirror quickly. */
 const LINK_RETRY_DELAY_MS = 1200;
 /** Only retry on persistent network errors, not transient blips */
 const LINK_RETRY_ONLY_ON_PERSISTENT = true;
-const URL_FAIL_COOLDOWN_MS = 5 * 60 * 1000;
+const URL_FAIL_COOLDOWN_MS = 2 * 60 * 1000; // 2min cooldown (was 5min — too long for transient errors)
 const recentlyFailedUrlUntil = new Map<string, number>();
 
-/** Wait long enough for the Render proxy to respond; fail fast enough to still feel responsive. */
-const HLS_MANIFEST_LOAD_TIMEOUT_MS = 10_000;
-const HLS_LEVEL_LOAD_TIMEOUT_MS = 10_000;
-const HLS_FRAG_LOAD_TIMEOUT_MS = 12_000;
+/** Long enough for Render free tier cold start (30s); tight enough to feel responsive. */
+const HLS_MANIFEST_LOAD_TIMEOUT_MS = 20_000;
+const HLS_LEVEL_LOAD_TIMEOUT_MS = 18_000;
+const HLS_FRAG_LOAD_TIMEOUT_MS = 20_000;
 
 function isUrlTemporarilyFailed(url: string): boolean {
   const until = recentlyFailedUrlUntil.get(url);
@@ -532,11 +532,11 @@ export default function PremiumPlayer({
         abrBandWidthFactor: lightNet ? 0.92 : 0.95,
         abrBandWidthUpFactor: lightNet ? 0.6 : 0.75,
         manifestLoadingTimeOut: HLS_MANIFEST_LOAD_TIMEOUT_MS,
-        manifestLoadingMaxRetry: 0,
-        manifestLoadingRetryDelay: 500, // Increased to avoid rapid retries
+        manifestLoadingMaxRetry: 2,
+        manifestLoadingRetryDelay: 1500,
         levelLoadingTimeOut: HLS_LEVEL_LOAD_TIMEOUT_MS,
-        levelLoadingMaxRetry: 0,
-        levelLoadingRetryDelay: 500,
+        levelLoadingMaxRetry: 2,
+        levelLoadingRetryDelay: 1500,
         fragLoadingTimeOut: HLS_FRAG_LOAD_TIMEOUT_MS,
         fragLoadingMaxRetry: 2, // Increased for network resilience
         fragLoadingRetryDelay: lightNet ? 800 : 600,
