@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -452,6 +453,20 @@ app.add_middleware(
 )
 # Compress JSON/text on slow mobile links (free-tier friendly; skips tiny bodies).
 app.add_middleware(GZipMiddleware, minimum_size=512)
+
+
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add baseline security headers to every API response (important for direct Render access)."""
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
 
 
 @app.exception_handler(HTTPException)
