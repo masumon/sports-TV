@@ -178,6 +178,8 @@ export function ViewerHome() {
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
   const quickExitRef = useRef<{ channelId: number; channelName: string; ts: number } | null>(null);
+  const searchQueryRef = useRef(searchQuery);
+  useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
@@ -199,6 +201,16 @@ export function ViewerHome() {
         trackEvent("APP_OPEN");
       }
     } catch { /* */ }
+  }, []);
+
+  useEffect(() => {
+    const onUnload = () => {
+      if (!quickExitRef.current) return;
+      const watchedSecs = Math.floor((Date.now() - quickExitRef.current.ts) / 1000);
+      trackEvent("WATCH_DURATION", { channel_id: quickExitRef.current.channelId, channel_name: quickExitRef.current.channelName, value: watchedSecs });
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
   }, []);
 
   useEffect(() => {
@@ -230,12 +242,19 @@ export function ViewerHome() {
   /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
   const selectChannel = useCallback(
     (ch: Channel) => {
-      // QUICK_EXIT: if previous channel was open < 10s, track it
-      if (quickExitRef.current && Date.now() - quickExitRef.current.ts < 10_000) {
-        trackEvent("QUICK_EXIT", { channel_id: quickExitRef.current.channelId, channel_name: quickExitRef.current.channelName });
+      // QUICK_EXIT + WATCH_DURATION: track previous channel session
+      if (quickExitRef.current) {
+        const watchedMs = Date.now() - quickExitRef.current.ts;
+        if (watchedMs < 10_000) {
+          trackEvent("QUICK_EXIT", { channel_id: quickExitRef.current.channelId, channel_name: quickExitRef.current.channelName });
+        }
+        trackEvent("WATCH_DURATION", { channel_id: quickExitRef.current.channelId, channel_name: quickExitRef.current.channelName, value: Math.floor(watchedMs / 1000) });
       }
       quickExitRef.current = { channelId: ch.id, channelName: ch.name, ts: Date.now() };
       trackEvent("CHANNEL_OPEN", { channel_id: ch.id, channel_name: ch.name });
+      // SEARCH_PLAY: user played a channel while search was active
+      const sq = searchQueryRef.current.trim();
+      if (sq) trackEvent("SEARCH_PLAY", { channel_id: ch.id, channel_name: ch.name, meta: sq.slice(0, 100) });
       startTransition(() => {
         setActiveChannel(ch);
       });
@@ -317,6 +336,7 @@ export function ViewerHome() {
 
   const transitionSetActiveModule = useCallback(
     (m: ViewerModule) => {
+      trackEvent("TAB_SWITCH", { meta: m });
       startTransition(() => {
         setActiveModule(m);
       });

@@ -11,7 +11,11 @@ export type AnalyticsEventType =
   | "SEARCH"
   | "SEARCH_NO_RESULT"
   | "PLAYER_ERROR"
-  | "QUICK_EXIT";
+  | "QUICK_EXIT"
+  | "WATCH_DURATION"
+  | "BUFFER_STALL"
+  | "SEARCH_PLAY"
+  | "TAB_SWITCH";
 
 export type TrackPayload = {
   channel_id?: number;

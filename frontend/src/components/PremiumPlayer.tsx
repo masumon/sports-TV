@@ -256,6 +256,7 @@ export default function PremiumPlayer({
   /** After first `playing`, do not show the full-screen loader on routine rebuffering. */
   const playbackStartedRef = useRef(false);
   const successTrackedRef = useRef(false);
+  const errorTypeRef = useRef<string>("unknown");
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -365,6 +366,7 @@ export default function PremiumPlayer({
     firstHideDoneRef.current = false;
     hintShownRef.current = false;
     successTrackedRef.current = false;
+    errorTypeRef.current = "unknown";
     setShowHint(false);
     if (hintTimerRef.current) { clearTimeout(hintTimerRef.current); hintTimerRef.current = null; }
     if (linkRetryTimerRef.current) {
@@ -574,12 +576,17 @@ export default function PremiumPlayer({
       if (bounded === 0) trackEvent("PLAYBACK_START", { channel_id: channelId, channel_name: title });
 
       hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (!data.fatal && data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          trackEvent("BUFFER_STALL", { channel_id: channelId, channel_name: title });
+          return;
+        }
         if (!data.fatal) return;
         const resp = (data as { response?: { code?: number } }).response;
         const httpCode = resp?.code;
 
         if (httpCode === 403 || httpCode === 401) {
           if (tryFailover()) return;
+          errorTypeRef.current = "geo_restricted";
           setGeoRestricted(true);
           setIsLoading(false);
           setIsSwitching(false);
@@ -602,6 +609,7 @@ export default function PremiumPlayer({
         // Network errors during playback = skip retry, failover immediately
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR && playbackStartedRef.current) {
           if (tryFailover()) return;
+          errorTypeRef.current = "network";
           linkRetryRef.current = 0;
           setIsSwitching(false);
           setHasError(true);
@@ -628,6 +636,7 @@ export default function PremiumPlayer({
         linkRetryRef.current = 0;
         if (tryFailover()) return;
 
+        errorTypeRef.current = data.type === Hls.ErrorTypes.NETWORK_ERROR ? "network" : "unknown";
         setIsSwitching(false);
         setHasError(true);
         setIsLoading(false);
@@ -1027,7 +1036,7 @@ export default function PremiumPlayer({
   useEffect(() => {
     if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
     onStreamError?.();
-    trackEvent(hasError ? "PLAYBACK_FAIL" : "PLAYER_ERROR", { channel_id: channelId, channel_name: title, meta: geoRestricted ? "geo" : undefined });
+    trackEvent(hasError ? "PLAYBACK_FAIL" : "PLAYER_ERROR", { channel_id: channelId, channel_name: title, meta: geoRestricted ? "geo_restricted" : errorTypeRef.current });
     const secs = geoRestricted ? 15 : 10;
     setAutoRetryCountdown(secs);
     const interval = setInterval(() => {

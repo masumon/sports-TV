@@ -26,6 +26,7 @@ _VALID_EVENT_TYPES = frozenset({
     "APP_OPEN", "CHANNEL_OPEN", "PLAYBACK_START", "PLAYBACK_SUCCESS",
     "PLAYBACK_FAIL", "SERVER_SWITCH", "QUALITY_CHANGE", "SEARCH",
     "SEARCH_NO_RESULT", "PLAYER_ERROR", "QUICK_EXIT",
+    "WATCH_DURATION", "BUFFER_STALL", "SEARCH_PLAY", "TAB_SWITCH",
 })
 
 
@@ -135,10 +136,111 @@ async def analytics_summary(
         .limit(10)
     )).all()
 
+    # 6. Watch duration per channel
+    wd_rows = (await db.execute(
+        select(
+            AnalyticsEvent.channel_id, AnalyticsEvent.channel_name,
+            func.avg(AnalyticsEvent.value).label("avg_secs"),
+            func.sum(AnalyticsEvent.value).label("total_secs"),
+        )
+        .where(AnalyticsEvent.event_type == "WATCH_DURATION")
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.channel_id.isnot(None))
+        .where(AnalyticsEvent.value.isnot(None))
+        .group_by(AnalyticsEvent.channel_id, AnalyticsEvent.channel_name)
+        .order_by(desc("total_secs"))
+        .limit(10)
+    )).all()
+
+    avg_watch_secs = (await db.execute(
+        select(func.avg(AnalyticsEvent.value))
+        .where(AnalyticsEvent.event_type == "WATCH_DURATION")
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.value.isnot(None))
+    )).scalar() or 0.0
+
+    # 7. Buffer stalls per channel
+    stall_rows = (await db.execute(
+        select(
+            AnalyticsEvent.channel_id, AnalyticsEvent.channel_name,
+            func.count().label("cnt"),
+        )
+        .where(AnalyticsEvent.event_type == "BUFFER_STALL")
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.channel_id.isnot(None))
+        .group_by(AnalyticsEvent.channel_id, AnalyticsEvent.channel_name)
+        .order_by(desc("cnt"))
+        .limit(10)
+    )).all()
+
+    total_stalls = (await db.execute(
+        select(func.count())
+        .where(AnalyticsEvent.event_type == "BUFFER_STALL")
+        .where(AnalyticsEvent.created_at >= since)
+    )).scalar() or 0
+
+    # 8. Error type breakdown
+    error_type_rows = (await db.execute(
+        select(AnalyticsEvent.meta, func.count().label("cnt"))
+        .where(AnalyticsEvent.event_type.in_(["PLAYER_ERROR", "PLAYBACK_FAIL"]))
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.meta.isnot(None))
+        .group_by(AnalyticsEvent.meta)
+        .order_by(desc("cnt"))
+    )).all()
+
+    # 9. Search → play conversion
+    search_total = (await db.execute(
+        select(func.count())
+        .where(AnalyticsEvent.event_type == "SEARCH")
+        .where(AnalyticsEvent.created_at >= since)
+    )).scalar() or 0
+
+    search_plays = (await db.execute(
+        select(func.count())
+        .where(AnalyticsEvent.event_type == "SEARCH_PLAY")
+        .where(AnalyticsEvent.created_at >= since)
+    )).scalar() or 0
+
+    # 10. Tab engagement
+    tab_rows = (await db.execute(
+        select(AnalyticsEvent.meta, func.count().label("cnt"))
+        .where(AnalyticsEvent.event_type == "TAB_SWITCH")
+        .where(AnalyticsEvent.created_at >= since)
+        .where(AnalyticsEvent.meta.isnot(None))
+        .group_by(AnalyticsEvent.meta)
+        .order_by(desc("cnt"))
+    )).all()
+
+    # 11. Failover depth (SERVER_SWITCH grouped by server index)
+    failover_rows = (await db.execute(
+        select(AnalyticsEvent.value, func.count().label("cnt"))
+        .where(AnalyticsEvent.event_type == "SERVER_SWITCH")
+        .where(AnalyticsEvent.created_at >= since)
+        .group_by(AnalyticsEvent.value)
+        .order_by(AnalyticsEvent.value)
+    )).all()
+
+    # 12. Peak hour heatmap (all event types grouped by UTC hour)
+    hour_rows = (await db.execute(
+        select(
+            func.extract("hour", AnalyticsEvent.created_at).label("hr"),
+            func.count().label("cnt"),
+        )
+        .where(AnalyticsEvent.created_at >= since)
+        .group_by("hr")
+        .order_by("hr")
+    )).all()
+
     attempts = playback.get("PLAYBACK_START", 0)
     successes = playback.get("PLAYBACK_SUCCESS", 0)
     failures = playback.get("PLAYBACK_FAIL", 0)
     success_pct = round(successes / attempts * 100, 1) if attempts else 0
+
+    total_failovers = sum(r.cnt for r in failover_rows if (r.value or 0) > 0)
+    stall_rate = round(total_stalls / attempts * 100, 1) if attempts else 0.0
+    search_conv_pct = round(search_plays / search_total * 100, 1) if search_total else 0.0
+    failover_pct = round(total_failovers / attempts * 100, 1) if attempts else 0.0
 
     return {
         "hours": hours,
@@ -175,5 +277,50 @@ async def analytics_summary(
                 "exit_count": r.cnt,
             }
             for r in exit_rows
+        ],
+        "watch_duration": {
+            "avg_secs": round(float(avg_watch_secs), 1),
+            "top_channels": [
+                {
+                    "channel_id": r.channel_id,
+                    "channel_name": r.channel_name or "Unknown",
+                    "avg_secs": round(float(r.avg_secs or 0), 1),
+                    "total_secs": int(r.total_secs or 0),
+                }
+                for r in wd_rows
+            ],
+        },
+        "buffer_stalls": {
+            "total": total_stalls,
+            "stall_rate_pct": stall_rate,
+            "top_channels": [
+                {
+                    "channel_id": r.channel_id,
+                    "channel_name": r.channel_name or "Unknown",
+                    "stall_count": r.cnt,
+                }
+                for r in stall_rows
+            ],
+        },
+        "error_types": [
+            {"type": r.meta, "count": r.cnt} for r in error_type_rows
+        ],
+        "search_conversion": {
+            "searches": search_total,
+            "plays": search_plays,
+            "conversion_pct": search_conv_pct,
+        },
+        "tab_engagement": [
+            {"module": r.meta, "switches": r.cnt} for r in tab_rows
+        ],
+        "failover_depth": {
+            "failover_pct": failover_pct,
+            "servers": [
+                {"server_idx": int(r.value or 0), "count": r.cnt}
+                for r in failover_rows
+            ],
+        },
+        "peak_hours": [
+            {"hour": int(r.hr), "events": r.cnt} for r in hour_rows
         ],
     }

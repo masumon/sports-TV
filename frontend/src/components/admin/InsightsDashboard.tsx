@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, TrendingUp, AlertTriangle, Search, Zap, Eye } from "lucide-react";
+import { RefreshCw, TrendingUp, AlertTriangle, Search, Zap, Eye, Clock, Activity, GitBranch, BarChart2, Layers } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import type { AdminAnalyticsSummary } from "@/lib/types";
 
@@ -32,6 +32,33 @@ function BarRow({ label, value, max, color }: { label: string; value: number; ma
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
       </div>
       <span className="shrink-0 text-[11px] font-bold tabular-nums opacity-70">{value}</span>
+    </div>
+  );
+}
+
+function fmtSecs(secs: number): string {
+  if (secs < 60) return `${Math.round(secs)}s`;
+  const m = Math.floor(secs / 60);
+  const s = Math.round(secs % 60);
+  return `${m}m ${s}s`;
+}
+
+function PeakHoursGrid({ hours }: { hours: { hour: number; events: number }[] }) {
+  const byHour = new Map(hours.map((h) => [h.hour, h.events]));
+  const max = Math.max(...hours.map((h) => h.events), 1);
+  return (
+    <div className="grid grid-cols-12 gap-1">
+      {Array.from({ length: 24 }, (_, i) => {
+        const v = byHour.get(i) ?? 0;
+        const pct = Math.max(8, (v / max) * 100);
+        const isHigh = v >= max * 0.7;
+        return (
+          <div key={i} className="flex flex-col items-center gap-0.5">
+            <div className="w-full rounded-sm transition-all" style={{ height: `${Math.round(pct * 0.32)}px`, background: isHigh ? "#F5A623" : "rgba(255,255,255,0.15)", minHeight: 3 }} title={`${i}:00 — ${v} events`} />
+            <span className="text-[7px] tabular-nums opacity-40">{i}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -178,6 +205,96 @@ export function InsightsDashboard({ token }: { token: string }) {
           ) : <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-5 animate-pulse rounded" style={{ background: "rgba(255,255,255,0.05)" }} />)}</div>}
         </div>
       </div>
+
+      {/* ── Advanced Analytics ── */}
+      {data && (
+        <div className="space-y-4">
+          <h3 className="text-[11px] font-black uppercase tracking-widest opacity-40">Advanced Analytics</h3>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Watch Duration */}
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={Clock} title="Avg Watch Duration" />
+              <div className="mb-3 flex flex-wrap gap-2">
+                <StatBadge value={fmtSecs(data.watch_duration.avg_secs)} label="Avg / Session" color="#34d399" />
+                <StatBadge value={data.watch_duration.top_channels.length} label="Channels" color="rgba(255,255,255,0.5)" />
+              </div>
+              {data.watch_duration.top_channels.length
+                ? data.watch_duration.top_channels.slice(0, 5).map((r) => (
+                    <BarRow key={r.channel_id} label={r.channel_name} value={r.total_secs} max={data.watch_duration.top_channels[0]?.total_secs ?? 1} color="#34d399" />
+                  ))
+                : <p className="text-[11px] opacity-40">No data yet</p>}
+            </div>
+
+            {/* Buffer Stalls */}
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={Activity} title="Buffer Stalls" />
+              <div className="mb-3 flex flex-wrap gap-2">
+                <StatBadge value={data.buffer_stalls.total} label="Total Stalls" color="#f87171" />
+                <StatBadge value={`${data.buffer_stalls.stall_rate_pct}%`} label="Stall Rate" color={data.buffer_stalls.stall_rate_pct > 20 ? "#f87171" : data.buffer_stalls.stall_rate_pct > 10 ? "#fbbf24" : "#4ade80"} />
+              </div>
+              {data.buffer_stalls.top_channels.length
+                ? data.buffer_stalls.top_channels.slice(0, 5).map((r) => (
+                    <BarRow key={r.channel_id} label={r.channel_name} value={r.stall_count} max={data.buffer_stalls.top_channels[0]?.stall_count ?? 1} color="#f87171" />
+                  ))
+                : <p className="text-[11px] opacity-40">No stalls recorded</p>}
+            </div>
+
+            {/* Error Type Breakdown */}
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={AlertTriangle} title="Error Type Breakdown" />
+              {data.error_types.length
+                ? data.error_types.map((r) => (
+                    <BarRow key={r.type} label={r.type} value={r.count} max={data.error_types[0]?.count ?? 1} color="#fb923c" />
+                  ))
+                : <p className="text-[11px] opacity-40">No classified errors</p>}
+            </div>
+
+            {/* Search Conversion */}
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={Search} title="Search → Play Conversion" />
+              <div className="flex flex-wrap gap-2.5">
+                <StatBadge value={data.search_conversion.searches} label="Searches" color="rgba(255,255,255,0.6)" />
+                <StatBadge value={data.search_conversion.plays} label="Played" color="#60a5fa" />
+                <StatBadge value={`${data.search_conversion.conversion_pct}%`} label="Conversion" color={data.search_conversion.conversion_pct >= 30 ? "#4ade80" : "#fbbf24"} />
+              </div>
+            </div>
+
+            {/* Tab Engagement */}
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={Layers} title="Tab Engagement" />
+              {data.tab_engagement.length
+                ? data.tab_engagement.map((r) => (
+                    <BarRow key={r.module} label={r.module.replace(/_/g, " ")} value={r.switches} max={data.tab_engagement[0]?.switches ?? 1} color="#a78bfa" />
+                  ))
+                : <p className="text-[11px] opacity-40">No tab switches yet</p>}
+            </div>
+
+            {/* Failover Depth */}
+            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <SectionHeader icon={GitBranch} title="Failover Depth" />
+              <div className="mb-3 flex flex-wrap gap-2">
+                <StatBadge value={`${data.failover_depth.failover_pct}%`} label="Needed Failover" color={data.failover_depth.failover_pct > 30 ? "#f87171" : "#fbbf24"} />
+              </div>
+              {data.failover_depth.servers.length
+                ? data.failover_depth.servers.map((r) => (
+                    <BarRow key={r.server_idx} label={`S${r.server_idx + 1}`} value={r.count} max={data.failover_depth.servers[0]?.count ?? 1} color={r.server_idx === 0 ? "#4ade80" : r.server_idx === 1 ? "#fbbf24" : "#f87171"} />
+                  ))
+                : <p className="text-[11px] opacity-40">No server switches</p>}
+            </div>
+          </div>
+
+          {/* Peak Hours Heatmap */}
+          <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <SectionHeader icon={BarChart2} title="Peak Hours (UTC)" />
+            {data.peak_hours.length > 0 ? (
+              <PeakHoursGrid hours={data.peak_hours} />
+            ) : (
+              <p className="text-[11px] opacity-40">No hourly data yet</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Insights */}
       {insights.length > 0 && (

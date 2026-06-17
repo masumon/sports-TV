@@ -6,6 +6,7 @@ import { MoreSheet } from "@/components/layout/MoreSheet";
 import { cn } from "@/lib/cn";
 import { PRIMARY_NAV } from "@/lib/nav";
 import { useUiStore } from "@/store/uiStore";
+import { trackEvent } from "@/lib/analytics";
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -43,6 +44,7 @@ export function BottomNav() {
     }
     if (item.action === "more") { setMoreOpen(true); return; }
     if (item.action === "module" && item.module) {
+      trackEvent("TAB_SWITCH", { meta: item.module });
       setActiveModule(item.module);
       if (pathname !== "/") router.push("/");
       else window.scrollTo({ top: 0, behavior: "smooth" });

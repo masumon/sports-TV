@@ -125,6 +125,20 @@ export type AdminAnalyticsSummary = {
   most_watched: { channel_id: number; channel_name: string; views: number }[];
   search_no_results: { term: string; count: number }[];
   quick_exits: { channel_id: number; channel_name: string; exit_count: number }[];
+  watch_duration: {
+    avg_secs: number;
+    top_channels: { channel_id: number; channel_name: string; avg_secs: number; total_secs: number }[];
+  };
+  buffer_stalls: {
+    total: number;
+    stall_rate_pct: number;
+    top_channels: { channel_id: number; channel_name: string; stall_count: number }[];
+  };
+  error_types: { type: string; count: number }[];
+  search_conversion: { searches: number; plays: number; conversion_pct: number };
+  tab_engagement: { module: string; switches: number }[];
+  failover_depth: { failover_pct: number; servers: { server_idx: number; count: number }[] };
+  peak_hours: { hour: number; events: number }[];
 };
 
 export type HealthSweepResult = {
