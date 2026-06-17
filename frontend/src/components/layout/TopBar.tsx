@@ -227,10 +227,10 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
                       type="button"
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        onSearch(ch.name);
+                        onSearch("");
                         saveRecentSearch(ch.name);
                         setShowSuggestions(false);
-                        router.push(`/?q=${encodeURIComponent(ch.name)}`, { scroll: false });
+                        router.push(`/?channel_id=${ch.id}`, { scroll: false });
                       }}
                       className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-surface-elevated"
                     >
@@ -338,10 +338,10 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
         }}
         suggestions={searchSuggestions as Channel[]}
         onSuggestionClick={(ch) => {
-          onSearch(ch.name);
+          onSearch("");
           saveRecentSearch(ch.name);
           setSearchOverlayOpen(false);
-          router.push(`/?q=${encodeURIComponent(ch.name)}`, { scroll: false });
+          router.push(`/?channel_id=${ch.id}`, { scroll: false });
         }}
         recentSearches={recentSearches}
         onRecentClick={(query) => {
