@@ -8,7 +8,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   Globe,
   Loader2,
   Maximize,
@@ -308,7 +307,9 @@ export default function PremiumPlayer({
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolumeState] = useState(1);
+  const [volume, setVolumeState] = useState(() => {
+    try { const v = parseFloat(localStorage.getItem("gstv-vol") ?? "1"); return isNaN(v) ? 1 : Math.max(0, Math.min(1, v)); } catch { return 1; }
+  });
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [qualityOptions, setQualityOptions] = useState<QualityOption[]>([{ label: "Auto", value: -1 }]);
@@ -919,6 +920,7 @@ export default function PremiumPlayer({
     video.muted = clamped === 0;
     setVolumeState(clamped);
     setIsMuted(clamped === 0);
+    try { localStorage.setItem("gstv-vol", String(clamped)); } catch { /* */ }
   }, []);
 
   const changeQuality = useCallback((level: number) => {
@@ -1111,19 +1113,8 @@ export default function PremiumPlayer({
                 animate={{ scale: [1, 1.06, 1], opacity: [0.5, 1, 0.5] }}
                 transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
               />
-              {/* Logo */}
-              <div
-                className="relative flex h-[70px] w-[70px] items-center justify-center rounded-xl overflow-hidden"
-                style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.5)", boxShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,166,35,0.1)" }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
-                  alt={title || "ABO Sports TV"}
-                  className="h-[60px] w-[60px] object-contain"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
-                />
-              </div>
+              {/* Center dot */}
+              <div className="h-3 w-3 rounded-full" style={{ background: "rgba(245,166,35,0.7)" }} />
             </div>
 
             {/* Text — CLEARER AND LARGER */}
@@ -1137,7 +1128,6 @@ export default function PremiumPlayer({
                     ? (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "ব্যাকআপ চ্যানেলে যাচ্ছে…")
                     : (isCurrentRelay ? "সার্ভার রিলে সংযোগ…" : "লাইভ সংযোগ হচ্ছে…")}
                 </p>
-                <p className="text-[10px] sm:text-[11px] opacity-70 animate-pulse">লোডিং হচ্ছে...</p>
               </div>
             </div>
 
@@ -1209,14 +1199,9 @@ export default function PremiumPlayer({
             {/* Actions */}
             <div className="flex flex-wrap justify-center gap-2">
               <button type="button" onClick={retryStream}
-                className="flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold text-white transition active:scale-95"
-                style={{ background: "linear-gradient(135deg, rgba(245,166,35,0.25), rgba(245,166,35,0.15))", border: "1px solid rgba(245,166,35,0.45)", boxShadow: "0 4px 12px rgba(245,166,35,0.15)" }}>
-                <RefreshCw size={13} /> আবার চেষ্টা
-              </button>
-              <button type="button" onClick={() => window.open(sharePlaybackUrl, "_blank", "noopener,noreferrer")}
-                className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold transition hover:bg-white/10 active:scale-95"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.55)" }}>
-                <ExternalLink size={13} /> Tab-এ খুলুন
+                className="flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition active:scale-95"
+                style={{ background: "linear-gradient(135deg, rgba(245,166,35,0.35), rgba(245,166,35,0.2))", border: "1.5px solid rgba(245,166,35,0.6)", boxShadow: "0 4px 16px rgba(245,166,35,0.25)" }}>
+                <RefreshCw size={15} /> আবার চেষ্টা
               </button>
             </div>
             </div>

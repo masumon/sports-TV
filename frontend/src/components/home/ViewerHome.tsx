@@ -7,6 +7,7 @@ import {
   Signal,
   Tv2,
   ChevronRight,
+  ChevronDown,
   Star,
   X,
   Share2,
@@ -1181,7 +1182,7 @@ export function ViewerHome() {
                 <div>
                   <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{t("scheduleEmpty")}</p>
                   <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    Set FOOTBALL_DATA_ORG_API_TOKEN &amp; CRICAPI_KEY in your backend environment to load live fixtures.
+                    লাইভ ম্যাচের তথ্য এখন পাওয়া যাচ্ছে না। কিছুক্ষণ পর আবার চেষ্টা করুন।
                   </p>
                 </div>
                 <button
@@ -1190,7 +1191,7 @@ export function ViewerHome() {
                   className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition hover:opacity-90 active:scale-95"
                   style={{ background: "var(--primary-accent)", color: "#0a0a0f" }}
                 >
-                  <RefreshCw size={14} /> Try Again
+                  <RefreshCw size={14} /> আবার চেষ্টা
                 </button>
               </div>
             )}
@@ -1198,7 +1199,7 @@ export function ViewerHome() {
         )}
 
         {/* ── World Cup 2026 Hero Banner ── */}
-        {activeModule === "world_cup_2026" && (
+        {activeModule === "world_cup_2026" && !activeChannel && (
           <div
             className="relative overflow-hidden rounded-xl p-5 sm:p-6"
             style={{
@@ -1284,7 +1285,7 @@ export function ViewerHome() {
                   ? slowLoad ? "⏳ সার্ভার জেগে উঠছে… একটু অপেক্ষা করুন (30-60 সেকেন্ড)" : t("loading")
                   : error
                     ? error
-                    : `${moduleChannels.length} ${t("channels")} · ${filtered.length} ${t("shown")}${
+                    : `${filtered.length} ${t("channels")}${
                         deferredSearch.trim() ? ` · ${nameMatchCount} ${t("searchMatches")}` : ""
                       }`}
               </p>
@@ -1564,7 +1565,7 @@ export function ViewerHome() {
                     <p className="text-[10px] uppercase tracking-widest" style={{ color: "var(--primary-accent)" }}>{t("nowPlaying")}</p>
                     <p className="truncate text-sm font-bold leading-tight" style={{ color: "var(--text-main)" }}>{activeChannel.name}</p>
                     <p className="truncate text-[10px]" style={{ color: "var(--text-muted)" }}>
-                      {flagFromCountryName(activeChannel.country)} {activeChannel.country} · {activeChannel.quality_tag.toUpperCase()}
+                      {flagFromCountryName(activeChannel.country)} {activeChannel.country}{activeChannel.quality_tag.toLowerCase() !== "auto" ? ` · ${activeChannel.quality_tag.toUpperCase()}` : ""}
                     </p>
                   </div>
                   {/* Actions — LIVE badge + share */}
@@ -1642,7 +1643,7 @@ export function ViewerHome() {
                         className="font-semibold transition hover:underline"
                         style={{ color: "var(--primary-accent)" }}
                       >
-                        {t("scrollToGrid")} ↓
+                        <ChevronDown size={14} className="inline-block" />
                       </button>
                     )}
                   </div>
@@ -1693,7 +1694,7 @@ export function ViewerHome() {
                           {ch.name}
                         </p>
                         <p className="truncate text-xs" style={{ color: "var(--text-muted)" }} title={`${ch.country} · ${ch.language}`}>
-                          {flagFromCountryName(ch.country)} {ch.country} · {ch.language} · {ch.quality_tag.toUpperCase()}
+                          {flagFromCountryName(ch.country)} {ch.country} · {ch.language}{ch.quality_tag.toLowerCase() !== "auto" ? ` · ${ch.quality_tag.toUpperCase()}` : ""}
                         </p>
                       </div>
                       {activeChannel?.id === ch.id && (

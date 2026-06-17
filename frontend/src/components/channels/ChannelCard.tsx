@@ -47,7 +47,7 @@ function ChannelCardBase({ channel, active = false, isLive = false, onSelect, cl
             loading="lazy"
           />
         ) : (
-          <span className="text-sm font-bold text-surface">{channel.name.slice(0, 2).toUpperCase()}</span>
+          <span className="text-sm font-bold text-white" style={{ background: "rgba(30,30,50,0.85)", padding: "0.35em 0.5em", borderRadius: "0.5rem" }}>{channel.name.slice(0, 2).toUpperCase()}</span>
         )}
         {isLive ? (
           <span className="absolute -right-0.5 -top-0.5 rounded-full bg-live-red px-1 py-px text-[8px] font-black uppercase tracking-wide text-white live-pulse">
