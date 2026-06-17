@@ -307,7 +307,9 @@ export default function PremiumPlayer({
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolumeState] = useState(1);
+  const [volume, setVolumeState] = useState(() => {
+    try { const v = parseFloat(localStorage.getItem("gstv-vol") ?? "1"); return isNaN(v) ? 1 : Math.max(0, Math.min(1, v)); } catch { return 1; }
+  });
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [qualityOptions, setQualityOptions] = useState<QualityOption[]>([{ label: "Auto", value: -1 }]);
@@ -918,6 +920,7 @@ export default function PremiumPlayer({
     video.muted = clamped === 0;
     setVolumeState(clamped);
     setIsMuted(clamped === 0);
+    try { localStorage.setItem("gstv-vol", String(clamped)); } catch { /* */ }
   }, []);
 
   const changeQuality = useCallback((level: number) => {
@@ -1196,9 +1199,9 @@ export default function PremiumPlayer({
             {/* Actions */}
             <div className="flex flex-wrap justify-center gap-2">
               <button type="button" onClick={retryStream}
-                className="flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold text-white transition active:scale-95"
-                style={{ background: "linear-gradient(135deg, rgba(245,166,35,0.25), rgba(245,166,35,0.15))", border: "1px solid rgba(245,166,35,0.45)", boxShadow: "0 4px 12px rgba(245,166,35,0.15)" }}>
-                <RefreshCw size={13} /> আবার চেষ্টা
+                className="flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition active:scale-95"
+                style={{ background: "linear-gradient(135deg, rgba(245,166,35,0.35), rgba(245,166,35,0.2))", border: "1.5px solid rgba(245,166,35,0.6)", boxShadow: "0 4px 16px rgba(245,166,35,0.25)" }}>
+                <RefreshCw size={15} /> আবার চেষ্টা
               </button>
             </div>
             </div>

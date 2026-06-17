@@ -113,7 +113,7 @@ export function SidebarNav() {
                       className="ml-2 shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold tabular-nums"
                       style={{ background: `${accentColor}22`, color: accentColor, border: `1px solid ${accentColor}44` }}
                     >
-                      {count > 9999 ? "9999+" : count}
+                      {count > 99 ? "99+" : count}
                     </span>
                   )}
                 </span>

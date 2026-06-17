@@ -7,6 +7,7 @@ import {
   Signal,
   Tv2,
   ChevronRight,
+  ChevronDown,
   Star,
   X,
   Share2,
@@ -1642,7 +1643,7 @@ export function ViewerHome() {
                         className="font-semibold transition hover:underline"
                         style={{ color: "var(--primary-accent)" }}
                       >
-                        {t("scrollToGrid")} ↓
+                        <ChevronDown size={14} className="inline-block" />
                       </button>
                     )}
                   </div>
