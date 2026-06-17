@@ -354,6 +354,12 @@ def fetch_all_sports_m3u(extra_urls: list[str] | None = None) -> list[str]:
     return results
 
 
+_UA_STRING_RE = re.compile(
+    r"AppleWebKit|Gecko\)|Chrome/\d|Safari/\d|Mozilla/5|group-title=|tvg-id=|tvg-logo=",
+    re.IGNORECASE,
+)
+
+
 def _is_junk_channel_name(name: str) -> bool:
     s = (name or "").strip()
     if not s or len(s) < 2:
@@ -361,6 +367,8 @@ def _is_junk_channel_name(name: str) -> bool:
     if _JUNK_NAME_RE.match(s) or _KODIPROP_NAME_RE.match(s):
         return True
     if "#KODIPROP" in s.upper():
+        return True
+    if _UA_STRING_RE.search(s):
         return True
     return False
 
