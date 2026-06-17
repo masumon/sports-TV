@@ -9,8 +9,10 @@ import {
   Check,
   Globe,
   Loader2,
+  Lock,
   Maximize,
   Minimize,
+  Moon,
   Pause,
   PictureInPicture2,
   Play,
@@ -1438,7 +1440,7 @@ export default function PremiumPlayer({
               </div>
               {/* Lock */}
               <button type="button" onClick={() => setIsLocked(true)} aria-label="Lock controls" className="player-control-btn shrink-0">
-                <span className="text-sm leading-none">🔒</span>
+                <Lock size={15} />
               </button>
               {/* Aspect ratio */}
               <button type="button" onClick={toggleAspectRatio} aria-label="Toggle aspect ratio" title="Aspect ratio" className="player-control-btn shrink-0">
@@ -1528,7 +1530,7 @@ export default function PremiumPlayer({
                 title={sleepMinutes ? `Sleep: ${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, "0")}` : "Sleep timer"}
                 aria-label="Sleep timer"
               >
-                <span className="text-sm leading-none">🌙</span>
+                <Moon size={15} />
                 {sleepMinutes && (
                   <span className="absolute -top-1 -right-1 rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
                     {Math.ceil(sleepRemaining / 60)}m
@@ -1550,7 +1552,7 @@ export default function PremiumPlayer({
                       key={i}
                       type="button"
                       onClick={() => switchServer(i)}
-                      className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold transition active:scale-95"
+                      className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold transition active:scale-95"
                       style={urlIdx === i ? {
                         background: "rgba(0,229,255,0.18)",
                         border: "1px solid rgba(0,229,255,0.55)",
@@ -1570,7 +1572,7 @@ export default function PremiumPlayer({
 
               {/* Progress bar */}
               <div
-                className="mb-2 relative h-1 w-full cursor-pointer overflow-visible rounded-full"
+                className="mb-2 relative h-1.5 w-full cursor-pointer overflow-visible rounded-full"
                 style={{ background: "rgba(255,255,255,0.12)" }}
                 onClick={(e) => {
                   const video = videoRef.current;

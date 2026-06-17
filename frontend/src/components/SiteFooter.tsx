@@ -5,21 +5,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePlayerStore } from "@/store/playerStore";
 import { BRAND } from "@/lib/branding";
-import { DeveloperBrandCard } from "@/components/branding/DeveloperBrandCard";
 import {
   ChevronDown,
   ExternalLink,
   Mail,
   Phone,
-  Shield,
-  FileText,
-  BookOpen,
   Youtube,
   Facebook,
   Send,
   MessageCircle,
   Radio,
-  Tv,
   Star,
 } from "lucide-react";
 
@@ -30,6 +25,21 @@ const LEGAL_PDF = {
   international: "/legal/abo-sports-tv-international-use.pdf",
 } as const;
 
+const SOCIAL_LINKS = [
+  { icon: <Facebook size={15} />, label: "Facebook", href: "https://www.facebook.com/abo.enterprise", color: "#1877F2" },
+  { icon: <Send size={15} />, label: "Telegram", href: "https://t.me/01825007977", color: "#2AABEE" },
+  { icon: <MessageCircle size={15} />, label: "WhatsApp", href: "https://wa.me/8801825007977", color: "#25D366" },
+  { icon: <Youtube size={15} />, label: "YouTube", href: "https://www.youtube.com/@aboenterprise", color: "#FF0000" },
+] as const;
+
+/** Uniform chip style for both Coverage and Product tags */
+const chipStyle = (accent?: string) =>
+  ({
+    background: accent ? `${accent}12` : "rgba(255,255,255,0.05)",
+    border: `1px solid ${accent ? `${accent}28` : "rgba(255,255,255,0.11)"}`,
+    color: accent ?? "var(--text-muted)",
+  }) as React.CSSProperties;
+
 export function SiteFooter() {
   const activeChannel = usePlayerStore((s) => s.activeChannel);
   const [bdExpanded, setBdExpanded] = useState(true);
@@ -37,34 +47,32 @@ export function SiteFooter() {
   return (
     <footer
       className={`mt-auto ${activeChannel ? "hidden md:block" : ""}`}
-      style={{
-        background: "var(--bg-card)",
-        borderTop: "1px solid var(--border)",
-      }}
+      style={{ background: "var(--bg-card)", borderTop: "1px solid var(--border)" }}
     >
-      {/* Brand header */}
+      {/* ── Brand hero: logo + name + badges only — no developer card ── */}
       <div
-        className="relative overflow-hidden py-8"
+        className="relative overflow-hidden py-3.5 sm:py-5"
         style={{
-          background: "linear-gradient(135deg, rgb(var(--primary-rgb)/0.05) 0%, rgb(var(--primary-rgb)/0.02) 100%)",
+          background: "linear-gradient(135deg, rgb(var(--primary-rgb)/0.07) 0%, rgb(var(--primary-rgb)/0.02) 100%)",
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-4 px-4 sm:flex-row sm:gap-8 sm:text-left">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 sm:gap-4">
+          {/* Logo */}
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center sm:h-11 sm:w-11">
             <Image
               src={BRAND.logo.png}
               alt={BRAND.name}
-              width={64}
-              height={64}
-              className="object-contain"
+              width={44}
+              height={44}
+              className="h-10 w-10 object-contain sm:h-11 sm:w-11"
             />
           </div>
 
-          {/* Brand identity */}
-          <div className="min-w-0 flex-1 text-center sm:text-left">
+          {/* Name + tagline + badges */}
+          <div className="min-w-0 flex-1">
             <h2
-              className="text-xl font-black uppercase tracking-[0.06em] leading-tight sm:text-2xl"
+              className="text-sm font-black uppercase leading-none tracking-[0.06em] sm:text-base"
               style={{
                 background: "linear-gradient(90deg,#F5A623 0%,#fff 50%,#F5A623 100%)",
                 WebkitBackgroundClip: "text",
@@ -74,41 +82,45 @@ export function SiteFooter() {
             >
               {BRAND.nameFull}
             </h2>
-            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              Global live sports, India &amp; Bangladesh TV — one app.
+            <p className="mt-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>
+              Global live sports &amp; Bangladesh TV — one app.
             </p>
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-              <span className="live-badge inline-flex items-center gap-1">
-                <Radio size={9} className="animate-pulse" /> LIVE
+            {/* Badge strip: flex-nowrap so it never wraps, scrolls on tiny viewports */}
+            <div className="-mx-0.5 mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5">
+              <span className="live-badge inline-flex shrink-0 items-center gap-1 text-[8px]">
+                <Radio size={8} className="animate-pulse" aria-hidden /> LIVE
               </span>
-              <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
-                style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.2)", color: "var(--primary-accent)" }}>
+              <span
+                className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                style={chipStyle("var(--primary-accent)")}
+              >
                 HLS · PWA · HD
               </span>
-              <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
-                style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "#10b981" }}>
+              <span
+                className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                style={chipStyle("#10b981")}
+              >
                 10,000+ Channels
               </span>
             </div>
           </div>
-
-          <DeveloperBrandCard size="md" className="shrink-0" />
         </div>
       </div>
 
-      {/* Mobile collapsible header */}
-      <div className="mx-auto w-full max-w-6xl px-4 py-3 sm:hidden">
+      {/* ── Mobile collapse toggle ── */}
+      <div className="mx-auto w-full max-w-6xl px-4 py-1.5 sm:hidden">
         <button
           type="button"
           onClick={() => setBdExpanded(!bdExpanded)}
-          className="flex w-full items-center justify-between rounded-xl px-3 py-2 transition"
+          className="flex w-full items-center justify-between rounded-xl px-3 py-1.5 transition"
           style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
         >
-          <span className="text-xs font-bold" style={{ color: "var(--text-main)" }}>
-            বাংলাদেশ / সংযোগ
+          <span className="text-[11px] font-bold" style={{ color: "var(--text-main)" }}>
+            Features · Contact · Coverage
           </span>
           <ChevronDown
-            size={16}
+            size={14}
+            aria-hidden
             style={{
               color: "var(--text-muted)",
               transform: bdExpanded ? "rotate(0deg)" : "rotate(-90deg)",
@@ -118,132 +130,135 @@ export function SiteFooter() {
         </button>
       </div>
 
-      {/* Footer content grid — collapsible on mobile */}
+      {/* ── Three-column grid — CSS collapse, no SSR flash ── */}
       <div
-        className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8 transition-all"
-        style={{
-          display: bdExpanded || typeof window === "undefined" || window.innerWidth >= 640 ? "block" : "none",
-        }}
+        className={`mx-auto w-full max-w-6xl px-4 py-4 sm:block sm:px-6 sm:py-5 lg:px-8 ${bdExpanded ? "block" : "hidden"}`}
       >
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+
+          {/* Product */}
+          <div className="space-y-2">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Product
             </p>
-            <div className="flex items-center gap-2">
-              <Tv size={14} style={{ color: "var(--primary-accent)" }} />
-              <span className="text-xs font-bold tracking-wide" style={{ color: "var(--text-main)" }}>
-                Live streaming
-              </span>
-            </div>
-            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              HLS player, backup streams, server relay for tricky sources, PWA install. Tuned for mobile networks.
+            <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              HLS player · backup streams · server relay · PWA. Tuned for mobile networks.
             </p>
-            <div className="flex flex-wrap gap-1.5 text-[10px]">
-              {["HLS", "PWA", "Multi-region", "HD"].map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full px-2.5 py-1"
-                  style={{ background: "rgb(var(--primary-rgb) / 0.08)", border: "1px solid var(--border-accent)", color: "var(--primary-accent)" }}
-                >
+            <div className="flex flex-wrap gap-1">
+              {(["HLS", "PWA", "Multi-region", "HD"] as const).map((tag) => (
+                <span key={tag} className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={chipStyle("var(--primary-accent)")}>
                   {tag}
                 </span>
               ))}
             </div>
           </div>
 
-          <div className="space-y-3">
+          {/* Contact */}
+          <div className="space-y-2">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Contact
             </p>
-            <div className="space-y-1.5">
-              {[
-                { icon: <Facebook size={14} />, label: "Facebook", href: "https://www.facebook.com/abo.enterprise", color: "#1877F2" },
-                { icon: <Send size={14} />, label: "Telegram", href: "https://t.me/01825007977", color: "#2AABEE" },
-                { icon: <MessageCircle size={14} />, label: "WhatsApp", href: "https://wa.me/8801825007977", color: "#25D366" },
-                { icon: <Youtube size={14} />, label: "YouTube", href: "https://www.youtube.com/@aboenterprise", color: "#FF0000" },
-                { icon: <Mail size={14} />, label: "contact@aboenterprise.com", href: "mailto:contact@aboenterprise.com", color: "var(--primary-accent)" },
-                { icon: <Phone size={14} />, label: "+880 1825-007977", href: "tel:+8801825007977", color: "var(--accent-green)" },
-              ].map(({ icon, label, href, color }) => (
+            {/* Social icon buttons */}
+            <div className="flex items-center gap-1.5">
+              {SOCIAL_LINKS.map(({ icon, label, href, color }) => (
                 <a
                   key={label}
                   href={href}
-                  target={href.startsWith("http") ? "_blank" : undefined}
-                  rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-                  className="flex items-center gap-2.5 rounded-lg px-1 py-1.5 text-xs font-medium transition-all hover:bg-white/5"
-                  style={{ color: "var(--text-muted)" }}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:scale-110 active:scale-95"
+                  style={{ background: `${color}18`, border: `1px solid ${color}2e`, color }}
                 >
-                  <span style={{ color }}>{icon}</span>
-                  {label}
-                  {href.startsWith("http") && <ExternalLink size={9} className="ml-auto opacity-40" />}
+                  {icon}
                 </a>
               ))}
             </div>
+            {/* Email + phone */}
+            <div className="flex flex-col gap-0.5">
+              <a
+                href="mailto:contact@aboenterprise.com"
+                className="flex items-center gap-1.5 text-[10px] font-medium transition hover:opacity-80"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <Mail size={11} style={{ color: "var(--primary-accent)", flexShrink: 0 }} aria-hidden />
+                contact@aboenterprise.com
+              </a>
+              <a
+                href="tel:+8801825007977"
+                className="flex items-center gap-1.5 text-[10px] font-medium transition hover:opacity-80"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <Phone size={11} style={{ color: "#10b981", flexShrink: 0 }} aria-hidden />
+                +880 1825-007977
+              </a>
+            </div>
           </div>
 
-          <div className="space-y-3">
+          {/* Coverage */}
+          <div className="space-y-2">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Coverage
             </p>
-            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-              {[
-                "⚽ Football", "🏏 Cricket",
-                "🏀 Basketball", "🎾 Tennis",
-                "🏎️ Formula 1",  "🥊 Boxing / MMA",
-                "🏒 Hockey",     "🏈 NFL",
-              ].map((s) => (
-                <div key={s} style={{ color: "var(--text-muted)" }}>
+            <div className="flex flex-wrap gap-1">
+              {(["⚽ Football", "🏏 Cricket", "🏀 Basketball", "🎾 Tennis", "🏎️ F1", "🥊 Boxing", "🏒 Hockey", "🏈 NFL"] as const).map((s) => (
+                <span key={s} className="rounded-full px-2 py-0.5 text-[9px] font-medium" style={chipStyle()}>
                   {s}
-                </div>
+                </span>
               ))}
             </div>
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold transition hover:opacity-80"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold transition hover:opacity-80"
               style={{ color: "var(--primary-accent)" }}
             >
-              <Star size={12} fill="currentColor" />
+              <Star size={10} fill="currentColor" aria-hidden />
               Browse channels
             </Link>
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-4" style={{ borderTop: "1px solid var(--border)" }}>
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
-            {[
-              { icon: <Shield size={11} />, label: "Privacy", href: LEGAL_PDF.privacy },
-              { icon: <FileText size={11} />, label: "Terms", href: LEGAL_PDF.terms },
-              { icon: <BookOpen size={11} />, label: "License", href: LEGAL_PDF.license },
-              { icon: <FileText size={11} />, label: "International", href: LEGAL_PDF.international },
-            ].map(({ icon, label, href }) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 transition hover:opacity-80"
-              >
-                {icon} {label}
-              </a>
-            ))}
+      {/* ── "Powered by ABO Enterprise" — subtle attribution near footer ── */}
+      <div
+        className="flex items-center justify-center py-2"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        <a
+          href={BRAND.developerWebsiteUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-[10px] font-medium transition hover:opacity-75"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Powered by
+          <span className="font-bold" style={{ color: "var(--primary-accent)" }}>
+            {BRAND.developer}
+          </span>
+          <ExternalLink size={9} aria-hidden className="opacity-40" />
+        </a>
+      </div>
+
+      {/* ── Legal + copyright — single compact row, no scroll needed ── */}
+      <div className="px-4 py-2" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          {/* Dot-separated legal links — no icons, guaranteed one-line fit */}
+          <div className="flex flex-nowrap items-center text-[10px]" style={{ color: "var(--text-muted)" }}>
+            <a href={LEGAL_PDF.privacy} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Privacy</a>
+            <span aria-hidden className="mx-2 opacity-30">·</span>
+            <a href={LEGAL_PDF.terms} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Terms</a>
+            <span aria-hidden className="mx-2 opacity-30">·</span>
+            <a href={LEGAL_PDF.license} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">License</a>
+            <span aria-hidden className="mx-2 opacity-30">·</span>
+            <a href={LEGAL_PDF.international} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Intl. Use</a>
           </div>
-          <div className="text-[11px] sm:text-right" style={{ color: "var(--text-muted)" }}>
-            <p>
-              © {new Date().getFullYear()}{" "}
-              <Link href="/" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
-                ABO Sports TV Live
-              </Link>
-            </p>
-            <p className="mt-0.5 max-w-prose text-[10px] leading-snug">
-              Third-party streams ·{" "}
-              <a href={BRAND.developerWebsiteUrl} target="_blank" rel="noopener noreferrer"
-                className="whitespace-nowrap hover:opacity-80 transition" style={{ color: "var(--primary-accent)" }}>
-                {BRAND.developer}
-              </a>
-            </p>
-          </div>
+          {/* Copyright */}
+          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+            © {new Date().getFullYear()}{" "}
+            <Link href="/" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
+              ABO Sports TV
+            </Link>
+          </p>
         </div>
       </div>
     </footer>

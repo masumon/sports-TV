@@ -141,8 +141,17 @@ export function InsightsDashboard({ token }: { token: string }) {
       </div>
 
       {error && (
-        <div className="rounded-xl p-3 text-[12px]" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
-          {error}
+        <div className="flex items-start justify-between gap-3 rounded-2xl p-3 text-[12px]" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
+          <p className="min-w-0 flex-1 leading-relaxed">{error}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-bold transition hover:opacity-80 disabled:opacity-40"
+            style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)" }}
+          >
+            Retry
+          </button>
         </div>
       )}
 

@@ -1,45 +1,116 @@
-# ABO SPORTS TV — Fix Plan (SSOT)
+# ABO Sports TV — OTT UX Polish Pass
 
-Status: COMPLETE
+Date: 2026-06-17  
+Branch: `claude/world-cup-2026-loading-fix-bKags`  
+Scope: UI/UX only — no backend, no API, no functional changes
 
-## Phase 0 — Security (P0)
-- [x] proxy: re-validate URLs after redirects (SSRF)
-- [x] proxy: upstream TLS verify default on (`STREAM_UPSTREAM_TLS_VERIFY`)
-- [x] sports_tv: auth-gate POST /invalidate-cache (admin JWT)
-- [x] auth: hide reset_token in production
-- [x] aggregator: require INTERNAL_SYNC_SECRET in prod for bdix/sync
-- [x] auth: disable open registration in production
-- [x] prod: disable OpenAPI /docs
+---
 
-## Phase 1 — Player UX (P0/P1)
-- [x] Remove duplicate LIVE/channel chrome (Hero badge when player active, strip simplified)
-- [x] LiveStatsOverlay via PremiumPlayer overlay prop
-- [x] Live mode: disable seek gestures + hide empty buffer bar
-- [x] Cap auto-retry (3×)
-- [x] /live: explicit match preview label (no fake stream)
+## Phase 1 — Audit Findings
 
-## Phase 2 — Fake data / broken preload (P1)
-- [x] match/[id]: remove mock H2H/lineups; honest message
-- [x] AppProviders: fix BackgroundAutoRefresh API paths
-- [x] subscription: remove client toggleTier abuse path
+| # | Issue | Severity | File |
+|---|-------|----------|------|
+| 1 | Empty state `py-16` = 64px dead space — kills information density | High | ChannelGrid.tsx |
+| 2 | Grid gap: 12px mobile→lg, only 16px on xl (no intermediate step) | Medium | ChannelGrid.tsx |
+| 3 | Empty state text oversized (`text-base`) vs tight list (`text-xs`) — hierarchy mismatch | Medium | ChannelGrid.tsx |
+| 4 | Card padding `p-3.5` + `gap-2.5` — 2px oversized; wastes vertical card space on mobile | Medium | ChannelCard.tsx |
+| 5 | Live/VPN badge offset `-0.5` (−2px) — clips on some renderers | Low | ChannelCard.tsx |
+| 6 | Module tab strip `pb-1` — no visual separation between tabs and content | Medium | ViewerHome.tsx |
+| 7 | MoreSheet theme buttons `py-3` — 24px height for 20px color swatch; wasted touch area | Medium | MoreSheet.tsx |
+| 8 | MoreSheet `mb-4/mb-5` between 10px typography — gap twice the text height | Medium | MoreSheet.tsx |
+| 9 | Admin stat grid: `gap-3` flat on all breakpoints | Low | dashboard/page.tsx |
+| 10 | Footer already optimized (previous pass) | — | SiteFooter.tsx |
 
-## Phase 3 — Backend reliability (P1/P2)
-- [x] config defaults align with render.yaml
-- [x] admin sync: wire check_sync_allowed()
-- [x] sports_tv: geo-sort before pagination (SQL + cache key)
-- [x] admin channels: pagination (apiClient loads all pages)
+**Not changed this pass (risk/scope):**
+- `PremiumPlayer.tsx` — playback logic intertwined with control UI; breaking change risk
+- `globals.css` — design token classes already consistent
+- `SearchOverlay` — functioning correctly; no density issues
+- All backend/API/auth/analytics files
 
-## Phase 4 — Cleanup (P2/P3)
-- [x] history page: ViewerPageShell
-- [x] GitHub CI workflow (lint/build)
+---
 
-## Phase 5 — Validate & Ship
-- [x] frontend lint + build
-- [x] backend compileall
-- [x] commit + push
+## Phase 2 — Home Screen
 
-## Manual actions (user)
-- Render: set `JWT_SECRET_KEY`, `INTERNAL_SYNC_SECRET`, `DATABASE_URL`, rotate `ADMIN_PASSWORD`
-- Vercel: confirm `BACKEND_URL=https://gstv-backend.onrender.com`
-- Prod admin password reset: token no longer in API response — use dev/staging or add email delivery
-- If streams fail TLS: set `STREAM_UPSTREAM_TLS_VERIFY=false` on Render (last resort)
+**File:** `ViewerHome.tsx`  
+**Change:** Module tab strip `pb-1` → `pb-2`  
+**Effect:** +4px visual breathing room between tab row and first content block; clearer hierarchy
+
+---
+
+## Phase 3 — Player
+
+Deferred. PremiumPlayer.tsx contains intertwined playback + control logic.  
+Safe player UX changes (button sizing, fullscreen polish) would require a dedicated isolated pass.
+
+---
+
+## Phase 4 — Channel Experience
+
+**File:** `ChannelCard.tsx`
+
+| Property | Before | After |
+|----------|--------|-------|
+| Card padding | `p-3.5` (14px) | `p-3` (12px) |
+| Logo-to-name gap | `gap-2.5` (10px) | `gap-2` (8px) |
+| Live badge offset | `-right-0.5 -top-0.5` | `right-0 top-0` |
+| VPN badge offset | `-bottom-0.5` | `bottom-0` |
+
+**File:** `ChannelGrid.tsx`
+
+| Property | Before | After |
+|----------|--------|-------|
+| lg breakpoint gap | `gap-3` (12px) | `lg:gap-3.5` (14px) |
+| Empty state padding | `py-16 px-6` (64px/24px) | `py-10 px-5` (40px/20px) |
+| Empty state icon | `h-14 w-14` | `h-12 w-12` |
+| Empty state heading | `text-base` | `text-sm` |
+| Empty state subtitle | `mt-1.5 text-sm` | `mt-1 text-xs` |
+| Empty state list top margin | `mt-2` | `mt-1.5` |
+
+---
+
+## Phase 5 — Search
+
+No changes. Search overlay has correct hierarchy and mobile usability.
+
+---
+
+## Phase 6 — Admin Dashboard
+
+**File:** `dashboard/page.tsx`  
+**Change:** Stat grid `gap-3` → `gap-3 sm:gap-4`  
+**Effect:** Cards have breathing room on tablet and wider
+
+---
+
+## Phase 7 — Design System
+
+No changes to `globals.css`. Existing token classes (`.module-tab`, `.cat-tab`, `.admin-stat`, `.live-badge`, `.glow-gold`, `.neon-border`, `.interactive-transition`) are already consistent.
+
+---
+
+## Phase 8 — Mobile-First Polish
+
+**File:** `MoreSheet.tsx`
+
+| Element | Before | After |
+|---------|--------|-------|
+| Drag handle row | `mb-4` | `mb-2` |
+| Theme picker buttons | `py-3` | `py-2` |
+| Post-picker gap | `mb-5` | `mb-3` |
+| All Channels button | `mb-3` | `mb-2` |
+| Profile link | `mb-5` | `mb-2` |
+| Footer section top | `pt-4` | `pt-3` |
+| Developer card top | `mt-3` | `mt-2` |
+
+Net savings: ~28px vertical space in a modal that's capped at `92dvh` on mobile.
+
+---
+
+## Validation
+
+- `npx tsc --noEmit` — 0 errors  
+- No backend files touched  
+- No routing changes  
+- No link changes  
+- No playback logic changes  
+- No analytics changes  

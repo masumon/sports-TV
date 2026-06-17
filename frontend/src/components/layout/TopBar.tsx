@@ -290,12 +290,12 @@ export function TopBar({ onSearch, searchQuery }: TopBarProps) {
             <button
               type="button"
               onClick={() => setLocale(locale === "en" ? "bn" : "en")}
-              className="hidden h-10 items-center justify-center gap-1 rounded-xl border border-glass-border px-2.5 text-foreground-muted transition hover:bg-surface-elevated hover:text-foreground sm:inline-flex"
+              className="hidden h-7 items-center justify-center gap-1 rounded-full border border-glass-border px-2.5 text-[10px] font-bold uppercase tracking-widest text-foreground-muted transition hover:bg-surface-elevated hover:text-foreground sm:inline-flex"
               title="Language / ভাষা"
               aria-label="Toggle language"
             >
-              <Globe size={15} aria-hidden />
-              <span className="text-xs font-semibold">{locale.toUpperCase()}</span>
+              <Globe size={11} aria-hidden />
+              {locale.toUpperCase()}
             </button>
 
             <button

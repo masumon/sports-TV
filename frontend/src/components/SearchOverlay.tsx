@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, X, Clock, AlertCircle } from "lucide-react";
+import { Search, X, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { Channel } from "@/lib/types";
 
@@ -160,7 +160,7 @@ export function SearchOverlay({
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-3 py-12">
-                      <AlertCircle size={40} style={{ color: "var(--text-muted)" }} />
+                      <Search size={36} style={{ color: "var(--text-muted)", opacity: 0.4 }} />
                       <p style={{ color: "var(--text-muted)" }} className="text-sm text-center">
                         &quot;{searchQuery}&quot; এর জন্য কোনো চ্যানেল পাওয়া যায়নি
                       </p>
@@ -205,8 +205,8 @@ export function SearchOverlay({
                   )}
 
                   {recentSearches.length === 0 && (
-                    <div className="flex flex-col items-center justify-center gap-3 py-16">
-                      <Search size={40} style={{ color: "var(--text-muted)" }} />
+                    <div className="flex flex-col items-center justify-center gap-3 py-12">
+                      <Search size={36} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
                       <p style={{ color: "var(--text-muted)" }} className="text-sm text-center">
                         আপনার প্রিয় চ্যানেল খুঁজুন
                       </p>

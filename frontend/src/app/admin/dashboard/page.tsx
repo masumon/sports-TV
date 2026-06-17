@@ -933,7 +933,7 @@ export default function AdminDashboardPage() {
 
         {/* ── Stats cards ── */}
         {stats && (
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
             {/* Users */}
             <div className="admin-stat rounded-2xl p-4 pt-5 ring-1 ring-white/10" style={{ "--c1": "#0ea5e9", "--c2": "#38bdf8" } as CSSProperties}>
               <div className="flex items-center justify-between gap-2">
