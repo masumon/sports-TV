@@ -342,7 +342,6 @@ def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
     n = name.strip().lower()
 
     if n == "tsports":
-        # T Sports (Bangladesh) CDN — requires matching UA and Referer
         return {
             "user-agent": "Tsports/2.0 (Linux; Android 14) AndroidXMedia3/1.1.1",
             "referer": "https://live-cdn.tsports.com/",
@@ -350,15 +349,12 @@ def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
         }
 
     if n == "crichd":
-        # CricHD streams require a matching Referer from the playlist host
         return {
             "referer": "https://executeandship.com/",
             "origin": "https://executeandship.com",
         }
 
     if n == "star_sports":
-        # Star Sports / Disney+ Hotstar CDN — Indian sports mirror servers expect mobile Chrome UA
-        # and Hotstar-like origin to satisfy CDN referer/UA checks on Indian content delivery nodes.
         return {
             "user-agent": (
                 "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
@@ -370,7 +366,6 @@ def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
         }
 
     if n == "sony_sports":
-        # Sony LIV CDN — Sony Ten / Sony Sports channels on Indian IPTV mirrors expect SonyLIV UA/referer.
         return {
             "user-agent": (
                 "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
@@ -381,7 +376,172 @@ def _headers_for_allowlisted_profile(name: str | None) -> dict[str, str]:
             "accept-language": "en-IN,en;q=0.9,hi;q=0.8",
         }
 
+    if n == "sky_sports":
+        return {
+            "user-agent": (
+                "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+            ),
+            "referer": "https://www.skysports.com/",
+            "origin": "https://www.skysports.com",
+            "accept-language": "en-GB,en;q=0.9",
+        }
+
+    if n == "bt_sport":
+        return {
+            "user-agent": (
+                "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+            ),
+            "referer": "https://www.tntsports.co.uk/",
+            "origin": "https://www.tntsports.co.uk",
+            "accept-language": "en-GB,en;q=0.9",
+        }
+
+    if n == "willow_tv":
+        return {
+            "user-agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "referer": "https://www.willow.tv/",
+            "origin": "https://www.willow.tv",
+        }
+
+    if n == "maasranga":
+        return {
+            "user-agent": _DEFAULT_USER_AGENT,
+            "referer": "https://maasrangatv.com/",
+            "origin": "https://maasrangatv.com",
+            "accept-language": "bn-BD,bn;q=0.9,en;q=0.8",
+        }
+
+    if n == "gazi_tv":
+        return {
+            "user-agent": _DEFAULT_USER_AGENT,
+            "referer": "https://gazitv.com/",
+            "origin": "https://gazitv.com",
+            "accept-language": "bn-BD,bn;q=0.9,en;q=0.8",
+        }
+
+    if n == "btv":
+        return {
+            "user-agent": _DEFAULT_USER_AGENT,
+            "referer": "https://btv.gov.bd/",
+            "origin": "https://btv.gov.bd",
+            "accept-language": "bn-BD,bn;q=0.9,en;q=0.8",
+        }
+
+    if n == "channel_i":
+        return {
+            "user-agent": _DEFAULT_USER_AGENT,
+            "referer": "https://www.channelionline.com/",
+            "origin": "https://www.channelionline.com",
+            "accept-language": "bn-BD,bn;q=0.9,en;q=0.8",
+        }
+
+    if n == "ntvbd":
+        return {
+            "user-agent": _DEFAULT_USER_AGENT,
+            "referer": "https://www.ntvbd.com/",
+            "origin": "https://www.ntvbd.com",
+            "accept-language": "bn-BD,bn;q=0.9,en;q=0.8",
+        }
+
+    if n == "eurosport":
+        return {
+            "user-agent": (
+                "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+            ),
+            "referer": "https://www.eurosport.com/",
+            "origin": "https://www.eurosport.com",
+        }
+
+    if n == "bein_sports":
+        return {
+            "user-agent": (
+                "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+            ),
+            "referer": "https://www.beinsports.com/",
+            "origin": "https://www.beinsports.com",
+        }
+
     return {}
+
+
+# URL / channel-name patterns → header profile (applied when no explicit profile in request).
+_PROFILE_URL_PATTERNS: list[tuple[str, str]] = [
+    ("tsports.com", "tsports"),
+    ("tsportshd", "tsports"),
+    ("tsporthd", "tsports"),
+    ("live-cdn.tsports", "tsports"),
+    ("hotstar.com", "star_sports"),
+    ("starsports.com", "star_sports"),
+    ("star-sports", "star_sports"),
+    ("sonyliv.com", "sony_sports"),
+    ("sonyentertainment", "sony_sports"),
+    ("executeandship.com", "crichd"),
+    ("crichd.com", "crichd"),
+    ("sky.com/sport", "sky_sports"),
+    ("skysports.com", "sky_sports"),
+    ("btsport.com", "bt_sport"),
+    ("tntsports.co.uk", "bt_sport"),
+    ("dazn.com", "bt_sport"),
+    ("maasrangatv.com", "maasranga"),
+    ("maasranga.tv", "maasranga"),
+    ("gazitv.com", "gazi_tv"),
+    ("btv.gov.bd", "btv"),
+    ("channelionline.com", "channel_i"),
+    ("ntvbd.com", "ntvbd"),
+    ("willow.tv", "willow_tv"),
+    ("eurosport.com", "eurosport"),
+    ("beinsports.com", "bein_sports"),
+]
+
+_PROFILE_NAME_PATTERNS: list[tuple[str, str]] = [
+    ("t sports", "tsports"),
+    ("tsport", "tsports"),
+    ("t-sport", "tsports"),
+    ("star sports", "star_sports"),
+    ("starsports", "star_sports"),
+    ("hotstar", "star_sports"),
+    ("sony sports", "sony_sports"),
+    ("sony ten", "sony_sports"),
+    ("sony liv", "sony_sports"),
+    ("sonyliv", "sony_sports"),
+    ("crichd", "crichd"),
+    ("sky sports", "sky_sports"),
+    ("skysports", "sky_sports"),
+    ("bt sport", "bt_sport"),
+    ("tnt sports", "bt_sport"),
+    ("maasranga", "maasranga"),
+    ("gazi tv", "gazi_tv"),
+    ("gazitv", "gazi_tv"),
+    ("bangladesh television", "btv"),
+    (" btv", "btv"),
+    ("channel i", "channel_i"),
+    ("ntv bd", "ntvbd"),
+    ("ntvbd", "ntvbd"),
+    ("willow", "willow_tv"),
+    ("eurosport", "eurosport"),
+    ("bein sports", "bein_sports"),
+    ("beinsports", "bein_sports"),
+]
+
+
+def _auto_detect_header_profile(url: str, name: str = "") -> str | None:
+    """Detect the best header profile from URL and channel name patterns."""
+    u = url.lower()
+    n = name.lower()
+    for pattern, profile in _PROFILE_URL_PATTERNS:
+        if pattern in u:
+            return profile
+    for pattern, profile in _PROFILE_NAME_PATTERNS:
+        if pattern in n:
+            return profile
+    return None
 
 
 def _apply_header_profile(forward: dict[str, str], profile: str | None) -> dict[str, str]:
@@ -1204,7 +1364,8 @@ async def proxy_stream(
                         if r and r != target_url:
                             effective_url = _validate_stream_url(r)
 
-        forward = _apply_header_profile(forward, header_profile_q)
+        effective_profile = header_profile_q or _auto_detect_header_profile(effective_url)
+        forward = _apply_header_profile(forward, effective_profile)
         forward = _apply_upstream_geo_bypass_headers(forward, effective_url)
 
         # .m3u8/.m3u: one buffered manifest fetch (no peek) — avoids double upstream hits and Vercel/edge stalls.

@@ -21,6 +21,77 @@ from app.services.channel_cleanup import _merge_alternate_urls
 
 logger = logging.getLogger("app.scraper")
 
+# Channel name / URL patterns → header profile (mirrors proxy.py allowlist).
+_HP_URL_PATTERNS: list[tuple[str, str]] = [
+    ("tsports.com", "tsports"),
+    ("tsportshd", "tsports"),
+    ("tsporthd", "tsports"),
+    ("live-cdn.tsports", "tsports"),
+    ("hotstar.com", "star_sports"),
+    ("starsports.com", "star_sports"),
+    ("star-sports", "star_sports"),
+    ("sonyliv.com", "sony_sports"),
+    ("sonyentertainment", "sony_sports"),
+    ("executeandship.com", "crichd"),
+    ("crichd.com", "crichd"),
+    ("sky.com/sport", "sky_sports"),
+    ("skysports.com", "sky_sports"),
+    ("btsport.com", "bt_sport"),
+    ("tntsports.co.uk", "bt_sport"),
+    ("maasrangatv.com", "maasranga"),
+    ("maasranga.tv", "maasranga"),
+    ("gazitv.com", "gazi_tv"),
+    ("btv.gov.bd", "btv"),
+    ("channelionline.com", "channel_i"),
+    ("ntvbd.com", "ntvbd"),
+    ("willow.tv", "willow_tv"),
+    ("eurosport.com", "eurosport"),
+    ("beinsports.com", "bein_sports"),
+]
+
+_HP_NAME_PATTERNS: list[tuple[str, str]] = [
+    ("t sports", "tsports"),
+    ("tsport", "tsports"),
+    ("t-sport", "tsports"),
+    ("star sports", "star_sports"),
+    ("starsports", "star_sports"),
+    ("hotstar", "star_sports"),
+    ("sony sports", "sony_sports"),
+    ("sony ten", "sony_sports"),
+    ("sony liv", "sony_sports"),
+    ("sonyliv", "sony_sports"),
+    ("crichd", "crichd"),
+    ("sky sports", "sky_sports"),
+    ("skysports", "sky_sports"),
+    ("bt sport", "bt_sport"),
+    ("tnt sports", "bt_sport"),
+    ("maasranga", "maasranga"),
+    ("gazi tv", "gazi_tv"),
+    ("gazitv", "gazi_tv"),
+    ("bangladesh television", "btv"),
+    (" btv ", "btv"),
+    ("channel i", "channel_i"),
+    ("ntv bd", "ntvbd"),
+    ("ntvbd", "ntvbd"),
+    ("willow", "willow_tv"),
+    ("eurosport", "eurosport"),
+    ("bein sports", "bein_sports"),
+    ("beinsports", "bein_sports"),
+]
+
+
+def _auto_header_profile(name: str, stream_url: str) -> str | None:
+    """Return the best header profile for a channel, or None if unknown."""
+    u = stream_url.lower()
+    n = f" {name.lower()} "
+    for pattern, profile in _HP_URL_PATTERNS:
+        if pattern in u:
+            return profile
+    for pattern, profile in _HP_NAME_PATTERNS:
+        if pattern in n:
+            return profile
+    return None
+
 # Regex to strip quality/status tags (in brackets or parens) from channel names
 # before grouping, so mirrors with different quality labels group together.
 # Examples stripped: (1080p), [Geo-blocked], (HD), [FHD], (720p), [Geo-Blocked]
@@ -427,6 +498,8 @@ def sync_channels_from_entries(
         normalized_name = _display_channel_name(primary.name)[:255]
         channel = existing_by_url.get(primary.stream_url)
 
+        auto_hp = _auto_header_profile(normalized_name, primary.stream_url)
+
         if channel is None:
             channel = Channel(
                 name=normalized_name,
@@ -440,6 +513,7 @@ def sync_channels_from_entries(
                 module=primary.module,
                 alternate_urls=alt_json,
                 geo_hint=primary.geo_hint,
+                header_profile=auto_hp,
                 is_active=True,
             )
             db.add(channel)
@@ -457,9 +531,10 @@ def sync_channels_from_entries(
             channel.alternate_urls = _merge_alternate_urls(
                 channel.stream_url, channel.alternate_urls, clean_alts
             )
+            # Auto-assign profile only when admin hasn't set one manually.
+            if channel.header_profile is None and auto_hp:
+                channel.header_profile = auto_hp
             channel.is_active = True
-            # Explicitly bump updated_at so the cleanup engine can detect stale channels.
-            # (onupdate fires only if SQLAlchemy detects a dirty column; this guarantees it.)
             channel.updated_at = _now
             updated += 1
 
