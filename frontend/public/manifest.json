@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "ABO SPORTS TV LIVE - বিশ্বের সব খেলা এক জায়গায়",
   "short_name": "ABO SPORTS TV",
   "description": "FIFA World Cup 2026 + লাইভ খেলাধুলা সম্প্রচার - Bangladesh IPTV Platform",
@@ -29,8 +30,8 @@
       "purpose": "any"
     },
     {
-      "src": "/icons/apple-touch-icon.png",
-      "sizes": "180x180",
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }

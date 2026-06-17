@@ -36,6 +36,7 @@ import {
   isNativeVideoProxiedUrl,
   parseDynamicM3U8IdFromStreamUrl,
 } from "@/lib/streamRelay";
+import { trackEvent } from "@/lib/analytics";
 
 /* ─────────────────────────────────────────────────────────── Types ── */
 type QualityOption = { label: string; value: number };
@@ -110,6 +111,7 @@ function tryUnlockPlaybackOrientation(): void {
 }
 
 /* ────────────────────────────────────────────────────────── Helpers ── */
+const QUALITY_PREF_KEY = "gstv-quality-height";
 const HIDE_CONTROLS_AFTER_MS = 4500;
 /** First-play: keep controls visible longer so new users can orient themselves. */
 const HIDE_CONTROLS_INITIAL_MS = 8000;
@@ -253,6 +255,8 @@ export default function PremiumPlayer({
   const dashRef = useRef<ReturnType<ReturnType<typeof dashjs.MediaPlayer>["create"]> | null>(null);
   /** After first `playing`, do not show the full-screen loader on routine rebuffering. */
   const playbackStartedRef = useRef(false);
+  const successTrackedRef = useRef(false);
+  const errorTypeRef = useRef<string>("unknown");
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -361,6 +365,8 @@ export default function PremiumPlayer({
     linkRetryRef.current = 0;
     firstHideDoneRef.current = false;
     hintShownRef.current = false;
+    successTrackedRef.current = false;
+    errorTypeRef.current = "unknown";
     setShowHint(false);
     if (hintTimerRef.current) { clearTimeout(hintTimerRef.current); hintTimerRef.current = null; }
     if (linkRetryTimerRef.current) {
@@ -413,7 +419,7 @@ export default function PremiumPlayer({
     setGeoRestricted(false);
     playbackStartedRef.current = false;
 
-    const allUrls = buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile);
+    const allUrls = prioritizeHealthyUrls(buildOrderedStreamUrls(directUrls, dynamicM3U8Id, headerProfile));
     if (!allUrls.length) {
       setIsLoading(false);
       setHasError(true);
@@ -567,14 +573,20 @@ export default function PremiumPlayer({
       };
       hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
+      if (bounded === 0) trackEvent("PLAYBACK_START", { channel_id: channelId, channel_name: title });
 
       hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (!data.fatal && data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          trackEvent("BUFFER_STALL", { channel_id: channelId, channel_name: title });
+          return;
+        }
         if (!data.fatal) return;
         const resp = (data as { response?: { code?: number } }).response;
         const httpCode = resp?.code;
 
         if (httpCode === 403 || httpCode === 401) {
           if (tryFailover()) return;
+          errorTypeRef.current = "geo_restricted";
           setGeoRestricted(true);
           setIsLoading(false);
           setIsSwitching(false);
@@ -597,6 +609,7 @@ export default function PremiumPlayer({
         // Network errors during playback = skip retry, failover immediately
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR && playbackStartedRef.current) {
           if (tryFailover()) return;
+          errorTypeRef.current = "network";
           linkRetryRef.current = 0;
           setIsSwitching(false);
           setHasError(true);
@@ -623,6 +636,7 @@ export default function PremiumPlayer({
         linkRetryRef.current = 0;
         if (tryFailover()) return;
 
+        errorTypeRef.current = data.type === Hls.ErrorTypes.NETWORK_ERROR ? "network" : "unknown";
         setIsSwitching(false);
         setHasError(true);
         setIsLoading(false);
@@ -652,6 +666,16 @@ export default function PremiumPlayer({
         });
         const parsed = [...levelMap.entries()].sort((a, b) => b[0] - a[0]).map(([, o]) => o);
         if (parsed.length) setQualityOptions([{ label: "Auto", value: -1 }, ...parsed]);
+        if (!lightNet && parsed.length) {
+          try {
+            const savedH = parseInt(localStorage.getItem(QUALITY_PREF_KEY) ?? "", 10);
+            if (savedH > 0) {
+              const best = hls.levels.reduce((bi, lv, i) =>
+                lv.height && Math.abs(lv.height - savedH) < Math.abs((hls.levels[bi]?.height ?? 0) - savedH) ? i : bi, 0);
+              if (hls.levels[best]?.height) { hls.currentLevel = best; setSelectedQuality(best); }
+            }
+          } catch { /* */ }
+        }
         if (hls.audioTracks.length > 1) {
           setAudioTracks(hls.audioTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, value: i })));
           setSelectedAudio(hls.audioTrack);
@@ -681,6 +705,13 @@ export default function PremiumPlayer({
       setIsLoading(true);
     };
     const onPlaying = () => {
+      if (!successTrackedRef.current) {
+        successTrackedRef.current = true;
+        trackEvent("PLAYBACK_SUCCESS", { channel_id: channelId, channel_name: title });
+        if (urlPlayIndexRef.current > 0) {
+          trackEvent("PLAYBACK_RETRY", { channel_id: channelId, channel_name: title, value: urlPlayIndexRef.current });
+        }
+      }
       playbackStartedRef.current = true;
       setIsLoading(false);
       setHasError(false);
@@ -898,8 +929,18 @@ export default function PremiumPlayer({
 
   const changeQuality = useCallback((level: number) => {
     setSelectedQuality(level);
-    if (hlsRef.current) hlsRef.current.currentLevel = level;
-  }, []);
+    if (hlsRef.current) {
+      hlsRef.current.currentLevel = level;
+      try {
+        if (level === -1) localStorage.removeItem(QUALITY_PREF_KEY);
+        else {
+          const h = hlsRef.current.levels[level]?.height;
+          if (h) localStorage.setItem(QUALITY_PREF_KEY, String(h));
+        }
+      } catch { /* */ }
+    }
+    trackEvent("QUALITY_CHANGE", { channel_id: channelId, channel_name: title, value: level });
+  }, [channelId, title]);
 
   const togglePictureInPicture = useCallback(async () => {
     const video = videoRef.current;
@@ -965,7 +1006,7 @@ export default function PremiumPlayer({
   }, []);
 
   const shareChannel = useCallback(async () => {
-    const url = channelId
+    const url = channelId && channelId > 0
       ? `${window.location.origin}/?channel_id=${channelId}`
       : window.location.href;
     try {
@@ -988,7 +1029,8 @@ export default function PremiumPlayer({
     urlPlayIndexRef.current = idx;
     setUrlIdx(idx);
     setRetryKey((k) => k + 1);
-  }, []);
+    trackEvent("SERVER_SWITCH", { channel_id: channelId, channel_name: title, value: idx });
+  }, [channelId, title]);
 
   // Cleanup sleep timer on unmount
   useEffect(() => () => { if (sleepTimerRef.current) clearInterval(sleepTimerRef.current); }, []);
@@ -997,6 +1039,7 @@ export default function PremiumPlayer({
   useEffect(() => {
     if (!hasError && !geoRestricted) { setAutoRetryCountdown(0); return; }
     onStreamError?.();
+    trackEvent(hasError ? "PLAYBACK_FAIL" : "PLAYER_ERROR", { channel_id: channelId, channel_name: title, meta: geoRestricted ? "geo_restricted" : errorTypeRef.current });
     const secs = geoRestricted ? 15 : 10;
     setAutoRetryCountdown(secs);
     const interval = setInterval(() => {
@@ -1006,7 +1049,7 @@ export default function PremiumPlayer({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [hasError, geoRestricted, retryStream]);
+  }, [hasError, geoRestricted, retryStream, onStreamError, channelId, title]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1578,7 +1621,11 @@ export default function PremiumPlayer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-45 flex items-center justify-center"
+            role="button"
+            aria-label="Unlock controls"
+            tabIndex={0}
             onClick={() => setIsLocked(false)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsLocked(false); }}
           >
             <div className="flex flex-col items-center gap-2 rounded-2xl px-5 py-3" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)" }}>
               <span className="text-2xl">🔒</span>

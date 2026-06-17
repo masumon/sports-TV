@@ -1320,6 +1320,12 @@ async def proxy_stream(
     client_ip = request.client.host if request.client else "unknown"
     _check_rate_limit(client_ip)
 
+    # Origin guard: browser requests must originate from an allowed origin.
+    # No-Origin requests (server-side, native apps) are permitted.
+    request_origin = request.headers.get("origin", "").strip()
+    if request_origin and request_origin not in settings.cors_origins_list:
+        raise HTTPException(status_code=403, detail="Origin not allowed")
+
     try:
         target_url = _validate_stream_url(url)
         m3u8_src = _m3u8_src_param(request)

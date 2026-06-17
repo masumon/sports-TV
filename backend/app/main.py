@@ -11,12 +11,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from app.api.routes import admin, auth, proxy, sports_tv, metrics, feedback
+from app.api.routes import admin, analytics, auth, proxy, sports_tv, metrics, feedback
 from app.api.routes import aggregator
 from app.core.config import settings
 from app.core.security import get_password_hash
@@ -454,6 +455,20 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=512)
 
 
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add baseline security headers to every API response (important for direct Render access)."""
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
+
+
 @app.exception_handler(HTTPException)
 async def _http_exception_handler(_request, exc: HTTPException) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
@@ -607,4 +622,5 @@ app.include_router(proxy.router, prefix=settings.api_v1_prefix)
 app.include_router(aggregator.router, prefix=settings.api_v1_prefix)
 app.include_router(metrics.router, prefix=settings.api_v1_prefix)  # Health + metrics endpoints
 app.include_router(feedback.router, prefix=settings.api_v1_prefix)  # User feedback collection
+app.include_router(analytics.router, prefix=settings.api_v1_prefix)  # Lightweight admin analytics
 

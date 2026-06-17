@@ -118,6 +118,32 @@ export type AdminStats = {
   active_module_counts?: Record<string, number>;
 };
 
+export type AdminAnalyticsSummary = {
+  hours: number;
+  playback: { attempts: number; successes: number; failures: number; success_pct: number };
+  top_failed: { channel_id: number; channel_name: string; fail_count: number; last_failure: string | null }[];
+  most_watched: { channel_id: number; channel_name: string; views: number }[];
+  search_no_results: { term: string; count: number }[];
+  quick_exits: { channel_id: number; channel_name: string; exit_count: number }[];
+  watch_duration: {
+    avg_secs: number;
+    top_channels: { channel_id: number; channel_name: string; avg_secs: number; total_secs: number }[];
+  };
+  buffer_stalls: {
+    total: number;
+    stall_rate_pct: number;
+    top_channels: { channel_id: number; channel_name: string; stall_count: number }[];
+  };
+  error_types: { type: string; count: number }[];
+  search_conversion: { searches: number; plays: number; conversion_pct: number };
+  tab_engagement: { module: string; switches: number }[];
+  failover_depth: { failover_pct: number; servers: { server_idx: number; count: number }[] };
+  peak_hours: { hour: number; events: number }[];
+  return_visitor?: { new: number; returning: number; return_rate_pct: number };
+  channel_health?: { top: { channel_id: number; channel_name: string; score: number; success_rate: number }[]; worst: { channel_id: number; channel_name: string; score: number; success_rate: number }[] };
+  playback_retry?: { avg_retries: number; top_channels: { channel_id: number; channel_name: string; avg_retries: number; count: number }[] };
+};
+
 export type HealthSweepResult = {
   checked: number;
   deactivated: number;

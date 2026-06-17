@@ -92,6 +92,7 @@ const BACKEND_URL = (process.env.BACKEND_URL?.trim() || DEFAULT_BACKEND_URL).rep
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   typedRoutes: true,
   images: {
     formats: ["image/avif", "image/webp"],
@@ -170,6 +171,7 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
           {
             key: "Content-Security-Policy",
             // media-src * — IPTV streams come from arbitrary CDNs/origins

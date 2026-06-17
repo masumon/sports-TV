@@ -42,6 +42,7 @@ import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
 import { wakeBackend } from "@/lib/backendWakeup";
 import { useSwipeGesture } from "@/lib/useSwipeGesture";
 import { CHANNEL_GRID_INITIAL, CHANNEL_GRID_BATCH } from "@/lib/constants";
+import { trackEvent } from "@/lib/analytics";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
@@ -176,6 +177,9 @@ export function ViewerHome() {
   const [fixturesSince, setFixturesSince] = useState(0);
   const fixturesTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepLinkAppliedRef = useRef<string | null>(null);
+  const quickExitRef = useRef<{ channelId: number; channelName: string; ts: number } | null>(null);
+  const searchQueryRef = useRef(searchQuery);
+  useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
   const [recentlyWatched, setRecentlyWatched] = useState<number[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const setModuleCounts = useUiStore((s) => s.setModuleCounts);
@@ -189,6 +193,28 @@ export function ViewerHome() {
   const playerSectionRef = useRef<HTMLElement | null>(null);
   const [showErrorSuggestions, setShowErrorSuggestions] = useState(false);
   const [notifyIds, setNotifyIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem("gstv-app-opened")) {
+        sessionStorage.setItem("gstv-app-opened", "1");
+        trackEvent("APP_OPEN");
+        const visitCount = parseInt(localStorage.getItem("gstv-visit-count") ?? "0", 10);
+        localStorage.setItem("gstv-visit-count", String(visitCount + 1));
+        trackEvent("RETURN_VISITOR", { meta: visitCount === 0 ? "new" : "returning", value: visitCount + 1 });
+      }
+    } catch { /* */ }
+  }, []);
+
+  useEffect(() => {
+    const onUnload = () => {
+      if (!quickExitRef.current) return;
+      const watchedSecs = Math.floor((Date.now() - quickExitRef.current.ts) / 1000);
+      trackEvent("WATCH_DURATION", { channel_id: quickExitRef.current.channelId, channel_name: quickExitRef.current.channelName, value: watchedSecs });
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, []);
 
   useEffect(() => {
     try {
@@ -219,6 +245,19 @@ export function ViewerHome() {
   /** Defer large list + player work so click/tab stays responsive (INP / interaction-to-next-paint). */
   const selectChannel = useCallback(
     (ch: Channel) => {
+      // QUICK_EXIT + WATCH_DURATION: track previous channel session
+      if (quickExitRef.current) {
+        const watchedMs = Date.now() - quickExitRef.current.ts;
+        if (watchedMs < 10_000) {
+          trackEvent("QUICK_EXIT", { channel_id: quickExitRef.current.channelId, channel_name: quickExitRef.current.channelName });
+        }
+        trackEvent("WATCH_DURATION", { channel_id: quickExitRef.current.channelId, channel_name: quickExitRef.current.channelName, value: Math.floor(watchedMs / 1000) });
+      }
+      quickExitRef.current = { channelId: ch.id, channelName: ch.name, ts: Date.now() };
+      trackEvent("CHANNEL_OPEN", { channel_id: ch.id, channel_name: ch.name });
+      // SEARCH_PLAY: user played a channel while search was active
+      const sq = searchQueryRef.current.trim();
+      if (sq) trackEvent("SEARCH_PLAY", { channel_id: ch.id, channel_name: ch.name, meta: sq.slice(0, 100) });
       startTransition(() => {
         setActiveChannel(ch);
       });
@@ -296,8 +335,11 @@ export function ViewerHome() {
     setNotifyIds((prev) => new Set([...prev, fxKey]));
   }, []);
 
+  const handleStreamError = useCallback(() => setShowErrorSuggestions(true), []);
+
   const transitionSetActiveModule = useCallback(
     (m: ViewerModule) => {
+      trackEvent("TAB_SWITCH", { meta: m });
       startTransition(() => {
         setActiveModule(m);
       });
@@ -649,6 +691,13 @@ export function ViewerHome() {
       [activeModule, deferredSearch, activeCategory, filterLeague].join("\u0001"),
     [activeModule, deferredSearch, activeCategory, filterLeague]
   );
+
+  // Track SEARCH_NO_RESULT when search yields zero channels (1.5s debounce)
+  useEffect(() => {
+    if (!deferredSearch || filtered.length > 0) return;
+    const t = setTimeout(() => trackEvent("SEARCH_NO_RESULT", { meta: deferredSearch.slice(0, 100) }), 1500);
+    return () => clearTimeout(t);
+  }, [deferredSearch, filtered.length]);
 
   // Reset to initial count when module/filter changes so user always starts fresh
   useEffect(() => {
@@ -1532,7 +1581,7 @@ export function ViewerHome() {
                 headerProfile={activeChannel.header_profile ?? null}
                 geoHint={Boolean(activeChannel.geo_hint)}
                 channelLogoUrl={activeChannel.logo_url}
-                onStreamError={() => setShowErrorSuggestions(true)}
+                onStreamError={handleStreamError}
                 onBack={() => { startTransition(() => setActiveChannel(null)); document.getElementById("channel-grid")?.scrollIntoView({ behavior: "smooth" }); }}
                 channelId={activeChannel.id}
               />
