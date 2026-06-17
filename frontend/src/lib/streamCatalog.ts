@@ -242,7 +242,7 @@ async function ingestPlaylistUrlsIntoSeen(
         Promise.race([
           fetchPlaylistText(u),
           new Promise<string>((_, reject) =>
-            setTimeout(() => reject(new Error("playlist_fetch_timeout")), 10_000)
+            setTimeout(() => reject(new Error("playlist_fetch_timeout")), 25_000)
           ),
         ])
       )

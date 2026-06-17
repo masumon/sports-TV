@@ -217,14 +217,14 @@ export const apiClient = {
     if (params.module) sp.set("module", params.module);
     const q = sp.toString();
     return apiRequest<ChannelListResponse>(`/sports-tv/channels${q ? `?${q}` : ""}`, {
-      timeoutMs: 12_000, // 12s timeout — backend may be waking
-      retries: 1, // one retry; background retry at 45s handles cold starts
+      timeoutMs: 35_000, // 35s — Render free tier cold start can take 30s
+      retries: 2,
     });
   },
 
   getChannelFilters() {
     return apiRequest<ChannelFilters>("/sports-tv/filters", {
-      timeoutMs: 8_000,
+      timeoutMs: 25_000, // 25s — allow cold start
       retries: 3,
     });
   },

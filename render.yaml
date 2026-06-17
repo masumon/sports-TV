@@ -37,9 +37,9 @@ services:
         value: "1440"
       - key: SCRAPER_SOURCE_URL
         value: https://iptv-org.github.io/iptv/categories/sports.m3u
-      # Background startup task in app/main.py runs sync asynchronously after port bind — safe to enable.
+      # Disabled: sync runs after port bind, but can slow first requests on cold start.
       - key: AUTO_SYNC_CHANNELS_ON_STARTUP
-        value: "true"
+        value: "false"
       # Optional: Redis Cloud / Upstash — channel list cache (omit in dashboard if unused)
       - key: REDIS_URL
         sync: false
