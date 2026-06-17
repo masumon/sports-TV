@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   RefreshCw,
   Signal,
@@ -9,7 +8,6 @@ import {
   ChevronRight,
   ChevronDown,
   Star,
-  X,
   Share2,
   Clock,
   AlertTriangle,
@@ -167,7 +165,6 @@ export function ViewerHome() {
   const activeCategory = useUiStore((s) => s.activeCategory);
   const setActiveCategory = useUiStore((s) => s.setActiveCategory);
   const [filterLeague, setFilterLeague] = useState("");
-  const reduceM = useReducedMotion();
   const tier = useSubscriptionStore((s) => s.tier);
   const gridSentinelRef = useRef<HTMLDivElement | null>(null);
   const [gridVisibleCount, setGridVisibleCount] = useState(CHANNEL_GRID_INITIAL);

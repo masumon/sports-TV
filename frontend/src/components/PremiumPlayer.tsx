@@ -7,8 +7,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
-  ChevronDown,
-  ChevronUp,
   Globe,
   Loader2,
   Maximize,
@@ -27,7 +25,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { ExternalPlayerPicker, tryLaunchPlayer } from "@/components/player/ExternalPlayerPicker";
+import { ExternalPlayerPicker } from "@/components/player/ExternalPlayerPicker";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -171,12 +169,9 @@ function relayHlsXhrUrlIfNeeded(
 const LINK_RETRY_ATTEMPTS = 3;
 /** Shorter remount delay so we rotate to the next mirror quickly. */
 const LINK_RETRY_DELAY_MS = 1200;
-/** Only retry on persistent network errors, not transient blips */
-const LINK_RETRY_ONLY_ON_PERSISTENT = true;
 const URL_FAIL_COOLDOWN_MS = 2 * 60 * 1000; // 2min cooldown (was 5min — too long for transient errors)
 const recentlyFailedUrlUntil = new Map<string, number>();
 
-/** Long enough for Render free tier cold start (30s); tight enough to feel responsive. */
 const HLS_MANIFEST_LOAD_TIMEOUT_MS = 20_000;
 const HLS_LEVEL_LOAD_TIMEOUT_MS = 18_000;
 const HLS_FRAG_LOAD_TIMEOUT_MS = 20_000;
@@ -234,70 +229,6 @@ function formatQualityFromHeight(height: number): string {
   return `${height}p`;
 }
 
-/* ── Custom quality picker popup ── */
-function QualityPicker({
-  options,
-  selected,
-  onChange,
-}: {
-  options: QualityOption[];
-  selected: number;
-  onChange: (v: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const currentLabel = options.find((o) => o.value === selected)?.label ?? "Auto";
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
-  return (
-    <div className="relative shrink-0" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Quality"
-        title="Quality"
-        className={`player-control-btn gap-1 px-2.5 text-[11px] font-bold uppercase tracking-wide${open ? ' player-control-btn-active' : ''}`}
-      >
-        <Settings size={13} className="shrink-0" />
-        <span>{currentLabel}</span>
-        <ChevronUp size={9} className={`shrink-0 transition-transform ${open ? "" : "rotate-180"}`} />
-      </button>
-      {open && (
-        <div
-          className="glass-quality-popup absolute bottom-full mb-2 right-0 z-50 min-w-[120px] overflow-hidden rounded-xl shadow-2xl"
-        >
-          <p className="px-3 pt-2.5 pb-1 text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(245,166,35,0.55)" }}>
-            Quality
-          </p>
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => { onChange(opt.value); setOpen(false); }}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[12px] font-semibold transition hover:bg-white/[0.07]"
-              style={{ color: selected === opt.value ? "#F5A623" : "rgba(255,255,255,0.75)" }}
-            >
-              <span>{opt.label}</span>
-              {selected === opt.value && <Check size={12} style={{ color: "#F5A623" }} />}
-            </button>
-          ))}
-          <div className="h-px mx-3 my-1" style={{ background: "rgba(255,255,255,0.07)" }} />
-          <p className="px-3 pb-2 text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>
-            Auto = সেরা মান স্বয়ংক্রিয়
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════ Component ═══ */
 export default function PremiumPlayer({
@@ -862,7 +793,6 @@ export default function PremiumPlayer({
       container.removeEventListener("touchstart", onTouchStart);
       container.removeEventListener("touchmove", onTouchMove);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Sync orientation when fullscreen is toggled via browser (e.g. ESC) or gesture. */
@@ -1110,11 +1040,6 @@ export default function PremiumPlayer({
     isTheaterMode,
     isFullscreen,
   ]);
-
-  const currentQualityLabel = useMemo(() => {
-    if (selectedQuality === -1) return "AUTO";
-    return qualityOptions.find((o) => o.value === selectedQuality)?.label ?? "AUTO";
-  }, [qualityOptions, selectedQuality]);
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
