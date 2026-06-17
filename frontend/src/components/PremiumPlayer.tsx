@@ -110,6 +110,7 @@ function tryUnlockPlaybackOrientation(): void {
 }
 
 /* ────────────────────────────────────────────────────────── Helpers ── */
+const QUALITY_PREF_KEY = "gstv-quality-height";
 const HIDE_CONTROLS_AFTER_MS = 4500;
 /** First-play: keep controls visible longer so new users can orient themselves. */
 const HIDE_CONTROLS_INITIAL_MS = 8000;
@@ -652,6 +653,16 @@ export default function PremiumPlayer({
         });
         const parsed = [...levelMap.entries()].sort((a, b) => b[0] - a[0]).map(([, o]) => o);
         if (parsed.length) setQualityOptions([{ label: "Auto", value: -1 }, ...parsed]);
+        if (!lightNet && parsed.length) {
+          try {
+            const savedH = parseInt(localStorage.getItem(QUALITY_PREF_KEY) ?? "", 10);
+            if (savedH > 0) {
+              const best = hls.levels.reduce((bi, lv, i) =>
+                lv.height && Math.abs(lv.height - savedH) < Math.abs((hls.levels[bi]?.height ?? 0) - savedH) ? i : bi, 0);
+              if (hls.levels[best]?.height) { hls.currentLevel = best; setSelectedQuality(best); }
+            }
+          } catch { /* */ }
+        }
         if (hls.audioTracks.length > 1) {
           setAudioTracks(hls.audioTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, value: i })));
           setSelectedAudio(hls.audioTrack);
@@ -898,7 +909,16 @@ export default function PremiumPlayer({
 
   const changeQuality = useCallback((level: number) => {
     setSelectedQuality(level);
-    if (hlsRef.current) hlsRef.current.currentLevel = level;
+    if (hlsRef.current) {
+      hlsRef.current.currentLevel = level;
+      try {
+        if (level === -1) localStorage.removeItem(QUALITY_PREF_KEY);
+        else {
+          const h = hlsRef.current.levels[level]?.height;
+          if (h) localStorage.setItem(QUALITY_PREF_KEY, String(h));
+        }
+      } catch { /* */ }
+    }
   }, []);
 
   const togglePictureInPicture = useCallback(async () => {
