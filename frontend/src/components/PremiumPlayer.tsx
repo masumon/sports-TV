@@ -5,6 +5,7 @@ import Hls from "hls.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowLeft,
   Check,
   ChevronDown,
   ChevronUp,
@@ -17,6 +18,9 @@ import {
   Play,
   RefreshCw,
   Settings,
+  Share2,
+  SkipBack,
+  SkipForward,
   Tv,
   Volume1,
   Volume2,
@@ -55,6 +59,8 @@ export type PremiumPlayerProps = {
   channelLogoUrl?: string | null;
   /** Called when all stream sources have errored out. */
   onStreamError?: () => void;
+  /** Called when user taps the back/close button in the player top bar. */
+  onBack?: () => void;
   /** Hint that this is a live stream (used by callers; currently informational). */
   isLive?: boolean;
 };
@@ -210,6 +216,14 @@ function parseGeoFromXhr(xhr: XMLHttpRequest): boolean {
   return false;
 }
 
+function formatTime(secs: number): string {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 function formatQualityFromHeight(height: number): string {
   if (height >= 2160) return "4K";
   if (height >= 1080) return "1080p";
@@ -296,6 +310,7 @@ export default function PremiumPlayer({
   geoHint = false,
   channelLogoUrl = null,
   onStreamError,
+  onBack,
 }: PremiumPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -345,6 +360,18 @@ export default function PremiumPlayer({
   const [sleepMinutes, setSleepMinutes] = useState<number | null>(null);
   const [sleepRemaining, setSleepRemaining] = useState<number>(0);
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /** Premium OTT UI state */
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"video" | "audio" | "subtitle">("video");
+  const [audioTracks, setAudioTracks] = useState<QualityOption[]>([]);
+  const [selectedAudio, setSelectedAudio] = useState(0);
+  const [subtitleTracks, setSubtitleTracks] = useState<{ label: string; value: number }[]>([]);
+  const [selectedSubtitle, setSelectedSubtitle] = useState(-1);
+  const [aspectRatio, setAspectRatio] = useState<"cover" | "contain">("cover");
+  const [isLocked, setIsLocked] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const resolvedDirect = useMemo(() => {
     if (streamUrls?.length) {
@@ -691,6 +718,13 @@ export default function PremiumPlayer({
         });
         const parsed = [...levelMap.entries()].sort((a, b) => b[0] - a[0]).map(([, o]) => o);
         if (parsed.length) setQualityOptions([{ label: "Auto", value: -1 }, ...parsed]);
+        if (hls.audioTracks.length > 1) {
+          setAudioTracks(hls.audioTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, value: i })));
+          setSelectedAudio(hls.audioTrack);
+        }
+        if (hls.subtitleTracks.length > 0) {
+          setSubtitleTracks([{ label: "Off", value: -1 }, ...hls.subtitleTracks.map((t, i) => ({ label: t.name || `Sub ${i + 1}`, value: i }))]);
+        }
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => setSelectedQuality(data.level));
@@ -725,6 +759,10 @@ export default function PremiumPlayer({
       const dur = video.duration;
       if (dur > 0 && Number.isFinite(dur)) setBufferedPct(Math.min(100, (end / dur) * 100));
     };
+    const onTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+      if (Number.isFinite(video.duration) && video.duration > 0) setDuration(video.duration);
+    };
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("volumechange", onVolumeChange);
@@ -733,6 +771,7 @@ export default function PremiumPlayer({
     video.addEventListener("canplay", onCanPlay);
     video.addEventListener("error", onError);
     video.addEventListener("progress", onProgress);
+    video.addEventListener("timeupdate", onTimeUpdate);
     return () => {
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
@@ -742,6 +781,7 @@ export default function PremiumPlayer({
       video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("error", onError);
       video.removeEventListener("progress", onProgress);
+      video.removeEventListener("timeupdate", onTimeUpdate);
     };
   }, [clearHideTimer, scheduleHideControls]);
 
@@ -981,6 +1021,34 @@ export default function PremiumPlayer({
     setSleepRemaining(0);
   }, []);
 
+  const seekBy = useCallback((secs: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = Math.max(0, video.currentTime + secs);
+  }, []);
+
+  const toggleAspectRatio = useCallback(() => {
+    setAspectRatio((v) => (v === "cover" ? "contain" : "cover"));
+  }, []);
+
+  const shareChannel = useCallback(async () => {
+    const url = `${window.location.origin}/?channel_id=${encodeURIComponent(sharePlaybackUrl)}`;
+    try {
+      if (navigator.share) await navigator.share({ title, url });
+      else { await navigator.clipboard.writeText(url); toast.success("লিঙ্ক কপি হয়েছে!"); }
+    } catch { /* */ }
+  }, [title, sharePlaybackUrl]);
+
+  const changeAudio = useCallback((idx: number) => {
+    if (hlsRef.current) hlsRef.current.audioTrack = idx;
+    setSelectedAudio(idx);
+  }, []);
+
+  const changeSubtitle = useCallback((idx: number) => {
+    if (hlsRef.current) hlsRef.current.subtitleTrack = idx;
+    setSelectedSubtitle(idx);
+  }, []);
+
   // Cleanup sleep timer on unmount
   useEffect(() => () => { if (sleepTimerRef.current) clearInterval(sleepTimerRef.current); }, []);
 
@@ -1062,7 +1130,7 @@ export default function PremiumPlayer({
     >
       <video
         ref={videoRef}
-        className={`h-full w-full bg-black ${isMobileSheet && (isFullscreen || isTheaterMode) ? "object-contain" : "object-cover"}`}
+        className={`h-full w-full bg-black ${aspectRatio === "contain" || (isMobileSheet && (isFullscreen || isTheaterMode)) ? "object-contain" : "object-cover"}`}
         autoPlay
         playsInline
         controls={false}
@@ -1210,9 +1278,9 @@ export default function PremiumPlayer({
       </AnimatePresence>
 
 
-      {/* LIVE badge — top-left, always visible */}
+      {/* LIVE badge — shown only when controls are hidden */}
       <div
-        className="pointer-events-none absolute left-3 z-40"
+        className={`pointer-events-none absolute left-3 z-30 transition-opacity duration-300 ${showControls ? "opacity-0" : "opacity-100"}`}
         style={{ top: "max(0.75rem, env(safe-area-inset-top, 0px))" }}
       >
         <span
@@ -1337,206 +1405,327 @@ export default function PremiumPlayer({
         )}
       </AnimatePresence>
 
-      {/* ── Controls panel ── */}
+      {/* ── Premium OTT Controls — 4-zone layout ── */}
       <AnimatePresence>
-        {showControls && (
+        {showControls && !isLocked && (
           <motion.div
             key="controls"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-x-0 bottom-0 z-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-40 flex flex-col pointer-events-none"
           >
-            {/* Live buffer bar — edge-to-edge at very bottom */}
-            <div className="absolute bottom-0 left-0 right-0 h-[3px]" style={{ background: "rgba(255,255,255,0.06)", zIndex: 1 }}>
-              <motion.div
-                className="h-full rounded-r-full"
-                style={{ background: "linear-gradient(90deg, #F5A623 0%, #f59e0b 60%, rgba(245,166,35,0.4) 100%)" }}
-                animate={{ width: `${bufferedPct}%` }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-              />
+            {/* Top gradient */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-28" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)" }} />
+            {/* Bottom gradient */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)" }} />
+
+            {/* ── TOP BAR ── */}
+            <div
+              className="relative z-10 flex items-center gap-1.5 px-3 pointer-events-auto sm:gap-2"
+              style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top, 0px))" }}
+            >
+              {onBack && (
+                <button type="button" onClick={onBack} aria-label="Back" className="player-control-btn shrink-0">
+                  <ArrowLeft size={17} />
+                </button>
+              )}
+              {/* Channel badge */}
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded-md object-contain bg-white p-0.5"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold leading-tight text-white sm:text-sm">{title}</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full" style={{ background: "#ef4444" }} />
+                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#00E5FF" }}>LIVE</span>
+                    {isCurrentRelay && (
+                      <span className="rounded-full px-1 py-px text-[8px] font-bold" style={{ background: "rgba(16,185,129,0.2)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>RELAY</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {/* Lock */}
+              <button type="button" onClick={() => setIsLocked(true)} aria-label="Lock controls" className="player-control-btn shrink-0">
+                <span className="text-sm leading-none">🔒</span>
+              </button>
+              {/* Aspect ratio */}
+              <button type="button" onClick={toggleAspectRatio} aria-label="Toggle aspect ratio" title="Aspect ratio" className="player-control-btn shrink-0">
+                {aspectRatio === "contain" ? <Maximize size={15} /> : <Minimize size={15} />}
+              </button>
+              {/* Fullscreen */}
+              <button
+                type="button"
+                onClick={() => void toggleFullscreen()}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                className={`player-control-btn shrink-0${isFullscreen ? " player-control-btn-active" : ""}`}
+              >
+                {isFullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
+              </button>
+              {/* Settings */}
+              <button
+                type="button"
+                onClick={() => setShowSettings((v) => !v)}
+                aria-label="Settings"
+                className={`player-control-btn shrink-0${showSettings ? " player-control-btn-active" : ""}`}
+              >
+                <Settings size={15} />
+              </button>
             </div>
 
+            {/* ── CENTER — Seek & Play ── */}
+            <div className="relative z-10 flex flex-1 items-center justify-center gap-6 pointer-events-auto sm:gap-10">
+              <button type="button" onClick={() => seekBy(-10)} aria-label="Seek back 10s" className="player-control-btn shrink-0 flex-col gap-0.5">
+                <SkipBack size={19} />
+                <span className="text-[9px] font-bold leading-none" style={{ color: "#00E5FF" }}>10</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void togglePlayPause()}
+                aria-label={isPlaying ? "Pause" : "Play"}
+                className="flex shrink-0 items-center justify-center rounded-full transition active:scale-90"
+                style={{
+                  width: "3.5rem", height: "3.5rem",
+                  background: "rgba(0,229,255,0.15)",
+                  border: "2px solid rgba(0,229,255,0.65)",
+                  backdropFilter: "blur(8px)",
+                  boxShadow: "0 0 28px rgba(0,229,255,0.35)",
+                }}
+              >
+                {isPlaying ? <Pause size={26} fill="white" color="white" /> : <Play size={26} fill="white" color="white" />}
+              </button>
+              <button type="button" onClick={() => seekBy(10)} aria-label="Seek forward 10s" className="player-control-btn shrink-0 flex-col gap-0.5">
+                <SkipForward size={19} />
+                <span className="text-[9px] font-bold leading-none" style={{ color: "#00E5FF" }}>10</span>
+              </button>
+            </div>
+
+            {/* ── RIGHT SIDE — Volume + Share ── */}
+            <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 flex flex-col items-center gap-2.5 pointer-events-auto">
+              {typeof document !== "undefined" && !!document.pictureInPictureEnabled && (
+                <button type="button" onClick={() => void togglePictureInPicture()} aria-label="Picture-in-Picture" className="player-control-btn shrink-0 hidden sm:inline-flex">
+                  <PictureInPicture2 size={15} />
+                </button>
+              )}
+              <button type="button" onClick={() => void shareChannel()} aria-label="Share channel" className="player-control-btn shrink-0">
+                <Share2 size={15} />
+              </button>
+              <button type="button" onClick={toggleMute} aria-label={isMuted ? "Unmute" : "Mute"} className="player-control-btn shrink-0">
+                <VolumeIcon size={15} />
+              </button>
+              {!isTouchDevice && (
+                <input
+                  type="range" min={0} max={1} step={0.05}
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => setVolumeLevel(Number(e.target.value))}
+                  aria-label="Volume"
+                  className="volume-slider shrink-0"
+                  style={{ writingMode: "vertical-lr", direction: "rtl", height: "60px", width: "4px", cursor: "pointer" }}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const opts = [15, 30, 60, 90];
+                  if (!sleepMinutes) startSleepTimer(opts[0]!);
+                  else {
+                    const next = opts[opts.indexOf(sleepMinutes) + 1];
+                    if (next) startSleepTimer(next); else cancelSleepTimer();
+                  }
+                }}
+                className={`player-control-btn relative shrink-0 hidden min-[380px]:inline-flex${sleepMinutes ? " player-control-btn-active" : ""}`}
+                title={sleepMinutes ? `Sleep: ${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, "0")}` : "Sleep timer"}
+                aria-label="Sleep timer"
+              >
+                <span className="text-sm leading-none">🌙</span>
+                {sleepMinutes && (
+                  <span className="absolute -top-1 -right-1 rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
+                    {Math.ceil(sleepRemaining / 60)}m
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* ── BOTTOM — Progress + Time ── */}
             <div
-              className="glass-player-bar-premium mx-2 sm:mx-3"
-              style={{
-                marginBottom: "max(7px, env(safe-area-inset-bottom, 7px))",
-              }}
+              className="relative z-10 px-3 pointer-events-auto"
+              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
             >
-              {/* ── Now playing row ── */}
-              <div className="flex items-center gap-2 px-2.5 pt-2 pb-1.5 sm:gap-2.5 sm:px-4 sm:pt-3 sm:pb-2">
-                {/* Channel logo */}
-                <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-                  style={{ background: "#fff", border: "1.5px solid rgba(245,166,35,0.4)", boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={channelLogoUrl || DEFAULT_PLAYER_BRAND_LOGO}
-                    alt=""
-                    className="h-7 w-7 object-contain"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
-                  />
-                </div>
-                {/* Title */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="h-1.5 w-1.5 rounded-full animate-pulse shrink-0" style={{ background: "#ef4444" }} />
-                    <span className="text-[8px] font-black uppercase tracking-[0.2em]" style={{ color: "rgba(245,166,35,0.75)" }}>LIVE NOW</span>
-                    {isCurrentRelay && (
-                      <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase tracking-wider" style={{ background: "rgba(16,185,129,0.18)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
-                        RELAY
-                      </span>
-                    )}
-                  </div>
-                  <p className="truncate text-[13px] font-bold leading-tight text-white">{title}</p>
-                </div>
-                {/* External players toggle */}
-                <button
-                  type="button"
-                  onClick={() => setShowExternalPanel((v) => !v)}
-                  className="shrink-0 flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition active:scale-95"
-                  style={{
-                    background: showExternalPanel ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.07)",
-                    border: `1px solid ${showExternalPanel ? "rgba(245,166,35,0.45)" : "rgba(255,255,255,0.1)"}`,
-                    color: showExternalPanel ? "#F5A623" : "rgba(255,255,255,0.55)",
-                  }}
-                  aria-label="External players"
-                >
-                  <Tv size={12} className="shrink-0" />
-                  <span className="hidden min-[360px]:inline">Players</span>
-                  {showExternalPanel ? <ChevronUp size={9} className="shrink-0" /> : <ChevronDown size={9} className="shrink-0" />}
-                </button>
-              </div>
-
-              {/* ── Divider ── */}
-              <div className="mx-3 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
-
-              {/* ── Main controls row ── */}
-              <div className="flex items-center gap-1 px-2 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
-                {/* Play / Pause — primary CTA */}
-                <button
-                  type="button"
-                  onClick={() => void togglePlayPause()}
-                  aria-label={isPlaying ? "Pause" : "Play"}
-                  className={`player-control-btn shrink-0 h-11 w-11${isPlaying ? ' player-control-btn-active' : ''}`}
-                >
-                  {isPlaying ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
-                </button>
-
-                {/* Volume */}
-                <button
-                  type="button"
-                  onClick={toggleMute}
-                  aria-label="Mute"
-                  className="player-control-btn shrink-0"
-                >
-                  <VolumeIcon size={17} />
-                </button>
-                {!isTouchDevice && (
-                  <input
-                    type="range" min={0} max={1} step={0.05}
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => setVolumeLevel(Number(e.target.value))}
-                    className="volume-slider w-14 shrink-0 sm:w-20"
-                    aria-label="Volume"
+              {/* Progress bar */}
+              <div
+                className="mb-2 relative h-1 w-full cursor-pointer overflow-visible rounded-full"
+                style={{ background: "rgba(255,255,255,0.12)" }}
+                onClick={(e) => {
+                  const video = videoRef.current;
+                  if (!video || !video.duration || !Number.isFinite(video.duration)) return;
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  video.currentTime = ((e.clientX - rect.left) / rect.width) * video.duration;
+                }}
+              >
+                {/* Buffer fill */}
+                <motion.div
+                  className="absolute inset-y-0 left-0 rounded-full"
+                  style={{ background: "rgba(255,255,255,0.22)" }}
+                  animate={{ width: `${bufferedPct}%` }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                />
+                {/* Playback position (VOD only) */}
+                {duration > 0 && (
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full"
+                    style={{ width: `${(currentTime / duration) * 100}%`, background: "#00E5FF", boxShadow: "0 0 6px rgba(0,229,255,0.7)" }}
                   />
                 )}
+              </div>
+              {/* Time labels */}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  {duration > 0 ? formatTime(currentTime) : "00:00"}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: "#00E5FF" }}>
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "#ef4444" }} />
+                  LIVE
+                </span>
+                <span className="text-[10px] font-semibold tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  {duration > 0 ? formatTime(duration) : "--:--"}
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-                {/* Spacer */}
-                <div className="flex-1" />
+      {/* ── Locked screen ── */}
+      <AnimatePresence>
+        {isLocked && (
+          <motion.div
+            key="locked"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-45 flex items-center justify-center"
+            onClick={() => setIsLocked(false)}
+          >
+            <div className="flex flex-col items-center gap-2 rounded-2xl px-5 py-3" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <span className="text-2xl">🔒</span>
+              <span className="text-[11px] font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>ট্যাপ করুন আনলক করতে</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-                {/* Quality picker */}
-                <QualityPicker
-                  options={qualityOptions}
-                  selected={selectedQuality}
-                  onChange={changeQuality}
-                />
-
-                {/* PiP — only when browser supports it */}
-                {typeof document !== "undefined" && !!document.pictureInPictureEnabled && (
+      {/* ── Settings panel ── */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            key="settings"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 16 }}
+            transition={{ duration: 0.18 }}
+            className="absolute right-3 top-16 z-50 w-52 overflow-hidden rounded-2xl shadow-2xl"
+            style={{ background: "rgba(6,7,14,0.94)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)" }}
+          >
+            <div className="flex items-center justify-between px-3 pt-3 pb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#00E5FF" }}>Settings</span>
+              <button type="button" onClick={() => setShowSettings(false)} className="rounded p-0.5 text-white/40 transition hover:text-white">
+                <X size={14} />
+              </button>
+            </div>
+            {/* Tabs */}
+            <div className="flex gap-1 px-3 pb-2">
+              {(["video", "audio", "subtitle"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setSettingsTab(tab)}
+                  className="flex-1 rounded-lg py-1.5 text-[10px] font-bold uppercase tracking-wide transition"
+                  style={{
+                    background: settingsTab === tab ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.05)",
+                    color: settingsTab === tab ? "#00E5FF" : "rgba(255,255,255,0.4)",
+                    border: settingsTab === tab ? "1px solid rgba(0,229,255,0.3)" : "1px solid transparent",
+                  }}
+                >
+                  {tab === "video" ? "Video" : tab === "audio" ? "Audio" : "Sub"}
+                </button>
+              ))}
+            </div>
+            <div className="mx-3 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+            {/* Content */}
+            <div className="max-h-52 overflow-y-auto py-1">
+              {settingsTab === "video" && (
+                <>
+                  {qualityOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => changeQuality(opt.value)}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-[12px] font-semibold transition hover:bg-white/[0.07]"
+                      style={{ color: selectedQuality === opt.value ? "#00E5FF" : "rgba(255,255,255,0.75)" }}
+                    >
+                      <span>{opt.label}</span>
+                      {selectedQuality === opt.value && <Check size={12} style={{ color: "#00E5FF" }} />}
+                    </button>
+                  ))}
+                  <div className="mx-3 my-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
                   <button
                     type="button"
-                    onClick={() => void togglePictureInPicture()}
-                    aria-label="Picture-in-Picture"
-                    title="PiP"
-                    className="player-control-btn shrink-0 hidden sm:inline-flex"
+                    onClick={() => { onToggleTheaterMode(); setShowSettings(false); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[12px] font-semibold transition hover:bg-white/[0.07]"
+                    style={{ color: isTheaterMode ? "#00E5FF" : "rgba(255,255,255,0.65)" }}
                   >
-                    <PictureInPicture2 size={16} />
+                    <Tv size={13} />
+                    <span>Theater Mode</span>
+                    {isTheaterMode && <Check size={12} style={{ color: "#00E5FF" }} className="ml-auto" />}
                   </button>
-                )}
-
-                {/* Theater */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isMobileSheet) {
-                      if (!isTheaterMode) void tryLockLandscapePlayback();
-                      else if (!isFullscreen) tryUnlockPlaybackOrientation();
-                    }
-                    onToggleTheaterMode();
-                  }}
-                  aria-label="Theater mode"
-                  title="Theater (T)"
-                  className={`player-control-btn shrink-0${isTheaterMode ? ' player-control-btn-active' : ''}`}
-                >
-                  <Tv size={16} />
-                </button>
-
-                {/* Sleep timer button — hidden on very small phones */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const opts = [15, 30, 60, 90];
-                    if (!sleepMinutes) startSleepTimer(opts[0]!);
-                    else {
-                      const next = opts[opts.indexOf(sleepMinutes) + 1];
-                      if (next) startSleepTimer(next); else cancelSleepTimer();
-                    }
-                  }}
-                  className={`player-control-btn relative shrink-0 hidden min-[380px]:inline-flex${sleepMinutes ? ' player-control-btn-active' : ''}`}
-                  title={sleepMinutes ? `Sleep: ${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, "0")}` : "Sleep timer"}
-                  aria-label="Sleep timer"
-                >
-                  <span className="text-sm leading-none">🌙</span>
-                  {sleepMinutes && (
-                    <span className="absolute -top-1 -right-1 rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
-                      {Math.ceil(sleepRemaining / 60)}m
-                    </span>
-                  )}
-                </button>
-
-                {/* Fullscreen */}
-                <button
-                  type="button"
-                  onClick={() => void toggleFullscreen()}
-                  aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                  title="Fullscreen (F)"
-                  className={`player-control-btn shrink-0${isFullscreen ? ' player-control-btn-active' : ''}`}
-                >
-                  {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-                </button>
-              </div>
-
-              {/* External players — inline on sm+, portal bottom-sheet on mobile */}
-              {!isMobileSheet && (
-                <div
-                  className="grid transition-[grid-template-rows] duration-200 ease-out"
-                  style={{ gridTemplateRows: showExternalPanel ? "1fr" : "0fr" }}
-                >
-                  <div className="min-h-0 overflow-hidden">
-                    {showExternalPanel && (
-                      <div className="border-t border-white/[0.06] px-3 pb-4 pt-3 sm:px-4">
-                        <ExternalPlayerPicker
-                          idPrefix={externalPanelTitleId}
-                          streamUrl={sharePlaybackUrl}
-                          onClose={() => setShowExternalPanel(false)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowExternalPanel((v) => !v); setShowSettings(false); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[12px] font-semibold transition hover:bg-white/[0.07]"
+                    style={{ color: "rgba(255,255,255,0.65)" }}
+                  >
+                    <Tv size={13} />
+                    <span>External Players</span>
+                  </button>
+                </>
+              )}
+              {settingsTab === "audio" && (
+                audioTracks.length > 0
+                  ? audioTracks.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => changeAudio(t.value)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-[12px] font-semibold transition hover:bg-white/[0.07]"
+                        style={{ color: selectedAudio === t.value ? "#00E5FF" : "rgba(255,255,255,0.75)" }}
+                      >
+                        <span>{t.label}</span>
+                        {selectedAudio === t.value && <Check size={12} style={{ color: "#00E5FF" }} />}
+                      </button>
+                    ))
+                  : <p className="px-3 py-4 text-[11px] text-center" style={{ color: "rgba(255,255,255,0.3)" }}>অডিও ট্র্যাক নেই</p>
+              )}
+              {settingsTab === "subtitle" && (
+                subtitleTracks.length > 0
+                  ? subtitleTracks.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => changeSubtitle(t.value)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-[12px] font-semibold transition hover:bg-white/[0.07]"
+                        style={{ color: selectedSubtitle === t.value ? "#00E5FF" : "rgba(255,255,255,0.75)" }}
+                      >
+                        <span>{t.label}</span>
+                        {selectedSubtitle === t.value && <Check size={12} style={{ color: "#00E5FF" }} />}
+                      </button>
+                    ))
+                  : <p className="px-3 py-4 text-[11px] text-center" style={{ color: "rgba(255,255,255,0.3)" }}>সাবটাইটেল নেই</p>
               )}
             </div>
           </motion.div>
