@@ -1049,6 +1049,12 @@ export default function PremiumPlayer({
     setSelectedSubtitle(idx);
   }, []);
 
+  const switchServer = useCallback((idx: number) => {
+    urlPlayIndexRef.current = idx;
+    setUrlIdx(idx);
+    setRetryKey((k) => k + 1);
+  }, []);
+
   // Cleanup sleep timer on unmount
   useEffect(() => () => { if (sleepTimerRef.current) clearInterval(sleepTimerRef.current); }, []);
 
@@ -1440,13 +1446,19 @@ export default function PremiumPlayer({
                   className="h-7 w-7 shrink-0 rounded-md object-contain bg-white p-0.5"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_PLAYER_BRAND_LOGO; }}
                 />
-                <div className="min-w-0">
+                <div className="min-w-0 flex flex-col gap-1">
                   <p className="truncate text-xs font-bold leading-tight text-white sm:text-sm">{title}</p>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full" style={{ background: "#ef4444" }} />
-                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#00E5FF" }}>LIVE</span>
+                    {/* Match badge pill */}
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider"
+                      style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}
+                    >
+                      <span className="h-1 w-1 animate-pulse rounded-full bg-red-400" />
+                      LIVE
+                    </span>
                     {isCurrentRelay && (
-                      <span className="rounded-full px-1 py-px text-[8px] font-bold" style={{ background: "rgba(16,185,129,0.2)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>RELAY</span>
+                      <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: "rgba(0,229,255,0.12)", color: "#00E5FF", border: "1px solid rgba(0,229,255,0.3)" }}>RELAY</span>
                     )}
                   </div>
                 </div>
@@ -1557,6 +1569,32 @@ export default function PremiumPlayer({
               className="relative z-10 px-3 pointer-events-auto"
               style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
             >
+              {/* Server chips */}
+              {allUrlsList.length > 1 && (
+                <div className="mb-2.5 flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+                  {allUrlsList.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => switchServer(i)}
+                      className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold transition active:scale-95"
+                      style={urlIdx === i ? {
+                        background: "rgba(0,229,255,0.18)",
+                        border: "1px solid rgba(0,229,255,0.55)",
+                        color: "#00E5FF",
+                        boxShadow: "0 0 8px rgba(0,229,255,0.25)",
+                      } : {
+                        background: "rgba(255,255,255,0.07)",
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        color: "rgba(255,255,255,0.5)",
+                      }}
+                    >
+                      S{i + 1}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Progress bar */}
               <div
                 className="mb-2 relative h-1 w-full cursor-pointer overflow-visible rounded-full"
