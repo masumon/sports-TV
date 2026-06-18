@@ -53,14 +53,14 @@ def _channel_validation_urls(channel: Channel) -> list[str]:
 
 
 def _dead_channels_after_fallback_validation(rows: list[Channel], max_workers: int) -> tuple[list[Channel], int]:
-    # Channels with a header_profile require auth headers the validator cannot send.
-    # Validating them without auth → 403 → false-negative deactivation.
-    # They stay active; only removed via admin action or explicit DB update.
-    rows_checkable = [ch for ch in rows if not ch.header_profile]
+    # Skip channels that can't be validated from the server IP:
+    # - geo_hint=True: BDIX/local CDN channels (return 403 from datacenter; work fine for BD users)
+    # - header_profile set: auth-gated streams (403 without client-side headers)
+    rows_checkable = [ch for ch in rows if not ch.geo_hint and not ch.header_profile]
     skipped_count = len(rows) - len(rows_checkable)
     if skipped_count:
         logger.debug(
-            "channel_health_check: skipping %d auth-profile channels (header_profile set)",
+            "channel_health_check: skipping %d channels (geo_hint or header_profile set)",
             skipped_count,
         )
 

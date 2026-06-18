@@ -162,6 +162,14 @@ def fetch_tsports_token(*, force: bool = False) -> dict | None:
             headers = _parse_headers(first)
             stream_url = _parse_stream_url(first)
 
+        # If data is a dict with a 'channels' array (current T-Sports JSON format), take first channel
+        if not headers and not stream_url and isinstance(data, dict):
+            channels_arr = data.get("channels")
+            if channels_arr and isinstance(channels_arr, list) and channels_arr:
+                first = channels_arr[0]
+                headers = _parse_headers(first)
+                stream_url = _parse_stream_url(first)
+
         result: dict = {"m3u8_url": stream_url, "headers": headers}
         _redis_set(_TSPORTS_REDIS_KEY, result, _TSPORTS_TTL)
         logger.info(
