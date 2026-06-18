@@ -1431,18 +1431,26 @@ export default function PremiumPlayer({
             </div>
 
             {/* ── RIGHT SIDE — Volume + secondary actions ── */}
-            {/* mt-3 on mobile pushes column below the top bar; sm:mt-0 restores centered position on desktop */}
-            <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 mt-3 sm:mt-0 flex flex-col items-center gap-2 pointer-events-auto">
+            <div
+              className="absolute right-2 z-10 flex flex-col items-center gap-1.5 pointer-events-auto"
+              style={{ top: "max(2.75rem, calc(env(safe-area-inset-top, 0px) + 2.75rem))" }}
+            >
               {typeof document !== "undefined" && !!document.pictureInPictureEnabled && (
-                <button type="button" onClick={() => void togglePictureInPicture()} aria-label="Picture-in-Picture" className="player-control-btn shrink-0 hidden sm:inline-flex">
-                  <PictureInPicture2 size={15} />
+                <button type="button" onClick={() => void togglePictureInPicture()} aria-label="Picture-in-Picture"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl hidden sm:inline-flex"
+                  style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}>
+                  <PictureInPicture2 size={13} />
                 </button>
               )}
-              <button type="button" onClick={() => void shareChannel()} aria-label="Share channel" className="player-control-btn shrink-0 hidden sm:inline-flex">
-                <Share2 size={15} />
+              <button type="button" onClick={() => void shareChannel()} aria-label="Share channel"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl hidden sm:inline-flex"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}>
+                <Share2 size={13} />
               </button>
-              <button type="button" onClick={toggleMute} aria-label={isMuted ? "Unmute" : "Mute"} className="player-control-btn shrink-0">
-                <VolumeIcon size={15} />
+              <button type="button" onClick={toggleMute} aria-label={isMuted ? "Unmute" : "Mute"}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}>
+                <VolumeIcon size={13} />
               </button>
               {!isTouchDevice && (
                 <input
@@ -1464,11 +1472,16 @@ export default function PremiumPlayer({
                     if (next) startSleepTimer(next); else cancelSleepTimer();
                   }
                 }}
-                className={`player-control-btn relative shrink-0 hidden min-[380px]:inline-flex${sleepMinutes ? " player-control-btn-active" : ""}`}
+                className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl hidden min-[380px]:inline-flex`}
+                style={{
+                  background: sleepMinutes ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.08)",
+                  border: sleepMinutes ? "1px solid rgba(245,166,35,0.45)" : "1px solid rgba(255,255,255,0.12)",
+                  color: sleepMinutes ? "#F5A623" : "rgba(255,255,255,0.75)",
+                }}
                 title={sleepMinutes ? `Sleep: ${Math.floor(sleepRemaining / 60)}:${String(sleepRemaining % 60).padStart(2, "0")}` : "Sleep timer"}
                 aria-label="Sleep timer"
               >
-                <Moon size={15} />
+                <Moon size={13} />
                 {sleepMinutes && (
                   <span className="absolute -top-1 -right-0.5 rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
                     {Math.ceil(sleepRemaining / 60)}m
