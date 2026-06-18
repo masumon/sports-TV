@@ -81,11 +81,11 @@ const withPWA = withPWAInit({
 
 // Backend origin for the Next.js proxy rewrite.
 // Set BACKEND_URL in Vercel Environment Variables (no trailing slash, no /api path).
-// Example: https://gstv-backend.onrender.com
+// Example: https://gstv-backend-sg.onrender.com
 // Falls back to localhost in development so local API checks do not hit production.
 const DEFAULT_BACKEND_URL =
   process.env.NODE_ENV === "production"
-    ? "https://gstv-backend.onrender.com"
+    ? "https://gstv-backend-sg.onrender.com"
     : "http://localhost:8000";
 // Treat "" as unset so Vercel env rows left blank still use the default origin.
 const BACKEND_URL = (process.env.BACKEND_URL?.trim() || DEFAULT_BACKEND_URL).replace(/\/$/, "");
@@ -112,6 +112,10 @@ const nextConfig: NextConfig = {
   // needs to hardcode an absolute URL and avoids CORS preflight issues.
   async rewrites() {
     return [
+      {
+        source: "/health/:path*",
+        destination: `${BACKEND_URL}/health/:path*`,
+      },
       {
         source: "/health",
         destination: `${BACKEND_URL}/health`,

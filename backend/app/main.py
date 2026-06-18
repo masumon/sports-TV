@@ -511,6 +511,12 @@ def health() -> dict[str, str]:
     return {"status": "ok", "env": settings.app_env, "version": "asyncpg-async-v11"}
 
 
+@app.get("/api/v1/health", tags=["health"], include_in_schema=False)
+def health_v1() -> dict[str, str]:
+    """Alias for /health — allows monitoring tools using /api/v1/* prefix to reach health check."""
+    return {"status": "ok", "env": settings.app_env, "version": "asyncpg-async-v11"}
+
+
 @app.get("/health/db", tags=["health"], include_in_schema=False)
 async def health_db() -> dict:
     """Diagnostic: test async DB connection and return error detail if it fails."""
