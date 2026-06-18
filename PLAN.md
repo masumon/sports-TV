@@ -1,116 +1,56 @@
-# ABO Sports TV — OTT UX Polish Pass
-
-Date: 2026-06-17  
-Branch: `claude/world-cup-2026-loading-fix-bKags`  
-Scope: UI/UX only — no backend, no API, no functional changes
-
----
-
-## Phase 1 — Audit Findings
-
-| # | Issue | Severity | File |
-|---|-------|----------|------|
-| 1 | Empty state `py-16` = 64px dead space — kills information density | High | ChannelGrid.tsx |
-| 2 | Grid gap: 12px mobile→lg, only 16px on xl (no intermediate step) | Medium | ChannelGrid.tsx |
-| 3 | Empty state text oversized (`text-base`) vs tight list (`text-xs`) — hierarchy mismatch | Medium | ChannelGrid.tsx |
-| 4 | Card padding `p-3.5` + `gap-2.5` — 2px oversized; wastes vertical card space on mobile | Medium | ChannelCard.tsx |
-| 5 | Live/VPN badge offset `-0.5` (−2px) — clips on some renderers | Low | ChannelCard.tsx |
-| 6 | Module tab strip `pb-1` — no visual separation between tabs and content | Medium | ViewerHome.tsx |
-| 7 | MoreSheet theme buttons `py-3` — 24px height for 20px color swatch; wasted touch area | Medium | MoreSheet.tsx |
-| 8 | MoreSheet `mb-4/mb-5` between 10px typography — gap twice the text height | Medium | MoreSheet.tsx |
-| 9 | Admin stat grid: `gap-3` flat on all breakpoints | Low | dashboard/page.tsx |
-| 10 | Footer already optimized (previous pass) | — | SiteFooter.tsx |
-
-**Not changed this pass (risk/scope):**
-- `PremiumPlayer.tsx` — playback logic intertwined with control UI; breaking change risk
-- `globals.css` — design token classes already consistent
-- `SearchOverlay` — functioning correctly; no density issues
-- All backend/API/auth/analytics files
+# OTT UX Audit — Mobile Player Overlay + Footer
+**Scope:** PremiumPlayer.tsx · SiteFooter.tsx only
+**Date:** 2026-06-18
+**Branch:** fix/mobile-overlay-footer-premium
 
 ---
 
-## Phase 2 — Home Screen
+## PLAYER FINDINGS (PremiumPlayer.tsx)
 
-**File:** `ViewerHome.tsx`  
-**Change:** Module tab strip `pb-1` → `pb-2`  
-**Effect:** +4px visual breathing room between tab row and first content block; clearer hierarchy
-
----
-
-## Phase 3 — Player
-
-Deferred. PremiumPlayer.tsx contains intertwined playback + control logic.  
-Safe player UX changes (button sizing, fullscreen polish) would require a dedicated isolated pass.
+| # | Severity | Line(s) | Problem | Proposed Fix | Risk |
+|---|----------|---------|---------|-------------|------|
+| P1 | **HIGH** | 1358–1418 | Top bar: with `onBack` prop, 5 icon buttons (Back+Lock+AspectRatio+Fullscreen+Settings) + channel info = ~268px on 360px → only ~92px left for title, truncates to ~6 chars. | Hide AspectRatio on mobile (`hidden sm:inline-flex`) + add it to Settings › Video tab. Functionality preserved via settings. | Low |
+| P2 | **HIGH** | 1600 | Settings panel `top-16` (64px fixed). On notch phones `safe-area-inset-top` ≈ 47px → top bar height ≈ 91px → settings panel opens 27px INSIDE the top bar. Controls overlap. | Change `top-16` to inline style: `calc(max(4rem, env(safe-area-inset-top, 0px) + 2.75rem))` | Low — CSS only |
+| P3 | LOW | 1486–1489 | Sleep timer badge `absolute -top-1 -right-1` on button at `right-3` (12px from edge) — badge clips to 8px from player edge, may be hidden on rounded containers. | Change badge to `-top-1 -right-0.5` | None |
+| P4 | INFO | 1303–1313 | Tap hint (z-30) and LIVE badge (z-30) share same z-index. Both can show simultaneously but occupy different areas (center vs top-left). No visual collision. | No action needed. |
 
 ---
 
-## Phase 4 — Channel Experience
+## FOOTER FINDINGS (SiteFooter.tsx)
 
-**File:** `ChannelCard.tsx`
+**Measured mobile height (bdExpanded=true): ≈ 500px**
+**Target (35–50% reduction): 250–325px**
 
-| Property | Before | After |
-|----------|--------|-------|
-| Card padding | `p-3.5` (14px) | `p-3` (12px) |
-| Logo-to-name gap | `gap-2.5` (10px) | `gap-2` (8px) |
-| Live badge offset | `-right-0.5 -top-0.5` | `right-0 top-0` |
-| VPN badge offset | `-bottom-0.5` | `bottom-0` |
+| # | Severity | Line(s) | Problem | Proposed Fix | Saves | Risk |
+|---|----------|---------|---------|-------------|-------|------|
+| F1 | **HIGH** | 144–146 | Product description `<p>` text duplicates the 4 chips below AND the hero badges. Pure redundancy. | Remove the `<p>` description entirely. | ~32px | None |
+| F2 | **HIGH** | 85–87 | Hero tagline "Global live sports & Bangladesh TV — one app." is self-evident, adds ~16px. | Remove tagline `<p>`. | ~16px | None |
+| F3 | **HIGH** | 97–105 | Hero badge "HLS · PWA · HD" duplicates Product chips (HLS, PWA, Multi-region, HD) exactly. | Remove "HLS · PWA · HD" badge, keep LIVE pill + "10,000+ Channels" only. | ~10px + clutter | None |
+| F4 | **MEDIUM** | 222–263 | "Powered by" strip (py-2) + Legal bar (py-2) = two separate rows ≈ 60px. | Merge into one compact flex row: `[Powered by …] · [Privacy · Terms · License · Intl. Use] · [© year]` | ~28px | Low |
+| F5 | **MEDIUM** | 203–208 | Coverage: 8 chips → 2 rows on mobile (~44px). First 5 are the key sports. | Hide last 3 chips on mobile (`hidden sm:inline-flex`). All 8 visible on ≥640px. | ~22px | None |
+| F6 | **MEDIUM** | 137 | Grid is `grid-cols-1` on mobile — 3 full-width stacked sections ≈ 240px. | Use `grid-cols-2 lg:grid-cols-3` — Product+Contact side-by-side on mobile, Coverage below. | ~80px | Low |
+| F7 | LOW | 140,157,199 | `space-y-2` (8px) in all 3 sections. | Reduce to `space-y-1.5` (6px) in all 3 sections. | ~12px | None |
+| F8 | LOW | 135 | Grid `py-4` on mobile (16px top+bottom). | Change to `py-3 sm:py-4`. | ~8px | None |
 
-**File:** `ChannelGrid.tsx`
-
-| Property | Before | After |
-|----------|--------|-------|
-| lg breakpoint gap | `gap-3` (12px) | `lg:gap-3.5` (14px) |
-| Empty state padding | `py-16 px-6` (64px/24px) | `py-10 px-5` (40px/20px) |
-| Empty state icon | `h-14 w-14` | `h-12 w-12` |
-| Empty state heading | `text-base` | `text-sm` |
-| Empty state subtitle | `mt-1.5 text-sm` | `mt-1 text-xs` |
-| Empty state list top margin | `mt-2` | `mt-1.5` |
+**Projected total savings: ~208px → footer ≈ 292px (42% reduction) ✓**
 
 ---
 
-## Phase 5 — Search
+## FILES TO MODIFY
 
-No changes. Search overlay has correct hierarchy and mobile usability.
+| File | Fixes |
+|------|-------|
+| `frontend/src/components/PremiumPlayer.tsx` | P1, P2, P3 |
+| `frontend/src/components/SiteFooter.tsx` | F1–F8 |
 
----
+## DO NOT TOUCH
+Playback logic · HLS · DASH · stream URLs · backend · API · auth · analytics  
+SearchOverlay · ChannelCard · ChannelGrid · MoreSheet · TopBar · InsightsDashboard  
+Legal PDF links · social URLs · email · phone actions
 
-## Phase 6 — Admin Dashboard
-
-**File:** `dashboard/page.tsx`  
-**Change:** Stat grid `gap-3` → `gap-3 sm:gap-4`  
-**Effect:** Cards have breathing room on tablet and wider
-
----
-
-## Phase 7 — Design System
-
-No changes to `globals.css`. Existing token classes (`.module-tab`, `.cat-tab`, `.admin-stat`, `.live-badge`, `.glow-gold`, `.neon-border`, `.interactive-transition`) are already consistent.
-
----
-
-## Phase 8 — Mobile-First Polish
-
-**File:** `MoreSheet.tsx`
-
-| Element | Before | After |
-|---------|--------|-------|
-| Drag handle row | `mb-4` | `mb-2` |
-| Theme picker buttons | `py-3` | `py-2` |
-| Post-picker gap | `mb-5` | `mb-3` |
-| All Channels button | `mb-3` | `mb-2` |
-| Profile link | `mb-5` | `mb-2` |
-| Footer section top | `pt-4` | `pt-3` |
-| Developer card top | `mt-3` | `mt-2` |
-
-Net savings: ~28px vertical space in a modal that's capped at `92dvh` on mobile.
-
----
-
-## Validation
-
-- `npx tsc --noEmit` — 0 errors  
-- No backend files touched  
-- No routing changes  
-- No link changes  
-- No playback logic changes  
-- No analytics changes  
+## VALIDATION
+1. `tsc --noEmit` — zero errors
+2. `next build` — pass
+3. Player: 320px / 360px / 375px / 390px viewport checks
+4. Footer: height at each breakpoint
+5. Regression: all settings options reachable; all footer links present
