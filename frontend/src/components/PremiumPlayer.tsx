@@ -1597,7 +1597,7 @@ export default function PremiumPlayer({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 16 }}
             transition={{ duration: 0.18 }}
-            className="absolute right-3 z-50 w-52 overflow-hidden rounded-2xl shadow-2xl"
+            className="absolute right-3 z-50 w-48 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl shadow-2xl"
             style={{ top: "calc(max(4rem, env(safe-area-inset-top, 0px) + 2.75rem))", background: "rgba(6,7,14,0.94)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)" }}
           >
             <div className="flex items-center justify-between px-3 pt-3 pb-2">

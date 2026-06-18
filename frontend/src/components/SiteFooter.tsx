@@ -117,30 +117,23 @@ export function SiteFooter() {
         </div>
       </div>
 
-      {/* ── 3. Coverage Chips ── */}
+      {/* ── 3+4. Coverage Chips + Browse CTA (single row) ── */}
       <div
-        className="px-4 pt-2.5 pb-1.5 sm:px-6"
-        style={{ borderBottom: "none" }}
-      >
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-2">
-          {COVERAGE.map((s) => (
-            <span
-              key={s}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-base"
-              style={chip()}
-            >
-              {s}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* ── 4. Browse Channels CTA ── */}
-      <div
-        className="px-4 pb-2.5 sm:px-6"
+        className="px-4 py-2 sm:px-6"
         style={{ borderBottom: "1px solid var(--border)" }}
       >
-        <div className="mx-auto w-full max-w-6xl">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
+          <div className="flex items-center gap-2">
+            {COVERAGE.map((s) => (
+              <span
+                key={s}
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-base"
+                style={chip()}
+              >
+                {s}
+              </span>
+            ))}
+          </div>
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-[11px] font-bold transition hover:opacity-80"
@@ -153,7 +146,7 @@ export function SiteFooter() {
       </div>
 
       {/* ── 5. Legal · 6. Powered By ── */}
-      <div className="px-4 py-2 sm:px-6">
+      <div className="px-4 py-2 sm:px-6" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0px))" }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div
             className="flex flex-nowrap items-center text-[10px]"
