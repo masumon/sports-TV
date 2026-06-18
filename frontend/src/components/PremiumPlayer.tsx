@@ -1379,6 +1379,10 @@ export default function PremiumPlayer({
               <button type="button" onClick={() => setIsLocked(true)} aria-label="Lock controls" className="player-control-btn shrink-0">
                 <Lock size={15} />
               </button>
+              {/* Mute — mobile only; right column hidden on mobile to prevent overlap */}
+              <button type="button" onClick={toggleMute} aria-label={isMuted ? "Unmute" : "Mute"} className="player-control-btn shrink-0 sm:hidden">
+                <VolumeIcon size={15} />
+              </button>
               {/* Aspect ratio — top bar visible on desktop only; mobile via Settings */}
               <button type="button" onClick={toggleAspectRatio} aria-label="Toggle aspect ratio" title="Aspect ratio" className="player-control-btn shrink-0 hidden sm:inline-flex">
                 {aspectRatio === "contain" ? <Maximize size={15} /> : <Minimize size={15} />}
@@ -1430,8 +1434,8 @@ export default function PremiumPlayer({
               </button>
             </div>
 
-            {/* ── RIGHT SIDE — Volume + secondary actions ── */}
-            <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 flex flex-col items-center gap-2 pointer-events-auto">
+            {/* ── RIGHT SIDE — Volume + secondary actions (hidden on mobile to prevent top-bar overlap) ── */}
+            <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 hidden sm:flex flex-col items-center gap-2 pointer-events-auto">
               {typeof document !== "undefined" && !!document.pictureInPictureEnabled && (
                 <button type="button" onClick={() => void togglePictureInPicture()} aria-label="Picture-in-Picture" className="player-control-btn shrink-0 hidden sm:inline-flex">
                   <PictureInPicture2 size={15} />
