@@ -608,27 +608,39 @@ def _random_public_egress_ip() -> str:
         return f"5.{random.randint(62, 76)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
 
 
-_geo_ip_cache: dict[str, str] = {}
+_GEO_IP_CACHE_TTL_SEC = 1800  # 30 min — stale IPs rotate out automatically
+_geo_ip_cache: dict[str, tuple[str, float]] = {}  # url -> (ip, expires_at)
 _geo_ip_cache_lock = Lock()
 
+
+def _invalidate_geo_ip_cache(url: str) -> None:
+    """Drop cached IP for a URL so the next request tries a fresh geo-region."""
+    with _geo_ip_cache_lock:
+        _geo_ip_cache.pop(url, None)
+
+
 def _apply_upstream_geo_bypass_headers(forward: dict[str, str], cache_key: str) -> dict[str, str]:
-    """Apply consistent geo-bypass IP per stream (cached) to avoid repeated CDN node switches."""
+    """Apply consistent geo-bypass IP per stream (TTL-cached) to avoid repeated CDN node switches."""
     if not getattr(settings, "stream_geo_bypass_enabled", True):
         return forward
     h = dict(forward)
 
-    # Cache IP per stream URL to prevent constant switching between CDN nodes
     now = time.time()
     with _geo_ip_cache_lock:
-        if cache_key in _geo_ip_cache:
-            ip = _geo_ip_cache[cache_key]
+        entry = _geo_ip_cache.get(cache_key)
+        if entry is not None and entry[1] > now:
+            ip = entry[0]
         else:
             ip = _random_public_egress_ip()
-            _geo_ip_cache[cache_key] = ip
-            # Auto-expire cache every 30 minutes to allow IP rotation
+            _geo_ip_cache[cache_key] = (ip, now + _GEO_IP_CACHE_TTL_SEC)
             if len(_geo_ip_cache) > 256:
-                oldest_key = next(iter(_geo_ip_cache))
-                del _geo_ip_cache[oldest_key]
+                # Purge expired entries first; fall back to evicting oldest
+                stale = [k for k, (_, exp) in _geo_ip_cache.items() if exp <= now]
+                for k in stale[:32]:
+                    _geo_ip_cache.pop(k, None)
+                if len(_geo_ip_cache) > 256:
+                    oldest_key = next(iter(_geo_ip_cache))
+                    del _geo_ip_cache[oldest_key]
 
     h["x-forwarded-for"] = ip
     h["x-real-ip"] = ip
@@ -1249,6 +1261,7 @@ async def _fetch_manifest_text(
                 return None, url
             final = str(r.url)
             if r.status_code in _GEO_BLOCK_STATUS:
+                _invalidate_geo_ip_cache(url)  # force a fresh region on next attempt
                 continue
             if r.status_code >= 400:
                 return None, final
@@ -1420,6 +1433,7 @@ async def proxy_stream(
             return _proxy_error_response(502)
 
         if st in _GEO_BLOCK_STATUS and try_alternates and ds and ds.is_active and h_primary and h_fb:
+            _invalidate_geo_ip_cache(effective_url)  # rotate IP before retry
             m3u_base = (ds.m3u8_url or ds.fallback_m3u8_url) or ""
             if m3u_base:
                 alt = _remap_url_to_m3u8_base_host(effective_url, m3u_base)
@@ -1429,6 +1443,7 @@ async def proxy_stream(
                     if st < 400:
                         effective_url, forward = alt, h_primary
             if st in _GEO_BLOCK_STATUS:
+                _invalidate_geo_ip_cache(effective_url)
                 st, content_type, upstream_hdrs = await _async_peek_stream(effective_url, h_fb)
                 if st < 400:
                     forward = h_fb
@@ -1553,6 +1568,7 @@ async def proxy_playlist_raw(
                 return _proxy_error_response(502)
             if r.status_code not in _GEO_BLOCK_STATUS:
                 break
+            _invalidate_geo_ip_cache(target_url)  # rotate IP before next playlist retry
         if r is None:
             return _proxy_error_response(502)
         if r.status_code in _GEO_BLOCK_STATUS:
