@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePlayerStore } from "@/store/playerStore";
 import { BRAND } from "@/lib/branding";
 import {
-  ExternalLink,
   Mail,
   Phone,
   Youtube,
@@ -32,10 +31,7 @@ const QUICK_ACTIONS = [
   { icon: <Phone   size={17} />, label: "Call us",   href: "tel:+8801825007977",                       color: "#10b981", external: false },
 ] as const;
 
-const COVERAGE = [
-  "⚽ Football", "🏏 Cricket", "🏀 Basketball",
-  "🎾 Tennis",  "🏎️ F1",     "🥊 Boxing",
-] as const;
+const COVERAGE = ["⚽", "🏏", "🎾", "🏀"] as const;
 
 const chip = (accent?: string): React.CSSProperties => ({
   background: accent ? `${accent}12` : "rgba(255,255,255,0.05)",
@@ -121,28 +117,37 @@ export function SiteFooter() {
         </div>
       </div>
 
-      {/* ── 3. Coverage Chips + 4. Browse CTA ── */}
+      {/* ── 3. Coverage Chips ── */}
       <div
-        className="px-4 py-2.5 sm:px-6"
-        style={{ borderBottom: "1px solid var(--border)" }}
+        className="px-4 pt-2.5 pb-1.5 sm:px-6"
+        style={{ borderBottom: "none" }}
       >
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-1.5">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-2">
           {COVERAGE.map((s) => (
             <span
               key={s}
-              className="rounded-full px-2 py-0.5 text-[9px] font-medium"
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-base"
               style={chip()}
             >
               {s}
             </span>
           ))}
+        </div>
+      </div>
+
+      {/* ── 4. Browse Channels CTA ── */}
+      <div
+        className="px-4 pb-2.5 sm:px-6"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
+        <div className="mx-auto w-full max-w-6xl">
           <Link
             href="/"
-            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-[9px] font-bold transition hover:opacity-80"
-            style={chip("var(--primary-accent)")}
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold transition hover:opacity-80"
+            style={{ color: "var(--primary-accent)" }}
           >
-            <Star size={9} fill="currentColor" aria-hidden />
-            Browse All
+            <Star size={10} fill="currentColor" aria-hidden />
+            Browse Channels →
           </Link>
         </div>
       </div>
@@ -154,26 +159,20 @@ export function SiteFooter() {
             className="flex flex-nowrap items-center text-[10px]"
             style={{ color: "var(--text-muted)" }}
           >
-            <a href={LEGAL_PDF.privacy}      target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Privacy</a>
-            <span aria-hidden className="mx-1.5 opacity-30">·</span>
-            <a href={LEGAL_PDF.terms}        target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Terms</a>
-            <span aria-hidden className="mx-1.5 opacity-30">·</span>
-            <a href={LEGAL_PDF.license}      target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">License</a>
-            <span aria-hidden className="mx-1.5 opacity-30">·</span>
-            <a href={LEGAL_PDF.international} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Intl. Use</a>
+            <a href={LEGAL_PDF.privacy} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Privacy</a>
+            <span aria-hidden className="mx-1.5 opacity-30">•</span>
+            <a href={LEGAL_PDF.terms}   target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Terms</a>
+            <span aria-hidden className="mx-1.5 opacity-30">•</span>
+            <a href={LEGAL_PDF.license} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">License</a>
           </div>
           <a
             href={BRAND.developerWebsiteUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[10px] font-medium transition hover:opacity-75"
-            style={{ color: "var(--text-muted)" }}
+            className="text-[10px] font-bold transition hover:opacity-75"
+            style={{ color: "var(--primary-accent)" }}
           >
-            Powered by{" "}
-            <span className="font-bold" style={{ color: "var(--primary-accent)" }}>
-              {BRAND.developer}
-            </span>
-            <ExternalLink size={8} aria-hidden className="opacity-40" />
+            {BRAND.developer}
           </a>
         </div>
       </div>
