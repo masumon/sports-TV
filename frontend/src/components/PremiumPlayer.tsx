@@ -1393,8 +1393,8 @@ export default function PremiumPlayer({
               <button type="button" onClick={() => setIsLocked(true)} aria-label="Lock controls" className="player-control-btn shrink-0">
                 <Lock size={15} />
               </button>
-              {/* Aspect ratio */}
-              <button type="button" onClick={toggleAspectRatio} aria-label="Toggle aspect ratio" title="Aspect ratio" className="player-control-btn shrink-0">
+              {/* Aspect ratio — top bar visible on desktop only; mobile via Settings */}
+              <button type="button" onClick={toggleAspectRatio} aria-label="Toggle aspect ratio" title="Aspect ratio" className="player-control-btn shrink-0 hidden sm:inline-flex">
                 {aspectRatio === "contain" ? <Maximize size={15} /> : <Minimize size={15} />}
               </button>
               {/* Fullscreen */}
@@ -1483,7 +1483,7 @@ export default function PremiumPlayer({
               >
                 <Moon size={15} />
                 {sleepMinutes && (
-                  <span className="absolute -top-1 -right-1 rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
+                  <span className="absolute -top-1 -right-0.5 rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
                     {Math.ceil(sleepRemaining / 60)}m
                   </span>
                 )}
@@ -1597,8 +1597,8 @@ export default function PremiumPlayer({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 16 }}
             transition={{ duration: 0.18 }}
-            className="absolute right-3 top-16 z-50 w-52 overflow-hidden rounded-2xl shadow-2xl"
-            style={{ background: "rgba(6,7,14,0.94)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)" }}
+            className="absolute right-3 z-50 w-52 overflow-hidden rounded-2xl shadow-2xl"
+            style={{ top: "calc(max(4rem, env(safe-area-inset-top, 0px) + 2.75rem))", background: "rgba(6,7,14,0.94)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)" }}
           >
             <div className="flex items-center justify-between px-3 pt-3 pb-2">
               <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#00E5FF" }}>Settings</span>
@@ -1651,6 +1651,16 @@ export default function PremiumPlayer({
                     <Tv size={13} />
                     <span>Theater Mode</span>
                     {isTheaterMode && <Check size={12} style={{ color: "#00E5FF" }} className="ml-auto" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { toggleAspectRatio(); setShowSettings(false); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[12px] font-semibold transition hover:bg-white/[0.07] sm:hidden"
+                    style={{ color: aspectRatio === "contain" ? "#00E5FF" : "rgba(255,255,255,0.65)" }}
+                  >
+                    {aspectRatio === "contain" ? <Maximize size={13} /> : <Minimize size={13} />}
+                    <span>Aspect Ratio</span>
+                    {aspectRatio === "contain" && <Check size={12} style={{ color: "#00E5FF" }} className="ml-auto" />}
                   </button>
                   <button
                     type="button"

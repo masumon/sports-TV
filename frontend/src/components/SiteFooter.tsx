@@ -82,19 +82,10 @@ export function SiteFooter() {
             >
               {BRAND.nameFull}
             </h2>
-            <p className="mt-0.5 text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>
-              Global live sports &amp; Bangladesh TV — one app.
-            </p>
             {/* Badge strip: flex-nowrap so it never wraps, scrolls on tiny viewports */}
             <div className="-mx-0.5 mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5">
               <span className="live-badge inline-flex shrink-0 items-center gap-1 text-[8px]">
                 <Radio size={8} className="animate-pulse" aria-hidden /> LIVE
-              </span>
-              <span
-                className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
-                style={chipStyle("var(--primary-accent)")}
-              >
-                HLS · PWA · HD
               </span>
               <span
                 className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
@@ -132,17 +123,14 @@ export function SiteFooter() {
 
       {/* ── Three-column grid — CSS collapse, no SSR flash ── */}
       <div
-        className={`mx-auto w-full max-w-6xl px-4 py-4 sm:block sm:px-6 sm:py-5 lg:px-8 ${bdExpanded ? "block" : "hidden"}`}
+        className={`mx-auto w-full max-w-6xl px-4 py-3 sm:block sm:px-6 sm:py-5 lg:px-8 ${bdExpanded ? "block" : "hidden"}`}
       >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
 
           {/* Product */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Product
-            </p>
-            <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              HLS player · backup streams · server relay · PWA. Tuned for mobile networks.
             </p>
             <div className="flex flex-wrap gap-1">
               {(["HLS", "PWA", "Multi-region", "HD"] as const).map((tag) => (
@@ -154,7 +142,7 @@ export function SiteFooter() {
           </div>
 
           {/* Contact */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Contact
             </p>
@@ -175,14 +163,14 @@ export function SiteFooter() {
               ))}
             </div>
             {/* Email + phone */}
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-0.5 min-w-0">
               <a
                 href="mailto:contact@aboenterprise.com"
-                className="flex items-center gap-1.5 text-[10px] font-medium transition hover:opacity-80"
+                className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium transition hover:opacity-80"
                 style={{ color: "var(--text-muted)" }}
               >
                 <Mail size={11} style={{ color: "var(--primary-accent)", flexShrink: 0 }} aria-hidden />
-                contact@aboenterprise.com
+                <span className="truncate">contact@aboenterprise.com</span>
               </a>
               <a
                 href="tel:+8801825007977"
@@ -196,13 +184,13 @@ export function SiteFooter() {
           </div>
 
           {/* Coverage */}
-          <div className="space-y-2">
+          <div className="col-span-2 lg:col-span-1 space-y-1.5">
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Coverage
             </p>
             <div className="flex flex-wrap gap-1">
-              {(["⚽ Football", "🏏 Cricket", "🏀 Basketball", "🎾 Tennis", "🏎️ F1", "🥊 Boxing", "🏒 Hockey", "🏈 NFL"] as const).map((s) => (
-                <span key={s} className="rounded-full px-2 py-0.5 text-[9px] font-medium" style={chipStyle()}>
+              {(["⚽ Football", "🏏 Cricket", "🏀 Basketball", "🎾 Tennis", "🏎️ F1", "🥊 Boxing", "🏒 Hockey", "🏈 NFL"] as const).map((s, i) => (
+                <span key={s} className={`rounded-full px-2 py-0.5 text-[9px] font-medium${i >= 5 ? " hidden sm:inline-flex" : ""}`} style={chipStyle()}>
                   {s}
                 </span>
               ))}
@@ -219,30 +207,20 @@ export function SiteFooter() {
         </div>
       </div>
 
-      {/* ── "Powered by ABO Enterprise" — subtle attribution near footer ── */}
-      <div
-        className="flex items-center justify-center py-2"
-        style={{ borderTop: "1px solid var(--border)" }}
-      >
-        <a
-          href={BRAND.developerWebsiteUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-[10px] font-medium transition hover:opacity-75"
-          style={{ color: "var(--text-muted)" }}
-        >
-          Powered by
-          <span className="font-bold" style={{ color: "var(--primary-accent)" }}>
-            {BRAND.developer}
-          </span>
-          <ExternalLink size={9} aria-hidden className="opacity-40" />
-        </a>
-      </div>
-
-      {/* ── Legal + copyright — single compact row, no scroll needed ── */}
+      {/* ── Powered by · Legal · Copyright — single compact row ── */}
       <div className="px-4 py-2" style={{ borderTop: "1px solid var(--border)" }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          {/* Dot-separated legal links — no icons, guaranteed one-line fit */}
+          <a
+            href={BRAND.developerWebsiteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] font-medium transition hover:opacity-75"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Powered by{" "}
+            <span className="font-bold" style={{ color: "var(--primary-accent)" }}>{BRAND.developer}</span>
+            <ExternalLink size={9} aria-hidden className="opacity-40" />
+          </a>
           <div className="flex flex-nowrap items-center text-[10px]" style={{ color: "var(--text-muted)" }}>
             <a href={LEGAL_PDF.privacy} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Privacy</a>
             <span aria-hidden className="mx-2 opacity-30">·</span>
@@ -252,7 +230,6 @@ export function SiteFooter() {
             <span aria-hidden className="mx-2 opacity-30">·</span>
             <a href={LEGAL_PDF.international} target="_blank" rel="noopener noreferrer" className="transition hover:opacity-80">Intl. Use</a>
           </div>
-          {/* Copyright */}
           <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             © {new Date().getFullYear()}{" "}
             <Link href="/" className="font-semibold hover:opacity-80" style={{ color: "var(--primary-accent)" }}>
