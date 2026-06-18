@@ -36,6 +36,21 @@ _ALIVE_CODES = frozenset({200, 206, 416})
 _GEO_BLOCKED_CODES = frozenset({401, 403, 407, 451})  # URL exists but blocked from our region — treated as dead
 _DEAD_CODES = frozenset({404, 410})
 
+_M3U8_PEEK = 4096  # bytes — enough to confirm manifest validity, costs only a few KB
+
+
+def _is_valid_hls_manifest(text: str) -> bool:
+    """Return True if text is a valid HLS manifest (media, master, or encrypted)."""
+    head = text[:_M3U8_PEEK]
+    if not head.lstrip().startswith("#EXTM3U"):
+        return False
+    return (
+        "#EXTINF" in head               # media playlist segments
+        or "#EXT-X-STREAM-INF" in head  # master playlist variants
+        or "#EXT-X-KEY" in head         # AES-128 encrypted — player decrypts, server just confirms structure
+        or "#EXT-X-TARGETDURATION" in head  # alternate media playlist marker
+    )
+
 
 # ──────────────────────────── helpers ─────────────────────────────────────
 
@@ -65,19 +80,19 @@ def _validate_one(url: str) -> bool:
             trust_env=False,
         ) as client:
             if hls:
+                # Full manifest GET — M3U8 files are text-only, typically < 50 KB.
+                # Validates both HTTP status and content structure in one cheap request.
                 try:
-                    r = client.get(url, headers={"Range": "bytes=0-0"})
-                    if r.status_code in _ALIVE_CODES:
-                        return True
-                    if r.status_code in _GEO_BLOCKED_CODES:
+                    r = client.get(url, headers={"Accept": "application/x-mpegurl, */*"})
+                    if r.status_code in _GEO_BLOCKED_CODES or r.status_code in _DEAD_CODES:
                         return False
-                    if r.status_code in _DEAD_CODES:
+                    if r.status_code not in _ALIVE_CODES:
                         return False
+                    return _is_valid_hls_manifest(r.text)
                 except (httpx.TimeoutException, httpx.ConnectError):
                     return False
                 except Exception:
                     return False
-                return False
 
             # Non-HLS: HEAD first
             try:
@@ -168,18 +183,21 @@ async def _async_validate_one(
     async with sem:
         try:
             if hls:
+                # Full manifest GET — read only first 4 KB, validates content structure.
                 async with session.get(
                     url,
-                    headers={"Range": "bytes=0-0"},
+                    headers={"Accept": "application/x-mpegurl, */*"},
                     timeout=timeout,
                     allow_redirects=True,
                     ssl=False,
                 ) as resp:
-                    if resp.status in _ALIVE_CODES:
-                        return url, True
-                    if resp.status in _GEO_BLOCKED_CODES:
+                    if resp.status in _GEO_BLOCKED_CODES or resp.status in _DEAD_CODES:
                         return url, False
-                    return url, False
+                    if resp.status not in _ALIVE_CODES:
+                        return url, False
+                    raw = await resp.content.read(_M3U8_PEEK)
+                    text = raw.decode("utf-8", errors="ignore")
+                    return url, _is_valid_hls_manifest(text)
             else:
                 try:
                     async with session.head(
