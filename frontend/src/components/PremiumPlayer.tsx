@@ -84,6 +84,19 @@ function useMatchMediaQuery(query: string, defaultValue = false): boolean {
   return matches;
 }
 
+type ScreenOrientationWithLock = ScreenOrientation & {
+  lock?: (orientation: "landscape" | "landscape-primary") => Promise<void>;
+};
+
+async function tryLockLandscape(): Promise<void> {
+  if (typeof screen === "undefined") return;
+  const o = screen.orientation as ScreenOrientationWithLock | null;
+  if (!o?.lock) return;
+  try { await o.lock("landscape"); } catch {
+    try { await o.lock("landscape-primary"); } catch { /* iOS / not fullscreen */ }
+  }
+}
+
 function tryUnlockPlaybackOrientation(): void {
   try {
     screen.orientation?.unlock?.();
@@ -808,13 +821,12 @@ export default function PremiumPlayer({
     };
   }, []);
 
-  /** Unlock orientation when exiting fullscreen (no auto-rotate). */
+  /** Fullscreen → lock landscape. Exit fullscreen → unlock. Theater mode never locks. */
   useEffect(() => {
     if (!isMobileSheet) return;
-    if (!isFullscreen && !isTheaterMode) {
-      tryUnlockPlaybackOrientation();
-    }
-  }, [isMobileSheet, isFullscreen, isTheaterMode]);
+    if (isFullscreen) void tryLockLandscape();
+    else tryUnlockPlaybackOrientation();
+  }, [isMobileSheet, isFullscreen]);
 
   /** Auto PiP when player scrolls out of view */
   useEffect(() => {
@@ -937,6 +949,7 @@ export default function PremiumPlayer({
       if (isMobileSheet && !isTheaterMode) tryUnlockPlaybackOrientation();
     } else {
       await el.requestFullscreen();
+      if (isMobileSheet) await tryLockLandscape();
     }
   }, [isMobileSheet, isTheaterMode]);
 
