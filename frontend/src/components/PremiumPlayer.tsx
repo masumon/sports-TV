@@ -694,7 +694,7 @@ export default function PremiumPlayer({
     }
 
     return cleanup;
-  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile]);
+  }, [streamIdentity, retryKey, directUrls, dynamicM3U8Id, headerProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const video = videoRef.current;
@@ -750,7 +750,7 @@ export default function PremiumPlayer({
       video.removeEventListener("progress", onProgress);
       video.removeEventListener("timeupdate", onTimeUpdate);
     };
-  }, [clearHideTimer, scheduleHideControls]);
+  }, [clearHideTimer, scheduleHideControls]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));

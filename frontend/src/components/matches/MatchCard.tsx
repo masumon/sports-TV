@@ -5,7 +5,7 @@ import { MapPin, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
-import { isFixtureFinished, isFixtureLive, fixtureScoreLabel, fixtureStatusLabel } from "@/lib/matchPresentation";
+import { isFixtureFinished, isFixtureLive, fixtureScoreLabel } from "@/lib/matchPresentation";
 import type { LiveFixture } from "@/lib/types";
 
 export type MatchCardProps = {

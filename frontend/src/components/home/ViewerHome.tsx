@@ -421,7 +421,6 @@ export function ViewerHome() {
         }
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -599,7 +598,7 @@ export function ViewerHome() {
     startTransition(() => {
       setActiveChannel(ch);
     });
-  }, [channelIdParam, allChannels, loading, setActiveModule, setActiveChannel]);
+  }, [channelIdParam, allChannels, loading, router, setActiveModule, setActiveChannel]);
 
   useEffect(() => {
     let m = searchParams.get("module")?.toLowerCase().trim();
@@ -2079,7 +2078,6 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
   channel,
   active,
   onSelect,
-  activeModule,
   isFavorited,
   onToggleFavorite,
   onShare,
