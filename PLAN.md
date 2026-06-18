@@ -1,56 +1,98 @@
-# OTT UX Audit — Mobile Player Overlay + Footer
-**Scope:** PremiumPlayer.tsx · SiteFooter.tsx only
+# Footer Redesign Audit
+**Scope:** SiteFooter.tsx only
 **Date:** 2026-06-18
-**Branch:** fix/mobile-overlay-footer-premium
+**Used in:** frontend/src/app/layout.tsx (line 145) — shared across ALL pages
 
 ---
 
-## PLAYER FINDINGS (PremiumPlayer.tsx)
+## CURRENT vs TARGET
 
-| # | Severity | Line(s) | Problem | Proposed Fix | Risk |
-|---|----------|---------|---------|-------------|------|
-| P1 | **HIGH** | 1358–1418 | Top bar: with `onBack` prop, 5 icon buttons (Back+Lock+AspectRatio+Fullscreen+Settings) + channel info = ~268px on 360px → only ~92px left for title, truncates to ~6 chars. | Hide AspectRatio on mobile (`hidden sm:inline-flex`) + add it to Settings › Video tab. Functionality preserved via settings. | Low |
-| P2 | **HIGH** | 1600 | Settings panel `top-16` (64px fixed). On notch phones `safe-area-inset-top` ≈ 47px → top bar height ≈ 91px → settings panel opens 27px INSIDE the top bar. Controls overlap. | Change `top-16` to inline style: `calc(max(4rem, env(safe-area-inset-top, 0px) + 2.75rem))` | Low — CSS only |
-| P3 | LOW | 1486–1489 | Sleep timer badge `absolute -top-1 -right-1` on button at `right-3` (12px from edge) — badge clips to 8px from player edge, may be hidden on rounded containers. | Change badge to `-top-1 -right-0.5` | None |
-| P4 | INFO | 1303–1313 | Tap hint (z-30) and LIVE badge (z-30) share same z-index. Both can show simultaneously but occupy different areas (center vs top-left). No visual collision. | No action needed. |
+### Current Footer Structure
+```
+Zone 1 — Brand (horizontal flex, py-3)
+  [Logo] [ABO SPORTS TV LIVE]
+         [LIVE] [10K+ Channels]
+
+Zone 2 — Quick Actions (py-2.5)
+  [FB] [TG] [WA] [YT] [✉] [☎]  — 6 × h-10 w-10 icon buttons
+
+Zone 3 — Coverage + Browse CTA (py-2.5, single row)
+  [⚽ Football] [🏏 Cricket] [🏀 Basketball] [🎾 Tennis] [🏎️ F1] [🥊 Boxing]  [Browse All →]
+  ↑ 6 chips with full text labels                                                ↑ inline chip ml-auto
+
+Zone 4 — Legal + Attribution (py-2, single row)
+  Privacy · Terms · License · Intl.Use        Powered by ABO Enterprise 🔗
+```
+
+### Target Footer Structure
+```
+Zone 1 — Brand
+  [Logo]  ABO SPORTS TV LIVE  [LIVE] [10K+]
+
+Zone 2 — Quick Actions
+  [FB] [TG] [WA] [YT] [✉] [☎]
+
+Zone 3 — Coverage chips  ← emoji only, 4 sports
+  ⚽  🏏  🎾  🏀
+
+Zone 4 — Browse CTA  ← own dedicated line
+  ⭐ Browse Channels →
+
+Zone 5 — Legal  ← 3 links, • separator
+  Privacy • Terms • License
+
+Zone 6 — Attribution  ← no "Powered by" prefix
+  ABO Enterprise
+```
 
 ---
 
-## FOOTER FINDINGS (SiteFooter.tsx)
+## FINDINGS
 
-**Measured mobile height (bdExpanded=true): ≈ 500px**
-**Target (35–50% reduction): 250–325px**
+| # | Severity | Line(s) | Issue | Target | Risk |
+|---|----------|---------|-------|--------|------|
+| F1 | MEDIUM | 35–38 | Coverage: 6 chips with full text labels ("⚽ Football" etc.). Target wants 4 emoji-only chips (⚽ 🏏 🎾 🏀). | Replace text labels with emoji-only, trim to 4 sports | None |
+| F2 | MEDIUM | 139–147 | Browse CTA is inline with coverage chips using `ml-auto`. Target wants it on its own dedicated line below coverage. | Move to separate zone between coverage and legal | None |
+| F3 | LOW | 157–164 | Legal row has 4 links (Privacy · Terms · License · Intl.Use) with `·` separator. Target has 3 links with `•` separator. | Remove Intl.Use link, change separator to `•` | None |
+| F4 | LOW | 165–177 | Attribution shows "Powered by **ABO Enterprise** 🔗". Target shows just "ABO Enterprise" as a cleaner link. | Remove "Powered by" prefix and ExternalLink icon | None |
+| F5 | INFO | 62–94 | Brand area is horizontal flex (logo left, text right). Target wireframe shows stacked/centered. Current layout is compact and functional — no change needed. | Keep as-is | — |
 
-| # | Severity | Line(s) | Problem | Proposed Fix | Saves | Risk |
-|---|----------|---------|---------|-------------|-------|------|
-| F1 | **HIGH** | 144–146 | Product description `<p>` text duplicates the 4 chips below AND the hero badges. Pure redundancy. | Remove the `<p>` description entirely. | ~32px | None |
-| F2 | **HIGH** | 85–87 | Hero tagline "Global live sports & Bangladesh TV — one app." is self-evident, adds ~16px. | Remove tagline `<p>`. | ~16px | None |
-| F3 | **HIGH** | 97–105 | Hero badge "HLS · PWA · HD" duplicates Product chips (HLS, PWA, Multi-region, HD) exactly. | Remove "HLS · PWA · HD" badge, keep LIVE pill + "10,000+ Channels" only. | ~10px + clutter | None |
-| F4 | **MEDIUM** | 222–263 | "Powered by" strip (py-2) + Legal bar (py-2) = two separate rows ≈ 60px. | Merge into one compact flex row: `[Powered by …] · [Privacy · Terms · License · Intl. Use] · [© year]` | ~28px | Low |
-| F5 | **MEDIUM** | 203–208 | Coverage: 8 chips → 2 rows on mobile (~44px). First 5 are the key sports. | Hide last 3 chips on mobile (`hidden sm:inline-flex`). All 8 visible on ≥640px. | ~22px | None |
-| F6 | **MEDIUM** | 137 | Grid is `grid-cols-1` on mobile — 3 full-width stacked sections ≈ 240px. | Use `grid-cols-2 lg:grid-cols-3` — Product+Contact side-by-side on mobile, Coverage below. | ~80px | Low |
-| F7 | LOW | 140,157,199 | `space-y-2` (8px) in all 3 sections. | Reduce to `space-y-1.5` (6px) in all 3 sections. | ~12px | None |
-| F8 | LOW | 135 | Grid `py-4` on mobile (16px top+bottom). | Change to `py-3 sm:py-4`. | ~8px | None |
+---
 
-**Projected total savings: ~208px → footer ≈ 292px (42% reduction) ✓**
+## PROPOSED FINAL LAYOUT
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ [Logo] ABO SPORTS TV LIVE  [LIVE]  [10K+]   py-3       │  Zone 1 — Brand (unchanged)
+├─────────────────────────────────────────────────────────┤
+│ [FB]  [TG]  [WA]  [YT]  [✉]  [☎]           py-2.5    │  Zone 2 — Quick Actions (unchanged)
+├─────────────────────────────────────────────────────────┤
+│ [⚽]  [🏏]  [🎾]  [🏀]                      py-2      │  Zone 3 — Coverage (emoji-only, 4 chips)
+├─────────────────────────────────────────────────────────┤
+│ ⭐ Browse Channels →                         py-1.5    │  Zone 4 — Browse CTA (own line)
+├─────────────────────────────────────────────────────────┤
+│ Privacy • Terms • License       ABO Enterprise py-2    │  Zone 5+6 — Legal + Attribution merged
+└─────────────────────────────────────────────────────────┘
+```
+
+**Estimated mobile height: ~170px** (vs current ~190px — marginal further gain)
 
 ---
 
 ## FILES TO MODIFY
 
-| File | Fixes |
-|------|-------|
-| `frontend/src/components/PremiumPlayer.tsx` | P1, P2, P3 |
-| `frontend/src/components/SiteFooter.tsx` | F1–F8 |
+| File | Changes |
+|------|---------|
+| `frontend/src/components/SiteFooter.tsx` | F1–F4 only |
 
 ## DO NOT TOUCH
-Playback logic · HLS · DASH · stream URLs · backend · API · auth · analytics  
-SearchOverlay · ChannelCard · ChannelGrid · MoreSheet · TopBar · InsightsDashboard  
-Legal PDF links · social URLs · email · phone actions
+Backend · API · Auth · Analytics · Routing · SEO · PWA · Playback  
+All URLs · mailto · tel · legal PDF links
 
 ## VALIDATION
 1. `tsc --noEmit` — zero errors
 2. `next build` — pass
-3. Player: 320px / 360px / 375px / 390px viewport checks
-4. Footer: height at each breakpoint
-5. Regression: all settings options reachable; all footer links present
+3. All 6 social/contact icons functional
+4. Browse Channels link → `/`
+5. Privacy/Terms/License links open correct PDFs
+6. ABO Enterprise link opens developer URL
