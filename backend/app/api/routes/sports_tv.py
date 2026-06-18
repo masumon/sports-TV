@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -7,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -374,6 +375,102 @@ async def invalidate_sports_tv_cache(
     """Admin-only: flush server-side list caches for /channels and /filters."""
     invalidate_list_caches()
     return {"detail": "ok", "message": "Channel and filter list caches cleared"}
+
+
+@router.get("/worldcup_2026.m3u")
+async def worldcup_2026_playlist(
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """World Cup 2026 M3U master playlist with dynamic auth header injection. Cached 5 min."""
+    _CACHE_TTL = 300
+
+    cached = cache_get_json("worldcup_2026_m3u", {})
+    if isinstance(cached, dict) and "content" in cached:
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
+        return Response(content=cached["content"], media_type="application/x-mpegurl")
+
+    result = await db.execute(
+        select(Channel)
+        .where(
+            Channel.is_active.is_(True),
+            or_(
+                Channel.module == "world_cup_2026",
+                and_(
+                    func.lower(Channel.country).in_(["bangladesh", "india"]),
+                    func.lower(Channel.category).like("%sport%"),
+                ),
+            ),
+        )
+        .order_by(Channel.country.asc(), Channel.name.asc())
+    )
+    channels = list(result.scalars().all())
+
+    from starlette.concurrency import run_in_threadpool
+    from app.services.dynamic_token_service import (
+        fetch_tsports_token,
+        fetch_toffee_tokens,
+        get_toffee_channel_headers,
+    )
+
+    tsports_data, toffee_data = await asyncio.gather(
+        run_in_threadpool(fetch_tsports_token),
+        run_in_threadpool(fetch_toffee_tokens),
+        return_exceptions=True,
+    )
+    if isinstance(tsports_data, Exception):
+        tsports_data = None
+    if isinstance(toffee_data, Exception):
+        toffee_data = None
+
+    lines = ["#EXTM3U"]
+
+    for ch in channels:
+        stream_url = ch.stream_url
+        if not stream_url:
+            continue
+
+        extra_headers: dict[str, str] = {}
+        name_lower = ch.name.lower()
+
+        if tsports_data and isinstance(tsports_data, dict):
+            if any(kw in name_lower for kw in ("t sport", "tsport", "t-sport")):
+                extra_headers.update(tsports_data.get("headers", {}))
+                if not stream_url.startswith("http") and tsports_data.get("m3u8_url"):
+                    stream_url = tsports_data["m3u8_url"]
+
+        if toffee_data and isinstance(toffee_data, list):
+            if "toffee" in name_lower:
+                toffee_hdrs = get_toffee_channel_headers(ch.name, toffee_data)
+                extra_headers.update(toffee_hdrs)
+
+        logo = ch.logo_url or ""
+        group = ch.category or "Sports"
+        lines.append(
+            f'#EXTINF:-1 tvg-id="{ch.id}" tvg-logo="{logo}" '
+            f'group-title="{group}",{ch.name}'
+        )
+
+        for hdr_key, hdr_val in extra_headers.items():
+            k = hdr_key.lower()
+            if k == "user-agent":
+                lines.append(f"#EXTVLCOPT:http-user-agent={hdr_val}")
+            elif k in ("referer", "http-referer"):
+                lines.append(f"#EXTVLCOPT:http-referrer={hdr_val}")
+            elif k == "cookie":
+                lines.append(f"#EXTVLCOPT:http-cookie={hdr_val}")
+
+        lines.append(stream_url)
+
+    m3u_content = "\n".join(lines) + "\n"
+
+    try:
+        cache_set_json("worldcup_2026_m3u", {}, {"content": m3u_content}, ttl=_CACHE_TTL)
+    except Exception as exc:
+        logger.debug("worldcup_2026.m3u cache set failed: %s", exc)
+
+    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
+    return Response(content=m3u_content, media_type="application/x-mpegurl")
 
 
 @router.get("/channels/{channel_id}", response_model=ChannelRead)
