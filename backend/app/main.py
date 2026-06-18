@@ -532,6 +532,21 @@ async def health_db() -> dict:
         return {"db": "error", "detail": detail, "backend": str(ASYNC_URL).split(":", 1)[0]}
 
 
+@app.get("/api/v1/health/db", tags=["health"], include_in_schema=False)
+async def health_db_v1() -> dict:
+    """Alias for /health/db — allows monitoring tools using /api/v1/* prefix to reach DB health check."""
+    from sqlalchemy import text as sa_text
+    from app.db.session import AsyncSessionLocal
+
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(sa_text("SELECT 1"))
+        return {"db": "ok", "backend": str(ASYNC_URL).split(":", 1)[0]}
+    except Exception as exc:
+        detail = str(exc) if settings.debug else "Database connection failed"
+        return {"db": "error", "detail": detail, "backend": str(ASYNC_URL).split(":", 1)[0]}
+
+
 @app.get("/playlist.m3u", tags=["m3u"])
 async def get_playlist_m3u(
     limit: int = 2000,
