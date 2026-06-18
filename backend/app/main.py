@@ -501,6 +501,11 @@ def root() -> dict[str, str]:
     }
 
 
+@app.head("/", tags=["meta"], include_in_schema=False)
+def root_head() -> None:
+    """HEAD / — Render health-check and uptime monitor compatibility."""
+
+
 @app.get("/health", tags=["health"])
 def health() -> dict[str, str]:
     return {"status": "ok", "env": settings.app_env, "version": "asyncpg-async-v11"}
