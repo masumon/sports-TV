@@ -84,26 +84,6 @@ function useMatchMediaQuery(query: string, defaultValue = false): boolean {
   return matches;
 }
 
-type ScreenOrientationWithLock = ScreenOrientation & {
-  lock?: (orientation: "landscape" | "landscape-primary" | "any") => Promise<void>;
-};
-
-/** Best-effort landscape lock for mobile playback (works on many Android browsers, often requires fullscreen). */
-async function tryLockLandscapePlayback(): Promise<void> {
-  if (typeof screen === "undefined") return;
-  const o = screen.orientation as ScreenOrientationWithLock | null;
-  if (!o?.lock) return;
-  try {
-    await o.lock("landscape");
-  } catch {
-    try {
-      await o.lock("landscape-primary");
-    } catch {
-      /* iOS / unsupported / not fullscreen */
-    }
-  }
-}
-
 function tryUnlockPlaybackOrientation(): void {
   try {
     screen.orientation?.unlock?.();
@@ -828,12 +808,10 @@ export default function PremiumPlayer({
     };
   }, []);
 
-  /** Sync orientation when fullscreen is toggled via browser (e.g. ESC) or gesture. */
+  /** Unlock orientation when exiting fullscreen (no auto-rotate). */
   useEffect(() => {
     if (!isMobileSheet) return;
-    if (isFullscreen) {
-      void tryLockLandscapePlayback();
-    } else if (!isTheaterMode) {
+    if (!isFullscreen && !isTheaterMode) {
       tryUnlockPlaybackOrientation();
     }
   }, [isMobileSheet, isFullscreen, isTheaterMode]);
@@ -959,7 +937,6 @@ export default function PremiumPlayer({
       if (isMobileSheet && !isTheaterMode) tryUnlockPlaybackOrientation();
     } else {
       await el.requestFullscreen();
-      if (isMobileSheet) await tryLockLandscapePlayback();
     }
   }, [isMobileSheet, isTheaterMode]);
 
@@ -1062,10 +1039,6 @@ export default function PremiumPlayer({
         case "KeyM": toggleMute(); break;
         case "KeyF": void toggleFullscreen(); break;
         case "KeyT":
-          if (isMobileSheet) {
-            if (!isTheaterMode) void tryLockLandscapePlayback();
-            else if (!isFullscreen) tryUnlockPlaybackOrientation();
-          }
           onToggleTheaterMode();
           break;
         case "ArrowUp": e.preventDefault(); setVolumeLevel(Math.min(1, volume + 0.1)); break;
