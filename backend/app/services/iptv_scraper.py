@@ -126,9 +126,8 @@ HTTP_HEADERS = {
 # M3U Source Definitions
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Sports category playlists — high-quality, actively maintained sources only
+# Sports category playlists — iptv-org official only (verified, actively maintained)
 SPORTS_CATEGORY_SOURCES: list[str] = [
-    # iptv-org official sports categories (global, maintained, high quality)
     "https://iptv-org.github.io/iptv/categories/sports.m3u",
     "https://iptv-org.github.io/iptv/categories/football.m3u",
     "https://iptv-org.github.io/iptv/categories/cricket.m3u",
@@ -136,18 +135,11 @@ SPORTS_CATEGORY_SOURCES: list[str] = [
     "https://iptv-org.github.io/iptv/categories/tennis.m3u",
     "https://iptv-org.github.io/iptv/categories/motor_sports.m3u",
     "https://iptv-org.github.io/iptv/categories/boxing.m3u",
-    # LegalStream — curated global sports (NFL, NCAA, Soccer, Cricket, etc.)
-    "https://raw.githubusercontent.com/notanewbie/LegalStream/master/packages/sports/live.m3u8",
-    # FreeTVCast — maintained sports selection
-    "https://raw.githubusercontent.com/CTOTechnologies/FreeIPTV/master/categories/sports.m3u",
 ]
 
-# India — regional sports sources (actively maintained)
+# India — iptv-org official only (community sources removed: unknown maintenance status)
 INDIA_FULL_SOURCES: list[str] = [
-    # iptv-org India country list (official, maintained)
     "https://iptv-org.github.io/iptv/countries/in.m3u",
-    # IPTVcat India IPTV (regularly updated)
-    "https://raw.githubusercontent.com/iptvcat/indian-iptv/master/indian-iptv.m3u",
 ]
 
 # Bangladesh — regional sources (vetted, maintained)

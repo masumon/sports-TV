@@ -93,11 +93,25 @@ def seed_international_channels(db: Session) -> dict:
     created = 0
     updated = 0
 
+    # Patterns that indicate a web page, not a playable stream
+    _HTML_URL_MARKERS = ("youtube.com", "sbs.com.au", "tf1.fr", "facebook.com", "twitch.tv")
+
     for ch_data in INTERNATIONAL_CHANNELS:
         db_fields = dict(ch_data)
         if isinstance(db_fields.get("alternate_urls"), list):
             db_fields["alternate_urls"] = json.dumps(db_fields["alternate_urls"])
         is_active = db_fields.pop("is_active", True)
+
+        # Hard-guard: never activate a channel whose stream_url is an HTML web page.
+        # Players cannot play HTML — activating these channels breaks the player.
+        stream_url = db_fields.get("stream_url", "") or ""
+        if any(marker in stream_url for marker in _HTML_URL_MARKERS):
+            if is_active:
+                logger.warning(
+                    "Forcing is_active=False for %s — stream_url is an HTML page, not an HLS stream",
+                    ch_data["name"],
+                )
+            is_active = False
 
         # Check if exists
         existing = db.execute(

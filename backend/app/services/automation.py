@@ -53,11 +53,25 @@ def _channel_validation_urls(channel: Channel) -> list[str]:
 
 
 def _dead_channels_after_fallback_validation(rows: list[Channel], max_workers: int) -> tuple[list[Channel], int]:
-    channel_urls = {ch.id: _channel_validation_urls(ch) for ch in rows}
+    # Channels with a header_profile require auth headers the validator cannot send.
+    # Validating them without auth → 403 → false-negative deactivation.
+    # They stay active; only removed via admin action or explicit DB update.
+    rows_checkable = [ch for ch in rows if not ch.header_profile]
+    skipped_count = len(rows) - len(rows_checkable)
+    if skipped_count:
+        logger.debug(
+            "channel_health_check: skipping %d auth-profile channels (header_profile set)",
+            skipped_count,
+        )
+
+    if not rows_checkable:
+        return [], 0
+
+    channel_urls = {ch.id: _channel_validation_urls(ch) for ch in rows_checkable}
     urls = sorted({url for values in channel_urls.values() for url in values})
     results = validate_stream_urls(urls, max_workers=max_workers)
     dead = [
-        ch for ch in rows
+        ch for ch in rows_checkable
         if not any(results.get(url, False) for url in channel_urls.get(ch.id, []))
     ]
     return dead, len(urls)

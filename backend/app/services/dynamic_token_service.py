@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger("app.dynamic_token")
+
+_FETCH_RETRY_DELAYS = (2.0, 4.0)  # waits before attempt 2 and 3 (total: up to 3 tries)
 
 _TSPORTS_JSON_URL = (
     "https://raw.githubusercontent.com/byte-capsule/TSports-m3u8-Grabber"
@@ -33,6 +36,22 @@ _TSPORTS_REDIS_KEY = "gstv:dts:tsports_v1"
 _TOFFEE_REDIS_KEY = "gstv:dts:toffee_v1"
 _TSPORTS_TTL = 43200   # 12 hours — T-Sports tokens last ~12h
 _TOFFEE_TTL = 3600     # 1 hour  — Toffee tokens last 30 min–5h
+
+
+# ──────────────────────── HTTP helper ─────────────────────────────────────────
+
+def _fetch_with_retry(url: str) -> httpx.Response:
+    """GET url with up to 3 total attempts and exponential backoff (2 s, 4 s)."""
+    last_exc: Exception | None = None
+    for attempt, delay in enumerate((_FETCH_RETRY_DELAYS[0] * 0, *_FETCH_RETRY_DELAYS)):
+        if delay:
+            time.sleep(delay)
+        try:
+            return httpx.get(url, timeout=_FETCH_TIMEOUT, follow_redirects=True)
+        except Exception as exc:
+            last_exc = exc
+            logger.debug("Token fetch attempt %d failed for %s: %s", attempt + 1, url[:60], exc)
+    raise last_exc  # type: ignore[misc]
 
 
 # ──────────────────────── Redis helpers ───────────────────────────────────────
@@ -128,7 +147,7 @@ def fetch_tsports_token(*, force: bool = False) -> dict | None:
             return cached
 
     try:
-        resp = httpx.get(_TSPORTS_JSON_URL, timeout=_FETCH_TIMEOUT, follow_redirects=True)
+        resp = _fetch_with_retry(_TSPORTS_JSON_URL)
         if resp.status_code != 200:
             logger.warning("T-Sports JSON fetch: HTTP %d", resp.status_code)
             return None
@@ -173,7 +192,7 @@ def fetch_toffee_tokens(*, force: bool = False) -> list[dict] | None:
             return cached
 
     try:
-        resp = httpx.get(_TOFFEE_JSON_URL, timeout=_FETCH_TIMEOUT, follow_redirects=True)
+        resp = _fetch_with_retry(_TOFFEE_JSON_URL)
         if resp.status_code != 200:
             logger.warning("Toffee JSON fetch: HTTP %d", resp.status_code)
             return None
