@@ -14,7 +14,7 @@ Strategy per URL:
   1. HLS .m3u8 path → Range-GET first (many CDNs return 404 to HEAD)
   2. Other streams   → HEAD, then byte-range GET if HEAD returns 405 / fails
   3. Accept: 200, 206, 416 (range not satisfiable but server is alive)
-  4. Treat 401, 403, 407, 451 as alive (geo-blocked / auth-required; URL exists)
+  4. Treat 401, 403, 407, 451 as dead (geo-blocked from server region — stream won't play)
   5. Reject: 404, 410, timeout, connection error
 """
 from __future__ import annotations
@@ -32,7 +32,8 @@ _STREAM_TIMEOUT = 5.0       # seconds — per URL (sync path)
 _ASYNC_TIMEOUT = 5.0        # seconds — per URL (async path)
 MAX_SYNC_WORKERS = 30       # safe cap for Render free-tier RAM
 MAX_ASYNC_WORKERS = 50      # aiohttp semaphore slots
-_ALIVE_CODES = frozenset({200, 206, 401, 403, 407, 416, 451})
+_ALIVE_CODES = frozenset({200, 206, 416})
+_GEO_BLOCKED_CODES = frozenset({401, 403, 407, 451})  # URL exists but blocked from our region — treated as dead
 _DEAD_CODES = frozenset({404, 410})
 
 
@@ -68,6 +69,8 @@ def _validate_one(url: str) -> bool:
                     r = client.get(url, headers={"Range": "bytes=0-0"})
                     if r.status_code in _ALIVE_CODES:
                         return True
+                    if r.status_code in _GEO_BLOCKED_CODES:
+                        return False
                     if r.status_code in _DEAD_CODES:
                         return False
                 except (httpx.TimeoutException, httpx.ConnectError):
@@ -81,6 +84,8 @@ def _validate_one(url: str) -> bool:
                 r = client.head(url)
                 if r.status_code in _ALIVE_CODES:
                     return True
+                if r.status_code in _GEO_BLOCKED_CODES:
+                    return False
                 if r.status_code in _DEAD_CODES:
                     return False
                 if r.status_code != 405:
@@ -170,7 +175,11 @@ async def _async_validate_one(
                     allow_redirects=True,
                     ssl=False,
                 ) as resp:
-                    return url, resp.status in _ALIVE_CODES
+                    if resp.status in _ALIVE_CODES:
+                        return url, True
+                    if resp.status in _GEO_BLOCKED_CODES:
+                        return url, False
+                    return url, False
             else:
                 try:
                     async with session.head(
@@ -178,6 +187,8 @@ async def _async_validate_one(
                     ) as resp:
                         if resp.status in _ALIVE_CODES:
                             return url, True
+                        if resp.status in _GEO_BLOCKED_CODES:
+                            return url, False
                         if resp.status in _DEAD_CODES:
                             return url, False
                         if resp.status != 405:
@@ -192,7 +203,11 @@ async def _async_validate_one(
                     allow_redirects=True,
                     ssl=False,
                 ) as resp:
-                    return url, resp.status in _ALIVE_CODES
+                    if resp.status in _ALIVE_CODES:
+                        return url, True
+                    if resp.status in _GEO_BLOCKED_CODES:
+                        return url, False
+                    return url, False
 
         except asyncio.TimeoutError:
             return url, False

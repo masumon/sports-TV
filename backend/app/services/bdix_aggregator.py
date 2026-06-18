@@ -37,6 +37,9 @@ BDIX_SOURCES: list[str] = [
     # iptv-org official Bangladesh country playlist (verified, regularly updated)
     "https://iptv-org.github.io/iptv/countries/bd.m3u",
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/bd.m3u",
+    # Community-maintained BD playlists (World Cup 2026 coverage)
+    "https://raw.githubusercontent.com/abusaeeidx/Mrgify-BDIX-IPTV/master/playlist.m3u",
+    "https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
 ]
 
 # India sports sources (actively maintained, verified)
@@ -46,7 +49,7 @@ INDIA_SOURCES: list[str] = [
 ]
 
 _FETCH_TIMEOUT = 10.0  # GitHub raw timeout (reduced from 25s for faster fail)
-_MAX_WORKERS = 2  # Reduced parallelism (fewer sources now)
+_MAX_WORKERS = 3  # Handles 4 sources with reasonable parallelism
 _CACHE_TTL_SECONDS = 1800  # 30 min cache TTL
 _cache: dict[str, tuple[list[ParsedChannel], float]] = {}
 
