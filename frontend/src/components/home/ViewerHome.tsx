@@ -42,6 +42,7 @@ import { mergeDbChannelsIntoViewerCatalog } from "@/lib/viewerCatalogMerge";
 import { wakeBackend } from "@/lib/backendWakeup";
 import { useSwipeGesture } from "@/lib/useSwipeGesture";
 import { CHANNEL_GRID_INITIAL, CHANNEL_GRID_BATCH } from "@/lib/constants";
+import { bdPriorityScore, sortByBdPriority } from "@/lib/bdPriority";
 import { trackEvent } from "@/lib/analytics";
 import type { Channel, LiveFixture, ViewerModule } from "@/lib/types";
 import { usePlayerStore } from "@/store/playerStore";
@@ -670,17 +671,27 @@ export function ViewerHome() {
       }
     }
 
-    // Global Sports: sort Sports → News → Entertainment
-    if (activeModule === "global_sports" && !activeCategory && !deferredSearch.trim()) {
-      const catPri = (cat: string) => {
-        const c = cat.toLowerCase();
-        if (c.includes("sport")) return 0;
-        if (c.includes("news")) return 1;
-        if (c.includes("entertainment") || c.includes("drama")) return 2;
-        if (c.includes("general")) return 3;
-        return 4;
-      };
-      list = [...list].sort((a, b) => catPri(a.category) - catPri(b.category));
+    // Sort when no active filter/search: BD priority channels first
+    if (!deferredSearch.trim() && !activeCategory && !filterLeague) {
+      if (activeModule === "global_sports") {
+        // Category order (Sports → News → …) primary; BD priority secondary within each category
+        const catPri = (cat: string) => {
+          const c = cat.toLowerCase();
+          if (c.includes("sport")) return 0;
+          if (c.includes("news")) return 1;
+          if (c.includes("entertainment") || c.includes("drama")) return 2;
+          if (c.includes("general")) return 3;
+          return 4;
+        };
+        list = [...list].sort((a, b) => {
+          const catDiff = catPri(a.category) - catPri(b.category);
+          if (catDiff !== 0) return catDiff;
+          return bdPriorityScore(a.name) - bdPriorityScore(b.name);
+        });
+      } else {
+        // World Cup, Live Matches, All Channels: BD priority channels first
+        list = sortByBdPriority(list, (c) => c.name);
+      }
     }
 
     return list;
@@ -888,10 +899,10 @@ export function ViewerHome() {
     return map;
   }, [scheduleFixtures, moduleChannels]);
 
-  // Recently added: top 10 channels by highest id (proxy for DB insertion order)
+  // Featured quick-row: BD priority channels first, then rest by newest ID
   const recentlyAdded = useMemo(() => {
     if (activeModule !== "global_sports" && activeModule !== "world_cup_2026") return [];
-    return [...moduleChannels].sort((a, b) => b.id - a.id).slice(0, 10);
+    return sortByBdPriority(moduleChannels, (c) => c.name).slice(0, 10);
   }, [activeModule, moduleChannels]);
 
   // Swipe gesture: left/right to cycle modules

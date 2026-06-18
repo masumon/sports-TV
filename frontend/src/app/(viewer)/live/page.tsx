@@ -11,6 +11,7 @@ import { apiClient, fetchDbChannelsForMerge } from "@/lib/apiClient";
 import { loadFullCatalogWithLive } from "@/lib/streamCatalog";
 import { orderedStreamUrlsForChannel } from "@/lib/channelStreams";
 import { mergeDbChannelsIntoViewerCatalog, viewerCatalogFromDbChannels } from "@/lib/viewerCatalogMerge";
+import { sortByBdPriority } from "@/lib/bdPriority";
 import { isFixtureLive } from "@/lib/matchPresentation";
 import type { Channel, LiveFixture } from "@/lib/types";
 
@@ -100,7 +101,11 @@ export default function LivePage() {
     [channels],
   );
   const filteredChannels = useMemo(
-    () => (filterCountry ? channels.filter((c) => c.country === filterCountry) : channels).slice(0, 24),
+    () =>
+      sortByBdPriority(
+        filterCountry ? channels.filter((c) => c.country === filterCountry) : channels,
+        (c) => c.name,
+      ).slice(0, 24),
     [channels, filterCountry],
   );
   const channelCards = useMemo(
