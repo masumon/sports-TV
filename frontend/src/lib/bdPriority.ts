@@ -11,6 +11,7 @@
 const GROUP_A: readonly string[] = [
   "t sports",
   "gtv",
+  "dd sports",
   "star sports",
   "sony sports",
   "sports18",
@@ -28,6 +29,9 @@ const GROUP_B: readonly string[] = [
   "football",
   "fifa",
   "uefa",
+  "ipl",
+  "bpl",
+  "t20",
   "sports",
 ];
 

@@ -99,7 +99,7 @@ export function SearchOverlay({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="shrink-0 p-2 rounded-lg transition hover:bg-white/10"
+                  className="shrink-0 p-2.5 rounded-lg transition hover:bg-white/10"
                   style={{ color: "var(--text-muted)" }}
                   aria-label="বন্ধ করুন"
                 >
@@ -134,7 +134,7 @@ export function SearchOverlay({
                               <img
                                 src={ch.logo_url}
                                 alt={ch.name}
-                                className="h-12 w-12 shrink-0 rounded-md object-cover"
+                                className="h-12 w-12 shrink-0 rounded-md object-contain"
                                 style={{ border: "1px solid var(--border)" }}
                                 loading="lazy"
                               />
