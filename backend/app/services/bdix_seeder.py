@@ -2,6 +2,7 @@
 BDIX Local CDN Seeder - Auto-import Bangladesh sports channels.
 Provides trusted, persistent stream sources with no geo-blocking.
 """
+import json
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.models.channel import Channel
@@ -17,11 +18,11 @@ BDIX_CHANNELS = [
         "category": "Sports",
         "language": "Bengali",
         "logo_url": "https://sunplex.net/iptv/logo/btv.jpg",
-        "stream_url": "http://172.32.1.88:1935/tvprogram/BTV/playlist.m3u8",
+        "stream_url": "https://stream.sunplex.live/BTV/index.m3u8",
         "quality_tag": "auto",
         "module": "world_cup_2026",
         "source": "bdix-local",
-        "alternate_urls": [],
+        "alternate_urls": ["http://103.55.144.46:80/hls/btv.m3u8"],
     },
     {
         "name": "T SPORTS HD",
@@ -34,7 +35,6 @@ BDIX_CHANNELS = [
         "module": "world_cup_2026",
         "source": "bdix-local",
         "alternate_urls": [
-            "http://172.32.1.88:1935/tvprogram/T-SPORTS/playlist.m3u8",
             "http://103.55.144.46:80/hls/t-sports.m3u8",
         ],
     },
@@ -44,7 +44,7 @@ BDIX_CHANNELS = [
         "category": "News/Entertainment",
         "language": "Bengali",
         "logo_url": "https://sunplex.net/iptv/logo/somoy-tv.jpg",
-        "stream_url": "http://172.32.1.88:1935/tvprogram/SOMOY-TV/playlist.m3u8",
+        "stream_url": "https://stream.sunplex.live/SOMOY-TV/index.m3u8",
         "quality_tag": "auto",
         "module": "world_cup_2026",
         "source": "bdix-local",
@@ -75,6 +75,10 @@ def seed_bdix_channels(db: Session) -> dict:
     updated = 0
 
     for ch_data in BDIX_CHANNELS:
+        db_fields = dict(ch_data)
+        if isinstance(db_fields.get("alternate_urls"), list):
+            db_fields["alternate_urls"] = json.dumps(db_fields["alternate_urls"])
+
         # Check if exists
         existing = db.execute(
             select(Channel).where(
@@ -82,19 +86,22 @@ def seed_bdix_channels(db: Session) -> dict:
             )
         ).scalars().first()
 
-        if existing:
-            # Update
-            for key, val in ch_data.items():
-                setattr(existing, key, val)
-            existing.is_active = True
-            updated += 1
-            logger.info(f"Updated: {ch_data['name']}")
-        else:
-            # Create
-            new_ch = Channel(**ch_data, is_active=True)
-            db.add(new_ch)
-            created += 1
-            logger.info(f"Created: {ch_data['name']}")
+        try:
+            with db.begin_nested():
+                if existing:
+                    for key, val in db_fields.items():
+                        setattr(existing, key, val)
+                    existing.is_active = True
+                    updated += 1
+                    logger.info("Updated: %s", ch_data['name'])
+                else:
+                    new_ch = Channel(**db_fields, is_active=True)
+                    db.add(new_ch)
+                    created += 1
+                    logger.info("Created: %s", ch_data['name'])
+        except Exception as exc:
+            logger.warning("Failed to seed %s: %s", ch_data['name'], exc)
+            continue
 
     db.commit()
     return {"created": created, "updated": updated}
