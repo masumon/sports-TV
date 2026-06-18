@@ -421,7 +421,6 @@ export function ViewerHome() {
         }
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -599,7 +598,7 @@ export function ViewerHome() {
     startTransition(() => {
       setActiveChannel(ch);
     });
-  }, [channelIdParam, allChannels, loading, setActiveModule, setActiveChannel]);
+  }, [channelIdParam, allChannels, loading, router, setActiveModule, setActiveChannel]);
 
   useEffect(() => {
     let m = searchParams.get("module")?.toLowerCase().trim();
@@ -689,13 +688,29 @@ export function ViewerHome() {
           return bdPriorityScore(a.name) - bdPriorityScore(b.name);
         });
       } else {
-        // World Cup, Live Matches, All Channels: BD priority channels first
-        list = sortByBdPriority(list, (c) => c.name);
+        // World Cup: channels currently airing a live fixture bubble to the top
+        if (activeModule === "world_cup_2026" && scheduleGroups.live.length > 0) {
+          const liveChannelIds = new Set<number>();
+          for (const fx of scheduleGroups.live) {
+            for (const ch of (fx.suggested_channels ?? [])) {
+              liveChannelIds.add(ch.id);
+            }
+          }
+          list = [...list].sort((a, b) => {
+            const aLive = liveChannelIds.has(a.id) ? 0 : 1;
+            const bLive = liveChannelIds.has(b.id) ? 0 : 1;
+            if (aLive !== bLive) return aLive - bLive;
+            return bdPriorityScore(a.name) - bdPriorityScore(b.name);
+          });
+        } else {
+          // Live Matches, All Channels: BD priority channels first
+          list = sortByBdPriority(list, (c) => c.name);
+        }
       }
     }
 
     return list;
-  }, [moduleChannels, deferredSearch, activeCategory, filterLeague, activeModule]);
+  }, [moduleChannels, deferredSearch, activeCategory, filterLeague, activeModule, scheduleGroups.live]);
 
   const gridFilterKey = useMemo(
     () =>
@@ -2079,7 +2094,6 @@ const PremiumChannelCard = memo(function PremiumChannelCard({
   channel,
   active,
   onSelect,
-  activeModule,
   isFavorited,
   onToggleFavorite,
   onShare,

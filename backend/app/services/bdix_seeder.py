@@ -22,6 +22,7 @@ BDIX_CHANNELS = [
         "quality_tag": "auto",
         "module": "world_cup_2026",
         "source": "bdix-local",
+        "geo_hint": True,
         "alternate_urls": ["http://103.55.144.46:80/hls/btv.m3u8"],
     },
     {
@@ -34,6 +35,7 @@ BDIX_CHANNELS = [
         "quality_tag": "auto",
         "module": "world_cup_2026",
         "source": "bdix-local",
+        "geo_hint": True,
         "alternate_urls": [
             "http://103.55.144.46:80/hls/t-sports.m3u8",
         ],
@@ -48,6 +50,7 @@ BDIX_CHANNELS = [
         "quality_tag": "auto",
         "module": "world_cup_2026",
         "source": "bdix-local",
+        "geo_hint": True,
         "alternate_urls": [],
     },
     {
@@ -60,6 +63,7 @@ BDIX_CHANNELS = [
         "quality_tag": "auto",
         "module": "world_cup_2026",
         "source": "bdix-local",
+        "geo_hint": True,
         "alternate_urls": ["http://103.55.144.46:80/hls/Gazi-TV.m3u8"],
     },
 ]

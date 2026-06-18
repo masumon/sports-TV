@@ -85,7 +85,8 @@ class Settings(BaseSettings):
     # (harsh for free tier + datacenter-IP false negatives). Set e.g. 60–120 on paid/stable hosts.
     stream_validation_interval_minutes: int = 120
     # 0 means validate all active channels in each scheduled pass.
-    stream_validation_sample_limit: int = 100
+    # 200 channels × 5s timeout ÷ 30 workers ≈ 33s per cycle — safe for Render free tier.
+    stream_validation_sample_limit: int = 200
 
     # Raw M3U text for GET /proxy/playlist — Redis + in-process fallback (free-tier friendly).
     # Env: PROXY_PLAYLIST_CACHE_TTL_SECONDS (default 5400 = 90 min, within 60–120m guidance).
